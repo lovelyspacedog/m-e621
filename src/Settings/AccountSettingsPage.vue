@@ -58,11 +58,10 @@
             hint="You might want to change your username/API key if you switch instances" persistent-hint />
           <v-text-field variant="filled" label="Favorites API" type="text" v-model="proxyUrl" autocomplete="url" />
           <p class="text-left">
-            Material e621 uses the regular site API as much as possible, but the
-            favorites endpoints don't have the required cross origin resource
-            sharing headers in order to use them directly in the browser. This
-            is why adding and removing favorites uses this API (shared for both sites):
-            <external-link href="https://github.com/avoonix/material-e621-proxy" />
+            Favorites are proxied through this app's <code>/api/</code> so they
+            work on this host. The old public Vercel proxy only allows the
+            original Material e621 websites, which is why it returns
+            “Failed to fetch” here.
           </p>
         </settings-page-item>
       </v-col>

@@ -53,6 +53,7 @@ export const usePostListManager = ({
       postId: post.id,
       auth: account.auth,
       proxyUrl: urlStore.proxyUrl,
+      baseUrl: urlStore.e621Url,
     };
     try {
       post.__meta.isFavoriteLoading = true;

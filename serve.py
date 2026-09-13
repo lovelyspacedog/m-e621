@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import subprocess
 import threading
 import time
+import urllib.error
+import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -22,6 +25,8 @@ DOMAIN = os.environ.get("M_E621_DOMAIN", "localhost")
 BRANCH = os.environ.get("M_E621_BRANCH", "master")
 TOKEN_PATH = CONFIG_DIR / "pull_token"
 STATUS_PATH = CONFIG_DIR / "pull_status.json"
+FAVORITE_HOSTS = frozenset({"e621.net", "e926.net", "e6ai.net"})
+FAVORITE_PATH = re.compile(r"^/api/favorites(?:/(\d+))?$")
 
 _pull_lock = threading.Lock()
 _state: dict = {
@@ -205,13 +210,78 @@ class SpaHandler(SimpleHTTPRequestHandler):
         got = self.headers.get("X-Pull-Token", "").strip()
         return bool(got) and secrets.compare_digest(got, expected)
 
+    def _site_base(self) -> str | None:
+        raw = (self.headers.get("X-Site-Base") or "https://e621.net/").strip()
+        if not raw.endswith("/"):
+            raw += "/"
+        parsed = urlparse(raw)
+        host = (parsed.hostname or "").lower()
+        if parsed.scheme != "https" or host not in FAVORITE_HOSTS:
+            return None
+        return f"https://{host}/"
+
+    def _proxy_favorite(self, method: str, body: bytes, post_id: str | None = None) -> None:
+        base = self._site_base()
+        if not base:
+            self._json(400, {"ok": False, "message": "invalid X-Site-Base"})
+            return
+        auth = self.headers.get("Authorization", "")
+        if not auth.lower().startswith("basic "):
+            self._json(401, {"ok": False, "message": "missing basic auth"})
+            return
+        if method == "POST":
+            url = f"{base}favorites.json"
+        elif method == "DELETE" and post_id:
+            url = f"{base}favorites/{post_id}.json"
+        else:
+            self._json(404, {"ok": False, "message": "not found"})
+            return
+        req = urllib.request.Request(
+            url,
+            data=body if method == "POST" and body else None,
+            method=method,
+        )
+        req.add_header("Authorization", auth)
+        req.add_header("Accept", "application/json")
+        req.add_header(
+            "User-Agent",
+            f"m-e621-favorites-proxy/1.0 (https://{DOMAIN}; same-origin favorites)",
+        )
+        if method == "POST":
+            req.add_header(
+                "Content-Type",
+                self.headers.get("Content-Type") or "application/json",
+            )
+        try:
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                payload = resp.read()
+                status = getattr(resp, "status", 200)
+                content_type = resp.headers.get("Content-Type", "application/json")
+        except urllib.error.HTTPError as exc:
+            payload = exc.read()
+            status = exc.code
+            content_type = exc.headers.get("Content-Type", "application/json") if exc.headers else "application/json"
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "message": str(exc)})
+            return
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
     def do_OPTIONS(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
         if path.startswith("/api/"):
             self.send_response(204)
             self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Pull-Token")
-            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header(
+                "Access-Control-Allow-Headers",
+                "Authorization, Content-Type, X-Pull-Token, X-Site-Base",
+            )
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
             self.end_headers()
             return
         self.send_error(404)
@@ -247,11 +317,22 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 self.path = "/index.html"
         return super().do_GET()
 
+    def do_DELETE(self) -> None:  # noqa: N802
+        path = urlparse(self.path).path
+        match = FAVORITE_PATH.match(path)
+        if match and match.group(1):
+            self._proxy_favorite("DELETE", b"", match.group(1))
+            return
+        self.send_error(404)
+
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
         length = int(self.headers.get("Content-Length", "0") or 0)
-        if length:
-            self.rfile.read(length)  # ignore body
+        body = self.rfile.read(length) if length else b""
+
+        if path == "/api/favorites":
+            self._proxy_favorite("POST", body)
+            return
 
         if path != "/api/git/pull":
             self._json(404, {"ok": False, "message": "not found"})

@@ -320,6 +320,13 @@ class PersistanceService {
       newState.profiles.e6ai.baseUrl || SITE_MODE_URLS.e6ai;
 
     applyActiveProfileToMirrors(newState);
+    // Official Vercel proxy only allows avoonix origins; use same-origin /api/.
+    if (
+      !newState.misc?.urls?.proxy ||
+      newState.misc.urls.proxy.includes("material-e621-proxy.vercel.app")
+    ) {
+      newState.misc.urls.proxy = "/api/";
+    }
     this.main.$state = newState;
   }
 

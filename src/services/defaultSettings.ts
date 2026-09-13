@@ -143,7 +143,7 @@ export const defaultSettings: ISettingsServiceState = {
   misc: {
     urls: {
       e621: "https://e621.net/",
-      proxy: "https://material-e621-proxy.vercel.app/api/",
+      proxy: "/api/",
     },
   },
 };

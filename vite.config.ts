@@ -99,6 +99,19 @@ export default defineConfig(({ mode }) => {
         '@': fileURLToPath(new URL('./src', import.meta.url))
       },
     },
+    server: {
+      proxy: {
+        '/api/favorites': {
+          target: 'https://e621.net',
+          changeOrigin: true,
+          rewrite: (path) =>
+            path.replace(
+              /^\/api\/favorites(?:\/(\d+))?$/,
+              (_m, id) => (id ? `/favorites/${id}.json` : '/favorites.json'),
+            ),
+        },
+      },
+    },
     build: {
       rollupOptions: {
         output: {

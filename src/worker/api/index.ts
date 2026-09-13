@@ -112,15 +112,28 @@ export interface IPostFavoriteArgs {
     api_key: string;
   };
   proxyUrl: string;
+  baseUrl: string;
 }
+
+const resolveFavoritesProxyUrl = (proxyUrl: string) => {
+  let url = proxyUrl || "/api/";
+  if (url.includes("material-e621-proxy.vercel.app")) {
+    url = "/api/";
+  }
+  if (!/^https?:\/\//i.test(url)) {
+    url = new URL(url, `${self.location.origin}/`).toString();
+  }
+  return url.endsWith("/") ? url : `${url}/`;
+};
 
 export const custom = {
   posts: {
     async favorite(args: IPostFavoriteArgs) {
-      const response = await fetch(`${args.proxyUrl}favorites`, {
+      const response = await fetch(`${resolveFavoritesProxyUrl(args.proxyUrl)}favorites`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Site-Base": args.baseUrl,
           ...getAuthHeader(args.auth),
         },
         body: JSON.stringify({ post_id: args.postId }),
@@ -131,13 +144,17 @@ export const custom = {
       return response.json();
     },
     async unfavorite(args: IPostFavoriteArgs) {
-      const response = await fetch(`${args.proxyUrl}favorites/${args.postId}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeader(args.auth),
+      const response = await fetch(
+        `${resolveFavoritesProxyUrl(args.proxyUrl)}favorites/${args.postId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Site-Base": args.baseUrl,
+            ...getAuthHeader(args.auth),
+          },
         },
-      });
+      );
       if (!response.ok) {
         throw new Error(`Error unfavoriting post: ${response.statusText}`);
       }
