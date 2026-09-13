@@ -8,7 +8,11 @@
     <!-- <app-logo v-if="loading" loader /> -->
     <post-list :visible-posts="posts" :loading="loading"
       :auto-next-paused="!!fullscreenPost || !!detailsPost"
-      @load-next-page="loadNext" @load-previous-page="loadPrevious">
+      :resume-enabled="resumeEnabled"
+      :restore-path="restorePath || undefined"
+      :restore-video-time="restoreVideoTime"
+      @load-next-page="loadNext" @load-previous-page="loadPrevious"
+      @restored="$emit('restored')">
       <template #post="{ post }">
         <!-- :layout="layout" -->
         <post :post="post" @open-post="$emit('open-post', $event)"
@@ -88,7 +92,7 @@ import { useHead } from "@unhead/vue";
 
 useHead({ title: "Posts", });
 
-const emit = defineEmits(["load-next", "load-previous", "open-post", "open-post-details", "exit-fullscreen", "set-post-favorite", "close-details", "next-fullscreen-post", "previous-fullscreen-post"]);
+const emit = defineEmits(["load-next", "load-previous", "open-post", "open-post-details", "exit-fullscreen", "set-post-favorite", "close-details", "next-fullscreen-post", "previous-fullscreen-post", "restored"]);
 
 const props = defineProps({
   fullscreenPost: { type: Object as PropType<EnhancedPost> },
@@ -98,6 +102,9 @@ const props = defineProps({
   hasPreviousFullscreenPost: { type: Boolean, required: true },
   hasNextFullscreenPost: { type: Boolean, required: true },
   hasPrevious: { type: Boolean, required: true },
+  resumeEnabled: { type: Boolean, default: false },
+  restorePath: { type: String, default: undefined },
+  restoreVideoTime: { type: Number, default: undefined },
 });
 
 // data() {

@@ -26,6 +26,8 @@ export interface EnhancedPost extends Post {
     pageNumber: number;
     localPath?: string;
     localExtraTags?: string[];
+    localPlayable?: boolean;
+    localKind?: "image" | "video";
   };
 }
 

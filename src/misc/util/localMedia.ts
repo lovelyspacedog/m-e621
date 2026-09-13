@@ -28,8 +28,14 @@ export const getLocalDirectoryHandle = async (): Promise<FileSystemDirectoryHand
 };
 
 export const clearLocalDirectoryHandle = async () => {
+  const previous = usePostsStore().localDirectoryName;
   await localforage.removeItem(LOCAL_DIR_HANDLE_KEY);
   usePostsStore().localDirectoryName = null;
+  if (previous) {
+    await clearLocalResume(previous);
+  }
+  favoritedPaths = new Set();
+  posterMetaByPath = {};
   invalidateLocalMediaIndex();
 };
 
@@ -45,15 +51,11 @@ export const pickLocalDirectory = async () => {
   return handle;
 };
 
-const MEDIA_EXTS = new Set([
-  "jpg",
-  "jpeg",
-  "png",
-  "gif",
-  "webp",
-  "webm",
-  "mp4",
-]);
+const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
+const INDEX_VIDEO_EXTS = new Set(["webm", "mp4", "mkv", "mov"]);
+const MEDIA_EXTS = new Set([...IMAGE_EXTS, ...INDEX_VIDEO_EXTS]);
+
+export type LocalMediaKind = "image" | "video";
 
 export interface LocalMediaEntry {
   relativePath: string;
@@ -61,6 +63,8 @@ export interface LocalMediaEntry {
   ext: string;
   size: number;
   lastModified: number;
+  kind: LocalMediaKind;
+  playable: boolean;
   tags: string[];
   artistTags: string[];
   generalTags: string[];
@@ -81,12 +85,35 @@ let cachedOrdered: LocalMediaEntry[] | null = null;
 let cachedOrderKey = "";
 let browseRoot: FileSystemDirectoryHandle | null = null;
 let extraTagsByPath: Record<string, string[]> = {};
+let posterMetaByPath: Record<string, PosterMeta> = {};
+let favoritedPaths = new Set<string>();
 const blobUrls = new Map<number, string>();
 const posterUrls = new Map<number, string>();
 const EXTRA_TAGS_KEY = "local_mode_extra_tags";
 const SIDECAR_NAME = ".me621-tags.json";
+const POSTER_DIR = ".me621-posters";
+const POSTER_META_KEY = "local_mode_poster_meta";
+const FAVORITES_KEY = "local_mode_favorites";
+const FAVORITES_SIDECAR = ".me621-favorites.json";
+const RESUME_KEY = "local_mode_resume";
 
 type ExtraTagsStore = Record<string, Record<string, string[]>>;
+type PosterMeta = {
+  lastModified: number;
+  size: number;
+  width: number;
+  height: number;
+};
+type PosterMetaStore = Record<string, Record<string, PosterMeta>>;
+type FavoritesStore = Record<string, string[]>;
+export type LocalResumeState = {
+  path: string;
+  videoTime?: number;
+  savedAt: number;
+};
+type ResumeStore = Record<string, LocalResumeState>;
+
+const folderName = () => cachedRootName || browseRoot?.name || null;
 
 export const hashLocalPath = (path: string) => {
   let hash = 2166136261;
@@ -125,6 +152,48 @@ type DirectoryWalker = FileSystemDirectoryHandle & {
   entries: () => AsyncIterableIterator<[string, FileSystemHandle]>;
 };
 
+/** MPEG-TS mislabeled as .mp4 starts with sync byte 0x47; real MP4 has ftyp. */
+const sniffMp4Playable = async (file: File) => {
+  try {
+    const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+    if (!bytes.length) return false;
+    if (bytes[0] === 0x47) return false;
+    if (
+      bytes.length >= 8 &&
+      bytes[4] === 0x66 &&
+      bytes[5] === 0x74 &&
+      bytes[6] === 0x79 &&
+      bytes[7] === 0x70
+    ) {
+      return true;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const resolvePlayable = async (file: File, ext: string) => {
+  if (IMAGE_EXTS.has(ext)) return true;
+  if (ext === "webm") return true;
+  if (ext === "mp4") return sniffMp4Playable(file);
+  return false;
+};
+
+const kindTagsFor = (kind: LocalMediaKind, playable: boolean) =>
+  uniqueTags([
+    kind === "image" ? "type:still" : "type:video",
+    playable ? "" : "type:unplayable",
+  ]);
+
+const tagsForEntry = (entry: LocalMediaEntry) =>
+  uniqueTags([
+    ...entry.artistTags,
+    ...entry.generalTags,
+    ...kindTagsFor(entry.kind, entry.playable),
+    ...(favoritedPaths.has(entry.relativePath) ? ["type:favorited"] : []),
+  ]);
+
 const walkDirectory = async (
   dir: FileSystemDirectoryHandle,
   prefix: string,
@@ -147,16 +216,26 @@ const walkDirectory = async (
     if (!MEDIA_EXTS.has(ext)) continue;
     const file = await fileHandle.getFile();
     const relativePath = prefix ? `${prefix}/${name}` : name;
+    const kind: LocalMediaKind = IMAGE_EXTS.has(ext) ? "image" : "video";
+    const playable = await resolvePlayable(file, ext);
     const parsed = parseLocalTags(relativePath);
     const extraTags = extraTagsByPath[relativePath] || [];
     const generalTags = uniqueTags([...parsed.generalTags, ...extraTags]);
+    const typeTags = kindTagsFor(kind, playable);
     out.push({
       relativePath,
       name,
       ext,
       size: file.size,
       lastModified: file.lastModified,
-      tags: uniqueTags([...parsed.artistTags, ...generalTags]),
+      kind,
+      playable,
+      tags: uniqueTags([
+        ...parsed.artistTags,
+        ...generalTags,
+        ...typeTags,
+        ...(favoritedPaths.has(relativePath) ? ["type:favorited"] : []),
+      ]),
       artistTags: parsed.artistTags,
       generalTags,
       extraTags,
@@ -246,14 +325,14 @@ const persistExtraTags = async () => {
 
 const loadExtraTags = async (
   root: FileSystemDirectoryHandle,
-  folderName: string,
+  folderNameArg: string,
 ) => {
   browseRoot = root;
   extraTagsByPath = {};
   try {
     const all =
       (await localforage.getItem<ExtraTagsStore>(EXTRA_TAGS_KEY)) || {};
-    extraTagsByPath = { ...(all[folderName] || {}) };
+    extraTagsByPath = { ...(all[folderNameArg] || {}) };
   } catch {
     extraTagsByPath = {};
   }
@@ -268,13 +347,255 @@ const loadExtraTags = async (
   }
 };
 
+const persistPosterMeta = async () => {
+  const folder = folderName();
+  if (!folder) return;
+  const all =
+    (await localforage.getItem<PosterMetaStore>(POSTER_META_KEY)) || {};
+  all[folder] = posterMetaByPath;
+  await localforage.setItem(POSTER_META_KEY, all);
+};
+
+const loadPosterMeta = async (folderNameArg: string) => {
+  try {
+    const all =
+      (await localforage.getItem<PosterMetaStore>(POSTER_META_KEY)) || {};
+    posterMetaByPath = { ...(all[folderNameArg] || {}) };
+  } catch {
+    posterMetaByPath = {};
+  }
+};
+
+const getPosterDir = async (create: boolean) => {
+  if (!browseRoot) return null;
+  try {
+    return await browseRoot.getDirectoryHandle(POSTER_DIR, { create });
+  } catch {
+    return null;
+  }
+};
+
+const posterFileName = (id: number) => `${id}.jpg`;
+
+const readCachedPoster = async (
+  entry: LocalMediaEntry,
+  id: number,
+): Promise<{ url: string; width: number; height: number } | null> => {
+  const meta = posterMetaByPath[entry.relativePath];
+  if (
+    !meta ||
+    meta.lastModified !== entry.lastModified ||
+    meta.size !== entry.size
+  ) {
+    return null;
+  }
+  const dir = await getPosterDir(false);
+  if (!dir) return null;
+  try {
+    const fileHandle = await dir.getFileHandle(posterFileName(id));
+    const file = await fileHandle.getFile();
+    if (!file.size) return null;
+    return {
+      url: URL.createObjectURL(file),
+      width: meta.width || 3,
+      height: meta.height || 4,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedPoster = async (
+  entry: LocalMediaEntry,
+  id: number,
+  posterUrl: string,
+  width: number,
+  height: number,
+) => {
+  try {
+    const response = await fetch(posterUrl);
+    const blob = await response.blob();
+    const dir = await getPosterDir(true);
+    if (!dir) return;
+    const fileHandle = await dir.getFileHandle(posterFileName(id), {
+      create: true,
+    });
+    const writable = await fileHandle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    posterMetaByPath[entry.relativePath] = {
+      lastModified: entry.lastModified,
+      size: entry.size,
+      width,
+      height,
+    };
+    await persistPosterMeta();
+  } catch {
+    // Folder may be read-only; session still has the in-memory poster.
+  }
+};
+
+const readFavoritesSidecar = async (
+  root: FileSystemDirectoryHandle,
+): Promise<string[] | null> => {
+  try {
+    const fileHandle = await root.getFileHandle(FAVORITES_SIDECAR);
+    const file = await fileHandle.getFile();
+    const parsed = JSON.parse(await file.text());
+    if (!Array.isArray(parsed)) return null;
+    return uniqueTags(
+      parsed.filter((path): path is string => typeof path === "string"),
+    );
+  } catch {
+    return null;
+  }
+};
+
+const writeFavoritesSidecar = async () => {
+  if (!browseRoot) return;
+  try {
+    const writableHandle = await browseRoot.getFileHandle(FAVORITES_SIDECAR, {
+      create: true,
+    });
+    const writable = await writableHandle.createWritable();
+    await writable.write(
+      `${JSON.stringify([...favoritedPaths].sort(), null, 2)}\n`,
+    );
+    await writable.close();
+  } catch {
+    // Folder may be read-only; localforage still has favorites.
+  }
+};
+
+const persistFavorites = async () => {
+  const folder = folderName();
+  if (!folder) return;
+  const all = (await localforage.getItem<FavoritesStore>(FAVORITES_KEY)) || {};
+  all[folder] = [...favoritedPaths];
+  await localforage.setItem(FAVORITES_KEY, all);
+  await writeFavoritesSidecar();
+};
+
+const loadFavorites = async (
+  root: FileSystemDirectoryHandle,
+  folderNameArg: string,
+) => {
+  favoritedPaths = new Set();
+  try {
+    const all = (await localforage.getItem<FavoritesStore>(FAVORITES_KEY)) || {};
+    for (const path of all[folderNameArg] || []) {
+      favoritedPaths.add(path);
+    }
+  } catch {
+    favoritedPaths = new Set();
+  }
+  const sidecar = await readFavoritesSidecar(root);
+  if (sidecar) {
+    for (const path of sidecar) favoritedPaths.add(path);
+  }
+};
+
+export const setLocalFavorite = async (
+  relativePath: string,
+  favorited: boolean,
+) => {
+  if (!relativePath) return;
+  if (favorited) {
+    favoritedPaths.add(relativePath);
+  } else {
+    favoritedPaths.delete(relativePath);
+  }
+  for (const entry of cachedIndex || []) {
+    if (entry.relativePath === relativePath) {
+      entry.tags = tagsForEntry(entry);
+    }
+  }
+  for (const entry of cachedOrdered || []) {
+    if (entry.relativePath === relativePath) {
+      entry.tags = tagsForEntry(entry);
+    }
+  }
+  await persistFavorites();
+};
+
+export const isLocalFavorited = (relativePath: string) =>
+  favoritedPaths.has(relativePath);
+
+export const saveLocalResume = async (
+  path: string,
+  videoTime?: number,
+  folderOverride?: string | null,
+) => {
+  const folder = folderOverride || folderName();
+  if (!folder || !path) return;
+  const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
+  all[folder] = {
+    path,
+    videoTime:
+      typeof videoTime === "number" && Number.isFinite(videoTime) && videoTime > 0
+        ? videoTime
+        : undefined,
+    savedAt: Date.now(),
+  };
+  await localforage.setItem(RESUME_KEY, all);
+};
+
+export const getLocalResume = async (
+  folderOverride?: string | null,
+): Promise<LocalResumeState | null> => {
+  const folder = folderOverride || folderName() || usePostsStore().localDirectoryName;
+  if (!folder) return null;
+  try {
+    const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
+    return all[folder] || null;
+  } catch {
+    return null;
+  }
+};
+
+export const clearLocalResume = async (folderOverride?: string | null) => {
+  const folder = folderOverride || folderName();
+  if (!folder) return;
+  try {
+    const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
+    if (!(folder in all)) return;
+    delete all[folder];
+    await localforage.setItem(RESUME_KEY, all);
+  } catch {
+    // ignore
+  }
+};
+
+export const findLocalResumeTarget = async (
+  tags: string[],
+  limit: number,
+): Promise<{
+  path: string;
+  videoTime?: number;
+  page: number;
+} | null> => {
+  const resume = await getLocalResume();
+  if (!resume?.path) return null;
+  const scanned = await scanLocalMedia(false);
+  if (scanned.status !== "ok" && scanned.status !== "empty") return null;
+  const filtered = filterLocalMedia(scanned.entries, tags);
+  const ordered = orderLocalMedia(filtered, tags, false);
+  const index = ordered.findIndex((entry) => entry.relativePath === resume.path);
+  if (index < 0) return null;
+  return {
+    path: resume.path,
+    videoTime: resume.videoTime,
+    page: Math.floor(index / Math.max(1, limit)) + 1,
+  };
+};
+
 const mergeExtraIntoEntry = (entry: LocalMediaEntry) => {
   const extras = extraTagsByPath[entry.relativePath] || [];
   const parsed = parseLocalTags(entry.relativePath);
   entry.extraTags = extras;
   entry.artistTags = parsed.artistTags;
   entry.generalTags = uniqueTags([...parsed.generalTags, ...extras]);
-  entry.tags = uniqueTags([...entry.artistTags, ...entry.generalTags]);
+  entry.tags = tagsForEntry(entry);
 };
 
 export const addLocalTags = async (relativePath: string, raw: string) => {
@@ -331,6 +652,8 @@ export const scanLocalMedia = async (
   }
   browseRoot = handle;
   await loadExtraTags(handle, handle.name);
+  await loadPosterMeta(handle.name);
+  await loadFavorites(handle, handle.name);
   if (cachedIndex && cachedRootName === handle.name && !force) {
     return {
       entries: cachedIndex,
@@ -411,12 +734,22 @@ export const filterLocalMedia = (
     .filter((tag) => tag && !tag.startsWith("order:"));
   if (!terms.length) return index;
   return index.filter((entry) =>
-    terms.every(
-      (term) =>
+    terms.every((term) => {
+      if (term.startsWith("-")) {
+        const positive = term.slice(1);
+        if (!positive) return true;
+        return !(
+          entry.tags.includes(positive) ||
+          fuzzyFilenameMatch(entry.relativePath, positive) ||
+          fuzzyFilenameMatch(entry.name, positive)
+        );
+      }
+      return (
         entry.tags.includes(term) ||
         fuzzyFilenameMatch(entry.relativePath, term) ||
-        fuzzyFilenameMatch(entry.name, term),
-    ),
+        fuzzyFilenameMatch(entry.name, term)
+      );
+    }),
   );
 };
 
@@ -430,6 +763,9 @@ const shuffleInPlace = <T>(items: T[]) => {
   return items;
 };
 
+const compareName = (a: LocalMediaEntry, b: LocalMediaEntry) =>
+  a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
+
 const orderLocalMedia = (
   entries: LocalMediaEntry[],
   tags: string[],
@@ -437,7 +773,7 @@ const orderLocalMedia = (
 ) => {
   const order =
     tags.find((tag) => tag.toLowerCase().startsWith("order:"))?.toLowerCase() ||
-    "";
+    "order:newest";
   const key = `${cachedRootName}|${entries.length}|${order}|${tags
     .filter((tag) => !tag.toLowerCase().startsWith("order:"))
     .join("\0")}`;
@@ -445,8 +781,30 @@ const orderLocalMedia = (
     return cachedOrdered;
   }
   const next = [...entries];
-  if (order === "order:random") {
-    shuffleInPlace(next);
+  switch (order) {
+    case "order:random":
+      shuffleInPlace(next);
+      break;
+    case "order:id":
+    case "order:oldest":
+      next.sort((a, b) => a.lastModified - b.lastModified || compareName(a, b));
+      break;
+    case "order:name":
+      next.sort(compareName);
+      break;
+    case "order:name_desc":
+      next.sort((a, b) => compareName(b, a));
+      break;
+    case "order:filesize":
+      next.sort((a, b) => b.size - a.size || compareName(a, b));
+      break;
+    case "order:filesize_asc":
+      next.sort((a, b) => a.size - b.size || compareName(a, b));
+      break;
+    case "order:newest":
+    default:
+      next.sort((a, b) => b.lastModified - a.lastModified || compareName(a, b));
+      break;
   }
   cachedOrdered = next;
   cachedOrderKey = key;
@@ -563,7 +921,10 @@ const toPostTags = (entry: LocalMediaEntry): PostTags => ({
   artist: entry.artistTags,
   invalid: [],
   lore: [],
-  meta: [],
+  meta: uniqueTags([
+    ...kindTagsFor(entry.kind, entry.playable),
+    ...(favoritedPaths.has(entry.relativePath) ? ["type:favorited"] : []),
+  ]),
 });
 
 const blobUrlFor = async (entry: LocalMediaEntry) => {
@@ -576,6 +937,43 @@ const blobUrlFor = async (entry: LocalMediaEntry) => {
   return { id, url };
 };
 
+const resolveVideoPreview = async (
+  entry: LocalMediaEntry,
+  id: number,
+  fileUrl: string,
+) => {
+  const cached = await readCachedPoster(entry, id);
+  if (cached) {
+    posterUrls.set(id, cached.url);
+    return {
+      width: cached.width,
+      height: cached.height,
+      previewUrl: cached.url,
+    };
+  }
+  const frame = await captureVideoFrame(fileUrl);
+  if (frame.poster) {
+    posterUrls.set(id, frame.poster);
+    await writeCachedPoster(
+      entry,
+      id,
+      frame.poster,
+      frame.width,
+      frame.height,
+    );
+    return {
+      width: frame.width,
+      height: frame.height,
+      previewUrl: frame.poster,
+    };
+  }
+  return {
+    width: frame.width,
+    height: frame.height,
+    previewUrl: "",
+  };
+};
+
 export const localEntriesToPosts = async (
   entries: LocalMediaEntry[],
   page: number,
@@ -583,17 +981,19 @@ export const localEntriesToPosts = async (
   return Promise.all(
     entries.map(async (entry) => {
       const { id, url } = await blobUrlFor(entry);
-      const isVideo = entry.ext === "webm" || entry.ext === "mp4";
       let width = 3;
       let height = 4;
       let previewUrl = url;
-      if (isVideo) {
-        const frame = await captureVideoFrame(url);
-        width = frame.width;
-        height = frame.height;
-        if (frame.poster) {
-          posterUrls.set(id, frame.poster);
-          previewUrl = frame.poster;
+      if (entry.kind === "video") {
+        if (entry.playable) {
+          const preview = await resolveVideoPreview(entry, id, url);
+          width = preview.width;
+          height = preview.height;
+          previewUrl = preview.previewUrl || "";
+        } else {
+          width = 16;
+          height = 9;
+          previewUrl = "";
         }
       } else {
         const size = await probeImageDimensions(url);
@@ -601,6 +1001,7 @@ export const localEntriesToPosts = async (
         height = size.height;
       }
       const created = new Date(entry.lastModified).toISOString();
+      const favorited = favoritedPaths.has(entry.relativePath);
       return {
         id,
         created_at: created,
@@ -611,17 +1012,17 @@ export const localEntriesToPosts = async (
           ext: entry.ext,
           size: entry.size,
           md5: "",
-          url,
+          url: entry.playable ? url : "",
         },
         preview: { width, height, url: previewUrl },
-        sample: { has: true, width, height, url: previewUrl },
+        sample: { has: !!previewUrl, width, height, url: previewUrl },
         score: { up: 0, down: 0, total: 0 },
         tags: toPostTags(entry),
         locked_tags: [],
         change_seq: 0,
         flags: emptyFlags(),
         rating: "e",
-        fav_count: 0,
+        fav_count: favorited ? 1 : 0,
         sources: [entry.relativePath],
         pools: [],
         relationships: {
@@ -632,13 +1033,15 @@ export const localEntriesToPosts = async (
         uploader_id: 0,
         description: entry.name,
         comment_count: 0,
-        is_favorited: false,
+        is_favorited: favorited,
         has_notes: false,
         __meta: {
           isBlacklisted: false,
           pageNumber: page,
           localPath: entry.relativePath,
           localExtraTags: [...entry.extraTags],
+          localPlayable: entry.playable,
+          localKind: entry.kind,
         },
       };
     }),
@@ -677,7 +1080,7 @@ export const localStatusMessage = (status: LocalMediaStatus) => {
     case "denied":
       return "Allow access to the save folder to browse Local files.";
     case "empty":
-      return "No images or videos in the save folder.";
+      return "No images or videos in the browse folder.";
     default:
       return "";
   }

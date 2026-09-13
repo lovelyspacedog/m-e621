@@ -25,6 +25,66 @@
           Favs
         </v-btn>
         <v-btn
+          v-if="siteMode.isLocal"
+          class="text-none"
+          size="small"
+          variant="text"
+          :color="!activeOrder || activeOrder === 'order:newest' ? 'accent' : undefined"
+          @click="applyOrder('order:newest')"
+        >
+          Newest
+        </v-btn>
+        <v-btn
+          v-if="siteMode.isLocal"
+          class="text-none"
+          size="small"
+          variant="text"
+          :color="activeOrder === 'order:name' ? 'accent' : undefined"
+          @click="applyOrder('order:name')"
+        >
+          Name
+        </v-btn>
+        <v-btn
+          v-if="siteMode.isLocal"
+          class="text-none"
+          size="small"
+          variant="text"
+          :color="activeOrder === 'order:filesize' ? 'accent' : undefined"
+          @click="applyOrder('order:filesize')"
+        >
+          Size
+        </v-btn>
+        <v-btn
+          v-if="siteMode.isLocal"
+          class="text-none"
+          size="small"
+          variant="text"
+          :color="hasTypeTag('type:video') ? 'accent' : undefined"
+          @click="toggleTypeTag('type:video')"
+        >
+          Video
+        </v-btn>
+        <v-btn
+          v-if="siteMode.isLocal"
+          class="text-none"
+          size="small"
+          variant="text"
+          :color="hasTypeTag('type:still') ? 'accent' : undefined"
+          @click="toggleTypeTag('type:still')"
+        >
+          Stills
+        </v-btn>
+        <v-btn
+          v-if="siteMode.isLocal"
+          class="text-none"
+          size="small"
+          variant="text"
+          :color="hasTypeTag('type:favorited') ? 'accent' : undefined"
+          @click="toggleTypeTag('type:favorited')"
+        >
+          Favs
+        </v-btn>
+        <v-btn
           class="text-none"
           size="small"
           variant="text"
@@ -62,7 +122,11 @@
       @exit-fullscreen="fullscreenPost = null" @next-fullscreen-post="openNextFullscreenPost()"
       @previous-fullscreen-post="openPreviousFullscreenPost()" :has-previous-fullscreen-post="true"
       :has-next-fullscreen-post="true" :details-post="detailsPost || undefined" @open-post-details="openPostDetails"
-      @close-details="detailsPost = null" @set-post-favorite="setPostFavorite($event)" />
+      @close-details="detailsPost = null" @set-post-favorite="setPostFavorite($event)"
+      :resume-enabled="siteMode.isLocal"
+      :restore-path="restorePath || undefined"
+      :restore-video-time="restoreVideoTime"
+      @restored="onRestored" />
     <!-- TODO: set has-(next|previous)-fullscreen-post -->
     <portal to="sidebar-suggestions">
       <v-list class="pa-0 mt-1 mb-2" density="compact">
@@ -96,6 +160,9 @@
             />
           </template>
         </v-list-item>
+        <v-list-item v-if="postsStore.cardAutoNext" class="text-medium-emphasis">
+          <v-list-item-subtitle>Space pauses · hover pauses</v-list-item-subtitle>
+        </v-list-item>
       </v-list>
       <div class="text-overline" v-if="hiddenPostCount > 0">Blacklisted posts hidden: {{ hiddenPostCount }}</div>
       <div class="text-overline" v-if="suggestedTags.length > 0">Tags on this page</div>
@@ -116,6 +183,7 @@ import { debounce, isEqual } from "lodash";
 import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from "vue";
 import { useRouterQueryHelpers } from "../misc/util/utilities";
 import {
+  findLocalResumeTarget,
   getLocalPostsPage,
   invalidateLocalMediaIndex,
   localStatusMessage,
@@ -135,6 +203,8 @@ const blacklist = useBlacklistStore();
 const postsStore = usePostsStore();
 const siteMode = useSiteModeStore();
 const localEmptyMessage = ref(localStatusMessage("no-folder"));
+const restorePath = ref<string | null>(null);
+const restoreVideoTime = ref<number | undefined>(undefined);
 const { tags, addTag, removeTag, updateQuery, query, setTags } =
   useRouterTagManager();
 const urlStore = useUrlStore();
@@ -200,12 +270,47 @@ const {
 const reloadLocal = () => {
   invalidateLocalMediaIndex();
   revokeLocalBlobUrls();
+  restorePath.value = null;
+  restoreVideoTime.value = undefined;
   clearPosts();
   loadNextPage();
 };
 
+const onRestored = () => {
+  restorePath.value = null;
+  restoreVideoTime.value = undefined;
+};
+
+const loadLocalWithResume = async () => {
+  const target = await findLocalResumeTarget(
+    toRaw(tags.value),
+    toRaw(postsStore.postListFetchLimit),
+  );
+  const pagesToLoad = target ? Math.min(Math.max(target.page, 1), 5) : 1;
+  for (let i = 0; i < pagesToLoad; i++) {
+    await loadNextPage();
+    if (
+      target &&
+      posts.value.some((post) => post.__meta?.localPath === target.path)
+    ) {
+      break;
+    }
+  }
+  if (
+    target &&
+    posts.value.some((post) => post.__meta?.localPath === target.path)
+  ) {
+    restorePath.value = target.path;
+    restoreVideoTime.value = target.videoTime;
+  }
+};
+
 onMounted(() => {
-  loadNextPage();
+  if (siteMode.isLocal) {
+    void loadLocalWithResume();
+  } else {
+    loadNextPage();
+  }
 });
 
 onBeforeUnmount(() => {
@@ -264,6 +369,8 @@ const onSearchClick = debounce(async () => {
     if (siteMode.isLocal) {
       invalidateLocalMediaIndex();
       revokeLocalBlobUrls();
+      restorePath.value = null;
+      restoreVideoTime.value = undefined;
     }
     clearPosts();
     loadNextPage();
@@ -287,9 +394,32 @@ const activeOrder = computed(
 
 const applyOrder = (orderTag: string) => {
   const withoutOrder = tags.value.filter((tag) => !tag.startsWith("order:"));
-  setTags(
-    activeOrder.value === orderTag ? withoutOrder : [...withoutOrder, orderTag],
-  );
+  if (orderTag === "order:newest") {
+    setTags(withoutOrder);
+  } else {
+    setTags(
+      activeOrder.value === orderTag ? withoutOrder : [...withoutOrder, orderTag],
+    );
+  }
+  updateQuery();
+};
+
+const hasTypeTag = (typeTag: string) =>
+  tags.value.some((tag) => tag.toLowerCase() === typeTag);
+
+const toggleTypeTag = (typeTag: string) => {
+  if (typeTag === "type:favorited") {
+    const without = tags.value.filter(
+      (tag) => tag.toLowerCase() !== "type:favorited",
+    );
+    setTags(hasTypeTag(typeTag) ? without : [...without, typeTag]);
+  } else {
+    const withoutMedia = tags.value.filter(
+      (tag) =>
+        tag.toLowerCase() !== "type:video" && tag.toLowerCase() !== "type:still",
+    );
+    setTags(hasTypeTag(typeTag) ? withoutMedia : [...withoutMedia, typeTag]);
+  }
   updateQuery();
 };
 

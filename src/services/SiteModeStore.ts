@@ -12,7 +12,6 @@ import {
 
 const LOCAL_HIDDEN_BUTTONS = new Set<ButtonType>([
   "external",
-  "favorite",
   "save_local",
 ]);
 

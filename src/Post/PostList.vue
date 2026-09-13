@@ -35,8 +35,9 @@
 <script lang="ts">
 import { usePostsStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
+import { saveLocalResume } from "@/misc/util/localMedia";
 import type { ComponentPublicInstance, PropType} from "vue";
-import { computed, defineComponent, nextTick, onBeforeUnmount, onBeforeUpdate, onMounted, ref, watch } from "vue";
+import { computed, defineComponent, nextTick, onBeforeUnmount, onBeforeUpdate, onMounted, provide, ref, watch } from "vue";
 // import Intersect from "vue-intersect";
 
 const isAnyPartOfElementInViewport = (el: Element) => {
@@ -84,6 +85,18 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    resumeEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    restorePath: {
+      type: String,
+      default: undefined,
+    },
+    restoreVideoTime: {
+      type: Number,
+      default: undefined,
+    },
   },
   setup(props, context) {
     const layout = ref<"list" | "grid">("list");
@@ -114,17 +127,30 @@ export default defineComponent({
           scheduleAutoNext();
         }
       }
+      if (props.resumeEnabled) {
+        scheduleResumeSave();
+      }
     };
 
     //   // return "gridmd"; // blog, feed(sm|md|xl), grid(sm|md|xl)
     onMounted(() => {
       window.addEventListener("scroll", handleScroll);
       document.addEventListener("visibilitychange", onVisibilityChange);
+      window.addEventListener("keydown", onKeyDown);
+      document.addEventListener("pointerover", onPointerOver);
+      document.addEventListener("pointerout", onPointerOut);
       scheduleAutoNext();
+      void tryRestore();
     });
     onBeforeUnmount(() => {
       window.removeEventListener("scroll", handleScroll);
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerover", onPointerOver);
+      document.removeEventListener("pointerout", onPointerOut);
+      persistResumeNow();
+      detachVideoTimeListener();
+      if (resumeSaveTimer) window.clearTimeout(resumeSaveTimer);
       clearAutoNextSchedule();
     });
 
@@ -180,10 +206,34 @@ export default defineComponent({
     let clearAutoNext: (() => void) | null = null;
     let waitingForMorePosts = false;
     let lastDwellIndex = -1;
+    let dwellStartedAt = 0;
+    let dwellRemainingMs = 0;
+    let progressRaf = 0;
+    let resumeSaveTimer = 0;
+    let videoTimeListener: {
+      video: HTMLVideoElement;
+      onTimeUpdate: () => void;
+    } | null = null;
+    let restoreAttempted = false;
+    const userPaused = ref(false);
+    const hoverPaused = ref(false);
+    const autoNextProgress = ref(0);
+    const autoNextActiveId = ref<number | null>(null);
+
+    provide("cardAutoNext", {
+      activeId: autoNextActiveId,
+      progress: autoNextProgress,
+      paused: computed(() => userPaused.value || hoverPaused.value),
+    });
 
     const clearAutoNextSchedule = () => {
       clearAutoNext?.();
       clearAutoNext = null;
+      if (progressRaf) {
+        cancelAnimationFrame(progressRaf);
+        progressRaf = 0;
+      }
+      autoNextProgress.value = 0;
     };
 
     const cardEl = (index: number): HTMLElement | null => {
@@ -238,9 +288,126 @@ export default defineComponent({
     const canRunAutoNext = () =>
       postsStore.cardAutoNext &&
       !props.autoNextPaused &&
+      !userPaused.value &&
+      !hoverPaused.value &&
       typeof document !== "undefined" &&
       document.visibilityState === "visible" &&
       props.visiblePosts.length > 0;
+
+    const setActiveCard = (index: number) => {
+      autoNextActiveId.value = props.visiblePosts[index]?.id ?? null;
+    };
+
+    const startProgress = (durationMs: number, startedAt = performance.now()) => {
+      if (progressRaf) cancelAnimationFrame(progressRaf);
+      dwellStartedAt = startedAt;
+      dwellRemainingMs = durationMs;
+      const tick = () => {
+        if (userPaused.value || hoverPaused.value) {
+          progressRaf = 0;
+          return;
+        }
+        const elapsed = performance.now() - dwellStartedAt;
+        const ratio = Math.min(1, elapsed / Math.max(1, durationMs));
+        autoNextProgress.value = ratio * 100;
+        if (ratio < 1) {
+          progressRaf = requestAnimationFrame(tick);
+        } else {
+          progressRaf = 0;
+        }
+      };
+      progressRaf = requestAnimationFrame(tick);
+    };
+
+    const detachVideoTimeListener = () => {
+      if (!videoTimeListener) return;
+      videoTimeListener.video.removeEventListener(
+        "timeupdate",
+        videoTimeListener.onTimeUpdate,
+      );
+      videoTimeListener = null;
+    };
+
+    const currentResumeSnapshot = () => {
+      const index = currentCardIndex();
+      const post = props.visiblePosts[index];
+      const path = post?.__meta?.localPath;
+      if (!path) return null;
+      const video = cardEl(index)?.querySelector("video");
+      const videoTime =
+        video && Number.isFinite(video.currentTime) && video.currentTime > 0.5
+          ? video.currentTime
+          : undefined;
+      return { path, videoTime, index, video };
+    };
+
+    const persistResumeNow = () => {
+      if (!props.resumeEnabled) return;
+      const snap = currentResumeSnapshot();
+      if (!snap) return;
+      void saveLocalResume(snap.path, snap.videoTime);
+    };
+
+    const scheduleResumeSave = () => {
+      if (!props.resumeEnabled) return;
+      if (resumeSaveTimer) window.clearTimeout(resumeSaveTimer);
+      resumeSaveTimer = window.setTimeout(() => {
+        resumeSaveTimer = 0;
+        persistResumeNow();
+        attachVideoTimeListener();
+      }, 400);
+    };
+
+    const attachVideoTimeListener = () => {
+      if (!props.resumeEnabled) return;
+      const snap = currentResumeSnapshot();
+      detachVideoTimeListener();
+      if (!snap?.video) return;
+      const video = snap.video;
+      const path = snap.path;
+      let lastSaved = 0;
+      const onTimeUpdate = () => {
+        const now = performance.now();
+        if (now - lastSaved < 1000) return;
+        lastSaved = now;
+        void saveLocalResume(path, video.currentTime);
+      };
+      video.addEventListener("timeupdate", onTimeUpdate);
+      videoTimeListener = { video, onTimeUpdate };
+    };
+
+    const seekRestoredVideo = (index: number, time: number) => {
+      const video = cardEl(index)?.querySelector("video");
+      if (!video || !Number.isFinite(time) || time <= 0) return;
+      const apply = () => {
+        try {
+          video.currentTime = time;
+        } catch {
+          // ignore
+        }
+      };
+      if (video.readyState >= 1) {
+        apply();
+      } else {
+        video.addEventListener("loadedmetadata", apply, { once: true });
+      }
+    };
+
+    const tryRestore = async () => {
+      if (restoreAttempted || !props.restorePath || props.loading) return;
+      const index = props.visiblePosts.findIndex(
+        (post) => post.__meta?.localPath === props.restorePath,
+      );
+      if (index < 0) return;
+      restoreAttempted = true;
+      await nextTick();
+      goToIndex(index);
+      if (typeof props.restoreVideoTime === "number") {
+        seekRestoredVideo(index, props.restoreVideoTime);
+      }
+      context.emit("restored");
+      attachVideoTimeListener();
+    };
 
     const advanceCard = () => {
       if (!canRunAutoNext()) return;
@@ -261,12 +428,33 @@ export default defineComponent({
       scheduleAutoNextAt(currentCardIndex());
     };
 
+    const scheduleImageDwell = (index: number, durationMs: number) => {
+      setActiveCard(index);
+      startProgress(durationMs);
+      const timer = window.setTimeout(advanceCard, durationMs);
+      clearAutoNext = () => window.clearTimeout(timer);
+    };
+
     const scheduleAutoNextAt = (index: number) => {
       clearAutoNextSchedule();
-      if (!canRunAutoNext() || props.loading) return;
+      setActiveCard(index);
+      if (
+        !postsStore.cardAutoNext ||
+        props.autoNextPaused ||
+        props.loading ||
+        typeof document === "undefined" ||
+        document.visibilityState !== "visible" ||
+        !props.visiblePosts.length
+      ) {
+        return;
+      }
+      if (userPaused.value || hoverPaused.value) {
+        return;
+      }
       lastDwellIndex = index;
       const video = cardEl(index)?.querySelector("video");
       if (video && !video.ended) {
+        autoNextProgress.value = 0;
         let cancelled = false;
         const onEnded = () => {
           video.removeEventListener("ended", onEnded);
@@ -285,34 +473,101 @@ export default defineComponent({
             })
             .catch(() => {
               if (cancelled) return;
-              const timer = window.setTimeout(
-                advanceCard,
-                postsStore.cardAutoNextIntervalMs,
-              );
-              clearAutoNext = () => {
-                cancelled = true;
-                video.removeEventListener("ended", onEnded);
-                window.clearTimeout(timer);
-              };
+              scheduleImageDwell(index, postsStore.cardAutoNextIntervalMs);
             });
           return;
         }
         video.addEventListener("ended", onEnded);
         return;
       }
-      const timer = window.setTimeout(
-        advanceCard,
-        postsStore.cardAutoNextIntervalMs,
-      );
-      clearAutoNext = () => window.clearTimeout(timer);
+      scheduleImageDwell(index, postsStore.cardAutoNextIntervalMs);
+    };
+
+    const pauseAutoNext = () => {
+      if (!postsStore.cardAutoNext) return;
+      if (progressRaf) {
+        cancelAnimationFrame(progressRaf);
+        progressRaf = 0;
+      }
+      if (dwellRemainingMs > 0 && dwellStartedAt) {
+        const elapsed = performance.now() - dwellStartedAt;
+        dwellRemainingMs = Math.max(0, dwellRemainingMs - elapsed);
+      }
+      clearAutoNext?.();
+      clearAutoNext = null;
+    };
+
+    const resumeAutoNext = () => {
+      if (!canRunAutoNext() || props.loading) return;
+      const index = currentCardIndex();
+      lastDwellIndex = index;
+      const video = cardEl(index)?.querySelector("video");
+      if (video && !video.ended) {
+        scheduleAutoNextAt(index);
+        return;
+      }
+      const remaining =
+        dwellRemainingMs > 0 ? dwellRemainingMs : postsStore.cardAutoNextIntervalMs;
+      scheduleImageDwell(index, remaining);
     };
 
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        clearAutoNextSchedule();
-      } else {
-        scheduleAutoNext();
+        pauseAutoNext();
+        persistResumeNow();
+      } else if (!userPaused.value && !hoverPaused.value) {
+        resumeAutoNext();
       }
+    };
+
+    const isTypingTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      return (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        target.isContentEditable
+      );
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "Space" && event.key !== " ") return;
+      if (!postsStore.cardAutoNext || props.autoNextPaused) return;
+      if (isTypingTarget(event.target)) return;
+      event.preventDefault();
+      userPaused.value = !userPaused.value;
+      if (userPaused.value) {
+        pauseAutoNext();
+      } else if (!hoverPaused.value) {
+        resumeAutoNext();
+      }
+    };
+
+    const onPointerOver = (event: Event) => {
+      if (!postsStore.cardAutoNext) return;
+      const index = currentCardIndex();
+      const target = cardTarget(index);
+      if (!target || !(event.target instanceof Node)) return;
+      if (!target.contains(event.target)) return;
+      if (hoverPaused.value) return;
+      hoverPaused.value = true;
+      pauseAutoNext();
+    };
+
+    const onPointerOut = (event: PointerEvent) => {
+      if (!hoverPaused.value) return;
+      const index = currentCardIndex();
+      const target = cardTarget(index);
+      if (!target) {
+        hoverPaused.value = false;
+        if (!userPaused.value) resumeAutoNext();
+        return;
+      }
+      const related = event.relatedTarget;
+      if (related instanceof Node && target.contains(related)) return;
+      hoverPaused.value = false;
+      if (!userPaused.value) resumeAutoNext();
     };
 
     watch(
@@ -323,7 +578,22 @@ export default defineComponent({
       ],
       () => {
         lastDwellIndex = -1;
+        dwellRemainingMs = 0;
+        if (!postsStore.cardAutoNext) {
+          userPaused.value = false;
+          hoverPaused.value = false;
+          autoNextActiveId.value = null;
+          clearAutoNextSchedule();
+          return;
+        }
         scheduleAutoNext();
+      },
+    );
+
+    watch(
+      () => [props.loading, props.restorePath, props.visiblePosts.length] as const,
+      () => {
+        void tryRestore();
       },
     );
 
@@ -343,6 +613,7 @@ export default defineComponent({
         }
         if (!loading) {
           scheduleAutoNext();
+          if (props.resumeEnabled) attachVideoTimeListener();
         } else {
           clearAutoNextSchedule();
         }

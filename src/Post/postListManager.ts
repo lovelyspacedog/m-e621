@@ -1,9 +1,10 @@
 import type { EnhancedPost } from "@/worker/ApiService";
 import { getApiService } from "@/worker/services";
 import { computed, ref, watch } from "vue";
-import { useAccountStore, useSnackbarStore, useUrlStore, useBlacklistStore, usePostsStore } from "@/services";
+import { useAccountStore, useSnackbarStore, useUrlStore, useBlacklistStore, usePostsStore, useSiteModeStore } from "@/services";
 import { BlacklistMode } from "@/services/types";
 import { useRouter } from "vue-router";
+import { setLocalFavorite } from "@/misc/util/localMedia";
 
 interface IUsePostListManagerArgs {
   loadPosts(page: number, direction: "next" | "previous"): Promise<EnhancedPost[]>;
@@ -25,6 +26,7 @@ export const usePostListManager = ({
   const urlStore = useUrlStore();
   const blacklistStore = useBlacklistStore();
   const postsStore = usePostsStore();
+  const siteMode = useSiteModeStore();
   const router = useRouter()
 
   const handleError = (error: any) => {
@@ -40,6 +42,30 @@ export const usePostListManager = ({
     const account = useAccountStore();
     const post = posts.value.find((p) => p.id === args.postId);
     if (!post) {
+      return;
+    }
+
+    if (siteMode.isLocal) {
+      const localPath = post.__meta?.localPath;
+      if (!localPath) return;
+      try {
+        post.__meta.isFavoriteLoading = true;
+        await setLocalFavorite(localPath, args.favorited);
+        post.is_favorited = args.favorited;
+        post.fav_count = args.favorited ? 1 : 0;
+        const meta = post.tags.meta || [];
+        if (args.favorited) {
+          if (!meta.includes("type:favorited")) {
+            post.tags.meta = [...meta, "type:favorited"];
+          }
+        } else {
+          post.tags.meta = meta.filter((tag) => tag !== "type:favorited");
+        }
+      } catch (error: any) {
+        handleError(error);
+      } finally {
+        post.__meta.isFavoriteLoading = false;
+      }
       return;
     }
 
