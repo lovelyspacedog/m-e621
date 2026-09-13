@@ -229,7 +229,7 @@ function generateSitemap(env: Record<string, string>): Plugin {
 
 
 const VITE_GIT_COMMIT_INFO = execSync(
-  'git log -n 10 --pretty=format:";;;;;%H;%aI;%an;%B"',
+  'git log -n 60 --pretty=format:";;;;;%H;%aI;%an;%B"',
 )
   .toString()
   .trim();

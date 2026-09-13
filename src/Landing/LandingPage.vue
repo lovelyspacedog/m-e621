@@ -19,15 +19,39 @@
   <MigrationInfo />
   <About />
   <section class="ma-1">
-    <v-row wrap justify="center" align="center">
+    <v-row wrap justify="center" align="start">
       <v-col cols="12" class="pt-5">
         <div class="text-center">
           <h2 class="text-h4">Latest updates</h2>
         </div>
       </v-col>
       <v-col cols="12" md="6" xl="4" class="py-5">
-        <commit-timeline dense :limit="3" />
-        <v-btn block class="mt-0" color="primary" to="/about"> more </v-btn>
+        <h3 class="text-h6 text-center mb-3">Tony Pup</h3>
+        <commit-timeline dense :limit="3" source="fork" />
+        <v-btn
+          block
+          class="mt-0"
+          color="primary"
+          href="https://github.com/lovelyspacedog/material-e621/commits/master"
+          target="_blank"
+          rel="noopener"
+        >
+          more on GitHub
+        </v-btn>
+      </v-col>
+      <v-col cols="12" md="6" xl="4" class="py-5">
+        <h3 class="text-h6 text-center mb-3">Avoonix</h3>
+        <commit-timeline dense :limit="3" source="upstream" />
+        <v-btn
+          block
+          class="mt-0"
+          color="primary"
+          href="https://github.com/avoonix/material-e621/commits/master"
+          target="_blank"
+          rel="noopener"
+        >
+          more on GitHub
+        </v-btn>
       </v-col>
     </v-row>
   </section>

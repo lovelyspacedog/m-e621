@@ -13,7 +13,7 @@
     <v-card-text v-if="entry.message.body" class="pre text-body-1">{{ entry.message.body }}</v-card-text>
     <v-card-actions>
       <v-spacer />
-      <v-btn variant="text" :href="`https://github.com/avoonix/material-e621/commit/${entry.hash}`" color="primary">
+      <v-btn variant="text" :href="commitUrl" color="primary">
         <v-icon start> mdi-open-in-new </v-icon>
         View commit
       </v-btn>
@@ -23,6 +23,7 @@
 
 <script setup lang="ts">
 import type { IGitCommit } from "@/misc/util/git";
+import { commitGithubUrl } from "@/misc/util/git";
 import type { PropType } from "vue";
 import { computed } from "vue";
 import { formatDistanceToNow } from "date-fns";
@@ -37,6 +38,7 @@ const props = defineProps({
 const date = computed(() =>
   formatDistanceToNow(props.entry.date, { addSuffix: true }),
 );
+const commitUrl = computed(() => commitGithubUrl(props.entry));
 </script>
 
 <style scoped>

@@ -8,6 +8,20 @@ export interface IGitCommit {
   };
 }
 
+export const FORK_GITHUB_REPO = "lovelyspacedog/material-e621";
+export const UPSTREAM_GITHUB_REPO = "avoonix/material-e621";
+
+/** Authors treated as this fork's personal commits (vs upstream Material e621). */
+export const isForkAuthor = (author: string) =>
+  /tony\s*pup/i.test(author.trim());
+
+export const commitGithubUrl = (entry: IGitCommit) => {
+  const repo = isForkAuthor(entry.author)
+    ? FORK_GITHUB_REPO
+    : UPSTREAM_GITHUB_REPO;
+  return `https://github.com/${repo}/commit/${entry.hash}`;
+};
+
 export const getGitBranchInfo = () => String(import.meta.env.VITE_GIT_BRANCH);
 
 export const getGitInfo = (): IGitCommit[] =>
@@ -36,4 +50,3 @@ export const createIssueLink = (args: { title: string; body: string }) => {
   const params = new URLSearchParams(Object.entries(args)).toString()
   return `https://github.com/avoonix/material-e621/issues/new?${params}`;
 }
-
