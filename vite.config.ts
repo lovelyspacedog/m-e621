@@ -375,6 +375,46 @@ function tailspaceProxy(): Plugin {
           res.end(JSON.stringify({ ok: false, message: String(err) }));
         }
       });
+
+      // ── Comments: GET /api/tailspace/comments?username=X&postId=N ────────
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url?.startsWith('/api/tailspace/comments') || req.method !== 'GET') {
+          next();
+          return;
+        }
+        const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+        const params = new URLSearchParams(qs);
+        const username = (params.get('username') || '').trim();
+        const postId = (params.get('postId') || '').trim();
+        if (!username || !/^\d+$/.test(postId) || username.includes('/') || username.includes('..')) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ ok: false, message: 'username and postId required' }));
+          return;
+        }
+        const url = `${TAILSPACE_BASE}/artist/${encodeURIComponent(username)}/post/${postId}.data`;
+        try {
+          const remote = await fetch(url, {
+            headers: {
+              Accept: 'text/x-turbo-stream, application/json, */*',
+              Referer: `${TAILSPACE_BASE}/`,
+              'User-Agent': 'me621-tailspace-proxy/1.0',
+            },
+          });
+          if (!remote.ok) {
+            res.statusCode = remote.status;
+            res.end(JSON.stringify({ ok: false, message: `upstream ${remote.status}` }));
+            return;
+          }
+          const comments = parseTailspaceComments(await remote.text());
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(JSON.stringify({ comments }));
+        } catch (err) {
+          res.statusCode = 502;
+          res.end(JSON.stringify({ ok: false, message: String(err) }));
+        }
+      });
     },
   };
 }
@@ -400,7 +440,13 @@ function tsDecodePool(pool: unknown[]): unknown {
   }
 
   function decodeVal(val: unknown): unknown {
-    if (Array.isArray(val)) return val.map((item) => (typeof item === 'number' ? decode(item) : decodeVal(item)));
+    if (Array.isArray(val)) {
+      // Typed values: ["D", ms] is a Date literal — do NOT treat ms as a pool ref.
+      if (val.length >= 2 && val[0] === 'D') {
+        return typeof val[1] === 'number' ? val[1] : null;
+      }
+      return val.map((item) => (typeof item === 'number' ? decode(item) : decodeVal(item)));
+    }
     if (val && typeof val === 'object') {
       const out: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
@@ -429,6 +475,19 @@ function findComicsPayload(obj: unknown): Record<string, unknown> | null {
     for (const value of Object.values(obj as Record<string, unknown>)) {
       const found = findComicsPayload(value);
       if (found) return found;
+    }
+  }
+  return null;
+}
+
+function findKey(obj: unknown, key: string): unknown {
+  if (obj && typeof obj === 'object') {
+    if (!Array.isArray(obj) && key in (obj as Record<string, unknown>)) {
+      return (obj as Record<string, unknown>)[key];
+    }
+    for (const value of Object.values(obj as Record<string, unknown>)) {
+      const found = findKey(value, key);
+      if (found !== undefined && found !== null) return found;
     }
   }
   return null;
@@ -472,15 +531,54 @@ function parseTailspaceComics(text: string): { comics: unknown[]; numberOfPages:
 
 function extractComicsPayload(data: Record<string, unknown>) {
   const rawList = (data['comicsAndAds'] as unknown[] | undefined) ?? [];
-  const comics = rawList.filter(
-    (item): item is Record<string, unknown> =>
-      typeof item === 'object' && item !== null && !!(item as Record<string, unknown>)['id'] && !(item as Record<string, unknown>)['ad'],
-  );
+  // Ads use string ids + link; real comics have numeric id + name.
+  const comics = rawList.filter((item): item is Record<string, unknown> => {
+    if (typeof item !== 'object' || item === null) return false;
+    const row = item as Record<string, unknown>;
+    return typeof row.id === 'number' && !!row.name && !row.ad && !row.link;
+  });
   return {
     comics,
     numberOfPages: Number(data['numberOfPages'] ?? 1),
     totalNumComics: Number(data['totalNumComics'] ?? comics.length),
   };
+}
+
+function normalizeComments(comments: unknown[]): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = [];
+  for (const item of comments) {
+    if (typeof item !== 'object' || item === null) continue;
+    const row = item as Record<string, unknown>;
+    if (!row.id || row.isHidden) continue;
+    let ts = row.timestamp;
+    if (Array.isArray(ts) && ts.length >= 2 && ts[0] === 'D') ts = ts[1];
+    out.push({
+      id: row.id,
+      userId: row.userId,
+      username: row.username || 'unknown',
+      profilePictureToken: row.profilePictureToken ?? null,
+      comment: row.comment || '',
+      replyToCommentId: row.replyToCommentId ?? null,
+      timestamp: ts ?? null,
+      isHidden: Boolean(row.isHidden),
+    });
+  }
+  return out;
+}
+
+function parseTailspaceComments(text: string): Record<string, unknown>[] {
+  const trimmed = text.trim();
+  const data = JSON.parse(trimmed) as unknown;
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const direct = (data as Record<string, unknown>).comments;
+    if (Array.isArray(direct)) return normalizeComments(direct);
+  }
+  if (Array.isArray(data)) {
+    const decoded = tsDecodePool(data);
+    const found = findKey(decoded, 'comments');
+    if (Array.isArray(found)) return normalizeComments(found);
+  }
+  return [];
 }
 
 function generateSitemap(env: Record<string, string>): Plugin {

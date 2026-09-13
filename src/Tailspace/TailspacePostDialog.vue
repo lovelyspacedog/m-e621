@@ -161,6 +161,48 @@
         <div class="ts-info-date text-caption text-medium-emphasis mt-1">
           {{ formatDate(post.releasedAt) }}
         </div>
+
+        <!-- Comments -->
+        <div class="ts-comments">
+          <div class="ts-comments-header">
+            Comments
+            <span v-if="post.commentCount" class="ts-comments-count">{{ post.commentCount }}</span>
+          </div>
+
+          <div v-if="!post.allowComments" class="ts-comments-empty">
+            Comments are disabled on this post.
+          </div>
+          <div v-else-if="commentsLoading" class="ts-comments-empty">Loading…</div>
+          <div v-else-if="commentsError" class="ts-comments-empty ts-comments-error">
+            {{ commentsError }}
+          </div>
+          <div v-else-if="comments.length === 0" class="ts-comments-empty">
+            No comments yet.
+          </div>
+          <div v-else class="ts-comments-list">
+            <div v-for="c in comments" :key="c.id" class="ts-comment">
+              <img
+                v-if="c.profilePictureToken"
+                class="ts-comment-avatar"
+                :src="profilePhoto(c.profilePictureToken)"
+                :alt="c.username"
+                loading="lazy"
+              />
+              <div v-else class="ts-comment-avatar ts-comment-avatar--placeholder">
+                <v-icon size="16">mdi-account</v-icon>
+              </div>
+              <div class="ts-comment-body">
+                <div class="ts-comment-meta">
+                  <span class="ts-comment-user">{{ c.username }}</span>
+                  <span v-if="c.timestamp" class="ts-comment-time">
+                    {{ formatCommentTime(c.timestamp) }}
+                  </span>
+                </div>
+                <div class="ts-comment-text">{{ c.comment }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </v-dialog>
@@ -169,10 +211,13 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import {
+  getPostComments,
   postMediaFull,
   postMediaThumb,
   postUrl,
+  profilePhoto,
   TAILSPACE_CDN,
+  type TailspaceComment,
   type TailspacePost,
 } from "@/worker/tailspace/api";
 
@@ -188,8 +233,14 @@ const emit = defineEmits<{
 
 const open = ref(true);
 const mediaIndex = ref(0);
+const comments = ref<TailspaceComment[]>([]);
+const commentsLoading = ref(false);
+const commentsError = ref<string | null>(null);
 
-watch(() => props.post, () => { mediaIndex.value = 0; });
+watch(() => props.post, () => {
+  mediaIndex.value = 0;
+  loadComments();
+}, { immediate: true });
 watch(open, (v) => { if (!v) emit("close"); });
 
 const currentMedia = computed(() => props.post.media[mediaIndex.value] ?? null);
@@ -208,6 +259,24 @@ const nextPost = computed(() =>
 const hasPrevPost = computed(() => prevPost.value !== null);
 const hasNextPost = computed(() => nextPost.value !== null);
 
+async function loadComments() {
+  comments.value = [];
+  commentsError.value = null;
+  if (!props.post.allowComments) {
+    commentsLoading.value = false;
+    return;
+  }
+  commentsLoading.value = true;
+  try {
+    const res = await getPostComments(props.post.creator.username, props.post.id);
+    comments.value = res.comments || [];
+  } catch (e: unknown) {
+    commentsError.value = e instanceof Error ? e.message : "Failed to load comments.";
+  } finally {
+    commentsLoading.value = false;
+  }
+}
+
 function formatDate(iso: string) {
   try {
     return new Date(iso).toLocaleDateString(undefined, {
@@ -217,6 +286,20 @@ function formatDate(iso: string) {
     });
   } catch {
     return iso;
+  }
+}
+
+function formatCommentTime(ts: number) {
+  try {
+    return new Date(ts).toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
   }
 }
 </script>
@@ -367,6 +450,92 @@ function formatDate(iso: string) {
   font-size: 0.72rem;
 }
 
+/* ── Comments ── */
+.ts-comments {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ts-comments-header {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ts-comments-count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0.55;
+}
+.ts-comments-empty {
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.45);
+  padding: 4px 0 8px;
+}
+.ts-comments-error {
+  color: #f8a0a0;
+}
+.ts-comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  max-height: 280px;
+  padding-right: 4px;
+}
+.ts-comment {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.ts-comment-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.08);
+}
+.ts-comment-avatar--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.45);
+}
+.ts-comment-body {
+  min-width: 0;
+  flex: 1;
+}
+.ts-comment-meta {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 2px;
+}
+.ts-comment-user {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.9);
+}
+.ts-comment-time {
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.4);
+}
+.ts-comment-text {
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: rgba(255,255,255,0.78);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ── Responsive: side panel on wide screens ── */
 @media (min-width: 900px) {
   .ts-dialog {
@@ -376,13 +545,17 @@ function formatDate(iso: string) {
     flex: 1;
   }
   .ts-dialog-info {
-    width: 260px;
+    width: 280px;
     flex-shrink: 0;
     border-top: none;
     border-left: 1px solid rgba(255,255,255,0.08);
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+  }
+  .ts-comments-list {
+    max-height: none;
+    flex: 1;
   }
   .ts-strip {
     flex-direction: column;
@@ -404,6 +577,6 @@ function formatDate(iso: string) {
     height: 48px;
   }
   .ts-nav-post--prev { left: 68px; }
-  .ts-nav-post--next { right: 268px; }
+  .ts-nav-post--next { right: 288px; }
 }
 </style>

@@ -7,6 +7,7 @@
 import type {
   TailspacePostsResponse,
   TailspaceComicsResponse,
+  TailspaceCommentsResponse,
 } from "./types";
 
 export * from "./types";
@@ -39,6 +40,17 @@ export async function getPosts(page: number): Promise<TailspacePostsResponse> {
   if (raw && Array.isArray(raw.posts)) return raw;
   if (raw?.data && Array.isArray(raw.data.posts)) return raw.data;
   return { posts: [], hasNextPage: false };
+}
+
+export function getPostComments(
+  username: string,
+  postId: number,
+): Promise<TailspaceCommentsResponse> {
+  const q = new URLSearchParams({
+    username,
+    postId: String(postId),
+  });
+  return fetchJson<TailspaceCommentsResponse>(`${proxyBase()}/comments?${q}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -87,9 +99,14 @@ export function postMediaFull(token: string, fileType: string): string {
   return `${TAILSPACE_CDN}/post-media/${token}.${fileType}`;
 }
 
+/** Profile photo for a Tailspace user. */
+export function profilePhoto(token: string): string {
+  return `${TAILSPACE_CDN}/profile-photos/${token}.jpg`;
+}
+
 /** Thumbnail for a comic series. */
 export function comicThumb(id: number, version: number, size: "1x" | "2x" = "2x"): string {
-  return `${TAILSPACE_CDN}/comics/${id}/thumbnail-${size}.webp?v=${version}`;
+  return `${TAILSPACE_CDN}/comics/${id}/thumbnail-${size}.webp?v=${version ?? 0}`;
 }
 
 /** External URL to a comic on Tailspace. */

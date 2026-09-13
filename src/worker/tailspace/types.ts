@@ -51,6 +51,23 @@ export interface TailspacePostsResponse {
   hasNextPage: boolean;
 }
 
+/** A comment on a Tailspace post */
+export interface TailspaceComment {
+  id: number;
+  userId: number;
+  username: string;
+  profilePictureToken: string | null;
+  comment: string;
+  replyToCommentId: number | null;
+  /** Unix ms timestamp, or null if unknown */
+  timestamp: number | null;
+  isHidden: boolean;
+}
+
+export interface TailspaceCommentsResponse {
+  comments: TailspaceComment[];
+}
+
 /** A single comic series on Tailspace */
 export interface TailspaceComic {
   id: number;
@@ -68,7 +85,7 @@ export interface TailspaceComic {
   commentCount: number;
   updated: number; // unix ms timestamp
   published: number; // unix ms timestamp
-  tags: string[];
+  tags: TailspaceTag[] | string[];
   isArtistVerified: boolean;
   additionalArtistNames: string | null;
 }

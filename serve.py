@@ -34,6 +34,7 @@ TAILSPACE_BASE = "https://tailspace.com"
 TAILSPACE_CDN = "https://pics.tailspace.com"
 TAILSPACE_POSTS_PATH = re.compile(r"^/api/tailspace/posts$")
 TAILSPACE_COMICS_PATH = re.compile(r"^/api/tailspace/comics$")
+TAILSPACE_COMMENTS_PATH = re.compile(r"^/api/tailspace/comments$")
 
 _pull_lock = threading.Lock()
 _state: dict = {
@@ -254,10 +255,31 @@ def _ts_decode_pool(pool: list) -> object:
                     result[k] = decode(v) if isinstance(v, int) else decode_val(v)
             return result
         if isinstance(val, list):
+            # Typed values: ["D", ms] is a Date literal — do NOT treat ms as a pool ref.
+            if len(val) >= 2 and val[0] == "D":
+                ms = val[1]
+                return ms if isinstance(ms, (int, float)) else None
             return [decode(item) if isinstance(item, int) else decode_val(item) for item in val]
         return val
 
     return decode(0)
+
+
+def _find_key(obj: object, key: str) -> object | None:
+    """Recursively find the first value for `key` in a nested structure."""
+    if isinstance(obj, dict):
+        if key in obj:
+            return obj[key]
+        for value in obj.values():
+            found = _find_key(value, key)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = _find_key(item, key)
+            if found is not None:
+                return found
+    return None
 
 
 def _find_comics_payload(obj: object) -> dict | None:
@@ -313,16 +335,64 @@ def _parse_tailspace_comics_response(raw: bytes) -> dict:
 
 def _extract_comics_payload(data: dict) -> dict:
     raw_list = data.get("comicsAndAds") or []
-    # Filter out ad placeholders (they have an "ad" key or no "id")
+    # Ads use string ids + link; real comics have numeric id + name.
     comics = [
         item for item in raw_list
-        if isinstance(item, dict) and item.get("id") and not item.get("ad")
+        if isinstance(item, dict)
+        and isinstance(item.get("id"), int)
+        and item.get("name")
+        and not item.get("ad")
+        and not item.get("link")
     ]
     return {
         "comics": comics,
         "numberOfPages": int(data.get("numberOfPages") or 1),
         "totalNumComics": int(data.get("totalNumComics") or len(comics)),
     }
+
+
+def _parse_tailspace_post_comments(raw: bytes) -> list:
+    """Extract the comments array from a post .data turbo-stream response."""
+    text = raw.decode("utf-8", errors="replace").strip()
+    data = json.loads(text)
+    if isinstance(data, dict):
+        comments = data.get("comments")
+        if isinstance(comments, list):
+            return _normalize_comments(comments)
+        found = _find_key(data, "comments")
+        if isinstance(found, list):
+            return _normalize_comments(found)
+    if isinstance(data, list):
+        decoded = _ts_decode_pool(data)
+        found = _find_key(decoded, "comments")
+        if isinstance(found, list):
+            return _normalize_comments(found)
+    return []
+
+
+def _normalize_comments(comments: list) -> list:
+    out: list[dict] = []
+    for item in comments:
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
+        if item.get("isHidden"):
+            continue
+        ts = item.get("timestamp")
+        if isinstance(ts, list) and len(ts) >= 2 and ts[0] == "D":
+            ts = ts[1]
+        out.append(
+            {
+                "id": item.get("id"),
+                "userId": item.get("userId"),
+                "username": item.get("username") or "unknown",
+                "profilePictureToken": item.get("profilePictureToken"),
+                "comment": item.get("comment") or "",
+                "replyToCommentId": item.get("replyToCommentId"),
+                "timestamp": ts,
+                "isHidden": bool(item.get("isHidden")),
+            }
+        )
+    return out
 
 
 def _normalize_tailspace_posts(payload: object) -> dict:
@@ -676,6 +746,31 @@ class SpaHandler(SimpleHTTPRequestHandler):
         except Exception as exc:  # noqa: BLE001
             self._json(502, {"ok": False, "message": f"parse error: {exc}"})
 
+    def _proxy_tailspace_comments(self, parsed) -> None:
+        params = parse_qs(parsed.query)
+        username = (params.get("username") or [""])[0].strip()
+        post_id = (params.get("postId") or [""])[0].strip()
+        if not username or not post_id.isdigit():
+            self._json(400, {"ok": False, "message": "username and postId required"})
+            return
+        # Basic path-segment safety
+        if "/" in username or ".." in username:
+            self._json(400, {"ok": False, "message": "invalid username"})
+            return
+        url = f"{TAILSPACE_BASE}/artist/{username}/post/{post_id}.data"
+        body, status, _ct = self._tailspace_request(
+            url,
+            accept="text/x-turbo-stream, application/json, */*",
+        )
+        if status != 200:
+            self._json(status, {"ok": False, "message": f"upstream returned {status}"})
+            return
+        try:
+            comments = _parse_tailspace_post_comments(body)
+            self._json(200, {"comments": comments})
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "message": f"parse error: {exc}"})
+
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
@@ -699,6 +794,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return
         if TAILSPACE_COMICS_PATH.match(path):
             self._proxy_tailspace_comics(parsed)
+            return
+        if TAILSPACE_COMMENTS_PATH.match(path):
+            self._proxy_tailspace_comments(parsed)
             return
         if path.startswith("/api/"):
             self._json(404, {"ok": False, "message": "not found"})

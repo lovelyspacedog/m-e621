@@ -129,7 +129,7 @@
           <div class="ts-comic-stats">
             <span title="Rating">
               <v-icon size="12">mdi-star</v-icon>
-              {{ comic.avgStars.toFixed(1) }}
+              {{ Number(comic.avgStars ?? 0).toFixed(1) }}
             </span>
             <span title="Comments">
               <v-icon size="12">mdi-comment-outline</v-icon>
@@ -231,7 +231,9 @@ async function loadPage(p: number) {
       sort: sort.value !== "Updated" ? sort.value : undefined,
       finishedOnly: finishedOnly.value || undefined,
     });
-    comics.value = res.comics;
+    comics.value = (res.comics || []).filter(
+      (c) => typeof c.id === "number" && !!c.name && !!c.artistName,
+    );
     numberOfPages.value = res.numberOfPages;
     totalNumComics.value = res.totalNumComics;
   } catch (e: unknown) {
