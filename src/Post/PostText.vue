@@ -1,5 +1,12 @@
 <template>
   <div>
+    <div
+      v-if="isLocal && filename"
+      class="text-subtitle-2 text-truncate mb-2"
+      :title="filename"
+    >
+      {{ filename }}
+    </div>
     <div>
       <v-chip v-if="!isLocal" variant="outlined" class="mr-2 mb-2 no-before-content">
         <v-icon>mdi-thumbs-up-down</v-icon>
@@ -58,6 +65,12 @@ export default defineComponent({
     const { creatorCategory } = useSiteLabels();
     const isLocal = computed(() => useSiteModeStore().isLocal);
     const creatorTags = computed(() => getCreatorTags(props.post.tags));
+    const filename = computed(() => {
+      if (props.post.description) return props.post.description;
+      const source = props.post.sources?.[0];
+      if (!source) return "";
+      return source.split("/").pop() || source;
+    });
     const fileSize = computed(() => prettyBytes(props.post.file.size));
     const score = computed(() => {
       if (isScoredPost(props.post)) {
@@ -72,6 +85,7 @@ export default defineComponent({
       creatorTags,
       creatorCategory,
       isLocal,
+      filename,
     };
   },
   components: { DateDisplay, TagWithMenu },

@@ -77,6 +77,7 @@ export type LocalMediaStatus =
 let cachedIndex: LocalMediaEntry[] | null = null;
 let cachedRootName: string | null = null;
 const blobUrls = new Map<number, string>();
+const posterUrls = new Map<number, string>();
 
 export const hashLocalPath = (path: string) => {
   let hash = 2166136261;
@@ -153,21 +154,29 @@ export const invalidateLocalMediaIndex = () => {
   cachedRootName = null;
 };
 
+const revokeUrl = (map: Map<number, string>, id: number) => {
+  const url = map.get(id);
+  if (!url) return;
+  URL.revokeObjectURL(url);
+  map.delete(id);
+};
+
 export const revokeLocalBlobUrls = (ids?: number[]) => {
   if (ids) {
     for (const id of ids) {
-      const url = blobUrls.get(id);
-      if (url) {
-        URL.revokeObjectURL(url);
-        blobUrls.delete(id);
-      }
+      revokeUrl(blobUrls, id);
+      revokeUrl(posterUrls, id);
     }
     return;
   }
   for (const url of blobUrls.values()) {
     URL.revokeObjectURL(url);
   }
+  for (const url of posterUrls.values()) {
+    URL.revokeObjectURL(url);
+  }
   blobUrls.clear();
+  posterUrls.clear();
 };
 
 export const scanLocalMedia = async (
@@ -215,34 +224,96 @@ export const filterLocalMedia = (
   );
 };
 
-const probeDimensions = (
+const probeImageDimensions = (
   url: string,
-  ext: string,
 ): Promise<{ width: number; height: number }> => {
   const fallback = { width: 3, height: 4 };
   return new Promise((resolve) => {
-    const finish = (width: number, height: number) => {
-      resolve({
-        width: width || fallback.width,
-        height: height || fallback.height,
-      });
-    };
-    if (ext === "webm" || ext === "mp4") {
-      const video = document.createElement("video");
-      video.preload = "metadata";
-      video.onloadedmetadata = () => {
-        finish(video.videoWidth, video.videoHeight);
-        video.removeAttribute("src");
-        video.load();
-      };
-      video.onerror = () => resolve(fallback);
-      video.src = url;
-      return;
-    }
     const image = new Image();
-    image.onload = () => finish(image.naturalWidth, image.naturalHeight);
+    image.onload = () =>
+      resolve({
+        width: image.naturalWidth || fallback.width,
+        height: image.naturalHeight || fallback.height,
+      });
     image.onerror = () => resolve(fallback);
     image.src = url;
+  });
+};
+
+const captureVideoFrame = (
+  url: string,
+): Promise<{ poster: string | null; width: number; height: number }> => {
+  const fallback = { poster: null, width: 3, height: 4 };
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    let settled = false;
+    const finish = (result: { poster: string | null; width: number; height: number }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      video.removeAttribute("src");
+      video.load();
+      resolve({
+        poster: result.poster,
+        width: result.width || fallback.width,
+        height: result.height || fallback.height,
+      });
+    };
+    const timer = setTimeout(() => finish(fallback), 2500);
+    video.onerror = () => finish(fallback);
+    const seekToFrame = () => {
+      const duration = video.duration;
+      const target =
+        duration && Number.isFinite(duration) && duration > 0
+          ? Math.min(1, Math.max(0.05, duration * 0.08))
+          : 0.1;
+      try {
+        video.currentTime = target;
+      } catch {
+        finish({
+          poster: null,
+          width: video.videoWidth,
+          height: video.videoHeight,
+        });
+      }
+    };
+    video.onloadeddata = seekToFrame;
+    video.onseeked = () => {
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = width || 1;
+        canvas.height = height || 1;
+        const ctx = canvas.getContext("2d");
+        if (!ctx || !width || !height) {
+          finish({ poster: null, width, height });
+          return;
+        }
+        ctx.drawImage(video, 0, 0);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              finish({ poster: null, width, height });
+              return;
+            }
+            finish({
+              poster: URL.createObjectURL(blob),
+              width,
+              height,
+            });
+          },
+          "image/jpeg",
+          0.82,
+        );
+      } catch {
+        finish({ poster: null, width, height });
+      }
+    };
+    video.src = url;
   });
 };
 
@@ -280,52 +351,68 @@ export const localEntriesToPosts = async (
   entries: LocalMediaEntry[],
   page: number,
 ): Promise<EnhancedPost[]> => {
-  const posts: EnhancedPost[] = [];
-  for (const entry of entries) {
-    const { id, url } = await blobUrlFor(entry);
-    const { width, height } = await probeDimensions(url, entry.ext);
-    const created = new Date(entry.lastModified).toISOString();
-    posts.push({
-      id,
-      created_at: created,
-      updated_at: created,
-      file: {
-        width,
-        height,
-        ext: entry.ext,
-        size: entry.size,
-        md5: "",
-        url,
-      },
-      preview: { width, height, url },
-      sample: { has: true, width, height, url },
-      score: { up: 0, down: 0, total: 0 },
-      tags: toPostTags(entry),
-      locked_tags: [],
-      change_seq: 0,
-      flags: emptyFlags(),
-      rating: "e",
-      fav_count: 0,
-      sources: [entry.relativePath],
-      pools: [],
-      relationships: {
-        has_children: false,
-        has_active_children: false,
-        children: [],
-      },
-      uploader_id: 0,
-      description: entry.name,
-      comment_count: 0,
-      is_favorited: false,
-      has_notes: false,
-      __meta: {
-        isBlacklisted: false,
-        pageNumber: page,
-        localPath: entry.relativePath,
-      },
-    });
-  }
-  return posts;
+  return Promise.all(
+    entries.map(async (entry) => {
+      const { id, url } = await blobUrlFor(entry);
+      const isVideo = entry.ext === "webm" || entry.ext === "mp4";
+      let width = 3;
+      let height = 4;
+      let previewUrl = url;
+      if (isVideo) {
+        const frame = await captureVideoFrame(url);
+        width = frame.width;
+        height = frame.height;
+        if (frame.poster) {
+          posterUrls.set(id, frame.poster);
+          previewUrl = frame.poster;
+        }
+      } else {
+        const size = await probeImageDimensions(url);
+        width = size.width;
+        height = size.height;
+      }
+      const created = new Date(entry.lastModified).toISOString();
+      return {
+        id,
+        created_at: created,
+        updated_at: created,
+        file: {
+          width,
+          height,
+          ext: entry.ext,
+          size: entry.size,
+          md5: "",
+          url,
+        },
+        preview: { width, height, url: previewUrl },
+        sample: { has: true, width, height, url: previewUrl },
+        score: { up: 0, down: 0, total: 0 },
+        tags: toPostTags(entry),
+        locked_tags: [],
+        change_seq: 0,
+        flags: emptyFlags(),
+        rating: "e",
+        fav_count: 0,
+        sources: [entry.relativePath],
+        pools: [],
+        relationships: {
+          has_children: false,
+          has_active_children: false,
+          children: [],
+        },
+        uploader_id: 0,
+        description: entry.name,
+        comment_count: 0,
+        is_favorited: false,
+        has_notes: false,
+        __meta: {
+          isBlacklisted: false,
+          pageNumber: page,
+          localPath: entry.relativePath,
+        },
+      };
+    }),
+  );
 };
 
 export const getLocalPostsPage = async (
