@@ -43,6 +43,13 @@ export interface SavedSearchEntry {
 
 export const UNGROUPED_FAVORITE_GROUP_ID = "ungrouped";
 
+export type SiteMode = "e621" | "e6ai";
+
+export const SITE_MODE_URLS: Record<SiteMode, string> = {
+  e621: "https://e621.net/",
+  e6ai: "https://e6ai.net/",
+};
+
 export interface FavoriteTagGroup {
   id: string;
   name: string;
@@ -59,13 +66,39 @@ export interface FavoriteTagEntry {
   order: number;
 }
 
+export interface SiteProfile {
+  baseUrl: string;
+  account: {
+    username: string | null;
+    apiKey: string | null;
+  };
+  favorites: {
+    groups: FavoriteTagGroup[];
+    tags: FavoriteTagEntry[];
+  };
+  blacklist: {
+    mode: BlacklistMode;
+    tags: string[][];
+    hideServerSideBlacklisted: boolean;
+  };
+  searches: {
+    entries: SavedSearchEntry[];
+  };
+  history: {
+    entries: string[][];
+    maxLength: number;
+  };
+}
+
 // export interface FavoritedSearch {
 //   tags: string[];
 //   firstPost?: number;
 // }
 
 export interface ISettingsServiceState {
-  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
+  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
+  activeMode: SiteMode;
+  profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];
   blacklist: {
     mode: BlacklistMode;
@@ -122,28 +155,6 @@ export interface ISettingsServiceState {
     groups: FavoriteTagGroup[];
     tags: FavoriteTagEntry[];
   };
-  // postList: {
-  //   postLayout:
-  //     | "blog"
-  //     | "feed_xl"
-  //     | "feed_md"
-  //     | "feed_sm"
-  //     | "grid_xl"
-  //     | "grid_md"
-  //     | "grid_sm";
-  //   paginated: boolean;
-  // };
-  // post: {
-  //   fullscreenButtonPosition:
-  //     | "top_left"
-  //     | "top_right"
-  //     | "bottom_left"
-  //     | "bottom_right";
-  // };
-  // download: {
-  //   filenameTemplate: string;
-  //   concurrency: number;
-  // };
   account: {
     username: string | null;
     apiKey: string | null;

@@ -3,10 +3,27 @@
     <v-row align-center>
       <v-col class="text-center" cols="12" sm="10" offset-sm="1" lg="6" offset-lg="3">
         <settings-page-title section="account" title="API & Account" color="yellow-darken-3" />
+        <settings-page-item title="Site" select>
+          <v-btn-toggle
+            :model-value="siteMode.activeMode"
+            color="accent"
+            density="comfortable"
+            mandatory
+            class="mb-2"
+            @update:model-value="onModeChange"
+          >
+            <v-btn value="e621">e621</v-btn>
+            <v-btn value="e6ai">e6ai</v-btn>
+          </v-btn-toggle>
+          <p class="text-left">
+            Each site keeps its own username, API key, starred tags, blacklist, saved searches, and history.
+            Switching clears the current post search.
+          </p>
+        </settings-page-item>
         <settings-page-item title="Credentials" select>
-          <v-text-field variant="filled" label="e621 username" type="text" v-model="username" autocomplete="username" />
+          <v-text-field variant="filled" :label="`${siteLabel} username`" type="text" v-model="username" autocomplete="username" />
           <v-text-field variant="filled" :append-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
-            :type="showPassword ? 'text' : 'password'" label="e621 API key" v-model="apiKey"
+            :type="showPassword ? 'text' : 'password'" :label="`${siteLabel} API key`" v-model="apiKey"
             @click:append="showPassword = !showPassword" autocomplete="password" counter="24" />
           <p class="text-left">
             Go to <external-link :href="`${e621Url}users/home`" /> > Manage API Access to get the API key
@@ -27,7 +44,7 @@
               should be 24 characters long.
               <br />
               Due to a security policy (CORS), Material e621 cannot determine the cause of the error. There might be a
-              general error with the network or e621.
+              general error with the network or {{ siteLabel }}.
             </p>
           </div>
           <v-btn class="mt-4" :disabled="!username" color="accent" variant="text" @click="toggleFavoritesMenuItem">
@@ -35,16 +52,16 @@
           </v-btn>
         </settings-page-item>
         <settings-page-item title="API" select>
-          <v-select variant="filled" label="e621 API" type="text" v-model="e621Url"
-            :items="['https://e621.net/', 'https://e926.net/']" />
-          <v-text-field variant="filled" label="Custom e621 URL" type="text" v-model="e621Url" autocomplete="url"
+          <v-select variant="filled" :label="`${siteLabel} API`" type="text" v-model="e621Url"
+            :items="apiUrlItems" />
+          <v-text-field variant="filled" :label="`Custom ${siteLabel} URL`" type="text" v-model="e621Url" autocomplete="url"
             hint="You might want to change your username/API key if you switch instances" persistent-hint />
           <v-text-field variant="filled" label="Favorites API" type="text" v-model="proxyUrl" autocomplete="url" />
           <p class="text-left">
-            Material e621 uses the regular e621 API as much as possible, but the
+            Material e621 uses the regular site API as much as possible, but the
             favorites endpoints don't have the required cross origin resource
             sharing headers in order to use them directly in the browser. This
-            is why adding and removing favorites uses this API:
+            is why adding and removing favorites uses this API (shared for both sites):
             <external-link href="https://github.com/avoonix/material-e621-proxy" />
           </p>
         </settings-page-item>
@@ -56,10 +73,11 @@
 <script setup lang="ts">
 import SettingsPageTitle from "./SettingsPageTitle.vue";
 import SettingsPageItem from "./SettingsPageItem.vue";
-import { computed, defineComponent, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import ExternalLink from "@/App/ExternalLink.vue";
-import { useAccountStore, useSavedSearchStore, useUrlStore } from "@/services";
-import type { SavedSearchEntry } from "@/services/types";
+import { useAccountStore, useSavedSearchStore, useSiteModeStore, useUrlStore } from "@/services";
+import type { SavedSearchEntry, SiteMode } from "@/services/types";
 import { getApiService } from "@/worker/services";
 import { BlacklistMode } from "@/services/types";
 import { useHead } from "@unhead/vue";
@@ -68,7 +86,22 @@ useHead({ title: "Account Settings", });
 
 const account = useAccountStore();
 const url = useUrlStore();
+const siteMode = useSiteModeStore();
+const router = useRouter();
 const showPassword = ref(false);
+
+const siteLabel = computed(() => siteMode.activeLabel);
+const apiUrlItems = computed(() =>
+  siteMode.activeMode === "e6ai"
+    ? ["https://e6ai.net/"]
+    : ["https://e621.net/", "https://e926.net/", "https://e6ai.net/"],
+);
+
+const onModeChange = (mode: SiteMode | null) => {
+  if (!mode || mode === siteMode.activeMode) return;
+  siteMode.setMode(mode);
+  router.push({ name: "Posts", query: {} });
+};
 
 const username = computed<string>({
   get() {
@@ -130,7 +163,7 @@ const verifyCredentials = async () => {
   verification.value.loading = true;
   try {
     const service = await getApiService();
-    const posts = await service.getPosts({
+    await service.getPosts({
       page: 1,
       limit: 1,
       tags: ["rating:s"],

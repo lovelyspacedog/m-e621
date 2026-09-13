@@ -20,6 +20,9 @@ export const useUrlStore = defineStore("url", () => {
     },
     set(value) {
       main.misc.urls.e621 = value;
+      if (main.profiles?.[main.activeMode]) {
+        main.profiles[main.activeMode].baseUrl = value;
+      }
     },
   });
 

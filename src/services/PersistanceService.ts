@@ -9,6 +9,7 @@ import type {
 import {
   DataSaverType,
   FullscreenZoomUiMode,
+  SITE_MODE_URLS,
   UNGROUPED_FAVORITE_GROUP_ID,
 } from "./types";
 import clone from "clone";
@@ -20,6 +21,12 @@ import {
   fullscreenSlideshowShortcut,
 } from "./defaultSettings";
 import { debug } from "@/misc/util/debug";
+import {
+  applyActiveProfileToMirrors,
+  createEmptySiteProfile,
+  profileFromMirrors,
+  syncMirrorsToActiveProfile,
+} from "./siteProfiles";
 
 localforage.config({
   description: "",
@@ -34,6 +41,7 @@ class PersistanceService {
   constructor(private main: ReturnType<typeof useMainStore>) { }
 
   public async saveState() {
+    syncMirrorsToActiveProfile(this.main.$state);
     await this.saveToLocalStorage("state", this.getState());
     log("saved state");
   }
@@ -49,6 +57,7 @@ class PersistanceService {
     }
   }
   public async stateToFile() {
+    syncMirrorsToActiveProfile(this.main.$state);
     return new File([this.serializeState()], "material-e621-settings.json", {
       type: "text/plain",
     });
@@ -218,7 +227,55 @@ class PersistanceService {
       }
       newState.configVersion = 15;
     }
+    if (newState.configVersion < 16) {
+      const mode =
+        newState.misc?.urls?.e621?.includes("e6ai") ? "e6ai" as const : "e621" as const;
+      newState.activeMode = mode;
+      newState.profiles = {
+        e621: createEmptySiteProfile("e621"),
+        e6ai: createEmptySiteProfile("e6ai"),
+      };
+      // Current flat fields become the active mode's profile (usually e621).
+      newState.profiles[mode] = profileFromMirrors({
+        ...newState,
+        activeMode: mode,
+        profiles: newState.profiles,
+      } as ISettingsServiceState);
+      if (mode === "e621") {
+        newState.profiles.e6ai = createEmptySiteProfile("e6ai");
+      } else {
+        newState.profiles.e621 = createEmptySiteProfile("e621");
+        // Keep default Hot/Popular on e621 for when user switches back.
+        newState.profiles.e621.searches = clone(defaultSettings.profiles.e621.searches);
+      }
+      newState.configVersion = 16;
+    }
 
+    // Ensure profiles exist even if a partial export skipped them.
+    if (!newState.profiles?.e621 || !newState.profiles?.e6ai) {
+      newState.activeMode = newState.activeMode || "e621";
+      newState.profiles = {
+        e621: newState.profiles?.e621 || createEmptySiteProfile("e621"),
+        e6ai: newState.profiles?.e6ai || createEmptySiteProfile("e6ai"),
+      };
+      if (!newState.profiles.e621.account) {
+        newState.profiles.e621 = profileFromMirrors({
+          ...newState,
+          activeMode: "e621",
+          profiles: newState.profiles,
+        } as ISettingsServiceState);
+      }
+    }
+    if (!newState.activeMode) {
+      newState.activeMode = "e621";
+    }
+    // Normalize base URLs
+    newState.profiles.e621.baseUrl =
+      newState.profiles.e621.baseUrl || SITE_MODE_URLS.e621;
+    newState.profiles.e6ai.baseUrl =
+      newState.profiles.e6ai.baseUrl || SITE_MODE_URLS.e6ai;
+
+    applyActiveProfileToMirrors(newState);
     this.main.$state = newState;
   }
 

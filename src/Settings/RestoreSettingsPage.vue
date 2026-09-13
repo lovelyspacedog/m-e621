@@ -4,7 +4,7 @@
       <v-col class="text-center" cols="12" sm="10" offset-sm="1" lg="6" offset-lg="3">
         <settings-page-title section="restore" title="Backup and Restore" color="blue-darken-1" />
         <settings-page-item title="Backup settings"
-          description="Download your settings as JSON file. This file contains your API Keys (if you have added them) - so you shouldn't share it with anyone. "
+          description="Download your settings as JSON file. This file contains your API keys for both e621 and e6ai (if you have added them) — so you shouldn't share it with anyone."
           switch>
           <v-btn variant="text" color="accent" class="mb-3" @click="download">
             download

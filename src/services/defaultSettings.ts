@@ -7,6 +7,7 @@ import {
   DataSaverType,
   FullscreenZoomUiMode
 } from "./types";
+import { createEmptySiteProfile, profileFromMirrors } from "./siteProfiles";
 
 export const focusSearchShortcut: Shortcut = {
   action: "focus_search",
@@ -34,15 +35,13 @@ export const fullscreenSlideshowShortcut: Shortcut = {
 };
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 15,
+  configVersion: 16,
+  activeMode: "e621",
+  profiles: {
+    e621: createEmptySiteProfile("e621"),
+    e6ai: createEmptySiteProfile("e6ai"),
+  },
   shortcuts: [
-    // { action: "favorite_post", sequence: "f p" },
-    // { action: "toggle_fullscreen", sequence: "t f" },
-    // { action: "toggle_infos", sequence: "t i" },
-    // { action: "go_to_next_post", sequence: "n p" },
-    // { action: "go_to_previous_post", sequence: "p p" },
-    // { action: "open_on_e621_net", sequence: "o e" },
-
     { action: "go_to_posts", sequence: "g p" },
     { action: "go_to_settings", sequence: "g s" },
 
@@ -68,7 +67,6 @@ export const defaultSettings: ISettingsServiceState = {
   ],
   blacklist: {
     mode: BlacklistMode.blur,
-    // tags: ["rating:explicit", "rating:questionable"],
     tags: [],
     hideServerSideBlacklisted: false,
   },
@@ -149,3 +147,7 @@ export const defaultSettings: ISettingsServiceState = {
     },
   },
 };
+
+// Seed e621 profile from mirrors (includes Hot / Popular searches); e6ai stays empty.
+defaultSettings.profiles.e621 = profileFromMirrors(defaultSettings);
+defaultSettings.profiles.e6ai = createEmptySiteProfile("e6ai");

@@ -9,10 +9,12 @@
 
     </v-list-item>
   </v-list>
+  <site-mode-switcher />
 </template>
 
 <script setup lang="ts">
 import { useNavigationItems } from "../App/navigation";
+import SiteModeSwitcher from "./SiteModeSwitcher.vue";
 
 const navigationItems = useNavigationItems();
 </script>

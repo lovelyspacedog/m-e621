@@ -9,4 +9,6 @@ export * from "./ShortcutService";
 export * from "./ShortcutStore";
 export * from "./UrlStore";
 export * from "./SavedSearchStore";
+export * from "./SiteModeStore";
 export * from "./state";
+
