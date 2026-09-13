@@ -312,6 +312,12 @@ class PersistanceService {
       newState.posts.localDirectoryName = null;
       newState.configVersion = 18;
     }
+    if (newState.configVersion < 19) {
+      newState.posts.cardAutoNext = false;
+      newState.posts.cardAutoNextIntervalMs =
+        newState.posts.slideshowIntervalMs || 15000;
+      newState.configVersion = 19;
+    }
 
     // Ensure profiles exist even if a partial export skipped them.
     if (!newState.profiles) {
@@ -349,6 +355,13 @@ class PersistanceService {
 
     if (newState.posts.localDirectoryName === undefined) {
       newState.posts.localDirectoryName = null;
+    }
+    if (newState.posts.cardAutoNext === undefined) {
+      newState.posts.cardAutoNext = false;
+    }
+    if (!newState.posts.cardAutoNextIntervalMs) {
+      newState.posts.cardAutoNextIntervalMs =
+        newState.posts.slideshowIntervalMs || 15000;
     }
     applyActiveProfileToMirrors(newState);
     // Official Vercel proxy only allows avoonix origins; use same-origin /api/.

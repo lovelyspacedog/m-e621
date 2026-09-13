@@ -6,7 +6,9 @@
       </v-btn>
     </div>
     <!-- <app-logo v-if="loading" loader /> -->
-    <post-list :visible-posts="posts" :loading="loading" @load-next-page="loadNext" @load-previous-page="loadPrevious">
+    <post-list :visible-posts="posts" :loading="loading"
+      :auto-next-paused="!!fullscreenPost || !!detailsPost"
+      @load-next-page="loadNext" @load-previous-page="loadPrevious">
       <template #post="{ post }">
         <!-- :layout="layout" -->
         <post :post="post" @open-post="$emit('open-post', $event)"

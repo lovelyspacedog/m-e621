@@ -35,7 +35,7 @@ export const fullscreenSlideshowShortcut: Shortcut = {
 };
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 18,
+  configVersion: 19,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -125,6 +125,8 @@ export const defaultSettings: ISettingsServiceState = {
     autoLoadNext: true,
     fullWidthFeed: false,
     slideshowIntervalMs: 15000,
+    cardAutoNext: false,
+    cardAutoNextIntervalMs: 15000,
     saveLocal: {
       pathTemplate: "%artist%/%tags 1-5%.%ext%",
       directoryName: null,

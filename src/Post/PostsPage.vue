@@ -81,6 +81,21 @@
             />
           </template>
         </v-list-item>
+        <v-list-item>
+          <template #prepend>
+            <v-icon>mdi-skip-next</v-icon>
+          </template>
+          <v-list-item-title>Auto-next cards</v-list-item-title>
+          <template #append>
+            <v-switch
+              class="ma-0"
+              color="accent"
+              density="compact"
+              hide-details
+              v-model="postsStore.cardAutoNext"
+            />
+          </template>
+        </v-list-item>
       </v-list>
       <div class="text-overline" v-if="hiddenPostCount > 0">Blacklisted posts hidden: {{ hiddenPostCount }}</div>
       <div class="text-overline" v-if="suggestedTags.length > 0">Tags on this page</div>

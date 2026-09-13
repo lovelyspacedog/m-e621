@@ -32,6 +32,24 @@
             label="Seconds per image"
           />
         </settings-page-item>
+        <settings-page-item title="Card auto-next" switch
+          description="Automatically scroll the feed to the next post. Videos wait until they finish.">
+          <v-switch v-model="posts.cardAutoNext" />
+        </settings-page-item>
+        <settings-page-item title="Card auto-next interval" select
+          description="Seconds to stay on each image card. Videos wait until they finish.">
+          <v-slider
+            color="accent"
+            class="my-0 mx-3"
+            :model-value="cardAutoNextIntervalSeconds"
+            @update:model-value="onCardAutoNextIntervalSeconds"
+            thumb-label
+            :min="3"
+            :max="60"
+            :step="1"
+            label="Seconds per card"
+          />
+        </settings-page-item>
         <settings-page-item title="Limits" select>
           <v-slider color="accent" class="my-0 mx-3" v-model="posts.postListFetchLimit" thumb-label :min="10" :max="320"
             label="Posts per page" />
@@ -101,6 +119,13 @@ const slideshowIntervalSeconds = computed(() =>
 const onSlideshowIntervalSeconds = (value: number | number[]) => {
   const seconds = Array.isArray(value) ? value[0] : value;
   posts.slideshowIntervalMs = Math.round(seconds) * 1000;
+};
+const cardAutoNextIntervalSeconds = computed(() =>
+  Math.round(posts.cardAutoNextIntervalMs / 1000),
+);
+const onCardAutoNextIntervalSeconds = (value: number | number[]) => {
+  const seconds = Array.isArray(value) ? value[0] : value;
+  posts.cardAutoNextIntervalMs = Math.round(seconds) * 1000;
 };
 
 const fullscreenZoomUiModeItems = computed(() => [

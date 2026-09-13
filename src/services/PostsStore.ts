@@ -109,6 +109,22 @@ export const usePostsStore = defineStore("posts", () => {
       main.posts.slideshowIntervalMs = value;
     },
   });
+  const cardAutoNext = computed({
+    get() {
+      return main.posts.cardAutoNext;
+    },
+    set(value) {
+      main.posts.cardAutoNext = value;
+    },
+  });
+  const cardAutoNextIntervalMs = computed({
+    get() {
+      return main.posts.cardAutoNextIntervalMs;
+    },
+    set(value) {
+      main.posts.cardAutoNextIntervalMs = value;
+    },
+  });
   const saveLocalPathTemplate = computed({
     get() {
       return main.posts.saveLocal.pathTemplate;
@@ -155,6 +171,8 @@ export const usePostsStore = defineStore("posts", () => {
     autoLoad,
     fullWidthFeed,
     slideshowIntervalMs,
+    cardAutoNext,
+    cardAutoNextIntervalMs,
     saveLocalPathTemplate,
     saveLocalDirectoryName,
     localDirectoryName,

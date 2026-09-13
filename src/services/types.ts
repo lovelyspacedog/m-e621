@@ -97,7 +97,7 @@ export interface SiteProfile {
 // }
 
 export interface ISettingsServiceState {
-  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18;
+  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];
@@ -147,6 +147,8 @@ export interface ISettingsServiceState {
     autoLoadNext: boolean;
     fullWidthFeed: boolean;
     slideshowIntervalMs: number;
+    cardAutoNext: boolean;
+    cardAutoNextIntervalMs: number;
     saveLocal: {
       pathTemplate: string;
       directoryName: string | null;

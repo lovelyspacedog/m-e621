@@ -80,6 +80,10 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
+    autoNextPaused: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props, context) {
     const layout = ref<"list" | "grid">("list");
@@ -103,12 +107,26 @@ export default defineComponent({
         posts.value.find((post) =>
           isAnyPartOfElementInViewport(post.$el),
         ) || null;
-      // window.scroll(window.scrollX, window.scrollY + 100);
+      if (postsStore.cardAutoNext && !props.autoNextPaused) {
+        const index = currentCardIndex();
+        if (index !== lastDwellIndex) {
+          lastDwellIndex = index;
+          scheduleAutoNext();
+        }
+      }
     };
 
     //   // return "gridmd"; // blog, feed(sm|md|xl), grid(sm|md|xl)
-    onMounted(() => window.addEventListener("scroll", handleScroll));
-    onBeforeUnmount(() => window.removeEventListener("scroll", handleScroll));
+    onMounted(() => {
+      window.addEventListener("scroll", handleScroll);
+      document.addEventListener("visibilitychange", onVisibilityChange);
+      scheduleAutoNext();
+    });
+    onBeforeUnmount(() => {
+      window.removeEventListener("scroll", handleScroll);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      clearAutoNextSchedule();
+    });
 
     // gridSizes() {
     //   return {
@@ -158,6 +176,158 @@ export default defineComponent({
         posts.value[idx] = el;
       }
     }
+
+    let clearAutoNext: (() => void) | null = null;
+    let waitingForMorePosts = false;
+    let lastDwellIndex = -1;
+
+    const clearAutoNextSchedule = () => {
+      clearAutoNext?.();
+      clearAutoNext = null;
+    };
+
+    const cardEl = (index: number): HTMLElement | null => {
+      const el = posts.value[index]?.$el;
+      return el instanceof HTMLElement ? el : null;
+    };
+
+    const currentCardIndex = () => {
+      const viewHeight =
+        window.innerHeight || document.documentElement.clientHeight;
+      let bestIndex = 0;
+      let bestVisible = -1;
+      posts.value.forEach((post, index) => {
+        const el = post?.$el;
+        if (!(el instanceof Element)) return;
+        const rect = el.getBoundingClientRect();
+        const visible = Math.min(rect.bottom, viewHeight) - Math.max(rect.top, 0);
+        if (visible > bestVisible) {
+          bestVisible = visible;
+          bestIndex = index;
+        }
+      });
+      return bestIndex;
+    };
+
+    const goToIndex = (index: number) => {
+      const el = cardEl(index);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    const canRunAutoNext = () =>
+      postsStore.cardAutoNext &&
+      !props.autoNextPaused &&
+      typeof document !== "undefined" &&
+      document.visibilityState === "visible" &&
+      props.visiblePosts.length > 0;
+
+    const advanceCard = () => {
+      if (!canRunAutoNext()) return;
+      const index = currentCardIndex();
+      const next = index + 1;
+      if (next >= props.visiblePosts.length) {
+        waitingForMorePosts = true;
+        context.emit("load-next-page");
+        return;
+      }
+      waitingForMorePosts = false;
+      lastDwellIndex = next;
+      goToIndex(next);
+      scheduleAutoNextAt(next);
+    };
+
+    const scheduleAutoNext = () => {
+      scheduleAutoNextAt(currentCardIndex());
+    };
+
+    const scheduleAutoNextAt = (index: number) => {
+      clearAutoNextSchedule();
+      if (!canRunAutoNext() || props.loading) return;
+      lastDwellIndex = index;
+      const video = cardEl(index)?.querySelector("video");
+      if (video && !video.ended) {
+        let cancelled = false;
+        const onEnded = () => {
+          video.removeEventListener("ended", onEnded);
+          if (!cancelled) advanceCard();
+        };
+        clearAutoNext = () => {
+          cancelled = true;
+          video.removeEventListener("ended", onEnded);
+        };
+        const playResult = video.play();
+        if (playResult && typeof playResult.then === "function") {
+          playResult
+            .then(() => {
+              if (cancelled) return;
+              video.addEventListener("ended", onEnded);
+            })
+            .catch(() => {
+              if (cancelled) return;
+              const timer = window.setTimeout(
+                advanceCard,
+                postsStore.cardAutoNextIntervalMs,
+              );
+              clearAutoNext = () => {
+                cancelled = true;
+                video.removeEventListener("ended", onEnded);
+                window.clearTimeout(timer);
+              };
+            });
+          return;
+        }
+        video.addEventListener("ended", onEnded);
+        return;
+      }
+      const timer = window.setTimeout(
+        advanceCard,
+        postsStore.cardAutoNextIntervalMs,
+      );
+      clearAutoNext = () => window.clearTimeout(timer);
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        clearAutoNextSchedule();
+      } else {
+        scheduleAutoNext();
+      }
+    };
+
+    watch(
+      () => [
+        postsStore.cardAutoNext,
+        postsStore.cardAutoNextIntervalMs,
+        props.autoNextPaused,
+      ],
+      () => {
+        lastDwellIndex = -1;
+        scheduleAutoNext();
+      },
+    );
+
+    watch(
+      () => props.loading,
+      (loading, wasLoading) => {
+        if (wasLoading && !loading && waitingForMorePosts) {
+          const index = currentCardIndex();
+          if (index + 1 < props.visiblePosts.length) {
+            waitingForMorePosts = false;
+            lastDwellIndex = index + 1;
+            goToIndex(index + 1);
+            scheduleAutoNextAt(index + 1);
+            return;
+          }
+          waitingForMorePosts = false;
+        }
+        if (!loading) {
+          scheduleAutoNext();
+        } else {
+          clearAutoNextSchedule();
+        }
+      },
+    );
 
     const indexThatTriggersPreviousPage = computed(() =>
       props.visiblePosts.length > 2 ? 1 : 0,
