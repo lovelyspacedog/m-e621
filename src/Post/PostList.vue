@@ -191,16 +191,33 @@ export default defineComponent({
       return el instanceof HTMLElement ? el : null;
     };
 
+    const cardTarget = (index: number): HTMLElement | null => {
+      const wrap = cardEl(index);
+      if (!wrap) return null;
+      return wrap.querySelector<HTMLElement>("[id^='post_']") || wrap;
+    };
+
+    const headerOffset = () => {
+      const bar = document.querySelector(".v-app-bar");
+      if (!(bar instanceof HTMLElement)) return 0;
+      const style = getComputedStyle(bar);
+      if (style.display === "none" || style.visibility === "hidden") return 0;
+      if (style.position !== "fixed" && style.position !== "sticky") return 0;
+      return Math.max(0, bar.getBoundingClientRect().bottom);
+    };
+
     const currentCardIndex = () => {
       const viewHeight =
         window.innerHeight || document.documentElement.clientHeight;
+      const topBound = headerOffset();
       let bestIndex = 0;
       let bestVisible = -1;
       posts.value.forEach((post, index) => {
-        const el = post?.$el;
-        if (!(el instanceof Element)) return;
+        const el = cardTarget(index) || (post?.$el instanceof Element ? post.$el : null);
+        if (!el) return;
         const rect = el.getBoundingClientRect();
-        const visible = Math.min(rect.bottom, viewHeight) - Math.max(rect.top, 0);
+        const visible =
+          Math.min(rect.bottom, viewHeight) - Math.max(rect.top, topBound);
         if (visible > bestVisible) {
           bestVisible = visible;
           bestIndex = index;
@@ -210,9 +227,12 @@ export default defineComponent({
     };
 
     const goToIndex = (index: number) => {
-      const el = cardEl(index);
-      if (!el) return;
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      const target = cardTarget(index);
+      if (!target) return;
+      const gap = 8;
+      const top =
+        window.scrollY + target.getBoundingClientRect().top - headerOffset() - gap;
+      window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
     };
 
     const canRunAutoNext = () =>
