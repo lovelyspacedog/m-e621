@@ -33,6 +33,10 @@
       <v-list class="pa-0 mt-1 mb-2" density="compact">
         <v-list-item>
           <template #prepend>
+            <v-icon>mdi-arrow-expand-horizontal</v-icon>
+          </template>
+          <v-list-item-title>Full-width feed</v-list-item-title>
+          <template #append>
             <v-switch
               class="ma-0"
               color="accent"
@@ -41,7 +45,6 @@
               v-model="postsStore.fullWidthFeed"
             />
           </template>
-          <v-list-item-title>Full-width feed</v-list-item-title>
         </v-list-item>
       </v-list>
       <div class="text-overline" v-if="hiddenPostCount > 0">Blacklisted posts hidden: {{ hiddenPostCount }}</div>
