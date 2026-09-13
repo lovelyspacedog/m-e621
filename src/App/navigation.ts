@@ -30,13 +30,14 @@ const resolveItem = (
 
 export const useHomeNavigationItem = () => {
   const router = useRouter();
+  const siteMode = useSiteModeStore();
   return computed(() =>
     resolveItem(router, {
       icon: "mdi-home",
       name: "Home",
       exact: true,
       to: {
-        name: "Posts",
+        name: siteMode.isTailspace ? "TailspacePosts" : "Posts",
       },
     }),
   );
@@ -55,6 +56,26 @@ export const useTrailingNavigationItems = () => {
         name: "Settings",
       },
     };
+
+    // Tailspace mode: only Posts + Comics + Settings
+    if (siteMode.isTailspace) {
+      return [
+        {
+          icon: "mdi-image-multiple",
+          name: "Posts",
+          exact: false,
+          to: { name: "TailspacePosts" },
+        },
+        {
+          icon: "mdi-bookshelf",
+          name: "Comics",
+          exact: false,
+          to: { name: "TailspaceComics" },
+        },
+        settings,
+      ].map((item) => resolveItem(router, item));
+    }
+
     const remoteItems = [
       {
         icon: "mdi-bookshelf",

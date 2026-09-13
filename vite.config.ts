@@ -283,6 +283,182 @@ function e621CommentsProxy(): Plugin {
   };
 }
 
+function tailspaceProxy(): Plugin {
+  const TAILSPACE_BASE = 'https://tailspace.com';
+
+  return {
+    name: 'tailspace-proxy',
+    configureServer(server) {
+      // ── Posts: GET /api/tailspace/posts?page=N ───────────────────────────
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url?.startsWith('/api/tailspace/posts') || req.method !== 'GET') {
+          next();
+          return;
+        }
+        const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+        const params = new URLSearchParams(qs);
+        const page = Math.max(1, parseInt(params.get('page') || '1', 10) || 1);
+        const url = `${TAILSPACE_BASE}/api/get-browse-posts-paginated?page=${page}`;
+        try {
+          const remote = await fetch(url, {
+            headers: {
+              Accept: 'application/json',
+              Referer: `${TAILSPACE_BASE}/`,
+              'User-Agent': 'me621-tailspace-proxy/1.0',
+            },
+          });
+          res.statusCode = remote.status;
+          res.setHeader('Content-Type', remote.headers.get('content-type') || 'application/json');
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(Buffer.from(await remote.arrayBuffer()));
+        } catch (err) {
+          res.statusCode = 502;
+          res.end(JSON.stringify({ ok: false, message: String(err) }));
+        }
+      });
+
+      // ── Comics: GET /api/tailspace/comics?page=N&search=X&c=Y... ─────────
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url?.startsWith('/api/tailspace/comics') || req.method !== 'GET') {
+          next();
+          return;
+        }
+        const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+        const params = new URLSearchParams(qs);
+
+        // Forward whitelisted params
+        const fwd = new URLSearchParams();
+        for (const key of ['page', 'search', 'sort', 'finishedOnly']) {
+          const v = params.get(key);
+          if (v !== null) fwd.set(key, v);
+        }
+        for (const v of params.getAll('c')) fwd.append('c', v);
+        for (const v of params.getAll('tag')) fwd.append('tag', v);
+        for (const v of params.getAll('excludeTag')) fwd.append('excludeTag', v);
+
+        const fwdQs = fwd.toString();
+        const url = `${TAILSPACE_BASE}/browse.data` + (fwdQs ? `?${fwdQs}` : '');
+        try {
+          const remote = await fetch(url, {
+            headers: {
+              Accept: 'text/x-turbo-stream, application/json, */*',
+              Referer: `${TAILSPACE_BASE}/browse`,
+              'User-Agent': 'me621-tailspace-proxy/1.0',
+            },
+          });
+          if (!remote.ok) {
+            res.statusCode = remote.status;
+            res.end(JSON.stringify({ ok: false, message: `upstream ${remote.status}` }));
+            return;
+          }
+          const raw = await remote.text();
+          const data = parseTailspaceComics(raw);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(JSON.stringify(data));
+        } catch (err) {
+          res.statusCode = 502;
+          res.end(JSON.stringify({ ok: false, message: String(err) }));
+        }
+      });
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tailspace turbo-stream parser (mirrors the Python implementation in serve.py)
+// ---------------------------------------------------------------------------
+
+const TS_SENTINELS: Record<number, unknown> = { [-5]: null, [-6]: true, [-7]: false };
+
+function tsDecodePool(pool: unknown[]): unknown {
+  const cache = new Map<number, unknown>();
+
+  function decode(ref: unknown): unknown {
+    if (typeof ref !== 'number') return ref;
+    if (ref in TS_SENTINELS) return TS_SENTINELS[ref];
+    if (ref < 0) return null;
+    if (cache.has(ref)) return cache.get(ref);
+    if (ref >= pool.length) return null;
+    const result = decodeVal(pool[ref]);
+    cache.set(ref, result);
+    return result;
+  }
+
+  function decodeVal(val: unknown): unknown {
+    if (Array.isArray(val)) return val.map((item) => (typeof item === 'number' ? decode(item) : decodeVal(item)));
+    if (val && typeof val === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+        if (/^_-?\d+$/.test(k)) {
+          const keyIdx = parseInt(k.slice(1), 10);
+          const actualKey = decode(keyIdx);
+          const actualVal = typeof v === 'number' ? decode(v) : decodeVal(v);
+          if (actualKey != null) out[String(actualKey)] = actualVal;
+        } else {
+          out[k] = typeof v === 'number' ? decode(v) : decodeVal(v);
+        }
+      }
+      return out;
+    }
+    return val;
+  }
+
+  return decode(0);
+}
+
+function parseTailspaceComics(text: string): { comics: unknown[]; numberOfPages: number; totalNumComics: number } {
+  const trimmed = text.trim();
+
+  // Try plain JSON (object)
+  if (trimmed.startsWith('{')) {
+    try {
+      const data = JSON.parse(trimmed) as Record<string, unknown>;
+      if ('comicsAndAds' in data) return extractComicsPayload(data);
+    } catch { /* fall through */ }
+  }
+
+  // Try pool array
+  if (trimmed.startsWith('[')) {
+    try {
+      const pool = JSON.parse(trimmed) as unknown[];
+      const decoded = tsDecodePool(pool) as Record<string, unknown>;
+      if (decoded && 'comicsAndAds' in decoded) return extractComicsPayload(decoded);
+      // May be wrapped
+      for (const candidate of [decoded?.['loaderData'], decoded?.['data']]) {
+        const c = candidate as Record<string, unknown> | undefined;
+        if (c && 'comicsAndAds' in c) return extractComicsPayload(c);
+      }
+    } catch { /* fall through */ }
+  }
+
+  // Try line-by-line
+  for (const line of trimmed.split('\n')) {
+    const l = line.trim();
+    if (!l.startsWith('{')) continue;
+    try {
+      const chunk = JSON.parse(l) as Record<string, unknown>;
+      if ('comicsAndAds' in chunk) return extractComicsPayload(chunk);
+    } catch { /* ignore */ }
+  }
+
+  throw new Error(`Cannot parse tailspace comics response: ${trimmed.slice(0, 200)}`);
+}
+
+function extractComicsPayload(data: Record<string, unknown>) {
+  const rawList = (data['comicsAndAds'] as unknown[] | undefined) ?? [];
+  const comics = rawList.filter(
+    (item): item is Record<string, unknown> =>
+      typeof item === 'object' && item !== null && !!(item as Record<string, unknown>)['id'] && !(item as Record<string, unknown>)['ad'],
+  );
+  return {
+    comics,
+    numberOfPages: Number(data['numberOfPages'] ?? 1),
+    totalNumComics: Number(data['totalNumComics'] ?? comics.length),
+  };
+}
+
 function generateSitemap(env: Record<string, string>): Plugin {
   return {
     name: 'generate-sitemap',
@@ -327,6 +503,7 @@ export default defineConfig(({ mode }) => {
       e621VotesProxy(),
       e621CommentsProxy(),
       e621FavoritesProxy(),
+      tailspaceProxy(),
       generateSitemap(env),
       vue(),
       vuetify(),

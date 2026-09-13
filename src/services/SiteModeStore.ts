@@ -24,13 +24,15 @@ export const useSiteModeStore = defineStore("site-mode", () => {
    *  even when the route query doesn't change (e.g. blank /posts). */
   const modeChangeCount = ref(0);
   const isLocal = computed(() => main.activeMode === "local");
-  const activeLabel = computed(() =>
-    main.activeMode === "e6ai"
-      ? "e6ai"
-      : main.activeMode === "local"
-        ? "local"
-        : "e621",
-  );
+  const isTailspace = computed(() => main.activeMode === "tailspace");
+  const activeLabel = computed(() => {
+    switch (main.activeMode) {
+      case "e6ai": return "e6ai";
+      case "local": return "local";
+      case "tailspace": return "tailspace";
+      default: return "e621";
+    }
+  });
 
   const setMode = (mode: SiteMode) => {
     if (mode === main.activeMode) return;
@@ -55,10 +57,11 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   return {
     activeMode,
     isLocal,
+    isTailspace,
     activeLabel,
     setMode,
     filterButtons,
-    siteModes: ["e621", "e6ai", "local"] as SiteMode[],
+    siteModes: ["e621", "e6ai", "local", "tailspace"] as SiteMode[],
     modeChangeCount,
   };
 });

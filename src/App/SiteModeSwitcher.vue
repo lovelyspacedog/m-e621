@@ -8,11 +8,9 @@
       @click="onSelect(mode)"
     >
       <template #prepend>
-        <v-icon>{{
-          mode === "e6ai" ? "mdi-robot" : mode === "local" ? "mdi-folder-image" : "mdi-paw"
-        }}</v-icon>
+        <v-icon>{{ modeIcon(mode) }}</v-icon>
       </template>
-      <v-list-item-title>{{ mode }}</v-list-item-title>
+      <v-list-item-title>{{ modeLabel(mode) }}</v-list-item-title>
     </v-list-item>
   </v-list>
 </template>
@@ -25,9 +23,29 @@ import type { SiteMode } from "@/services/types";
 const siteMode = useSiteModeStore();
 const router = useRouter();
 
+const modeIcon = (mode: SiteMode) => {
+  switch (mode) {
+    case "e6ai": return "mdi-robot";
+    case "local": return "mdi-folder-image";
+    case "tailspace": return "mdi-space-station";
+    default: return "mdi-paw";
+  }
+};
+
+const modeLabel = (mode: SiteMode) => {
+  switch (mode) {
+    case "tailspace": return "Tailspace";
+    default: return mode;
+  }
+};
+
 const onSelect = (mode: SiteMode) => {
   if (mode === siteMode.activeMode) return;
   siteMode.setMode(mode);
-  router.push({ name: "Posts", query: {} });
+  if (mode === "tailspace") {
+    router.push({ name: "TailspacePosts" });
+  } else {
+    router.push({ name: "Posts", query: {} });
+  }
 };
 </script>

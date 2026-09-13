@@ -43,12 +43,13 @@ export interface SavedSearchEntry {
 
 export const UNGROUPED_FAVORITE_GROUP_ID = "ungrouped";
 
-export type SiteMode = "e621" | "e6ai" | "local";
+export type SiteMode = "e621" | "e6ai" | "local" | "tailspace";
 
 export const SITE_MODE_URLS: Record<SiteMode, string> = {
   e621: "https://e621.net/",
   e6ai: "https://e6ai.net/",
   local: "",
+  tailspace: "https://tailspace.com/",
 };
 
 export interface FavoriteTagGroup {

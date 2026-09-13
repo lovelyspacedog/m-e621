@@ -198,6 +198,18 @@ const router = createRouter({
         import(/* webpackChunkName: "favorites" */ "@/Favorites/FavoritesPage.vue"),
     },
     {
+      path: "/tailspace/posts",
+      name: "TailspacePosts",
+      component: () =>
+        import(/* webpackChunkName: "tailspace" */ "@/Tailspace/TailspacePostsPage.vue"),
+    },
+    {
+      path: "/tailspace/comics",
+      name: "TailspaceComics",
+      component: () =>
+        import(/* webpackChunkName: "tailspace" */ "@/Tailspace/TailspaceComicsPage.vue"),
+    },
+    {
       path: "/:pathMatch(.*)",
       name: "ErrorPage",
       component: () =>

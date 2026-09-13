@@ -30,6 +30,10 @@ FAVORITE_PATH = re.compile(r"^/api/favorites(?:/(\d+))?$")
 VOTES_PATH = re.compile(r"^/api/votes/?$")
 COMMENTS_PATH = re.compile(r"^/api/comments/?$")
 MEDIA_HOST_SUFFIXES = (".e621.net", ".e926.net", ".e6ai.net")
+TAILSPACE_BASE = "https://tailspace.com"
+TAILSPACE_CDN = "https://pics.tailspace.com"
+TAILSPACE_POSTS_PATH = re.compile(r"^/api/tailspace/posts$")
+TAILSPACE_COMICS_PATH = re.compile(r"^/api/tailspace/comics$")
 
 _pull_lock = threading.Lock()
 _state: dict = {
@@ -182,6 +186,112 @@ def _start_pull() -> bool:
 
     threading.Thread(target=runner, name="m-e621-pull", daemon=True).start()
     return True
+
+
+# ---------------------------------------------------------------------------
+# Tailspace turbo-stream parser
+# ---------------------------------------------------------------------------
+# React Router's `.data` endpoint serialises loader data as a flat value
+# pool (a JSON array).  The root value lives at index 0.  Objects in the
+# pool use the `{"_N": M}` encoding: the key is `pool[N]` (a string) and
+# the value is `pool[M]` (another pool reference or inline primitive).
+# Negative indices are sentinel shortcuts:
+#   -5 → null / None
+#   -7 → false / False
+#   -6 → true  / True  (best-guess; add more as discovered)
+
+_TS_SENTINELS: dict[int, object] = {-5: None, -6: True, -7: False}
+
+
+def _ts_decode_pool(pool: list) -> object:
+    """Walk a turbo-stream flat pool and return the decoded root value."""
+    cache: dict[int, object] = {}
+
+    def decode(ref: object) -> object:
+        if not isinstance(ref, int):
+            return ref  # inline primitive
+        if ref in _TS_SENTINELS:
+            return _TS_SENTINELS[ref]
+        if ref < 0:
+            return None  # unknown sentinel → null
+        if ref in cache:
+            return cache[ref]
+        if ref >= len(pool):
+            return None
+        entry = pool[ref]
+        result = decode_val(entry)
+        cache[ref] = result
+        return result
+
+    def decode_val(val: object) -> object:
+        if isinstance(val, dict):
+            result: dict = {}
+            for k, v in val.items():
+                if k.startswith("_") and k[1:].lstrip("-").isdigit():
+                    key_idx = int(k[1:])
+                    actual_key = decode(key_idx)
+                    actual_val = decode(v) if isinstance(v, int) else decode_val(v)
+                    if actual_key is not None:
+                        result[str(actual_key)] = actual_val
+                else:
+                    result[k] = decode(v) if isinstance(v, int) else decode_val(v)
+            return result
+        if isinstance(val, list):
+            return [decode(item) if isinstance(item, int) else decode_val(item) for item in val]
+        return val
+
+    return decode(0)
+
+
+def _parse_tailspace_comics_response(raw: bytes) -> dict:
+    """Parse a tailspace /browse.data response into a clean dict."""
+    text = raw.decode("utf-8", errors="replace").strip()
+
+    # ── Try plain JSON first (format may change) ────────────────────────────
+    if text.startswith("{") or text.startswith("["):
+        try:
+            data = json.loads(text)
+            # Plain object
+            if isinstance(data, dict) and "comicsAndAds" in data:
+                return _extract_comics_payload(data)
+            # Pool array
+            if isinstance(data, list):
+                decoded = _ts_decode_pool(data)
+                if isinstance(decoded, dict):
+                    # May be wrapped in a loaderData envelope
+                    inner = (decoded.get("loaderData") or decoded.get("data") or decoded)
+                    if isinstance(inner, dict) and "comicsAndAds" in inner:
+                        return _extract_comics_payload(inner)
+                    if "comicsAndAds" in decoded:
+                        return _extract_comics_payload(decoded)
+        except (json.JSONDecodeError, Exception):
+            pass
+
+    # ── Try multi-line turbo-stream (each line is a JSON chunk) ────────────
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    for line in lines:
+        try:
+            chunk = json.loads(line)
+            if isinstance(chunk, dict) and "comicsAndAds" in chunk:
+                return _extract_comics_payload(chunk)
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError(f"Cannot parse tailspace comics response (first 200 chars): {text[:200]!r}")
+
+
+def _extract_comics_payload(data: dict) -> dict:
+    raw_list = data.get("comicsAndAds") or []
+    # Filter out ad placeholders (they have an "ad" key or no "id")
+    comics = [
+        item for item in raw_list
+        if isinstance(item, dict) and item.get("id") and not item.get("ad")
+    ]
+    return {
+        "comics": comics,
+        "numberOfPages": int(data.get("numberOfPages") or 1),
+        "totalNumComics": int(data.get("totalNumComics") or len(comics)),
+    }
 
 
 class SpaHandler(SimpleHTTPRequestHandler):
@@ -447,6 +557,81 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _tailspace_request(
+        self,
+        url: str,
+        *,
+        accept: str = "application/json, */*",
+        timeout: int = 30,
+    ) -> tuple[bytes, int, str]:
+        """Fetch a Tailspace URL and return (body, status, content_type)."""
+        req = urllib.request.Request(url, method="GET")
+        req.add_header("Accept", accept)
+        req.add_header("Accept-Language", "en-US,en;q=0.9")
+        req.add_header(
+            "User-Agent",
+            f"me621-tailspace-proxy/1.0 (https://{DOMAIN}; read-only browser proxy)",
+        )
+        # Tailspace expects the referer / sec-fetch headers for data endpoints
+        req.add_header("Referer", TAILSPACE_BASE + "/")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                body = resp.read()
+                status = getattr(resp, "status", 200)
+                ct = resp.headers.get("Content-Type", "application/json")
+            return body, status, ct
+        except urllib.error.HTTPError as exc:
+            return exc.read(), exc.code, "application/json"
+
+    def _proxy_tailspace_posts(self, parsed) -> None:
+        params = parse_qs(parsed.query)
+        page = (params.get("page") or ["1"])[0]
+        try:
+            page_n = max(1, int(page))
+        except ValueError:
+            page_n = 1
+        url = f"{TAILSPACE_BASE}/api/get-browse-posts-paginated?page={page_n}"
+        body, status, ct = self._tailspace_request(url)
+        if status == 200:
+            try:
+                data = json.loads(body)
+                self._json(200, data)
+                return
+            except json.JSONDecodeError as exc:
+                self._json(502, {"ok": False, "message": f"upstream JSON parse error: {exc}"})
+                return
+        self._json(status, {"ok": False, "message": f"upstream returned {status}"})
+
+    def _proxy_tailspace_comics(self, parsed) -> None:
+        params = parse_qs(parsed.query)
+
+        # Forward whitelisted query params
+        fwd: list[tuple[str, str]] = []
+        for key in ("page", "search", "sort", "finishedOnly"):
+            for v in params.get(key, []):
+                fwd.append((key, v))
+        for v in params.get("c", []):
+            fwd.append(("c", v))
+        for v in params.get("tag", []):
+            fwd.append(("tag", v))
+        for v in params.get("excludeTag", []):
+            fwd.append(("excludeTag", v))
+
+        qs = urlencode(fwd)
+        url = f"{TAILSPACE_BASE}/browse.data" + (f"?{qs}" if qs else "")
+        body, status, _ct = self._tailspace_request(
+            url,
+            accept="text/x-turbo-stream, application/json, */*",
+        )
+        if status != 200:
+            self._json(status, {"ok": False, "message": f"upstream returned {status}"})
+            return
+        try:
+            data = _parse_tailspace_comics_response(body)
+            self._json(200, data)
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "message": f"parse error: {exc}"})
+
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
@@ -464,6 +649,12 @@ class SpaHandler(SimpleHTTPRequestHandler):
                     "pull_enabled": True,
                 },
             )
+            return
+        if TAILSPACE_POSTS_PATH.match(path):
+            self._proxy_tailspace_posts(parsed)
+            return
+        if TAILSPACE_COMICS_PATH.match(path):
+            self._proxy_tailspace_comics(parsed)
             return
         if path.startswith("/api/"):
             self._json(404, {"ok": False, "message": "not found"})
