@@ -67,7 +67,11 @@
             hint="%artist%  %tags 1-5% (2 species + 3 tags)  %ext%  %id%"
             persistent-hint
           />
-          <local-folder-picker />
+          <local-folder-picker purpose="save" />
+        </settings-page-item>
+        <settings-page-item title="Local browse folder" select
+          description="Folder Local mode reads for images and videos. Separate from Save Locally.">
+          <local-folder-picker purpose="local" />
         </settings-page-item>
       </v-col>
     </v-row>

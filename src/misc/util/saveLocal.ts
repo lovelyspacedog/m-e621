@@ -177,11 +177,12 @@ export const buildSaveRelativePath = async (
 
 export const ensurePermission = async (
   handle: FileSystemDirectoryHandle,
+  access: "read" | "readwrite" = "readwrite",
 ): Promise<boolean> => {
-  const mode = { mode: "readwrite" as const };
+  const mode = { mode: access };
   const anyHandle = handle as FileSystemDirectoryHandle & {
-    queryPermission?: (o: { mode: "readwrite" }) => Promise<PermissionState>;
-    requestPermission?: (o: { mode: "readwrite" }) => Promise<PermissionState>;
+    queryPermission?: (o: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
+    requestPermission?: (o: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
   };
   if (anyHandle.queryPermission) {
     let state = await anyHandle.queryPermission(mode);

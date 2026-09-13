@@ -97,7 +97,7 @@ export interface SiteProfile {
 // }
 
 export interface ISettingsServiceState {
-  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
+  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];
@@ -151,6 +151,7 @@ export interface ISettingsServiceState {
       pathTemplate: string;
       directoryName: string | null;
     };
+    localDirectoryName: string | null;
   };
   favorites: {
     groups: FavoriteTagGroup[];

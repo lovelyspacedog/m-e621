@@ -125,6 +125,14 @@ export const usePostsStore = defineStore("posts", () => {
       main.posts.saveLocal.directoryName = value;
     },
   });
+  const localDirectoryName = computed({
+    get() {
+      return main.posts.localDirectoryName;
+    },
+    set(value) {
+      main.posts.localDirectoryName = value;
+    },
+  });
   const allButtonTypes = computed<ButtonType[]>(() => [
     "info",
     "fullscreen",
@@ -149,6 +157,7 @@ export const usePostsStore = defineStore("posts", () => {
     slideshowIntervalMs,
     saveLocalPathTemplate,
     saveLocalDirectoryName,
+    localDirectoryName,
     allButtonTypes,
   };
 });

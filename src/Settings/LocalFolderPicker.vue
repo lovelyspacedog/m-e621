@@ -10,11 +10,11 @@
         :disabled="!directoryPickerSupported"
         @click="onChooseFolder"
       >
-        Choose save folder
+        {{ isSave ? "Choose save folder" : "Choose browse folder" }}
       </v-btn>
       <v-btn
         variant="text"
-        :disabled="!posts.saveLocalDirectoryName"
+        :disabled="!directoryName"
         @click="onClearFolder"
       >
         Clear folder
@@ -24,7 +24,10 @@
 </template>
 
 <script setup lang="ts">
-import { invalidateLocalMediaIndex } from "@/misc/util/localMedia";
+import {
+  clearLocalDirectoryHandle,
+  pickLocalDirectory,
+} from "@/misc/util/localMedia";
 import {
   clearSavedDirectoryHandle,
   pickSaveDirectory,
@@ -33,6 +36,13 @@ import {
 import { usePostsStore, useSnackbarStore } from "@/services";
 import { computed } from "vue";
 
+const props = withDefaults(
+  defineProps<{
+    purpose?: "save" | "local";
+  }>(),
+  { purpose: "local" },
+);
+
 const emit = defineEmits<{
   (e: "changed"): void;
 }>();
@@ -40,22 +50,33 @@ const emit = defineEmits<{
 const posts = usePostsStore();
 const snackbar = useSnackbarStore();
 const directoryPickerSupported = supportsDirectoryPicker();
+const isSave = computed(() => props.purpose === "save");
+const directoryName = computed(() =>
+  isSave.value ? posts.saveLocalDirectoryName : posts.localDirectoryName,
+);
 
 const status = computed(() => {
   if (!directoryPickerSupported) {
     return "This browser cannot open a local folder (Firefox/Zen). Use Chromium.";
   }
-  if (posts.saveLocalDirectoryName) {
-    return `Using folder: ${posts.saveLocalDirectoryName}`;
+  if (directoryName.value) {
+    return `Using folder: ${directoryName.value}`;
   }
-  return "No folder chosen — Local mode and Save Locally need one.";
+  return isSave.value
+    ? "No save folder — downloads go to the browser Downloads folder."
+    : "No browse folder — Local mode has nothing to show.";
 });
 
 const onChooseFolder = async () => {
   try {
-    const handle = await pickSaveDirectory();
-    invalidateLocalMediaIndex();
-    snackbar.addMessage(`Save folder set to ${handle.name}`);
+    const handle = isSave.value
+      ? await pickSaveDirectory()
+      : await pickLocalDirectory();
+    snackbar.addMessage(
+      isSave.value
+        ? `Save folder set to ${handle.name}`
+        : `Local browse folder set to ${handle.name}`,
+    );
     emit("changed");
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") return;
@@ -66,9 +87,13 @@ const onChooseFolder = async () => {
 };
 
 const onClearFolder = async () => {
-  await clearSavedDirectoryHandle();
-  invalidateLocalMediaIndex();
-  snackbar.addMessage("Save folder cleared");
+  if (isSave.value) {
+    await clearSavedDirectoryHandle();
+    snackbar.addMessage("Save folder cleared");
+  } else {
+    await clearLocalDirectoryHandle();
+    snackbar.addMessage("Local browse folder cleared");
+  }
   emit("changed");
 };
 </script>

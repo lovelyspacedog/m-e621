@@ -308,6 +308,10 @@ class PersistanceService {
       }
       newState.configVersion = 17;
     }
+    if (newState.configVersion < 18) {
+      newState.posts.localDirectoryName = null;
+      newState.configVersion = 18;
+    }
 
     // Ensure profiles exist even if a partial export skipped them.
     if (!newState.profiles) {
@@ -343,6 +347,9 @@ class PersistanceService {
     newState.profiles.e6ai.baseUrl =
       newState.profiles.e6ai.baseUrl || SITE_MODE_URLS.e6ai;
 
+    if (newState.posts.localDirectoryName === undefined) {
+      newState.posts.localDirectoryName = null;
+    }
     applyActiveProfileToMirrors(newState);
     // Official Vercel proxy only allows avoonix origins; use same-origin /api/.
     if (

@@ -18,14 +18,14 @@
           </v-btn-toggle>
           <p class="text-left">
             Each site keeps its own username, API key, starred tags, blacklist, saved searches, and history.
-            Local mode reads the Save Locally folder on this PC. Switching clears the current post search.
+            Local mode reads a browse folder you pick (not the Save Locally folder). Switching clears the current post search.
           </p>
         </settings-page-item>
         <settings-page-item title="Local folder" select v-if="siteMode.isLocal">
           <p class="text-left">
-            Local mode shows images and videos from the Save Locally folder on this PC.
+            Local mode shows images and videos from this folder. Save Locally still uses its own folder in Post settings.
           </p>
-          <local-folder-picker />
+          <local-folder-picker purpose="local" />
         </settings-page-item>
         <settings-page-item title="Credentials" select v-if="!siteMode.isLocal">
           <v-text-field variant="filled" :label="`${siteLabel} username`" type="text" v-model="username" autocomplete="username" />

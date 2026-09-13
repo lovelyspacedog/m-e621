@@ -1,10 +1,49 @@
 import {
   ensurePermission,
-  getSavedDirectoryHandle,
   supportsDirectoryPicker,
 } from "@/misc/util/saveLocal";
+import { usePostsStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { PostTags } from "@/worker/api";
+import localforage from "localforage";
+
+const LOCAL_DIR_HANDLE_KEY = "local_mode_dir_handle";
+
+type DirectoryPickerWindow = Window & {
+  showDirectoryPicker?: (options?: {
+    id?: string;
+    mode?: "read" | "readwrite";
+  }) => Promise<FileSystemDirectoryHandle>;
+};
+
+export const getLocalDirectoryHandle = async (): Promise<FileSystemDirectoryHandle | null> => {
+  try {
+    const handle = await localforage.getItem<FileSystemDirectoryHandle>(
+      LOCAL_DIR_HANDLE_KEY,
+    );
+    return handle || null;
+  } catch {
+    return null;
+  }
+};
+
+export const clearLocalDirectoryHandle = async () => {
+  await localforage.removeItem(LOCAL_DIR_HANDLE_KEY);
+  usePostsStore().localDirectoryName = null;
+  invalidateLocalMediaIndex();
+};
+
+export const pickLocalDirectory = async () => {
+  const picker = (window as DirectoryPickerWindow).showDirectoryPicker;
+  if (!picker) {
+    throw new Error("Folder picker is not supported in this browser");
+  }
+  const handle = await picker({ id: "me621-local-browse", mode: "read" });
+  await localforage.setItem(LOCAL_DIR_HANDLE_KEY, handle);
+  usePostsStore().localDirectoryName = handle.name;
+  invalidateLocalMediaIndex();
+  return handle;
+};
 
 const MEDIA_EXTS = new Set([
   "jpg",
@@ -136,11 +175,11 @@ export const scanLocalMedia = async (
   if (!supportsDirectoryPicker()) {
     return { entries: [], status: "no-picker" };
   }
-  const handle = await getSavedDirectoryHandle();
+  const handle = await getLocalDirectoryHandle();
   if (!handle) {
     return { entries: [], status: "no-folder" };
   }
-  const allowed = await ensurePermission(handle);
+  const allowed = await ensurePermission(handle, "read");
   if (!allowed) {
     return { entries: [], status: "denied" };
   }
@@ -315,7 +354,7 @@ export const localStatusMessage = (status: LocalMediaStatus) => {
     case "no-picker":
       return "This browser cannot open a local folder. Use Chromium to browse Local mode.";
     case "no-folder":
-      return "Choose a save folder in Account or Post settings to browse Local files.";
+      return "Choose a Local browse folder in Account or Post settings.";
     case "denied":
       return "Allow access to the save folder to browse Local files.";
     case "empty":

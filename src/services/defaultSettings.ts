@@ -35,7 +35,7 @@ export const fullscreenSlideshowShortcut: Shortcut = {
 };
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 17,
+  configVersion: 18,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -129,6 +129,7 @@ export const defaultSettings: ISettingsServiceState = {
       pathTemplate: "%artist%/%tags 1-5%.%ext%",
       directoryName: null,
     },
+    localDirectoryName: null,
   },
   favorites: {
     groups: [
