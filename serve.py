@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 
 ROOT = Path(os.environ.get("M_E621_ROOT", Path.home() / "m-e621" / "dist")).resolve()
@@ -27,6 +27,7 @@ TOKEN_PATH = CONFIG_DIR / "pull_token"
 STATUS_PATH = CONFIG_DIR / "pull_status.json"
 FAVORITE_HOSTS = frozenset({"e621.net", "e926.net", "e6ai.net"})
 FAVORITE_PATH = re.compile(r"^/api/favorites(?:/(\d+))?$")
+MEDIA_HOST_SUFFIXES = (".e621.net", ".e926.net", ".e6ai.net")
 
 _pull_lock = threading.Lock()
 _state: dict = {
@@ -286,8 +287,57 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return
         self.send_error(404)
 
+    def _allowed_media_url(self, raw: str) -> str | None:
+        parsed = urlparse(raw)
+        host = (parsed.hostname or "").lower()
+        if parsed.scheme != "https" or not host:
+            return None
+        if host in FAVORITE_HOSTS or host.endswith(MEDIA_HOST_SUFFIXES):
+            return parsed.geturl()
+        return None
+
+    def _proxy_media(self, raw_url: str) -> None:
+        url = self._allowed_media_url(raw_url)
+        if not url:
+            self._json(400, {"ok": False, "message": "url not allowed"})
+            return
+        req = urllib.request.Request(url, method="GET")
+        req.add_header(
+            "User-Agent",
+            f"m-e621-download-proxy/1.0 (https://{DOMAIN})",
+        )
+        req.add_header("Accept", "*/*")
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                payload = resp.read()
+                status = getattr(resp, "status", 200)
+                content_type = resp.headers.get("Content-Type", "application/octet-stream")
+        except urllib.error.HTTPError as exc:
+            payload = exc.read()
+            status = exc.code
+            content_type = (
+                exc.headers.get("Content-Type", "application/octet-stream")
+                if exc.headers
+                else "application/octet-stream"
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "message": str(exc)})
+            return
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
     def do_GET(self) -> None:  # noqa: N802
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path == "/api/download":
+            raw = (parse_qs(parsed.query).get("url") or [""])[0]
+            self._proxy_media(raw)
+            return
         if path == "/api/git":
             self._json(
                 200,

@@ -8,6 +8,53 @@ import { VitePWA } from 'vite-plugin-pwa'
 import fs from 'fs';
 import path from 'path';
 
+const MEDIA_HOST_OK = (host: string) =>
+  ['.e621.net', '.e926.net', '.e6ai.net'].some((s) => host.endsWith(s)) ||
+  ['e621.net', 'e926.net', 'e6ai.net'].includes(host);
+
+function e621MediaProxy(): Plugin {
+  return {
+    name: 'e621-media-proxy',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url?.startsWith('/api/download')) {
+          next();
+          return;
+        }
+        const raw = new URL(req.url, 'http://127.0.0.1').searchParams.get('url') || '';
+        let target: URL;
+        try {
+          target = new URL(raw);
+        } catch {
+          res.statusCode = 400;
+          res.end('bad url');
+          return;
+        }
+        if (target.protocol !== 'https:' || !MEDIA_HOST_OK(target.hostname.toLowerCase())) {
+          res.statusCode = 400;
+          res.end('host not allowed');
+          return;
+        }
+        fetch(target.toString(), {
+          headers: { 'User-Agent': 'm-e621-download-proxy/1.0' },
+        })
+          .then(async (remote) => {
+            res.statusCode = remote.status;
+            res.setHeader(
+              'Content-Type',
+              remote.headers.get('content-type') || 'application/octet-stream',
+            );
+            res.end(Buffer.from(await remote.arrayBuffer()));
+          })
+          .catch((err) => {
+            res.statusCode = 502;
+            res.end(String(err));
+          });
+      });
+    },
+  };
+}
+
 function generateSitemap(env: Record<string, string>): Plugin {
   return {
     name: 'generate-sitemap',
@@ -48,6 +95,7 @@ export default defineConfig(({ mode }) => {
       "import.meta.env.VITE_GIT_BRANCH": JSON.stringify(VITE_GIT_BRANCH),
     },
     plugins: [
+      e621MediaProxy(),
       generateSitemap(env),
       vue(),
       vuetify(),

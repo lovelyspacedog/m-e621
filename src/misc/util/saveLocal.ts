@@ -220,7 +220,10 @@ const fetchPostBytes = async (post: EnhancedPost): Promise<{ data: ArrayBuffer; 
   if (!post.file?.url) {
     throw new Error("Post file URL is unavailable");
   }
-  const response = await fetch(post.file.url);
+  // CDN has no CORS for this origin — go through same-host /api/download.
+  const response = await fetch(
+    `/api/download?url=${encodeURIComponent(post.file.url)}`,
+  );
   if (!response.ok) {
     throw new Error(`Download failed (${response.status})`);
   }
