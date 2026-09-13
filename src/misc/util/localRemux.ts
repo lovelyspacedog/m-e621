@@ -1,7 +1,6 @@
-/** Remux local videos to browser-playable MP4 via ffmpeg.wasm (CDN, avoids IIFE bundle). */
+/** Remux local videos to browser-playable MP4 via ffmpeg.wasm (CDN UMD + local helpers). */
 
 const FFMPEG_VERSION = "0.12.15";
-const UTIL_VERSION = "0.12.2";
 const CORE_VERSION = "0.12.6";
 
 type FFmpegInstance = {
@@ -34,18 +33,40 @@ const loadScript = (src: string) =>
     document.head.appendChild(script);
   });
 
-const getGlobals = () => {
+/** Avoid @ffmpeg/util UMD — its browser build still calls require(). */
+const toBlobURL = async (url: string, mimeType: string) => {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${url}: ${response.status}`);
+  }
+  const data = await response.arrayBuffer();
+  return URL.createObjectURL(new Blob([data], { type: mimeType }));
+};
+
+const fetchFile = async (data: Blob | Uint8Array | string) => {
+  if (typeof data === "string") {
+    const response = await fetch(data);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch file: ${response.status}`);
+    }
+    return new Uint8Array(await response.arrayBuffer());
+  }
+  if (data instanceof Uint8Array) {
+    return data;
+  }
+  return new Uint8Array(await data.arrayBuffer());
+};
+
+const getFFmpegCtor = (): FFmpegCtor => {
   const w = window as Window & {
     FFmpegWASM?: { FFmpeg: FFmpegCtor };
-    FFmpegUtil?: {
-      toBlobURL: (url: string, mime: string) => Promise<string>;
-      fetchFile: (data: Blob | Uint8Array | string) => Promise<Uint8Array>;
-    };
   };
-  if (!w.FFmpegWASM?.FFmpeg || !w.FFmpegUtil?.toBlobURL) {
-    throw new Error("ffmpeg.wasm failed to initialize");
+  if (!w.FFmpegWASM?.FFmpeg) {
+    throw new Error(
+      "ffmpeg.wasm script loaded but FFmpegWASM global is missing",
+    );
   }
-  return { FFmpeg: w.FFmpegWASM.FFmpeg, util: w.FFmpegUtil };
+  return w.FFmpegWASM.FFmpeg;
 };
 
 const ensureFFmpeg = async (
@@ -56,18 +77,15 @@ const ensureFFmpeg = async (
       await loadScript(
         `https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@${FFMPEG_VERSION}/dist/umd/ffmpeg.js`,
       );
-      await loadScript(
-        `https://cdn.jsdelivr.net/npm/@ffmpeg/util@${UTIL_VERSION}/dist/umd/index.js`,
-      );
-      const { FFmpeg, util } = getGlobals();
+      const FFmpeg = getFFmpegCtor();
       const base = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${CORE_VERSION}/dist/umd`;
       const ffmpeg = new FFmpeg();
       if (onProgress) {
         ffmpeg.on("progress", ({ progress }) => onProgress(progress));
       }
       await ffmpeg.load({
-        coreURL: await util.toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
-        wasmURL: await util.toBlobURL(
+        coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
+        wasmURL: await toBlobURL(
           `${base}/ffmpeg-core.wasm`,
           "application/wasm",
         ),
@@ -91,10 +109,9 @@ export const remuxBlobToMp4 = async (
   onProgress?: (ratio: number) => void,
 ): Promise<Blob> => {
   const ffmpeg = await ensureFFmpeg(onProgress);
-  const { util } = getGlobals();
   const safeIn = inputName.replace(/[^\w.-]+/g, "_") || "input.bin";
   const outName = "output.mp4";
-  await ffmpeg.writeFile(safeIn, await util.fetchFile(input));
+  await ffmpeg.writeFile(safeIn, await fetchFile(input));
   try {
     const code = await ffmpeg.exec([
       "-i",
