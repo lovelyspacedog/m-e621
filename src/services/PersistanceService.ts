@@ -13,7 +13,7 @@ import {
   UNGROUPED_FAVORITE_GROUP_ID,
 } from "./types";
 import clone from "clone";
-import { nextTick, reactive, toRaw, watch } from "vue";
+import { nextTick, reactive, toRaw } from "vue";
 import {
   defaultSettings,
   focusSearchShortcut,
@@ -37,16 +37,42 @@ localforage.config({
 
 const log = debug("app:PersistanceService");
 
+const toPlain = (value: unknown): unknown => {
+  const raw = toRaw(value);
+  if (Array.isArray(raw)) return raw.map(toPlain);
+  if (raw && typeof raw === "object") {
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(raw as object)) {
+      out[key] = toPlain((raw as Record<string, unknown>)[key]);
+    }
+    return out;
+  }
+  return raw;
+};
+
 class PersistanceService {
   private applying = false;
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private main: ReturnType<typeof useMainStore>) { }
 
+  /** Queue a save after the current Pinia/Vue flush. Never walk reactive state
+   *  inside $subscribe — JSON.stringify of proxies re-triggers the deep watcher
+   *  and freezes the tab (Chrome "Page Unresponsive"). */
+  private scheduleSave() {
+    if (this.applying || this.saveTimer != null) return;
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      void this.saveState();
+    }, 0);
+  }
+
   public async saveState() {
     if (this.applying) return;
-    // Sync on a snapshot only. Writing back into the live store here retriggers
-    // this $subscribe and overflows the stack (Home/Posts writes history on load).
-    const snapshot = JSON.parse(JSON.stringify(this.getState())) as ISettingsServiceState;
+    // Detached snapshot only — never write back into the live store here.
+    const snapshot = JSON.parse(
+      JSON.stringify(toPlain(this.main.$state)),
+    ) as ISettingsServiceState;
     syncMirrorsToActiveProfile(snapshot);
     await this.saveToLocalStorage("state", snapshot);
     log("saved state");
@@ -91,9 +117,8 @@ class PersistanceService {
   public async persist() {
     await this.loadState();
     this.main.$subscribe(() => {
-      if (this.applying) return;
-      this.saveState();
-    }, { deep: true, flush: "sync" });
+      this.scheduleSave();
+    });
   }
 
   public resetStateToDefault() {
