@@ -8,9 +8,8 @@ import { getApiService } from "@/worker/services";
 const DIR_HANDLE_KEY = "save_local_dir_handle";
 const TAG_COUNT_CACHE = new Map<string, number>();
 
-const TAG_POOL_CATEGORIES = [
+const OTHER_TAG_CATEGORIES = [
   "general",
-  "species",
   "character",
   "lore",
   "meta",
@@ -62,16 +61,13 @@ const sanitizeSegment = (raw: string, maxLen = 120) => {
   return cleaned || "_";
 };
 
-const localRankedTags = (post: EnhancedPost, count: number): string[] => {
-  const ranked: string[] = [];
-  for (const cat of TAG_POOL_CATEGORIES) {
-    for (const name of post.tags[cat] || []) {
-      if (!ranked.includes(name)) ranked.push(name);
-      if (ranked.length >= count) return ranked;
-    }
-  }
-  return ranked;
-};
+const unique = (names: string[]) => [...new Set(names.filter(Boolean))];
+
+const sortByCount = (names: string[], counts: Map<string, number> | null) =>
+  [...names].sort(
+    (a, b) =>
+      (counts?.get(b) ?? 0) - (counts?.get(a) ?? 0) || a.localeCompare(b),
+  );
 
 const lookupTagCounts = async (
   names: string[],
@@ -117,26 +113,27 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | null> =>
 
 export const resolveTopTags = async (
   post: EnhancedPost,
-  count: number,
 ): Promise<string[]> => {
-  const fallback = localRankedTags(post, count);
-  const urlStore = useUrlStore();
-  const candidates = TAG_POOL_CATEGORIES.flatMap(
-    (cat) => post.tags[cat] || [],
-  ).slice(0, 40);
+  const species = unique(post.tags.species || []);
+  const others = unique(
+    OTHER_TAG_CATEGORIES.flatMap((cat) => post.tags[cat] || []),
+  );
+  const candidates = unique([...species, ...others]).slice(0, 50);
   if (!candidates.length) return [];
 
+  const urlStore = useUrlStore();
   const counts = await withTimeout(
     lookupTagCounts(candidates, urlStore.e621Url),
     2500,
   );
-  if (!counts) return fallback;
 
-  return candidates
-    .map((name) => ({ name, post_count: counts.get(name) ?? 0 }))
-    .sort((a, b) => b.post_count - a.post_count || a.name.localeCompare(b.name))
-    .slice(0, count)
-    .map((t) => t.name);
+  const topSpecies = sortByCount(species, counts).slice(0, 2);
+  const used = new Set(topSpecies);
+  const topOthers = sortByCount(
+    others.filter((name) => !used.has(name)),
+    counts,
+  ).slice(0, 3);
+  return [...topSpecies, ...topOthers];
 };
 
 export const buildSaveRelativePath = async (
@@ -145,7 +142,7 @@ export const buildSaveRelativePath = async (
 ): Promise<string> => {
   const artists = getCreatorTags(post.tags).map((a) => sanitizeSegment(a));
   const artistStr = artists.length ? artists.join(" ") : "_unknown_artist";
-  const topTags = await resolveTopTags(post, 5);
+  const topTags = await resolveTopTags(post);
   const tagsStr = topTags.length
     ? topTags.map((t) => sanitizeSegment(t)).join(" ")
     : "_untagged";

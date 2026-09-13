@@ -64,7 +64,7 @@
             hide-details="auto"
             label="Path template"
             v-model="posts.saveLocalPathTemplate"
-            hint="%artist%  %tags 1-5%  %ext%  %id%"
+            hint="%artist%  %tags 1-5% (2 species + 3 tags)  %ext%  %id%"
             persistent-hint
           />
           <div class="text-left text-caption text-medium-emphasis px-1 mb-2">
