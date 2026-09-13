@@ -61,59 +61,78 @@ const sanitizeSegment = (raw: string, maxLen = 120) => {
   return cleaned || "_";
 };
 
-const mapPool = async <T, R>(
-  items: T[],
-  concurrency: number,
-  mapper: (item: T) => Promise<R>,
-): Promise<R[]> => {
-  const results: R[] = new Array(items.length);
-  let next = 0;
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-    while (next < items.length) {
-      const i = next++;
-      results[i] = await mapper(items[i]);
+const localRankedTags = (post: EnhancedPost, count: number): string[] => {
+  const ranked: string[] = [];
+  for (const cat of TAG_POOL_CATEGORIES) {
+    for (const name of post.tags[cat] || []) {
+      if (!ranked.includes(name)) ranked.push(name);
+      if (ranked.length >= count) return ranked;
     }
-  });
-  await Promise.all(workers);
-  return results;
+  }
+  return ranked;
 };
 
-const lookupTagCount = async (name: string, baseUrl: string): Promise<number> => {
-  if (TAG_COUNT_CACHE.has(name)) return TAG_COUNT_CACHE.get(name)!;
+const lookupTagCounts = async (
+  names: string[],
+  baseUrl: string,
+): Promise<Map<string, number>> => {
+  const counts = new Map<string, number>();
+  const missing: string[] = [];
+  for (const name of names) {
+    if (TAG_COUNT_CACHE.has(name)) {
+      counts.set(name, TAG_COUNT_CACHE.get(name)!);
+    } else {
+      missing.push(name);
+    }
+  }
+  if (!missing.length) return counts;
+
   try {
     const service = await getApiService();
     const tags = await service.getTags({
       baseUrl,
-      limit: 5,
+      limit: Math.min(100, missing.length),
       order: "count",
-      name,
+      name: missing.join(","),
     });
-    const exact = tags.find((t) => t.name === name);
-    const count = exact?.post_count ?? 0;
-    TAG_COUNT_CACHE.set(name, count);
-    return count;
+    for (const tag of tags) {
+      TAG_COUNT_CACHE.set(tag.name, tag.post_count ?? 0);
+      counts.set(tag.name, tag.post_count ?? 0);
+    }
   } catch {
-    TAG_COUNT_CACHE.set(name, 0);
-    return 0;
+    // Fall through; caller uses local order for uncached names.
   }
+  for (const name of missing) {
+    if (!counts.has(name)) counts.set(name, 0);
+  }
+  return counts;
 };
+
+const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | null> =>
+  Promise.race([
+    promise,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
 
 export const resolveTopTags = async (
   post: EnhancedPost,
   count: number,
 ): Promise<string[]> => {
+  const fallback = localRankedTags(post, count);
   const urlStore = useUrlStore();
   const candidates = TAG_POOL_CATEGORIES.flatMap(
     (cat) => post.tags[cat] || [],
-  );
+  ).slice(0, 40);
   if (!candidates.length) return [];
 
-  const scored = await mapPool(candidates, 8, async (name) => ({
-    name,
-    post_count: await lookupTagCount(name, urlStore.e621Url),
-  }));
+  const counts = await withTimeout(
+    lookupTagCounts(candidates, urlStore.e621Url),
+    2500,
+  );
+  if (!counts) return fallback;
 
-  return scored
+  return candidates
+    .map((name) => ({ name, post_count: counts.get(name) ?? 0 }))
     .sort((a, b) => b.post_count - a.post_count || a.name.localeCompare(b.name))
     .slice(0, count)
     .map((t) => t.name);
