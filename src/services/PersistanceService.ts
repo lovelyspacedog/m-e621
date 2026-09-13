@@ -212,6 +212,12 @@ class PersistanceService {
       ensureButton(newState.posts.detailsButtons);
       newState.configVersion = 14;
     }
+    if (newState.configVersion < 15) {
+      if (!newState.posts.buttons.includes("save_local")) {
+        newState.posts.buttons.push("save_local");
+      }
+      newState.configVersion = 15;
+    }
 
     this.main.$state = newState;
   }
