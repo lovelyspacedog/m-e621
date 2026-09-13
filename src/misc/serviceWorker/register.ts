@@ -1,7 +1,7 @@
 import { registerSW } from "virtual:pwa-register";
 import { usePwaUpdateStore } from "@/services/PwaUpdateStore";
 
-const intervalMS = 60 * 60 * 1000;
+const intervalMS = 10 * 60 * 1000;
 
 export const registerServiceWorker = () => {
   const updateSW = registerSW({

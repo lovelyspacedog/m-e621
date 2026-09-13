@@ -2,12 +2,13 @@
   <v-banner
     v-if="pwa.needRefresh"
     class="pwa-update-banner"
-    color="accent"
+    bg-color="surface-variant"
     density="comfortable"
     icon="mdi-update"
+    lines="one"
     sticky
+    text="New version available"
   >
-    <v-banner-text>New version available</v-banner-text>
     <template #actions>
       <v-btn variant="text" @click="pwa.dismiss()">Later</v-btn>
       <v-btn color="primary" variant="flat" @click="pwa.reload()">Reload</v-btn>
@@ -23,8 +24,10 @@ const pwa = usePwaUpdateStore();
 
 <style scoped>
 .pwa-update-banner {
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 1000;
+  left: 0;
+  right: 0;
+  z-index: 2000;
 }
 </style>
