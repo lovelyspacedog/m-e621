@@ -1,0 +1,102 @@
+#!/bin/bash
+# Pull latest from origin, rebuild dist, restart m-e621 if needed.
+set -euo pipefail
+
+APP_DIR="${M_E621_DIR:-$HOME/m-e621}"
+CONFIG_DIR="${M_E621_CONFIG:-$HOME/.config/m-e621}"
+LOG="$CONFIG_DIR/sync.log"
+DOMAIN="${M_E621_DOMAIN:-localhost}"
+REPO_URL="${M_E621_REPO:-https://github.com/lovelyspacedog/material-e621.git}"
+BRANCH="${M_E621_BRANCH:-master}"
+
+mkdir -p "$CONFIG_DIR"
+exec >>"$LOG" 2>&1
+echo "==== $(date -Is) sync start ===="
+
+if [[ ! -d "$APP_DIR/.git" ]]; then
+  mkdir -p "$(dirname "$APP_DIR")"
+  git clone --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
+fi
+
+cd "$APP_DIR"
+
+# Ensure helper scripts exist even on a fresh clone (deploy also rsyncs them).
+if [[ ! -x "$APP_DIR/start" || ! -f "$APP_DIR/serve.py" ]]; then
+  echo "missing start/serve.py in $APP_DIR — re-run deploy.sh from the laptop" >&2
+  exit 1
+fi
+
+before="$(git rev-parse HEAD)"
+
+# Helpers may exist as untracked copies from deploy.sh; drop them so ff-merge can land tracked versions.
+for f in start sync serve.py deploy.sh; do
+  if [[ -e "$f" ]] && ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+    echo "removing untracked $f so git merge can proceed"
+    rm -f "$f"
+  fi
+done
+
+git fetch --quiet origin "$BRANCH"
+git merge --ff-only "origin/$BRANCH"
+after="$(git rev-parse HEAD)"
+
+# Re-apply executable bits on helpers if present in tree.
+chmod +x start sync serve.py deploy.sh 2>/dev/null || true
+
+cat >"$APP_DIR/.env.local" <<EOF
+VITE_CANONICAL_URL=https://${DOMAIN}
+VITE_APP_DOMAIN=${DOMAIN}
+VITE_ENABLE_GIT_PULL=true
+VITE_GOOGLE_SITE_VERIFICATION_META=
+EOF
+
+# Ensure a pull token exists for the Settings → Info button.
+if [[ ! -s "$CONFIG_DIR/pull_token" ]]; then
+  python3 - <<'PY'
+import secrets
+from pathlib import Path
+import os
+p = Path(os.path.expanduser("~/.config/m-e621/pull_token"))
+p.parent.mkdir(parents=True, exist_ok=True)
+p.write_text(secrets.token_urlsafe(24) + "\n")
+p.chmod(0o600)
+print(f"created pull token at {p}")
+PY
+fi
+
+need_build=0
+if [[ "$before" != "$after" ]]; then
+  need_build=1
+  echo "updated $before -> $after"
+elif [[ ! -d "$APP_DIR/dist" ]]; then
+  need_build=1
+  echo "dist missing; building"
+elif [[ "${M_E621_FORCE_BUILD:-0}" == "1" ]]; then
+  need_build=1
+  echo "force build requested"
+else
+  echo "already up to date at $after"
+fi
+
+if [[ "$need_build" -eq 1 ]]; then
+  if [[ ! -d node_modules ]]; then
+    npm ci
+  else
+    npm ci --prefer-offline
+  fi
+  # Skip vue-tsc in production deploy; faster and less brittle on the slot.
+  npm run build-only
+  # Bounce only when not called from the in-process pull API.
+  if [[ "${M_E621_NO_RESTART:-0}" != "1" ]]; then
+    if pgrep -f "$APP_DIR/serve.py" >/dev/null 2>&1; then
+      pkill -f "$APP_DIR/serve.py" || true
+      rm -f "$CONFIG_DIR/m-e621.pid"
+      sleep 1
+    fi
+  fi
+fi
+
+if [[ "${M_E621_NO_RESTART:-0}" != "1" ]]; then
+  "$APP_DIR/start"
+fi
+echo "==== $(date -Is) sync done ===="

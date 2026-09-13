@@ -1,0 +1,34 @@
+#!/bin/bash
+# Start m-e621 static server (localhost TCP port for self-hosted managed link)
+set -euo pipefail
+
+APP_DIR="${M_E621_DIR:-$HOME/m-e621}"
+CONFIG_DIR="${M_E621_CONFIG:-$HOME/.config/m-e621}"
+PIDFILE="$CONFIG_DIR/m-e621.pid"
+LOG="$CONFIG_DIR/m-e621.log"
+PORT="${M_E621_PORT:-18621}"
+HOST="${M_E621_HOST:-127.0.0.1}"
+
+mkdir -p "$CONFIG_DIR"
+
+if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+  exit 0
+fi
+
+# Clear stale listeners / orphaned servers for this app.
+if pgrep -f "$APP_DIR/serve.py" >/dev/null 2>&1; then
+  pkill -f "$APP_DIR/serve.py" 2>/dev/null || true
+  sleep 1
+fi
+
+if [[ ! -d "$APP_DIR/dist" ]]; then
+  printf 'm-e621: missing %s/dist — run sync first\n' "$APP_DIR" >&2
+  exit 1
+fi
+
+export M_E621_ROOT="$APP_DIR/dist"
+export M_E621_HOST="$HOST"
+export M_E621_PORT="$PORT"
+
+nohup python3 "$APP_DIR/serve.py" >>"$LOG" 2>&1 &
+echo $! >"$PIDFILE"
