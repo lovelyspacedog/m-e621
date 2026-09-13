@@ -38,7 +38,7 @@ export const pickLocalDirectory = async () => {
   if (!picker) {
     throw new Error("Folder picker is not supported in this browser");
   }
-  const handle = await picker({ id: "me621-local-browse", mode: "read" });
+  const handle = await picker({ id: "me621-local-browse", mode: "readwrite" });
   await localforage.setItem(LOCAL_DIR_HANDLE_KEY, handle);
   usePostsStore().localDirectoryName = handle.name;
   invalidateLocalMediaIndex();
@@ -64,6 +64,7 @@ export interface LocalMediaEntry {
   tags: string[];
   artistTags: string[];
   generalTags: string[];
+  extraTags: string[];
   handle: FileSystemFileHandle;
 }
 
@@ -78,8 +79,14 @@ let cachedIndex: LocalMediaEntry[] | null = null;
 let cachedRootName: string | null = null;
 let cachedOrdered: LocalMediaEntry[] | null = null;
 let cachedOrderKey = "";
+let browseRoot: FileSystemDirectoryHandle | null = null;
+let extraTagsByPath: Record<string, string[]> = {};
 const blobUrls = new Map<number, string>();
 const posterUrls = new Map<number, string>();
+const EXTRA_TAGS_KEY = "local_mode_extra_tags";
+const SIDECAR_NAME = ".me621-tags.json";
+
+type ExtraTagsStore = Record<string, Record<string, string[]>>;
 
 export const hashLocalPath = (path: string) => {
   let hash = 2166136261;
@@ -97,16 +104,20 @@ const tokenize = (segment: string) =>
     .map((token) => token.trim().toLowerCase())
     .filter(Boolean);
 
+const uniqueTags = (names: string[]) => [...new Set(names.filter(Boolean))];
+
 export const parseLocalTags = (relativePath: string) => {
   const parts = relativePath.replace(/\\/g, "/").split("/").filter(Boolean);
-  const artistTags = parts.length > 1 ? tokenize(parts[0]) : [];
-  const generalTags = parts
-    .slice(parts.length > 1 ? 1 : 0)
-    .flatMap((part) => tokenize(part));
+  const inRoot = parts.length === 1;
+  const artistTags = inRoot ? [] : tokenize(parts[0] || "");
+  const generalTags = uniqueTags([
+    ...(inRoot ? ["root"] : []),
+    ...parts.slice(inRoot ? 0 : 1).flatMap((part) => tokenize(part)),
+  ]);
   return {
     artistTags,
     generalTags,
-    tags: [...new Set([...artistTags, ...generalTags])],
+    tags: uniqueTags([...artistTags, ...generalTags]),
   };
 };
 
@@ -137,15 +148,18 @@ const walkDirectory = async (
     const file = await fileHandle.getFile();
     const relativePath = prefix ? `${prefix}/${name}` : name;
     const parsed = parseLocalTags(relativePath);
+    const extraTags = extraTagsByPath[relativePath] || [];
+    const generalTags = uniqueTags([...parsed.generalTags, ...extraTags]);
     out.push({
       relativePath,
       name,
       ext,
       size: file.size,
       lastModified: file.lastModified,
-      tags: parsed.tags,
+      tags: uniqueTags([...parsed.artistTags, ...generalTags]),
       artistTags: parsed.artistTags,
-      generalTags: parsed.generalTags,
+      generalTags,
+      extraTags,
       handle: fileHandle,
     });
   }
@@ -183,6 +197,124 @@ export const revokeLocalBlobUrls = (ids?: number[]) => {
   posterUrls.clear();
 };
 
+const readSidecar = async (
+  root: FileSystemDirectoryHandle,
+): Promise<Record<string, string[]> | null> => {
+  try {
+    const fileHandle = await root.getFileHandle(SIDECAR_NAME);
+    const file = await fileHandle.getFile();
+    const parsed = JSON.parse(await file.text());
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+    const out: Record<string, string[]> = {};
+    for (const [path, tags] of Object.entries(parsed)) {
+      if (!Array.isArray(tags)) continue;
+      out[path] = uniqueTags(
+        tags.filter((tag): tag is string => typeof tag === "string"),
+      );
+    }
+    return out;
+  } catch {
+    return null;
+  }
+};
+
+const writeSidecar = async () => {
+  if (!browseRoot) return;
+  try {
+    const writableHandle = await browseRoot.getFileHandle(SIDECAR_NAME, {
+      create: true,
+    });
+    const writable = await writableHandle.createWritable();
+    await writable.write(`${JSON.stringify(extraTagsByPath, null, 2)}\n`);
+    await writable.close();
+  } catch {
+    // Folder may be read-only; localforage still has the tags.
+  }
+};
+
+const persistExtraTags = async () => {
+  const folder = cachedRootName || browseRoot?.name;
+  if (!folder) return;
+  const all =
+    (await localforage.getItem<ExtraTagsStore>(EXTRA_TAGS_KEY)) || {};
+  all[folder] = extraTagsByPath;
+  await localforage.setItem(EXTRA_TAGS_KEY, all);
+  await writeSidecar();
+};
+
+const loadExtraTags = async (
+  root: FileSystemDirectoryHandle,
+  folderName: string,
+) => {
+  browseRoot = root;
+  extraTagsByPath = {};
+  try {
+    const all =
+      (await localforage.getItem<ExtraTagsStore>(EXTRA_TAGS_KEY)) || {};
+    extraTagsByPath = { ...(all[folderName] || {}) };
+  } catch {
+    extraTagsByPath = {};
+  }
+  const sidecar = await readSidecar(root);
+  if (sidecar) {
+    for (const [path, tags] of Object.entries(sidecar)) {
+      extraTagsByPath[path] = uniqueTags([
+        ...(extraTagsByPath[path] || []),
+        ...tags,
+      ]);
+    }
+  }
+};
+
+const mergeExtraIntoEntry = (entry: LocalMediaEntry) => {
+  const extras = extraTagsByPath[entry.relativePath] || [];
+  const parsed = parseLocalTags(entry.relativePath);
+  entry.extraTags = extras;
+  entry.artistTags = parsed.artistTags;
+  entry.generalTags = uniqueTags([...parsed.generalTags, ...extras]);
+  entry.tags = uniqueTags([...entry.artistTags, ...entry.generalTags]);
+};
+
+export const addLocalTags = async (relativePath: string, raw: string) => {
+  const added = uniqueTags(
+    raw
+      .split(/\s+/)
+      .map((tag) => tag.trim().toLowerCase())
+      .filter((tag) => tag && !tag.startsWith("order:")),
+  );
+  if (!added.length) return [] as string[];
+  extraTagsByPath[relativePath] = uniqueTags([
+    ...(extraTagsByPath[relativePath] || []),
+    ...added,
+  ]);
+  for (const entry of cachedIndex || []) {
+    if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+  }
+  for (const entry of cachedOrdered || []) {
+    if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+  }
+  await persistExtraTags();
+  return extraTagsByPath[relativePath] || [];
+};
+
+export const removeLocalTag = async (relativePath: string, tag: string) => {
+  const current = extraTagsByPath[relativePath] || [];
+  extraTagsByPath[relativePath] = current.filter((name) => name !== tag);
+  if (!extraTagsByPath[relativePath].length) {
+    delete extraTagsByPath[relativePath];
+  }
+  for (const entry of cachedIndex || []) {
+    if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+  }
+  for (const entry of cachedOrdered || []) {
+    if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+  }
+  await persistExtraTags();
+  return extraTagsByPath[relativePath] || [];
+};
+
 export const scanLocalMedia = async (
   force = false,
 ): Promise<{ entries: LocalMediaEntry[]; status: LocalMediaStatus }> => {
@@ -197,6 +329,8 @@ export const scanLocalMedia = async (
   if (!allowed) {
     return { entries: [], status: "denied" };
   }
+  browseRoot = handle;
+  await loadExtraTags(handle, handle.name);
   if (cachedIndex && cachedRootName === handle.name && !force) {
     return {
       entries: cachedIndex,
@@ -211,6 +345,63 @@ export const scanLocalMedia = async (
   return { entries, status: entries.length ? "ok" : "empty" };
 };
 
+const normalizeLoose = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+const filenameTokens = (filename: string) =>
+  filename
+    .replace(/\.[^.]+$/, "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+
+const editDistance = (a: string, b: string) => {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  const next = new Array<number>(b.length + 1);
+  for (let i = 0; i < a.length; i++) {
+    next[0] = i + 1;
+    for (let j = 0; j < b.length; j++) {
+      const cost = a[i] === b[j] ? 0 : 1;
+      next[j + 1] = Math.min(
+        (prev[j + 1] ?? 0) + 1,
+        (next[j] ?? 0) + 1,
+        (prev[j] ?? 0) + cost,
+      );
+    }
+    for (let j = 0; j <= b.length; j++) prev[j] = next[j] ?? 0;
+  }
+  return prev[b.length] ?? b.length;
+};
+
+export const fuzzyFilenameMatch = (relativePath: string, term: string) => {
+  const needle = term.trim().toLowerCase();
+  if (!needle) return true;
+  const path = relativePath.replace(/\\/g, "/").toLowerCase();
+  const filename = path.split("/").pop() || path;
+  if (path.includes(needle) || filename.includes(needle)) return true;
+  const compactPath = normalizeLoose(path);
+  const compactName = normalizeLoose(filename);
+  const compactTerm = normalizeLoose(needle);
+  if (compactTerm && (compactPath.includes(compactTerm) || compactName.includes(compactTerm))) {
+    return true;
+  }
+  const tokens = filenameTokens(filename);
+  if (tokens.some((token) => token.startsWith(compactTerm) || token.includes(compactTerm))) {
+    return true;
+  }
+  if (compactTerm.length >= 4) {
+    return tokens.some(
+      (token) =>
+        Math.abs(token.length - compactTerm.length) <= 2 &&
+        editDistance(token, compactTerm) <= 1,
+    );
+  }
+  return false;
+};
+
 export const filterLocalMedia = (
   index: LocalMediaEntry[],
   tags: string[],
@@ -223,7 +414,8 @@ export const filterLocalMedia = (
     terms.every(
       (term) =>
         entry.tags.includes(term) ||
-        entry.relativePath.toLowerCase().includes(term),
+        fuzzyFilenameMatch(entry.relativePath, term) ||
+        fuzzyFilenameMatch(entry.name, term),
     ),
   );
 };
@@ -446,6 +638,7 @@ export const localEntriesToPosts = async (
           isBlacklisted: false,
           pageNumber: page,
           localPath: entry.relativePath,
+          localExtraTags: [...entry.extraTags],
         },
       };
     }),

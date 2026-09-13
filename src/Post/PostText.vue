@@ -27,6 +27,32 @@
         </span>
       </v-chip>
       <tag-with-menu v-for="name in creatorTags" :key="name" :tag="{ name, category: creatorCategory }" />
+      <template v-if="isLocal">
+        <tag-with-menu
+          v-for="name in localDerivedGeneral"
+          :key="'derived-' + name"
+          :tag="{ name, category: 'general' }"
+        />
+        <v-chip
+          v-for="name in localExtraTags"
+          :key="'extra-' + name"
+          class="mr-2 mb-2"
+          closable
+          variant="outlined"
+          @click:close="onRemoveLocalTag(name)"
+        >
+          {{ name }}
+        </v-chip>
+        <v-text-field
+          v-model="tagDraft"
+          class="local-tag-input mr-2 mb-2"
+          density="compact"
+          hide-details
+          label="Add tags"
+          variant="outlined"
+          @keydown.enter.prevent="onAddLocalTags"
+        />
+      </template>
       <tag-with-menu v-for="pool in post.pools || []" :key="pool" :tag="{ name: `pool:${pool}`, category: 'pool' }" />
       <v-chip variant="outlined" class="mb-2 no-before-content">
         <v-icon>mdi-clock</v-icon>
@@ -42,13 +68,15 @@
 import DateDisplay from "@/ArtistDashboard/DateDisplay.vue";
 import { prettyBytes } from "@/misc/util/prettyBytes";
 import { getTagColorFromCategory } from "@/misc/util/utilities";
+import { addLocalTags, parseLocalTags, removeLocalTag } from "@/misc/util/localMedia";
 import { getCreatorTags, useSiteLabels } from "@/misc/util/siteLabels";
 import { useSiteModeStore } from "@/services";
 import TagWithMenu from "@/Tag/TagWithMenu.vue";
 import type { ScoredPost } from "@/worker/AnalyzeService";
+import type { EnhancedPost } from "@/worker/ApiService";
 import type { Post } from "@/worker/api";
 import type { PropType } from "vue";
-import { computed, defineComponent } from "vue";
+import { computed, defineComponent, ref } from "vue";
 
 const isScoredPost = (post: any): post is ScoredPost => !!post.__score;
 
@@ -65,6 +93,36 @@ export default defineComponent({
     const { creatorCategory } = useSiteLabels();
     const isLocal = computed(() => useSiteModeStore().isLocal);
     const creatorTags = computed(() => getCreatorTags(props.post.tags));
+    const enhanced = computed(() => props.post as EnhancedPost);
+    const localPath = computed(
+      () => enhanced.value.__meta?.localPath || props.post.sources?.[0] || "",
+    );
+    const localExtraTags = computed(
+      () => enhanced.value.__meta?.localExtraTags || [],
+    );
+    const localDerivedGeneral = computed(() => {
+      const extras = new Set(localExtraTags.value);
+      return (props.post.tags.general || []).filter((name) => !extras.has(name));
+    });
+    const tagDraft = ref("");
+    const applyExtrasToPost = (extras: string[]) => {
+      const post = enhanced.value;
+      if (!post.__meta) return;
+      post.__meta.localExtraTags = extras;
+      const derived = parseLocalTags(localPath.value).generalTags;
+      post.tags.general = [...new Set([...derived, ...extras])];
+    };
+    const onAddLocalTags = async () => {
+      if (!localPath.value || !tagDraft.value.trim()) return;
+      const extras = await addLocalTags(localPath.value, tagDraft.value);
+      applyExtrasToPost(extras);
+      tagDraft.value = "";
+    };
+    const onRemoveLocalTag = async (name: string) => {
+      if (!localPath.value) return;
+      const extras = await removeLocalTag(localPath.value, name);
+      applyExtrasToPost(extras);
+    };
     const filename = computed(() => {
       if (props.post.description) return props.post.description;
       const source = props.post.sources?.[0];
@@ -86,8 +144,21 @@ export default defineComponent({
       creatorCategory,
       isLocal,
       filename,
+      localDerivedGeneral,
+      localExtraTags,
+      tagDraft,
+      onAddLocalTags,
+      onRemoveLocalTag,
     };
   },
   components: { DateDisplay, TagWithMenu },
 });
 </script>
+
+<style scoped>
+.local-tag-input {
+  display: inline-flex;
+  max-width: 160px;
+  vertical-align: middle;
+}
+</style>

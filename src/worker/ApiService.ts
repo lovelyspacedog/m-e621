@@ -25,6 +25,7 @@ export interface EnhancedPost extends Post {
     isFavoriteLoading?: boolean;
     pageNumber: number;
     localPath?: string;
+    localExtraTags?: string[];
   };
 }
 
