@@ -24,9 +24,50 @@
       </tr>
       <tr align="right" v-if="!isLocal">
         <th>Score:</th>
+        <td class="d-flex align-center justify-end ga-1 flex-wrap">
+          <span>
+            {{ post.score.total }}
+            ({{ post.score.up }} up - {{ post.score.down }} down)
+          </span>
+          <v-btn
+            size="x-small"
+            variant="text"
+            icon="mdi-arrow-up-bold"
+            :color="voteScore === 1 ? 'success' : undefined"
+            @click="castVote(voteScore === 1 ? 0 : 1)"
+          />
+          <v-btn
+            size="x-small"
+            variant="text"
+            icon="mdi-arrow-down-bold"
+            :color="voteScore === -1 ? 'error' : undefined"
+            @click="castVote(voteScore === -1 ? 0 : -1)"
+          />
+        </td>
+      </tr>
+      <tr align="right" v-if="!isLocal">
+        <th>Comments:</th>
+        <td>{{ post.comment_count }}</td>
+      </tr>
+      <tr align="right" v-if="!isLocal">
+        <th>Notes:</th>
+        <td>{{ post.has_notes ? "Yes" : "No" }}</td>
+      </tr>
+      <tr align="right" v-if="!isLocal && parentId">
+        <th>Parent:</th>
         <td>
-          {{ post.score.total }}
-          ({{ post.score.up }} up - {{ post.score.down }} down)
+          <TagWithMenu small :tag="{ name: `id:${parentId}`, category: 'meta' }" />
+        </td>
+      </tr>
+      <tr align="right" v-if="!isLocal && childIds.length">
+        <th>Children:</th>
+        <td>
+          <TagWithMenu
+            small
+            v-for="childId in childIds"
+            :key="childId"
+            :tag="{ name: `id:${childId}`, category: 'meta' }"
+          />
         </td>
       </tr>
       <tr align="right" v-if="!isLocal">
@@ -69,7 +110,7 @@
 <script setup lang="ts">
 import type { Post } from "@/worker/api";
 import type { PropType } from "vue";
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import TagWithMenu from "@/Tag/TagWithMenu.vue";
 import { prettyBytes } from "@/misc/util/prettyBytes";
 import { getCreatorTags, useSiteLabels } from "@/misc/util/siteLabels";
@@ -81,9 +122,30 @@ const props = defineProps({
     required: true,
   },
 });
+
+const emit = defineEmits<{
+  "set-post-vote": [{ postId: number; score: 1 | -1 | 0 }];
+}>();
+
 const { creatorLabel, creatorCategory } = useSiteLabels();
 const isLocal = computed(() => useSiteModeStore().isLocal);
 const creatorTags = computed(() => getCreatorTags(props.post.tags));
 const fileSize = computed(() => prettyBytes(props.post.file.size));
 const megapixel = computed(() => Math.round(((props.post.file.width * props.post.file.height) / 1000000) * 100) / 100);
+const parentId = computed(() => props.post.relationships?.parent_id || null);
+const childIds = computed(() => props.post.relationships?.children || []);
+/** Client-only last vote for button highlight (API does not return own vote on posts). */
+const voteScore = ref<1 | -1 | 0>(0);
+
+watch(
+  () => props.post.id,
+  () => {
+    voteScore.value = 0;
+  },
+);
+
+const castVote = (score: 1 | -1 | 0) => {
+  voteScore.value = score;
+  emit("set-post-vote", { postId: props.post.id, score });
+};
 </script>

@@ -325,6 +325,35 @@ class PersistanceService {
       newState.posts.videoPlaybackRate = 1;
       newState.configVersion = 20;
     }
+    if (newState.configVersion < 21) {
+      // Old vim triad: j=exit, h=prev, l=next → match feed j=next, k=prev.
+      const shortcuts = [...(newState.shortcuts || [])];
+      const isOldExitJ = (s: { action: string; sequence: string }) =>
+        s.sequence === "j" && s.action === "fullscreen_exit";
+      const isOldPrevH = (s: { action: string; sequence: string }) =>
+        s.sequence === "h" && s.action === "fullscreen_previous_post";
+      const isOldNextL = (s: { action: string; sequence: string }) =>
+        s.sequence === "l" && s.action === "fullscreen_next_post";
+      const hadOldTriad = shortcuts.some(
+        (s) => isOldExitJ(s) || isOldPrevH(s) || isOldNextL(s),
+      );
+      let next = shortcuts.filter(
+        (s) => !isOldExitJ(s) && !isOldPrevH(s) && !isOldNextL(s),
+      );
+      if (hadOldTriad) {
+        next = next.filter((s) => s.sequence !== "j" && s.sequence !== "k");
+        next.push(
+          { action: "fullscreen_next_post", sequence: "j" },
+          { action: "fullscreen_previous_post", sequence: "k" },
+        );
+      }
+      newState.shortcuts = reactive(next);
+      newState.configVersion = 21;
+    }
+    if (newState.configVersion < 22) {
+      newState.posts.feedLayout = "list";
+      newState.configVersion = 22;
+    }
 
     // Ensure profiles exist even if a partial export skipped them.
     if (!newState.profiles) {
@@ -372,6 +401,9 @@ class PersistanceService {
     }
     if (newState.posts.compactCards === undefined) {
       newState.posts.compactCards = false;
+    }
+    if (newState.posts.feedLayout !== "list" && newState.posts.feedLayout !== "grid") {
+      newState.posts.feedLayout = "list";
     }
     if (newState.posts.videoVolume === undefined) {
       newState.posts.videoVolume = 1;

@@ -236,7 +236,10 @@ const fetchPostBytes = async (post: EnhancedPost): Promise<{ data: ArrayBuffer; 
   return { data, mimeType };
 };
 
-export const savePostLocally = async (post: EnhancedPost) => {
+export const savePostLocally = async (
+  post: EnhancedPost,
+  opts?: { quiet?: boolean },
+) => {
   const posts = usePostsStore();
   const snackbar = useSnackbarStore();
   const template = posts.saveLocalPathTemplate || "%artist%/%tags 1-5%.%ext%";
@@ -256,16 +259,156 @@ export const savePostLocally = async (post: EnhancedPost) => {
 
   if (dirHandle) {
     await writeToDirectory(dirHandle, relativePath, data, mimeType);
-    snackbar.addMessage(`Saved to ${dirHandle.name}/${relativePath}`);
+    if (!opts?.quiet) {
+      snackbar.addMessage(`Saved to ${dirHandle.name}/${relativePath}`);
+    }
     return;
   }
 
   // Firefox/Zen (or no folder chosen): flatten path for Downloads.
   const flatName = relativePath.replace(/\//g, " - ");
   downloadjs(data, flatName, mimeType);
-  snackbar.addMessage(
-    supportsDirectoryPicker()
-      ? `Downloaded ${flatName} (choose a save folder in Post settings for subfolders)`
-      : `Downloaded ${flatName}`,
+  if (!opts?.quiet) {
+    snackbar.addMessage(
+      supportsDirectoryPicker()
+        ? `Downloaded ${flatName} (choose a save folder in Post settings for subfolders)`
+        : `Downloaded ${flatName}`,
+    );
+  }
+};
+
+export const savePostsLocally = async (
+  posts: EnhancedPost[],
+  opts?: {
+    concurrency?: number;
+    signal?: AbortSignal;
+    onProgress?: (done: number, total: number) => void;
+    quietFinal?: boolean;
+  },
+) => {
+  const snackbar = useSnackbarStore();
+  const eligible = posts.filter(
+    (p) => !!p.file.url && !p.__meta.isBlacklisted,
   );
+  if (!eligible.length) {
+    if (!opts?.quietFinal) {
+      snackbar.addMessage("Nothing to save");
+    }
+    return { saved: 0, failed: 0, skipped: posts.length };
+  }
+  const concurrency = Math.max(1, opts?.concurrency ?? 2);
+  let done = 0;
+  let failed = 0;
+  let index = 0;
+
+  const worker = async () => {
+    while (index < eligible.length) {
+      if (opts?.signal?.aborted) return;
+      const current = eligible[index++];
+      try {
+        await savePostLocally(current, { quiet: true });
+      } catch (error) {
+        failed += 1;
+        console.error(error);
+      } finally {
+        done += 1;
+        opts?.onProgress?.(done, eligible.length);
+        if (!opts?.quietFinal) {
+          snackbar.addMessage(`Saving locally ${done}/${eligible.length}`);
+        }
+      }
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, eligible.length) }, () =>
+      worker(),
+    ),
+  );
+
+  if (opts?.signal?.aborted) {
+    return { saved: done - failed, failed, skipped: 0, cancelled: true as const };
+  }
+
+  if (!opts?.quietFinal) {
+    snackbar.addMessage(
+      failed
+        ? `Saved ${eligible.length - failed}/${eligible.length} locally (${failed} failed)`
+        : `Saved ${eligible.length} posts locally`,
+    );
+  }
+
+  return {
+    saved: eligible.length - failed,
+    failed,
+    skipped: posts.length - eligible.length,
+  };
+};
+
+export const saveSearchLocally = async (
+  fetchPage: (page: number) => Promise<EnhancedPost[]>,
+  opts?: {
+    concurrency?: number;
+    signal?: AbortSignal;
+    onPage?: (info: {
+      page: number;
+      savedTotal: number;
+      failedTotal: number;
+    }) => void;
+  },
+) => {
+  const snackbar = useSnackbarStore();
+  let page = 1;
+  let savedTotal = 0;
+  let failedTotal = 0;
+  let cancelled = false;
+
+  while (true) {
+    if (opts?.signal?.aborted) {
+      cancelled = true;
+      break;
+    }
+    const pagePosts = await fetchPage(page);
+    if (!pagePosts.length) break;
+
+    const result = await savePostsLocally(pagePosts, {
+      concurrency: opts?.concurrency ?? 2,
+      signal: opts?.signal,
+      quietFinal: true,
+      onProgress: (done, total) => {
+        snackbar.addMessage(
+          `Saving search · page ${page} · ${done}/${total} · ${savedTotal + done} total`,
+        );
+      },
+    });
+
+    savedTotal += result.saved;
+    failedTotal += result.failed;
+    opts?.onPage?.({ page, savedTotal, failedTotal });
+
+    if ("cancelled" in result && result.cancelled) {
+      cancelled = true;
+      break;
+    }
+    page += 1;
+  }
+
+  if (cancelled) {
+    snackbar.addMessage(
+      `Save search cancelled · ${savedTotal} saved` +
+        (failedTotal ? ` · ${failedTotal} failed` : ""),
+    );
+    return { savedTotal, failedTotal, cancelled: true as const };
+  }
+
+  if (!savedTotal && !failedTotal) {
+    snackbar.addMessage("Nothing to save");
+  } else {
+    snackbar.addMessage(
+      failedTotal
+        ? `Saved ${savedTotal} from search (${failedTotal} failed)`
+        : `Saved ${savedTotal} posts from search`,
+    );
+  }
+  return { savedTotal, failedTotal, cancelled: false as const };
 };

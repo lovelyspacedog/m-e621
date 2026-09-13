@@ -35,6 +35,7 @@
       <install-menu v-if="!minimalHeader" />
     </v-app-bar>
     <main-content />
+    <pwa-update-banner />
     <app-snackbar />
   </v-app>
 </template>
@@ -48,6 +49,7 @@ import InstallMenu from "./App/InstallMenu.vue";
 import MainContent from "./App/MainContent.vue";
 import NavigationList from "./App/NavigationList.vue";
 import NavigationToolbar from "./App/NavigationToolbar.vue";
+import PwaUpdateBanner from "./App/PwaUpdateBanner.vue";
 import { getAppName } from "./misc/util/utilities";
 import { useAppearanceStore, useMainStore, usePersistanceService, useShortcutService, useShortcutStore } from "./services";
 import { useHead } from '@unhead/vue';

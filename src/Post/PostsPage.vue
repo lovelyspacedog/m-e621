@@ -103,6 +103,28 @@
         >
           Random
         </v-btn>
+        <v-btn
+          v-if="!siteMode.isLocal"
+          class="text-none"
+          size="small"
+          variant="text"
+          :loading="bulkSaving"
+          :disabled="!posts.length || bulkSaving || searchSaving"
+          @click="bulkSaveVisible"
+        >
+          Save visible
+        </v-btn>
+        <v-btn
+          v-if="!siteMode.isLocal"
+          class="text-none"
+          size="small"
+          variant="text"
+          :color="searchSaving ? 'error' : undefined"
+          :disabled="bulkSaving"
+          @click="toggleSaveSearch"
+        >
+          {{ searchSaving ? "Cancel save" : "Save search" }}
+        </v-btn>
         <v-btn icon @click="updateQuery(), onSearchClick()" :loading="loading">
           <v-icon>mdi-magnify</v-icon>
         </v-btn>
@@ -130,15 +152,17 @@
     <posts :posts="posts" :loading="loading" :has-previous="hasPrevious" @load-previous="loadPreviousPage()"
       @load-next="loadNextPage()" @open-post="openFullscreenPost" :fullscreen-post="fullscreenPost || undefined"
       @exit-fullscreen="fullscreenPost = null" @next-fullscreen-post="openNextFullscreenPost()"
-      @previous-fullscreen-post="openPreviousFullscreenPost()" :has-previous-fullscreen-post="true"
-      :has-next-fullscreen-post="true" :details-post="detailsPost || undefined" @open-post-details="openPostDetails"
+      @previous-fullscreen-post="openPreviousFullscreenPost()"
+      :has-previous-fullscreen-post="hasPreviousFullscreenPost"
+      :has-next-fullscreen-post="hasNextFullscreenPost"
+      :details-post="detailsPost || undefined" @open-post-details="openPostDetails"
       @close-details="detailsPost = null" @set-post-favorite="setPostFavorite($event)"
+      @set-post-vote="setPostVote($event)"
       :resume-enabled="siteMode.isLocal"
       :restore-path="restorePath || undefined"
       :restore-video-time="restoreVideoTime"
       @restored="onRestored"
       @remuxed="reloadLocal" />
-    <!-- TODO: set has-(next|previous)-fullscreen-post -->
     <portal to="sidebar-suggestions">
       <v-list class="pa-0 mt-1 mb-2" density="compact">
         <v-list-item>
@@ -152,7 +176,24 @@
               color="accent"
               density="compact"
               hide-details
+              :disabled="postsStore.feedLayout === 'grid'"
               v-model="postsStore.fullWidthFeed"
+            />
+          </template>
+        </v-list-item>
+        <v-list-item>
+          <template #prepend>
+            <v-icon>mdi-view-grid</v-icon>
+          </template>
+          <v-list-item-title>Grid layout</v-list-item-title>
+          <template #append>
+            <v-switch
+              class="ma-0"
+              color="accent"
+              density="compact"
+              hide-details
+              :model-value="postsStore.feedLayout === 'grid'"
+              @update:model-value="postsStore.feedLayout = $event ? 'grid' : 'list'"
             />
           </template>
         </v-list-item>
@@ -187,10 +228,10 @@
           </template>
         </v-list-item>
         <v-list-item v-if="postsStore.cardAutoNext" class="text-medium-emphasis">
-          <v-list-item-subtitle>Space pauses · hover pauses · j/k next/prev</v-list-item-subtitle>
+          <v-list-item-subtitle>Space pauses (feed) · slideshow (fullscreen) · j/k next/prev</v-list-item-subtitle>
         </v-list-item>
         <v-list-item v-else class="text-medium-emphasis">
-          <v-list-item-subtitle>j/k next/prev card</v-list-item-subtitle>
+          <v-list-item-subtitle>j/k next/prev · Space slideshow in fullscreen</v-list-item-subtitle>
         </v-list-item>
       </v-list>
       <div class="text-overline" v-if="hiddenPostCount > 0">Blacklisted posts hidden: {{ hiddenPostCount }}</div>
@@ -222,6 +263,7 @@ import HistoryList from "../Tag/HistoryList.vue";
 import TagSearch from "../Tag/TagSearch.vue";
 import LocalFolderPicker from "../Settings/LocalFolderPicker.vue";
 import { getAnalyzeService, getApiService } from "../worker/services";
+import { savePostsLocally, saveSearchLocally } from "../misc/util/saveLocal";
 import Suggestions from "./Suggestions.vue";
 import { useDisplay } from "vuetify";
 
@@ -234,6 +276,9 @@ const siteMode = useSiteModeStore();
 const localEmptyMessage = ref(localStatusMessage("no-folder"));
 const restorePath = ref<string | null>(null);
 const restoreVideoTime = ref<number | undefined>(undefined);
+const bulkSaving = ref(false);
+const searchSaving = ref(false);
+let searchSaveAbort: AbortController | null = null;
 const { tags, addTag, removeTag, updateQuery, query, setTags } =
   useRouterTagManager();
 const urlStore = useUrlStore();
@@ -255,7 +300,10 @@ const {
   openNextFullscreenPost,
   openPreviousFullscreenPost,
   setPostFavorite,
+  setPostVote,
   hasPrevious,
+  hasPreviousFullscreenPost,
+  hasNextFullscreenPost,
 } = usePostListManager({
   getSavedPageNumber() {
     return Number(route.query.page) || 0;
@@ -310,6 +358,50 @@ const onRestored = () => {
   restoreVideoTime.value = undefined;
 };
 
+const bulkSaveVisible = async () => {
+  if (siteMode.isLocal || bulkSaving.value || searchSaving.value) return;
+  bulkSaving.value = true;
+  try {
+    await savePostsLocally(posts.value, { concurrency: 2 });
+  } finally {
+    bulkSaving.value = false;
+  }
+};
+
+const toggleSaveSearch = async () => {
+  if (siteMode.isLocal || bulkSaving.value) return;
+  if (searchSaving.value) {
+    searchSaveAbort?.abort();
+    return;
+  }
+  searchSaving.value = true;
+  searchSaveAbort = new AbortController();
+  const signal = searchSaveAbort.signal;
+  const tagsSnapshot = toRaw(tags.value);
+  try {
+    await saveSearchLocally(
+      async (page) => {
+        const service = await getApiService();
+        return service.getPosts(
+          toRaw({
+            limit: toRaw(postsStore.postListFetchLimit),
+            page,
+            tags: tagsSnapshot,
+            blacklist: toRaw(blacklist.tags),
+            blacklistMode: toRaw(blacklist.mode),
+            auth: toRaw(account.auth),
+            baseUrl: toRaw(urlStore.e621Url),
+          }),
+        );
+      },
+      { concurrency: 2, signal },
+    );
+  } finally {
+    searchSaving.value = false;
+    searchSaveAbort = null;
+  }
+};
+
 const loadLocalWithResume = async () => {
   const target = await findLocalResumeTarget(
     toRaw(tags.value),
@@ -343,6 +435,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  searchSaveAbort?.abort();
   revokeLocalBlobUrls();
 });
 

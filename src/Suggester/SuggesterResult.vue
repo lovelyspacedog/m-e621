@@ -6,10 +6,13 @@
           <posts :posts="posts" :loading="loading" :has-previous="hasPrevious" @load-previous="loadPreviousPage()"
             @load-next="loadNextPage()" @open-post="openFullscreenPost" :fullscreen-post="fullscreenPost || undefined"
             @exit-fullscreen="fullscreenPost = null" @next-fullscreen-post="openNextFullscreenPost()"
-            @previous-fullscreen-post="openPreviousFullscreenPost()" :has-previous-fullscreen-post="true"
-            :has-next-fullscreen-post="true" :details-post="detailsPost || undefined"
+            @previous-fullscreen-post="openPreviousFullscreenPost()"
+            :has-previous-fullscreen-post="hasPreviousFullscreenPost"
+            :has-next-fullscreen-post="hasNextFullscreenPost"
+            :details-post="detailsPost || undefined"
             @open-post-details="openPostDetails" @close-details="detailsPost = null"
-            @set-post-favorite="setPostFavorite($event)" />
+            @set-post-favorite="setPostFavorite($event)"
+            @set-post-vote="setPostVote($event)" />
           <portal to="sidebar-suggestions">
             <div class="text-overline" v-if="hiddenPostCount > 0">Blacklisted posts hidden: {{ hiddenPostCount }}</div>
             <progress-message v-if="listProgress" :value="listProgress" />
@@ -101,7 +104,10 @@ const {
   openNextFullscreenPost,
   openPreviousFullscreenPost,
   setPostFavorite,
+  setPostVote,
   hasPrevious,
+  hasPreviousFullscreenPost,
+  hasNextFullscreenPost,
 } = usePostListManager({
   getSavedPageNumber() {
     return Number(route.query.page) || 0;

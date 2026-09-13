@@ -41,6 +41,12 @@
                       'darken-3': false,
                       hidden: loading,
                     }" :src="currentFileUrl" />
+                    <notes-overlay
+                      v-if="showNotesOverlay && current"
+                      :notes="notes"
+                      :image-width="current.file.width"
+                      :image-height="current.file.height"
+                    />
                   </div>
                 </transition>
                 <app-logo class="centered-in-container" svg-margin-auto v-if="loading" type="loader" />
@@ -61,6 +67,16 @@
         <v-btn icon size="large" color="white" variant="text" @click="toggleSlideshow">
           <v-icon size="36">{{ slideshowPlaying ? "mdi-pause" : "mdi-play" }}</v-icon>
         </v-btn>
+        <v-btn
+          v-if="current?.has_notes && !isVideoPost"
+          icon
+          size="large"
+          color="white"
+          variant="text"
+          @click="notesVisible = !notesVisible"
+        >
+          <v-icon size="36">{{ notesVisible ? "mdi-note-text" : "mdi-note-text-outline" }}</v-icon>
+        </v-btn>
       </div>
       <div class="bottom-right" v-show="!hideUi">
         <post-buttons v-if="current" :key="current.id" :buttons="buttons" :post="current"
@@ -73,12 +89,12 @@
 
 <script setup lang="ts">
 import AppLogo from "../App/AppLogo.vue";
-import { useAppearanceStore, useBlacklistStore, usePostsStore, useShortcutService, useSiteModeStore } from "@/services";
+import { useAppearanceStore, useBlacklistStore, usePostsStore, useShortcutService, useSiteModeStore, useUiStore, useUrlStore } from "@/services";
 import ZoomPanImage from "./ZoomPanImage.vue";
+import NotesOverlay from "./NotesOverlay.vue";
 import { useBlacklistClasses } from "../misc/util/blacklist";
 import {
   computed,
-  defineComponent,
   nextTick,
   onBeforeUnmount,
   onMounted,
@@ -90,9 +106,11 @@ import {
 import PostButtons from "@/Post/PostButtons.vue";
 import { useDirectionalTransitions } from "@/misc/util/directionalTransitions";
 import type { EnhancedPost } from "@/worker/ApiService";
+import type { Note } from "@/worker/api";
 import { FullscreenZoomUiMode } from "@/services/types";
 import type { usePostListManager } from "./postListManager";
 import { useHead } from "@unhead/vue";
+import { getApiService } from "@/worker/services";
 
 const appIsFullscreen = ref(!!document.fullscreenElement);
 
@@ -124,6 +142,8 @@ const appearance = useAppearanceStore();
 const blacklist = useBlacklistStore();
 const posts = usePostsStore();
 const siteMode = useSiteModeStore();
+const urlStore = useUrlStore();
+const ui = useUiStore();
 const shortcutService = useShortcutService();
 
 const lastFullscreenId = ref<number | null>();
@@ -131,6 +151,9 @@ const isZoomed = ref(false);
 const slideshowPlaying = ref(false);
 const slideshowTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const videoEl = ref<HTMLVideoElement | null>(null);
+const notes = ref<Note[]>([]);
+const notesVisible = ref(true);
+const notesLoadedFor = ref<number | null>(null);
 const postIsBlacklisted = computed(() =>
   Boolean(props?.current?.__meta.isBlacklisted),
 );
@@ -144,6 +167,47 @@ const isVideoExt = (ext?: string) => ext === "webm" || ext === "mp4";
 const isVideoPost = computed(() => isVideoExt(props.current?.file.ext));
 const videoType = computed(() =>
   props.current?.file.ext === "mp4" ? "video/mp4" : "video/webm",
+);
+const open = computed(() => !!props.current);
+
+watch(
+  open,
+  (isOpen) => {
+    ui.fullscreenOpen = isOpen;
+    if (!isOpen) {
+      notes.value = [];
+      notesLoadedFor.value = null;
+    }
+  },
+  { immediate: true },
+);
+
+const loadNotesForCurrent = async () => {
+  const post = props.current;
+  if (!post?.has_notes || isVideoExt(post.file.ext) || siteMode.isLocal) {
+    notes.value = [];
+    return;
+  }
+  if (notesLoadedFor.value === post.id) return;
+  try {
+    const service = await getApiService();
+    notes.value = await service.getNotes({
+      postId: post.id,
+      baseUrl: urlStore.e621Url,
+    });
+    notesLoadedFor.value = post.id;
+  } catch (error) {
+    console.error(error);
+    notes.value = [];
+  }
+};
+
+watch(
+  () => props.current?.id,
+  () => {
+    notesVisible.value = true;
+    void loadNotesForCurrent();
+  },
 );
 
 const applyFullscreenPlaybackPrefs = () => {
@@ -185,6 +249,15 @@ const hideUi = computed(() => {
       return isZoomed.value;
   }
 });
+
+const showNotesOverlay = computed(
+  () =>
+    notesVisible.value &&
+    !hideUi.value &&
+    !isVideoPost.value &&
+    !!props.current?.has_notes &&
+    notes.value.length > 0,
+);
 
 const exitFullscreen = () => {
   stopSlideshow();
@@ -228,6 +301,7 @@ const scheduleSlideshowAdvance = () => {
 };
 
 const toggleSlideshow = () => {
+  if (!open.value) return;
   if (slideshowPlaying.value) {
     stopSlideshow();
     return;
@@ -294,6 +368,7 @@ const removeFavorite = updateFavorite(() => false)
 const toggleFavorite = updateFavorite((cur) => !cur)
 
 onBeforeUnmount(() => {
+  ui.fullscreenOpen = false;
   stopSlideshow();
   shortcutService.emitter.off("fullscreenNext", showNextImage);
   shortcutService.emitter.off("fullscreenPrevious", showPreviousImage);
@@ -320,8 +395,6 @@ const scrollToPost = (postId: number) => {
 
 const switched = ref(false);
 const loading = ref(false);
-
-const open = computed(() => !!props.current);
 
 const currentFileUrl = computed(() =>
   switched.value ? false : props.current?.file.url,

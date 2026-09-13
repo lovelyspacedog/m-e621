@@ -57,6 +57,14 @@ export const useTrailingNavigationItems = () => {
     };
     const remoteItems = [
       {
+        icon: "mdi-bookshelf",
+        name: "Pools",
+        exact: false,
+        to: {
+          name: "Pools",
+        },
+      },
+      {
         icon: "mdi-chart-timeline-variant-shimmer",
         name: "Post Suggester",
         exact: true,

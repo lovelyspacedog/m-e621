@@ -131,3 +131,35 @@ export interface Pool {
   creator_name: string;
   post_count: number;
 }
+
+export interface Comment {
+  id: number;
+  created_at: string;
+  post_id: number;
+  creator_id: number;
+  body: string;
+  score: number;
+  updated_at: string;
+  updater_id: number;
+  do_not_bump_post: boolean;
+  is_hidden: boolean;
+  is_sticky: boolean;
+  creator_name: string;
+  updater_name: string;
+}
+
+export interface Note {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  creator_id: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  version: number;
+  is_active: boolean;
+  post_id: number;
+  body: string;
+  creator_name: string;
+}

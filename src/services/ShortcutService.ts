@@ -2,6 +2,7 @@ import mitt from "mitt";
 // TODO: implement basic event emitter ourselves
 import Mousetrap from "mousetrap";
 import { useShortcutStore } from "./ShortcutStore";
+import { useUiStore } from "./UiStore";
 import { useRouter } from "vue-router";
 
 export type Events = {
@@ -53,9 +54,14 @@ class ShortcutService {
           case "fullscreen_toggle_favorite":
             this.emitter.emit("fullscreenToggleFavorite");
             break;
-          case "fullscreen_slideshow_toggle":
+          case "fullscreen_slideshow_toggle": {
+            const ui = useUiStore();
+            if (!ui.fullscreenOpen) {
+              return true; // let feed Space handler run
+            }
             this.emitter.emit("fullscreenSlideshowToggle");
             break;
+          }
           default:
             expectNever(action);
             return true;

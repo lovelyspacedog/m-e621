@@ -1,19 +1,17 @@
-import type { Posts, Tag, TagAlias, Pool } from "./returnTypes";
+import type { Posts, Tag, TagAlias, Pool, Comment, Note } from "./returnTypes";
 import type {
   IPostsListArgs,
   ITagsListArgs,
   ITagAliasesArgs,
   IPoolsArgs,
   IGetPoolArgs,
+  ICommentsListArgs,
+  INotesListArgs,
 } from "./requestTypes";
 import { getGitInfo } from "@/misc/util/git";
 
 export * from "./returnTypes";
 export * from "./requestTypes";
-
-/**
- * TODO: Post upvoting/downvoting, login verification
- */
 
 const version = getGitInfo()[0]?.hash?.substring(0, 7) ?? "0.0.0";
 const clientHeader = `Material e621/${version} (by Avoonix on e621)`;
@@ -91,9 +89,16 @@ export const e621 = {
   },
   pools: {
     list(args: IPoolsArgs) {
+      const order =
+        args.order === "count"
+          ? "post_count"
+          : args.order === "date"
+            ? "updated_at"
+            : args.order;
       const url = buildUrl(args.baseUrl, "pools.json", {
         limit: args.limit,
-        "search[order]": args.order,
+        page: args.page,
+        "search[order]": order,
         "search[name_matches]": args.query,
       });
       return fetchJson<Pool[]>(url);
@@ -101,6 +106,26 @@ export const e621 = {
     get(args: IGetPoolArgs) {
       const url = buildUrl(args.baseUrl, `pools/${+args.id}.json`);
       return fetchJson<Pool>(url);
+    },
+  },
+  comments: {
+    list(args: ICommentsListArgs) {
+      const url = buildUrl(args.baseUrl, "comments.json", {
+        "search[post_id]": args.postId,
+        "search[order]": "id_asc",
+        "group_by": "comment",
+        limit: args.limit ?? 100,
+      });
+      return fetchJson<Comment[]>(url);
+    },
+  },
+  notes: {
+    list(args: INotesListArgs) {
+      const url = buildUrl(args.baseUrl, "notes.json", {
+        "search[post_id]": args.postId,
+        limit: args.limit ?? 100,
+      });
+      return fetchJson<Note[]>(url);
     },
   },
 };
@@ -115,7 +140,15 @@ export interface IPostFavoriteArgs {
   baseUrl: string;
 }
 
-const resolveFavoritesProxyUrl = (proxyUrl: string) => {
+export interface IPostVoteArgs extends IPostFavoriteArgs {
+  score: 1 | -1 | 0;
+}
+
+export interface IPostCommentArgs extends IPostFavoriteArgs {
+  body: string;
+}
+
+const resolveApiProxyUrl = (proxyUrl: string) => {
   let url = proxyUrl || "/api/";
   if (url.includes("material-e621-proxy.vercel.app")) {
     url = "/api/";
@@ -129,7 +162,7 @@ const resolveFavoritesProxyUrl = (proxyUrl: string) => {
 export const custom = {
   posts: {
     async favorite(args: IPostFavoriteArgs) {
-      const response = await fetch(`${resolveFavoritesProxyUrl(args.proxyUrl)}favorites`, {
+      const response = await fetch(`${resolveApiProxyUrl(args.proxyUrl)}favorites`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -145,7 +178,7 @@ export const custom = {
     },
     async unfavorite(args: IPostFavoriteArgs) {
       const response = await fetch(
-        `${resolveFavoritesProxyUrl(args.proxyUrl)}favorites/${args.postId}`,
+        `${resolveApiProxyUrl(args.proxyUrl)}favorites/${args.postId}`,
         {
           method: "DELETE",
           headers: {
@@ -159,6 +192,41 @@ export const custom = {
         throw new Error(`Error unfavoriting post: ${response.statusText}`);
       }
       return response.ok;
+    },
+    async vote(args: IPostVoteArgs) {
+      const response = await fetch(`${resolveApiProxyUrl(args.proxyUrl)}votes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Site-Base": args.baseUrl,
+          ...getAuthHeader(args.auth),
+        },
+        body: JSON.stringify({ post_id: args.postId, score: args.score }),
+      });
+      if (!response.ok) {
+        throw new Error(`Error voting on post: ${response.statusText}`);
+      }
+      return response.json() as Promise<{
+        score: number;
+        up: number;
+        down: number;
+        our_score?: number;
+      }>;
+    },
+    async createComment(args: IPostCommentArgs) {
+      const response = await fetch(`${resolveApiProxyUrl(args.proxyUrl)}comments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Site-Base": args.baseUrl,
+          ...getAuthHeader(args.auth),
+        },
+        body: JSON.stringify({ post_id: args.postId, body: args.body }),
+      });
+      if (!response.ok) {
+        throw new Error(`Error posting comment: ${response.statusText}`);
+      }
+      return response.json() as Promise<Comment>;
     },
   },
 };

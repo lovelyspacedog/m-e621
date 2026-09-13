@@ -26,12 +26,23 @@ export interface ITagAliasesArgs extends IBaseArgs {
 
 export interface IPoolsArgs extends IBaseArgs {
   limit: number;
-  order: "count" | "date";
+  order: "count" | "date" | "name" | "created_at" | "updated_at" | "post_count";
   query?: string;
+  page?: number;
 }
 
 export interface IGetPoolArgs extends IBaseArgs {
   id: number;
+}
+
+export interface ICommentsListArgs extends IBaseArgs {
+  postId: number;
+  limit?: number;
+}
+
+export interface INotesListArgs extends IBaseArgs {
+  postId: number;
+  limit?: number;
 }
 
 export interface IBaseArgs {

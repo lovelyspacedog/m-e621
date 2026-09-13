@@ -33,7 +33,8 @@
       @previous-post="$emit('previous-fullscreen-post')" @open-post-details="$emit('open-post-details', $event)"
       @set-post-favorite="$emit('set-post-favorite', $event)" />
     <details-dialog :current="detailsPost" @close="$emit('close-details')"
-      @open-post-fullscreen="$emit('open-post', $event)" @set-post-favorite="$emit('set-post-favorite', $event)" />
+      @open-post-fullscreen="$emit('open-post', $event)" @set-post-favorite="$emit('set-post-favorite', $event)"
+      @set-post-vote="$emit('set-post-vote', $event)" />
     <!--
     <div>
       <blacklist-suggestions :suggested-blacklist="ratingTags" />
@@ -93,7 +94,7 @@ import { useHead } from "@unhead/vue";
 
 useHead({ title: "Posts", });
 
-const emit = defineEmits(["load-next", "load-previous", "open-post", "open-post-details", "exit-fullscreen", "set-post-favorite", "close-details", "next-fullscreen-post", "previous-fullscreen-post", "restored", "remuxed"]);
+const emit = defineEmits(["load-next", "load-previous", "open-post", "open-post-details", "exit-fullscreen", "set-post-favorite", "set-post-vote", "close-details", "next-fullscreen-post", "previous-fullscreen-post", "restored", "remuxed"]);
 
 const props = defineProps({
   fullscreenPost: { type: Object as PropType<EnhancedPost> },

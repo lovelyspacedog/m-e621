@@ -70,6 +70,25 @@ export default defineComponent({
                 visible: true,
             },
             {
+                text: "Browse pool",
+                route: {
+                    name: "Pool",
+                    params: {
+                        id: pool.value || 0,
+                    },
+                },
+                action: async () => {
+                    if (!pool.value) return;
+                    router.push({
+                        name: "Pool",
+                        params: {
+                            id: pool.value,
+                        },
+                    });
+                },
+                visible: !!pool.value,
+            },
+            {
                 text: "Search",
                 route: {
                     name: "Posts",

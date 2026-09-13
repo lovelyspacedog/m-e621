@@ -23,6 +23,7 @@ export const usePostListManager = ({
   const fullscreenPost = ref<EnhancedPost | null>(null);
   const detailsPost = ref<EnhancedPost | null>(null);
   const loading = ref(false);
+  const reachedEnd = ref(false);
   const urlStore = useUrlStore();
   const blacklistStore = useBlacklistStore();
   const postsStore = usePostsStore();
@@ -96,6 +97,41 @@ export const usePostListManager = ({
     }
   };
 
+  const setPostVote = async (args: {
+    postId: number;
+    score: 1 | -1 | 0;
+  }) => {
+    if (siteMode.isLocal) return;
+    const account = useAccountStore();
+    const post = posts.value.find((p) => p.id === args.postId);
+    if (!post) return;
+    if (!account.auth) {
+      snackbar.addMessage("Not logged in");
+      router.push({ name: "AccountSettings" });
+      return;
+    }
+    const service = await getApiService();
+    try {
+      post.__meta.isVoteLoading = true;
+      const result = await service.votePost({
+        postId: post.id,
+        score: args.score,
+        auth: account.auth,
+        proxyUrl: urlStore.proxyUrl,
+        baseUrl: urlStore.e621Url,
+      });
+      if (result && typeof result.score === "number") {
+        post.score.total = result.score;
+        if (typeof result.up === "number") post.score.up = result.up;
+        if (typeof result.down === "number") post.score.down = Math.abs(result.down);
+      }
+    } catch (error: any) {
+      handleError(error);
+    } finally {
+      post.__meta.isVoteLoading = false;
+    }
+  };
+
   const getPostCountToRemove = () => posts.value.length - postsStore.postListFetchLimit;
 
   const firstPageNumber = computed(() =>
@@ -136,10 +172,14 @@ export const usePostListManager = ({
     try {
       loading.value = true;
       const newPosts = await loadPosts(lastPageNumber.value + 1, "next");
-
-      const postCountToRemove = getPostCountToRemove();
-      posts.value.push(...newPosts);
-      posts.value.splice(0, postCountToRemove);
+      if (!newPosts.length) {
+        reachedEnd.value = true;
+      } else {
+        reachedEnd.value = false;
+        const postCountToRemove = getPostCountToRemove();
+        posts.value.push(...newPosts);
+        posts.value.splice(0, postCountToRemove);
+      }
     } catch (error) {
       handleError(error);
     } finally {
@@ -210,8 +250,42 @@ export const usePostListManager = ({
     return visibleAfterApplyingServerSideBlacklistSetting;
   });
   const hiddenPostCount = computed(() => posts.value.length - visiblePosts.value.length);
-  const clearPosts = () => posts.value = [];
+  const clearPosts = () => {
+    posts.value = [];
+    reachedEnd.value = false;
+  };
   const hasPrevious = computed(() => posts.value.length !== 0 && posts.value[0].__meta.pageNumber > 1);
+
+  const hasValidPostBefore = (index: number) => {
+    for (let i = index - 1; i >= 0; i--) {
+      if (isValidNextPost(posts.value[i])) return true;
+    }
+    return false;
+  };
+
+  const hasValidPostAfter = (index: number) => {
+    for (let i = index + 1; i < posts.value.length; i++) {
+      if (isValidNextPost(posts.value[i])) return true;
+    }
+    return false;
+  };
+
+  const hasPreviousFullscreenPost = computed(() => {
+    const current = fullscreenPost.value;
+    if (!current) return false;
+    const idx = posts.value.findIndex((p) => p.id === current.id);
+    if (idx < 0) return false;
+    return hasValidPostBefore(idx) || hasPrevious.value;
+  });
+
+  const hasNextFullscreenPost = computed(() => {
+    const current = fullscreenPost.value;
+    if (!current) return false;
+    const idx = posts.value.findIndex((p) => p.id === current.id);
+    if (idx < 0) return false;
+    if (hasValidPostAfter(idx)) return true;
+    return !reachedEnd.value;
+  });
 
   return {
     loadPreviousPage,
@@ -226,7 +300,10 @@ export const usePostListManager = ({
     openNextFullscreenPost,
     openPreviousFullscreenPost,
     setPostFavorite,
+    setPostVote,
     clearPosts,
     hasPrevious,
+    hasPreviousFullscreenPost,
+    hasNextFullscreenPost,
   };
 };

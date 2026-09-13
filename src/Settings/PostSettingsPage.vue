@@ -15,11 +15,18 @@
           <v-switch v-model="posts.goFullscreen" />
         </settings-page-item>
         <settings-page-item title="Full-width post feed" switch
-          description="Use the full content width for scrolling posts instead of the centered column.">
+          description="Use the full content width for scrolling posts instead of the centered column. Ignored in grid layout.">
           <v-switch v-model="posts.fullWidthFeed" />
         </settings-page-item>
+        <settings-page-item title="Grid layout" switch
+          description="Dense thumbnail grid instead of the scrolling card list.">
+          <v-switch
+            :model-value="posts.feedLayout === 'grid'"
+            @update:model-value="posts.feedLayout = $event ? 'grid' : 'list'"
+          />
+        </settings-page-item>
         <settings-page-item title="Compact cards" switch
-          description="Hide tags and buttons until you hover the card (tap to expand on touch).">
+          description="Hide tags and buttons until you hover the card (tap to expand on touch). Always on in grid layout.">
           <v-switch v-model="posts.compactCards" />
         </settings-page-item>
         <settings-page-item title="Video volume" select

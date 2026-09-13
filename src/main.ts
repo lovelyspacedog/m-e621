@@ -1,8 +1,7 @@
-import "./misc/serviceWorker/register";
-import '@asika32764/vue-animate/dist/vue-animate.css';
-
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { registerServiceWorker } from "./misc/serviceWorker/register";
+import '@asika32764/vue-animate/dist/vue-animate.css';
 const env = import.meta.env;
 const getApp = async () => {
     if ("VITE_MIGRATE_TO_DOMAIN" in env) {
@@ -80,6 +79,7 @@ getApp().then(App => {
     app.use(head)
 
     app.mount('#app')
+    registerServiceWorker()
 
     // Vue.config.errorHandler = (err, vm, info) => {
     //   const snackbar = useSnackbarStore();

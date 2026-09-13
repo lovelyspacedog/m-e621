@@ -55,6 +55,158 @@ function e621MediaProxy(): Plugin {
   };
 }
 
+function e621VotesProxy(): Plugin {
+  return {
+    name: 'e621-votes-proxy',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url?.startsWith('/api/votes') || req.method !== 'POST') {
+          next();
+          return;
+        }
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        let payload: { post_id?: number; score?: number };
+        try {
+          payload = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+        } catch {
+          res.statusCode = 400;
+          res.end('invalid json');
+          return;
+        }
+        const postId = payload.post_id;
+        const score = payload.score;
+        if (typeof postId !== 'number' || ![1, -1, 0].includes(score as number)) {
+          res.statusCode = 400;
+          res.end('post_id and score required');
+          return;
+        }
+        const siteBase = String(req.headers['x-site-base'] || 'https://e621.net/');
+        let base: URL;
+        try {
+          base = new URL(siteBase.endsWith('/') ? siteBase : `${siteBase}/`);
+        } catch {
+          res.statusCode = 400;
+          res.end('invalid X-Site-Base');
+          return;
+        }
+        if (!['e621.net', 'e926.net', 'e6ai.net'].includes(base.hostname.toLowerCase())) {
+          res.statusCode = 400;
+          res.end('host not allowed');
+          return;
+        }
+        const auth = req.headers.authorization;
+        if (!auth || !String(auth).toLowerCase().startsWith('basic ')) {
+          res.statusCode = 401;
+          res.end('missing basic auth');
+          return;
+        }
+        try {
+          const remote = await fetch(`${base.origin}/posts/${postId}/votes.json`, {
+            method: 'POST',
+            headers: {
+              Authorization: String(auth),
+              Accept: 'application/json',
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'User-Agent': 'm-e621-votes-proxy/1.0',
+            },
+            body: `score=${score}`,
+          });
+          res.statusCode = remote.status;
+          res.setHeader(
+            'Content-Type',
+            remote.headers.get('content-type') || 'application/json',
+          );
+          res.end(Buffer.from(await remote.arrayBuffer()));
+        } catch (err) {
+          res.statusCode = 502;
+          res.end(String(err));
+        }
+      });
+    },
+  };
+}
+
+function e621CommentsProxy(): Plugin {
+  return {
+    name: 'e621-comments-proxy',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url?.startsWith('/api/comments') || req.method !== 'POST') {
+          next();
+          return;
+        }
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        let payload: { post_id?: number; body?: string };
+        try {
+          payload = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+        } catch {
+          res.statusCode = 400;
+          res.end('invalid json');
+          return;
+        }
+        const postId = payload.post_id;
+        const body = payload.body;
+        if (typeof postId !== 'number' || typeof body !== 'string' || !body.trim()) {
+          res.statusCode = 400;
+          res.end('post_id and body required');
+          return;
+        }
+        const siteBase = String(req.headers['x-site-base'] || 'https://e621.net/');
+        let base: URL;
+        try {
+          base = new URL(siteBase.endsWith('/') ? siteBase : `${siteBase}/`);
+        } catch {
+          res.statusCode = 400;
+          res.end('invalid X-Site-Base');
+          return;
+        }
+        if (!['e621.net', 'e926.net', 'e6ai.net'].includes(base.hostname.toLowerCase())) {
+          res.statusCode = 400;
+          res.end('host not allowed');
+          return;
+        }
+        const auth = req.headers.authorization;
+        if (!auth || !String(auth).toLowerCase().startsWith('basic ')) {
+          res.statusCode = 401;
+          res.end('missing basic auth');
+          return;
+        }
+        try {
+          const form = new URLSearchParams({
+            'comment[post_id]': String(postId),
+            'comment[body]': body,
+          });
+          const remote = await fetch(`${base.origin}/comments.json`, {
+            method: 'POST',
+            headers: {
+              Authorization: String(auth),
+              Accept: 'application/json',
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'User-Agent': 'm-e621-comments-proxy/1.0',
+            },
+            body: form.toString(),
+          });
+          res.statusCode = remote.status;
+          res.setHeader(
+            'Content-Type',
+            remote.headers.get('content-type') || 'application/json',
+          );
+          res.end(Buffer.from(await remote.arrayBuffer()));
+        } catch (err) {
+          res.statusCode = 502;
+          res.end(String(err));
+        }
+      });
+    },
+  };
+}
+
 function generateSitemap(env: Record<string, string>): Plugin {
   return {
     name: 'generate-sitemap',
@@ -96,12 +248,14 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       e621MediaProxy(),
+      e621VotesProxy(),
+      e621CommentsProxy(),
       generateSitemap(env),
       vue(),
       vuetify(),
       vueDevTools(),
       VitePWA({
-        registerType: 'autoUpdate',
+        registerType: 'prompt',
         manifest: {
           id: "/#/posts",
           name: "Material e621",

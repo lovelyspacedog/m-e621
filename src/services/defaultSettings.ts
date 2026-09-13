@@ -35,7 +35,7 @@ export const fullscreenSlideshowShortcut: Shortcut = {
 };
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 20,
+  configVersion: 22,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -59,9 +59,8 @@ export const defaultSettings: ISettingsServiceState = {
     { action: "fullscreen_next_post", sequence: "d" },
     { action: "fullscreen_previous_post", sequence: "a" },
 
-    { action: "fullscreen_exit", sequence: "j" },
-    { action: "fullscreen_next_post", sequence: "l" },
-    { action: "fullscreen_previous_post", sequence: "h" },
+    { action: "fullscreen_next_post", sequence: "j" },
+    { action: "fullscreen_previous_post", sequence: "k" },
 
     ...fullscreenFavoriteShortcuts,
     fullscreenSlideshowShortcut,
@@ -124,6 +123,7 @@ export const defaultSettings: ISettingsServiceState = {
     lazyLoadImages: true,
     autoLoadNext: true,
     fullWidthFeed: false,
+    feedLayout: "list",
     slideshowIntervalMs: 15000,
     cardAutoNext: false,
     cardAutoNextIntervalMs: 15000,

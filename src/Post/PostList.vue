@@ -1,18 +1,21 @@
 <template>
-  <!-- grid -->
-  <!-- <v-row v-if="layout === 'grid'" row wrap="">
+  <v-row v-if="isGrid" dense>
     <v-col
-      v-for="post in visiblePosts"
+      v-for="(post, idx) in visiblePosts"
       :key="post.id"
-      v-bind="gridSizes"
-      ref="posts"
+      cols="6"
+      sm="6"
+      md="4"
+      lg="3"
+      xl="2"
+      class="mb-2"
+      :ref="(ref) => addElement(idx, ref as any)"
     >
       <slot name="post" :post="post" />
     </v-col>
-  </v-row> -->
-  <!-- blog/feed -->
-  <!-- v-else -->
+  </v-row>
   <v-col
+    v-else
     cols="12"
     :lg="fullWidthFeed ? 12 : 6"
     :md="fullWidthFeed ? 12 : 8"
@@ -21,13 +24,7 @@
     wrap=""
   >
     <v-col :key="post.id" cols="12" class="mb-5" v-for="(post, idx) in visiblePosts" :ref="(ref) => addElement(idx, ref as any)">
-<!-- ((ref: Element | ComponentPublicInstance | null, refs: Record<string, any>) => void -->
-      <!-- <intersect @enter="triggerLoad(idx, 'enter', $event)" @leave="triggerLoad(idx, 'leave', $event)" :threshold="[0]" -->
-        <!-- :root="null" root-margin="0px 0px 0px 0px" v-if="shouldHaveIntersectionObserver(idx)"> -->
-        <!-- @change="say('change', $event)" -->
         <slot name="post" :post="post" />
-      <!-- </intersect> -->
-      <!-- <slot v-else name="post" :post="post" /> -->
     </v-col>
   </v-col>
 </template>
@@ -99,7 +96,6 @@ export default defineComponent({
     },
   },
   setup(props, context) {
-    const layout = ref<"list" | "grid">("list");
     const size = ref<"sm" | "md" | "lg">("md");
     const firstVisibleElement = ref<ComponentPublicInstance | null>(null);
     const posts = ref<ComponentPublicInstance[]>([]);
@@ -107,6 +103,8 @@ export default defineComponent({
     const canTriggerLoad = ref({ previous: false, next: false });
     const postsStore = usePostsStore();
     const fullWidthFeed = computed(() => postsStore.fullWidthFeed);
+    const isGrid = computed(() => postsStore.feedLayout === "grid");
+    provide("feedIsGrid", isGrid);
 
     watch(props.visiblePosts,
       () => {
@@ -685,7 +683,7 @@ export default defineComponent({
     };
 
     return {
-      layout,
+      isGrid,
       size,
       posts,
       fullWidthFeed,

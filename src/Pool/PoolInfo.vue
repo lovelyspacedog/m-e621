@@ -11,9 +11,18 @@
                 <v-card-text style="max-height: 20vh; overflow-y: auto;">
                     <DText :text="pool.description || 'No description'" />
                 </v-card-text>
+                <v-card-actions v-if="showBrowse">
+                    <v-btn
+                        color="accent"
+                        variant="text"
+                        :to="{ name: 'Pool', params: { id: poolId } }"
+                    >
+                        Browse pool
+                    </v-btn>
+                </v-card-actions>
             </v-card>
         </div>
-        <div v-else-if="loading">
+        <div v-else-if="loading" key="loading">
             <AppLogo type="loader" />
         </div>
     </v-fade-transition>
@@ -25,35 +34,47 @@ import DText from "@/Parser/DText.vue";
 import { useUrlStore } from "@/services";
 import type { Pool } from "@/worker/api";
 import { getApiService } from "@/worker/services";
-import { defineComponent, onMounted, ref } from "vue";
+import { defineComponent, onMounted, ref, watch } from "vue";
 
 export default defineComponent({
     props: {
         poolId: {
             type: Number,
             required: true,
-        }
+        },
+        showBrowse: {
+            type: Boolean,
+            default: true,
+        },
     },
-    setup(props, context) {
+    setup(props) {
         const urlStore = useUrlStore();
         const pool = ref<Pool>();
         const loading = ref(false);
         const getInfo = async () => {
             try {
                 loading.value = true;
+                pool.value = undefined;
                 const service = await getApiService();
                 pool.value = await service.getPool({
                     id: props.poolId,
                     baseUrl: urlStore.e621Url,
                 });
             } catch (err) {
-                console.log(err); // TODO: display to user?
+                console.log(err);
+            } finally {
                 loading.value = false;
             }
         };
         onMounted(() => {
             getInfo();
         });
+        watch(
+            () => props.poolId,
+            () => {
+                getInfo();
+            },
+        );
         return {
             pool,
             loading

@@ -133,6 +133,14 @@ export const usePostsStore = defineStore("posts", () => {
       main.posts.compactCards = value;
     },
   });
+  const feedLayout = computed({
+    get() {
+      return main.posts.feedLayout;
+    },
+    set(value: "list" | "grid") {
+      main.posts.feedLayout = value;
+    },
+  });
   const videoVolume = computed({
     get() {
       return main.posts.videoVolume;
@@ -206,6 +214,7 @@ export const usePostsStore = defineStore("posts", () => {
     cardAutoNext,
     cardAutoNextIntervalMs,
     compactCards,
+    feedLayout,
     videoVolume,
     videoMuted,
     videoPlaybackRate,

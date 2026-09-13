@@ -4,7 +4,11 @@ import type {
   Post,
   IPostsListArgs,
   IPostFavoriteArgs,
-  IGetPoolArgs} from "./api";
+  IPostVoteArgs,
+  IPostCommentArgs,
+  IGetPoolArgs,
+  ICommentsListArgs,
+  INotesListArgs} from "./api";
 import {
   e621,
   custom
@@ -23,6 +27,7 @@ export interface EnhancedPost extends Post {
   __meta: {
     isBlacklisted: boolean;
     isFavoriteLoading?: boolean;
+    isVoteLoading?: boolean;
     pageNumber: number;
     localPath?: string;
     localExtraTags?: string[];
@@ -84,6 +89,14 @@ export class ApiService {
     return (await e621.pools.get(args));
   }
 
+  async getComments(args: ICommentsListArgs) {
+    return e621.comments.list(args);
+  }
+
+  async getNotes(args: INotesListArgs) {
+    return e621.notes.list(args);
+  }
+
   async favoritePost(args: IPostFavoriteArgs) {
     try {
       await custom.posts.favorite(args);
@@ -101,6 +114,30 @@ export class ApiService {
     try {
       await custom.posts.unfavorite(args);
       return true;
+    } catch (error: any) {
+      const message = error?.response?.data?.message;
+      if (message) {
+        throw new Error(message);
+      }
+      throw error;
+    }
+  }
+
+  async votePost(args: IPostVoteArgs) {
+    try {
+      return await custom.posts.vote(args);
+    } catch (error: any) {
+      const message = error?.response?.data?.message;
+      if (message) {
+        throw new Error(message);
+      }
+      throw error;
+    }
+  }
+
+  async createComment(args: IPostCommentArgs) {
+    try {
+      return await custom.posts.createComment(args);
     } catch (error: any) {
       const message = error?.response?.data?.message;
       if (message) {

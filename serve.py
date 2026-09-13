@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 
 ROOT = Path(os.environ.get("M_E621_ROOT", Path.home() / "m-e621" / "dist")).resolve()
@@ -27,6 +27,8 @@ TOKEN_PATH = CONFIG_DIR / "pull_token"
 STATUS_PATH = CONFIG_DIR / "pull_status.json"
 FAVORITE_HOSTS = frozenset({"e621.net", "e926.net", "e6ai.net"})
 FAVORITE_PATH = re.compile(r"^/api/favorites(?:/(\d+))?$")
+VOTES_PATH = re.compile(r"^/api/votes/?$")
+COMMENTS_PATH = re.compile(r"^/api/comments/?$")
 MEDIA_HOST_SUFFIXES = (".e621.net", ".e926.net", ".e6ai.net")
 
 _pull_lock = threading.Lock()
@@ -276,6 +278,117 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _proxy_vote(self, body: bytes) -> None:
+        base = self._site_base()
+        if not base:
+            self._json(400, {"ok": False, "message": "invalid X-Site-Base"})
+            return
+        auth = self.headers.get("Authorization", "")
+        if not auth.lower().startswith("basic "):
+            self._json(401, {"ok": False, "message": "missing basic auth"})
+            return
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}")
+        except json.JSONDecodeError:
+            self._json(400, {"ok": False, "message": "invalid json"})
+            return
+        post_id = payload.get("post_id")
+        score = payload.get("score")
+        if not isinstance(post_id, int) or score not in (1, -1, 0):
+            self._json(400, {"ok": False, "message": "post_id and score required"})
+            return
+        url = f"{base}posts/{post_id}/votes.json"
+        form = f"score={score}".encode("utf-8")
+        req = urllib.request.Request(url, data=form, method="POST")
+        req.add_header("Authorization", auth)
+        req.add_header("Accept", "application/json")
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+        req.add_header(
+            "User-Agent",
+            f"m-e621-votes-proxy/1.0 (https://{DOMAIN}; same-origin votes)",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                resp_body = resp.read()
+                status = getattr(resp, "status", 200)
+                content_type = resp.headers.get("Content-Type", "application/json")
+        except urllib.error.HTTPError as exc:
+            resp_body = exc.read()
+            status = exc.code
+            content_type = (
+                exc.headers.get("Content-Type", "application/json")
+                if exc.headers
+                else "application/json"
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "message": str(exc)})
+            return
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(resp_body)))
+        self.end_headers()
+        self.wfile.write(resp_body)
+
+    def _proxy_comment(self, body: bytes) -> None:
+        base = self._site_base()
+        if not base:
+            self._json(400, {"ok": False, "message": "invalid X-Site-Base"})
+            return
+        auth = self.headers.get("Authorization", "")
+        if not auth.lower().startswith("basic "):
+            self._json(401, {"ok": False, "message": "missing basic auth"})
+            return
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}")
+        except json.JSONDecodeError:
+            self._json(400, {"ok": False, "message": "invalid json"})
+            return
+        post_id = payload.get("post_id")
+        comment_body = payload.get("body")
+        if not isinstance(post_id, int) or not isinstance(comment_body, str) or not comment_body.strip():
+            self._json(400, {"ok": False, "message": "post_id and body required"})
+            return
+        url = f"{base}comments.json"
+        form = urlencode(
+            {
+                "comment[post_id]": post_id,
+                "comment[body]": comment_body,
+            }
+        ).encode("utf-8")
+        req = urllib.request.Request(url, data=form, method="POST")
+        req.add_header("Authorization", auth)
+        req.add_header("Accept", "application/json")
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+        req.add_header(
+            "User-Agent",
+            f"m-e621-comments-proxy/1.0 (https://{DOMAIN}; same-origin comments)",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                resp_body = resp.read()
+                status = getattr(resp, "status", 200)
+                content_type = resp.headers.get("Content-Type", "application/json")
+        except urllib.error.HTTPError as exc:
+            resp_body = exc.read()
+            status = exc.code
+            content_type = (
+                exc.headers.get("Content-Type", "application/json")
+                if exc.headers
+                else "application/json"
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "message": str(exc)})
+            return
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(resp_body)))
+        self.end_headers()
+        self.wfile.write(resp_body)
+
     def do_OPTIONS(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
         if path.startswith("/api/"):
@@ -385,6 +498,14 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
         if path == "/api/favorites":
             self._proxy_favorite("POST", body)
+            return
+
+        if VOTES_PATH.match(path):
+            self._proxy_vote(body)
+            return
+
+        if COMMENTS_PATH.match(path):
+            self._proxy_comment(body)
             return
 
         if path != "/api/git/pull":

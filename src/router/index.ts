@@ -43,6 +43,18 @@ const router = createRouter({
         import(/* webpackChunkName: "misc" */ "@/Post/PostsPage.vue"),
     },
     {
+      path: "/pools",
+      name: "Pools",
+      component: () =>
+        import(/* webpackChunkName: "misc" */ "@/Pool/PoolsSearchPage.vue"),
+    },
+    {
+      path: "/pools/:id",
+      name: "Pool",
+      component: () =>
+        import(/* webpackChunkName: "misc" */ "@/Pool/PoolPage.vue"),
+    },
+    {
       path: "/settings",
       name: "Settings",
       component: () =>
