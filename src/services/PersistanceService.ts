@@ -41,8 +41,11 @@ class PersistanceService {
   constructor(private main: ReturnType<typeof useMainStore>) { }
 
   public async saveState() {
-    syncMirrorsToActiveProfile(this.main.$state);
-    await this.saveToLocalStorage("state", this.getState());
+    // Sync on a snapshot only. Writing back into the live store here retriggers
+    // this $subscribe and overflows the stack (Home/Posts writes history on load).
+    const snapshot = JSON.parse(JSON.stringify(this.getState())) as ISettingsServiceState;
+    syncMirrorsToActiveProfile(snapshot);
+    await this.saveToLocalStorage("state", snapshot);
     log("saved state");
   }
   public async loadState() {
@@ -57,8 +60,9 @@ class PersistanceService {
     }
   }
   public async stateToFile() {
-    syncMirrorsToActiveProfile(this.main.$state);
-    return new File([this.serializeState()], "material-e621-settings.json", {
+    const snapshot = JSON.parse(JSON.stringify(this.getState())) as ISettingsServiceState;
+    syncMirrorsToActiveProfile(snapshot);
+    return new File([JSON.stringify(snapshot)], "material-e621-settings.json", {
       type: "text/plain",
     });
   }
