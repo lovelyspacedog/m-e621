@@ -76,6 +76,8 @@ export type LocalMediaStatus =
 
 let cachedIndex: LocalMediaEntry[] | null = null;
 let cachedRootName: string | null = null;
+let cachedOrdered: LocalMediaEntry[] | null = null;
+let cachedOrderKey = "";
 const blobUrls = new Map<number, string>();
 const posterUrls = new Map<number, string>();
 
@@ -152,6 +154,8 @@ const walkDirectory = async (
 export const invalidateLocalMediaIndex = () => {
   cachedIndex = null;
   cachedRootName = null;
+  cachedOrdered = null;
+  cachedOrderKey = "";
 };
 
 const revokeUrl = (map: Map<number, string>, id: number) => {
@@ -222,6 +226,39 @@ export const filterLocalMedia = (
         entry.relativePath.toLowerCase().includes(term),
     ),
   );
+};
+
+const shuffleInPlace = <T>(items: T[]) => {
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const current = items[i];
+    items[i] = items[j]!;
+    items[j] = current!;
+  }
+  return items;
+};
+
+const orderLocalMedia = (
+  entries: LocalMediaEntry[],
+  tags: string[],
+  reshuffle: boolean,
+) => {
+  const order =
+    tags.find((tag) => tag.toLowerCase().startsWith("order:"))?.toLowerCase() ||
+    "";
+  const key = `${cachedRootName}|${entries.length}|${order}|${tags
+    .filter((tag) => !tag.toLowerCase().startsWith("order:"))
+    .join("\0")}`;
+  if (!reshuffle && cachedOrdered && cachedOrderKey === key) {
+    return cachedOrdered;
+  }
+  const next = [...entries];
+  if (order === "order:random") {
+    shuffleInPlace(next);
+  }
+  cachedOrdered = next;
+  cachedOrderKey = key;
+  return next;
 };
 
 const probeImageDimensions = (
@@ -429,11 +466,12 @@ export const getLocalPostsPage = async (
     return { posts: [], status: scanned.status };
   }
   const filtered = filterLocalMedia(scanned.entries, tags);
+  const ordered = orderLocalMedia(filtered, tags, force);
   const start = (page - 1) * limit;
-  const slice = filtered.slice(start, start + limit);
+  const slice = ordered.slice(start, start + limit);
   return {
     posts: await localEntriesToPosts(slice, page),
-    status: filtered.length ? "ok" : "empty",
+    status: ordered.length ? "ok" : "empty",
   };
 };
 

@@ -13,6 +13,7 @@
 // https://e621.net/help/cheatsheet
 const sortTags = [
   { tag: null, name: "Date (newest first) - Default" }, // default
+  { tag: "order:random", name: "Random" },
   { tag: "order:id", name: "Date (oldest first)" },
   { tag: "order:rank", name: "Hot (hottest first)" },
   { tag: "order:change", name: "Change (most recent first)" },

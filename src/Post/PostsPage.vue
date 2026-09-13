@@ -24,6 +24,15 @@
         >
           Favs
         </v-btn>
+        <v-btn
+          class="text-none"
+          size="small"
+          variant="text"
+          :color="activeOrder === 'order:random' ? 'accent' : undefined"
+          @click="applyOrder('order:random')"
+        >
+          Random
+        </v-btn>
         <v-btn icon @click="updateQuery(), onSearchClick()" :loading="loading">
           <v-icon>mdi-magnify</v-icon>
         </v-btn>
