@@ -118,6 +118,7 @@ const walkDirectory = async (
 ) => {
   for await (const [name, handle] of (dir as DirectoryWalker).entries()) {
     if (handle.kind === "directory") {
+      if (name.startsWith(".")) continue;
       await walkDirectory(
         handle as FileSystemDirectoryHandle,
         prefix ? `${prefix}/${name}` : name,
