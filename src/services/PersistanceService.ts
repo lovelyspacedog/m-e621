@@ -67,15 +67,33 @@ class PersistanceService {
     }, 0);
   }
 
+  private saveInFlight = false;
+  private savePending = false;
+
   public async saveState() {
     if (this.applying) return;
-    // Detached snapshot only — never write back into the live store here.
-    const snapshot = JSON.parse(
-      JSON.stringify(toPlain(this.main.$state)),
-    ) as ISettingsServiceState;
-    syncMirrorsToActiveProfile(snapshot);
-    await this.saveToLocalStorage("state", snapshot);
-    log("saved state");
+    // Serialize writes: if a save is already in flight, queue exactly one
+    // follow-up so we always persist the latest state without races.
+    if (this.saveInFlight) {
+      this.savePending = true;
+      return;
+    }
+    this.saveInFlight = true;
+    try {
+      // Detached snapshot only — never write back into the live store here.
+      const snapshot = JSON.parse(
+        JSON.stringify(toPlain(this.main.$state)),
+      ) as ISettingsServiceState;
+      syncMirrorsToActiveProfile(snapshot);
+      await this.saveToLocalStorage("state", snapshot);
+      log("saved state");
+    } finally {
+      this.saveInFlight = false;
+      if (this.savePending) {
+        this.savePending = false;
+        void this.saveState();
+      }
+    }
   }
   public async loadState() {
     const savedState = await this.getFromLocalStorage<ISettingsServiceState>(
@@ -104,11 +122,19 @@ class PersistanceService {
         if (typeof fileContent !== "string") {
           return reject("file content must be a string");
         }
-        const settings = JSON.parse(fileContent);
-        // TODO: test if correct
-        this.setState(settings);
-        return resolve();
+        try {
+          const settings = JSON.parse(fileContent);
+          // TODO: test if correct
+          settings.snackbar = null;
+          this.setState(settings);
+          return resolve();
+        } catch (err) {
+          return reject(err instanceof Error ? err : new Error(String(err)));
+        }
       };
+
+      reader.onerror = () =>
+        reject(reader.error ?? new Error("Failed to read file"));
 
       reader.readAsText(file, "utf");
     });
@@ -370,11 +396,13 @@ class PersistanceService {
     newState.profiles.local =
       newState.profiles.local || createEmptySiteProfile("local");
     if (!newState.profiles.e621.account) {
-      newState.profiles.e621 = profileFromMirrors({
-        ...newState,
-        activeMode: "e621",
-        profiles: newState.profiles,
-      } as ISettingsServiceState);
+      // Do NOT copy active-mode mirrors here: account/blacklist/etc. may
+      // reflect a different site (e.g. e6ai at export time).  Merge any
+      // partial e621 profile over a clean default instead.
+      newState.profiles.e621 = {
+        ...createEmptySiteProfile("e621"),
+        ...newState.profiles.e621,
+      };
     }
     if (
       newState.activeMode !== "e621" &&
@@ -411,7 +439,7 @@ class PersistanceService {
     if (newState.posts.videoMuted === undefined) {
       newState.posts.videoMuted = true;
     }
-    if (!newState.posts.videoPlaybackRate) {
+    if (newState.posts.videoPlaybackRate == null) {
       newState.posts.videoPlaybackRate = 1;
     }
     applyActiveProfileToMirrors(newState);

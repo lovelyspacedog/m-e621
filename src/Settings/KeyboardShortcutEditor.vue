@@ -141,6 +141,9 @@ export default defineComponent({
       "fullscreen_next_post",
       "fullscreen_previous_post",
       "fullscreen_slideshow_toggle",
+      "fullscreen_add_favorite",
+      "fullscreen_remove_favorite",
+      "fullscreen_toggle_favorite",
     ];
 
     return {

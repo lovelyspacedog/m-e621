@@ -53,7 +53,7 @@ const handleChange = () => {
 };
 
 // event not supported for all browsers
-(nav.connection || {}).onchange = handleChange();
+(nav.connection || {}).onchange = handleChange;
 nav.connection?.addEventListener("change", handleChange);
 
 handleChange();

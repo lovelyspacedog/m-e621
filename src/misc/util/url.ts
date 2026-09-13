@@ -2,7 +2,7 @@ import { useUrlStore } from "@/services";
 
 export const getE6PostUrl = (id: number) => {
   const url = useUrlStore();
-  return `${url.e621Url}post/show/${id}`;
+  return `${url.e621Url}posts/${id}`;
 };
 
 export const openUrlInNewTab = (url: string) => {

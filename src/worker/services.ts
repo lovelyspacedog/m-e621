@@ -11,41 +11,25 @@ const wrapWorker = async <T>(worker: Worker): Promise<Remote<T>> => {
   return new (WrappedService as any)();
 };
 
-let apiServiceInstance: Remote<ApiService>;
+// Store the Promise (not the resolved value) so concurrent callers share one
+// in-flight spawn rather than each racing to create a separate worker.
+let apiServicePromise: Promise<Remote<ApiService>> | undefined;
 
-export const getApiService = async () => {
-  return (
-    apiServiceInstance ||
-    (apiServiceInstance = await wrapWorker<ApiService>(
-      new Worker(new URL("./ApiServiceWorker", import.meta.url), {
-        type: "module",
-      }),
-    ))
-  );
-};
+export const getApiService = () =>
+  (apiServicePromise ??= wrapWorker<ApiService>(
+    new Worker(new URL("./ApiServiceWorker", import.meta.url), { type: "module" }),
+  ));
 
-let analyzeServiceInstance: Remote<AnalyzeService>;
+let analyzeServicePromise: Promise<Remote<AnalyzeService>> | undefined;
 
-export const getAnalyzeService = async () => {
-  return (
-    analyzeServiceInstance ||
-    (analyzeServiceInstance = await wrapWorker<AnalyzeService>(
-      new Worker(new URL("./AnalyzeService", import.meta.url), {
-        type: "module",
-      }),
-    ))
-  );
-};
+export const getAnalyzeService = () =>
+  (analyzeServicePromise ??= wrapWorker<AnalyzeService>(
+    new Worker(new URL("./AnalyzeService", import.meta.url), { type: "module" }),
+  ));
 
-let dashboardServiceInstance: Remote<DashboardService>;
+let dashboardServicePromise: Promise<Remote<DashboardService>> | undefined;
 
-export const getDashboardService = async () => {
-  return (
-    dashboardServiceInstance ||
-    (dashboardServiceInstance = await wrapWorker<DashboardService>(
-      new Worker(new URL("./DashboardService", import.meta.url), {
-        type: "module",
-      }),
-    ))
-  );
-};
+export const getDashboardService = () =>
+  (dashboardServicePromise ??= wrapWorker<DashboardService>(
+    new Worker(new URL("./DashboardService", import.meta.url), { type: "module" }),
+  ));

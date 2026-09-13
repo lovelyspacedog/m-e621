@@ -64,18 +64,25 @@ const args = computed<IAnalyzeTagsArgs>(() => {
 
 const result = ref<IAnalyzeTagsResult>();
 
-const analyze = debounce(async (a) => {
+let generation = 0;
+const analyze = debounce(async (a: IAnalyzeTagsArgs, gen: number) => {
   const service = await getAnalyzeService();
-  result.value = await service.analyzeTags(
+  const r = await service.analyzeTags(
     a,
     Comlink.proxy((progressEvent) => {
       progress.value = progressEvent;
     }),
   );
+  // Discard stale responses (user changed name while request was in flight)
+  if (gen !== generation) return;
+  result.value = r;
 }, 500);
 
 watchEffect(() => {
+  const username = route.query?.name?.toString();
+  // Don't run with fav:undefined when the name query param is absent
+  if (!username) return;
   const a = cloneDeep(args.value);
-  analyze(a);
+  analyze(a, ++generation);
 });
 </script>

@@ -24,6 +24,9 @@ export const usePostListManager = ({
   const detailsPost = ref<EnhancedPost | null>(null);
   const loading = ref(false);
   const reachedEnd = ref(false);
+  // Bumped by clearPosts() so in-flight page fetches are discarded after a
+  // search/pool change, instead of being applied to the new query.
+  const generation = ref(0);
   const urlStore = useUrlStore();
   const blacklistStore = useBlacklistStore();
   const postsStore = usePostsStore();
@@ -148,9 +151,11 @@ export const usePostListManager = ({
     if (loading.value) {
       return console.log("loadPreviousPage called, but already loading");
     }
+    const thisGen = generation.value;
     try {
       loading.value = true;
       const newPosts = await loadPosts(firstPageNumber.value - 1, "previous");
+      if (thisGen !== generation.value) return;
       const postCountToRemove = getPostCountToRemove();
       // newly uploaded posts cause old posts to shift pages, and duplicates are bad
       const newPostsFiltered = newPosts.filter(newP => !posts.value.find(existing => existing.id === newP.id))
@@ -160,18 +165,25 @@ export const usePostListManager = ({
         postCountToRemove,
       );
     } catch (error) {
-      handleError(error);
+      if (thisGen === generation.value) handleError(error);
     } finally {
-      loading.value = false;
+      if (thisGen === generation.value) loading.value = false;
     }
   };
   const loadNextPage = async () => {
     if (loading.value) {
       return console.log("loadNextPage called, but already loading");
     }
+    const thisGen = generation.value;
     try {
       loading.value = true;
-      const newPosts = await loadPosts(lastPageNumber.value + 1, "next");
+      // When the list is empty, load the saved page directly (not saved+1).
+      // e.g. refresh on ?page=2 should reload page 2, not page 3.
+      const page = posts.value.length
+        ? lastPageNumber.value + 1
+        : Math.max(1, getSavedPageNumber());
+      const newPosts = await loadPosts(page, "next");
+      if (thisGen !== generation.value) return;
       if (!newPosts.length) {
         reachedEnd.value = true;
       } else {
@@ -181,9 +193,9 @@ export const usePostListManager = ({
         posts.value.splice(0, postCountToRemove);
       }
     } catch (error) {
-      handleError(error);
+      if (thisGen === generation.value) handleError(error);
     } finally {
-      loading.value = false;
+      if (thisGen === generation.value) loading.value = false;
     }
   };
 
@@ -251,8 +263,10 @@ export const usePostListManager = ({
   });
   const hiddenPostCount = computed(() => posts.value.length - visiblePosts.value.length);
   const clearPosts = () => {
+    generation.value += 1;
     posts.value = [];
     reachedEnd.value = false;
+    loading.value = false;
   };
   const hasPrevious = computed(() => posts.value.length !== 0 && posts.value[0].__meta.pageNumber > 1);
 

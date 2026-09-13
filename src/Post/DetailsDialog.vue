@@ -139,7 +139,7 @@
           @open-post-fullscreen="$emit('open-post-fullscreen', $event)"
           @set-post-favorite="$emit('set-post-favorite', $event)"
         />
-        <v-btn color="primary" variant="text" @click.native="dialog = false">Close</v-btn>
+        <v-btn color="primary" variant="text" @click="dialog = false">Close</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

@@ -1,285 +1,240 @@
 <script lang="ts">
 import { getTagColorFromCategory } from "@/misc/util/utilities";
+import type { VNode } from "vue";
 import { computed, defineComponent, h } from "vue";
-// import type { CreateElement } from "vue";
 import ExternalLink from "@/App/ExternalLink.vue";
 import { useUrlStore } from "@/services";
+import {
+  VCard,
+  VCardText,
+  VExpansionPanel,
+  VExpansionPanels,
+  VExpansionPanelText,
+  VExpansionPanelTitle,
+} from "vuetify/components";
 
-// TODO: redo whole parser; possibly in rust?
+const TAG_CATEGORIES = ["artist", "character", "copyright", "species"];
 
-// const validBbElements = [
-//   "b",
-//   "i",
-//   "u",
-//   "s",
-//   "o",
-//   "sup",
-//   "sub",
-//   "spoiler",
-//   "color",
-//   "quote",
-//   "code",
-//   "section",
-//   "table",
-// ];
+const validBbElements = [
+  "b",
+  "i",
+  "u",
+  "s",
+  "o",
+  "sup",
+  "sub",
+  "spoiler",
+  "color",
+  "quote",
+  "code",
+  "section",
+  "table",
+];
 
-// const customBbElementGenerator: {
-//   [idx: string]: (arg0: {
-//     h: CreateElement;
-//     innerText: string;
-//     attributes?: string;
-//   }) => void;
-// } = {
-//   color({ h, innerText, attributes }) {
-//     if (attributes && attributes.startsWith("=")) {
-//       let color = attributes.substring(1); // remove = from attributes
-//       if (
-//         ["artist", "character", "copyright", "species"].indexOf(color) != -1
-//       ) {
-//         color = getTagColorFromCategory(color);
-//       }
-//       return h("span", { style: `color: ${color}` }, createTree(h, innerText));
-//     }
-//     return h("span", {}, createTree(h, innerText));
-//   },
-//   o({ h, innerText }) {
-//     return h(
-//       "span",
-//       { style: { textDecoration: "overline" } },
-//       createTree(h, innerText),
-//     );
-//   },
-//   quote({ h, innerText }) {
-//     return h("v-card", { class: "elevation-8" }, [
-//       h("v-card-text", {}, createTree(h, innerText)),
-//     ]);
-//   },
-//   code({ h, innerText }) {
-//     return h("code", { class: "code" }, innerText);
-//   },
-//   spoiler({ h, innerText }) {
-//     return h("span", { class: "spoiler" }, createTree(h, innerText));
-//   },
-//   table({ h, innerText }) {
-//     const rows = innerText.split("\n");
-//     const headerColumns = rows[0].split("|");
-//     const header = [];
-//     const content = [];
-//     for (let j = 0; j < headerColumns.length; j++) {
-//       header.push({ text: headerColumns[j], value: j });
-//     }
-//     for (let i = 1; i < rows.length; i++) {
-//       const columns = rows[i].split("|");
-//       const rowVal: { [idx: string]: string } = {};
-//       for (let j = 0; j < columns.length; j++) {
-//         rowVal[j] = columns[j];
-//       }
-//       content.push(rowVal);
-//     }
-//     const columns = header.length;
-//     return h("v-data-table", {
-//       class: "elevation-1",
-//       scopedSlots: {
-//         items: (props) => {
-//           const row = [];
-//           for (let i = 0; i < columns; i++) {
-//             row.push(h("td", createTree(h, props.item[i])));
-//           }
-//           return row;
-//         },
-//       },
-//       props: {
-//         hideActions: true,
-//         items: content,
-//         headers: header,
-//       },
-//     });
-//   },
-//   section({ h, innerText, attributes }) {
-//     let title = "Click to expand";
-//     let expanded = false;
-//     if (attributes) {
-//       if (attributes.startsWith(",expanded")) {
-//         expanded = true;
-//       }
-//       const titleStartPosition = attributes.indexOf("=");
-//       if (titleStartPosition !== -1) {
-//         title = attributes.substring(titleStartPosition + 1);
-//       }
-//     }
-//     return h(
-//       "v-expansion-panel",
-//       {
-//         props: { popout: true, value: expanded ? 0 : -1 },
-//       },
-//       [
-//         h(
-//           "v-expansion-panel-content",
-//           {
-//             class: "elevation-8 secondary",
-//           },
-//           [
-//             h("div", { slot: "header" }, title),
-//             h("v-card", { props: { color: "secondary" } }, [
-//               h("v-card-text", {}, createTree(h, innerText)),
-//             ]),
-//           ],
-//         ),
-//       ],
-//     );
-//   },
-// };
+type TreeNode = VNode | string;
 
-// const customMatchers: Array<{
-//   render: (arg0: { match: RegExpExecArray; h: CreateElement }) => void;
-//   name: string;
-//   regex: RegExp;
-//   isValid?: (match: RegExpExecArray) => boolean;
-// }> = [
-//   {
-//     name: "Code",
-//     regex: /`([^].*)`/i,
-//     render({ h, match }) {
-//       return customBbElementGenerator["code"]({ h, innerText: match[1] });
-//     },
-//   },
-//   {
-//     name: "Headers",
-//     regex: /^h([1-6])\.(.*)$/im,
-//     render({ h, match }) {
-//       return h(`h${match[1]}`, {}, createTree(h, match[2]));
-//     },
-//   },
-//   {
-//     name: "Lists",
-//     regex: /((^|\n)\*+\s+.+)+/im,
-//     render({ h, match }) {
-//       const retVal = [];
-//       const input = match[0].trim(); // removes \n
-//       const listRegex = /^(\*+)\s+(.+)/gim;
-//       let listMatch;
-//       while ((listMatch = listRegex.exec(input))) {
-//         const depth = listMatch[1].length - 1;
-//         const content = listMatch[2];
-//         retVal.push(
-//           h(
-//             "li",
-//             { style: { marginLeft: `${depth * 1}em` } },
-//             createTree(h, content),
-//           ),
-//         );
-//       }
-//       return h("ul", retVal);
-//     },
-//   },
-//   {
-//     name: "BBElements",
-//     regex: /\[(\w+)((=| \w+=|,\w+=).*?)?\][\n\s]*([^]*?)[\n\s]*\[(\/\1)\]/im,
-//     isValid: (match) => validBbElements.indexOf(match[1]) !== -1,
-//     render({ h, match }) {
-//       const bbElement = match[1];
-//       const attributes = match[2];
-//       const innerText = match[4];
-//       if (typeof customBbElementGenerator[bbElement] === "function") {
-//         return customBbElementGenerator[bbElement]({
-//           h,
-//           innerText,
-//           attributes,
-//         });
-//       }
-//       return h(bbElement, createTree(h, innerText));
-//     },
-//   },
-//   {
-//     name: "@Username",
-//     regex: /@([a-zA-Z0-9\-_~']+)/i,
-//     render({ h, match }) {
-//       const urlStore = useUrlStore();
-//       return h(
-//         "external-link",
-//         {
-//           attrs: {
-//             href: `${urlStore.e621Url}user/show/${match[1]}`,
-//             target: "_blank",
-//           },
-//         },
-//         [h("b", match[0])],
-//       );
-//     },
-//   },
-//   {
-//     name: "URLs",
-//     regex:
-//       /("(.+?)":)?(https?:\/\/(www\.)?[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_+.~#?&//=]*))/,
-//     render({ h, match }) {
-//       return h(
-//         "external-link",
-//         {
-//           attrs: {
-//             href: match[3],
-//             target: "_blank",
-//           },
-//         },
-//         match[2] || match[3],
-//       );
-//     },
-//   },
-//   {
-//     name: "e621 URLs",
-//     regex: /"(.+?)":(\/[-a-zA-Z0-9@:%_+.~#?&//=]*)/,
-//     render({ h, match }) {
-//       const urlStore = useUrlStore();
-//       return h(
-//         "external-link",
-//         {
-//           attrs: {
-//             href: `${urlStore.e621Url}${match[2]}`,
-//             target: "_blank",
-//           },
-//         },
-//         match[1],
-//       );
-//     },
-//   },
-// ];
+const createTree = (text: string, baseUrl: string): TreeNode[] => {
+  if (!text) return [];
+  for (const matcher of customMatchers) {
+    matcher.regex.lastIndex = 0;
+    const match = matcher.regex.exec(text);
+    if (match && (!matcher.isValid || matcher.isValid(match))) {
+      const startIndex = match.index ?? text.indexOf(match[0]);
+      const endIndex = startIndex + match[0].length;
+      return [
+        ...createTree(text.substring(0, startIndex), baseUrl),
+        matcher.render(match, baseUrl),
+        ...createTree(text.substring(endIndex), baseUrl),
+      ];
+    }
+  }
+  return [text];
+};
 
-// const createTree = (h: CreateElement, text: string): Array<any> => {
-//   const retVal = [];
-//   if (text) {
-//     let customMatcherMatched = false;
-//     for (const matcher of customMatchers) {
-//       const matcherMatch = matcher.regex.exec(text);
-//       if (matcherMatch && (!matcher.isValid || matcher.isValid(matcherMatch))) {
-//         customMatcherMatched = true;
-//         const startIndex = text.indexOf(matcherMatch[0]);
-//         const endIndex = startIndex + matcherMatch[0].length;
-//         const textBefore = text.substring(0, startIndex);
-//         const textAfter = text.substring(endIndex);
-//         retVal.push(createTree(h, textBefore));
-//         retVal.push(matcher.render({ match: matcherMatch, h }));
-//         retVal.push(createTree(h, textAfter));
-//         break;
-//       }
-//     }
-//     // for (let i = 0; i < customMatchers.length; i++) {
-//     // }
-//     if (!customMatcherMatched) {
-//       retVal.push(text);
-//     }
-//   }
-//   return retVal;
-// };
+const joinBase = (baseUrl: string, path: string) => {
+  if (/^https?:\/\//i.test(path)) return path;
+  const base = baseUrl.replace(/\/$/, "");
+  return path.startsWith("/") ? `${base}${path}` : `${base}/${path}`;
+};
 
-// const fixEmojis = (text: string) => {
-//   return text.replace(/([\uf000-\uffff])/g, (char) =>
-//     String.fromCodePoint(char.codePointAt(0)! + 0x10000),
-//   );
-// };
+const customBbElementGenerator: Record<
+  string,
+  (args: { innerText: string; attributes?: string; baseUrl: string }) => TreeNode
+> = {
+  color({ innerText, attributes, baseUrl }) {
+    if (attributes && attributes.startsWith("=")) {
+      let color = attributes.substring(1);
+      if (TAG_CATEGORIES.includes(color)) {
+        color = getTagColorFromCategory(color);
+      }
+      return h("span", { style: { color } }, createTree(innerText, baseUrl));
+    }
+    return h("span", {}, createTree(innerText, baseUrl));
+  },
+  o({ innerText, baseUrl }) {
+    return h(
+      "span",
+      { style: { textDecoration: "overline" } },
+      createTree(innerText, baseUrl),
+    );
+  },
+  quote({ innerText, baseUrl }) {
+    return h(VCard, { class: "elevation-8 my-2" }, () => [
+      h(VCardText, {}, () => createTree(innerText, baseUrl)),
+    ]);
+  },
+  code({ innerText }) {
+    return h("code", { class: "code" }, innerText);
+  },
+  spoiler({ innerText, baseUrl }) {
+    return h("span", { class: "spoiler" }, createTree(innerText, baseUrl));
+  },
+  table({ innerText, baseUrl }) {
+    const rows = innerText
+      .split("\n")
+      .map((row) => row.trim())
+      .filter(Boolean);
+    if (!rows.length) return h("table");
+    const parseCells = (row: string) =>
+      row.split("|").map((cell) => cell.trim());
+    const header = parseCells(rows[0]);
+    const body = rows.slice(1).map(parseCells);
+    return h("table", { class: "dtext-table" }, [
+      h("thead", {}, [
+        h(
+          "tr",
+          {},
+          header.map((cell) => h("th", {}, createTree(cell, baseUrl))),
+        ),
+      ]),
+      h(
+        "tbody",
+        {},
+        body.map((cols) =>
+          h(
+            "tr",
+            {},
+            cols.map((cell) => h("td", {}, createTree(cell, baseUrl))),
+          ),
+        ),
+      ),
+    ]);
+  },
+  section({ innerText, attributes, baseUrl }) {
+    let title = "Click to expand";
+    let expanded = false;
+    if (attributes) {
+      if (attributes.startsWith(",expanded") || attributes.includes(",expanded")) {
+        expanded = true;
+      }
+      const titleStartPosition = attributes.indexOf("=");
+      if (titleStartPosition !== -1) {
+        title = attributes.substring(titleStartPosition + 1);
+      }
+    }
+    return h(
+      VExpansionPanels,
+      { modelValue: expanded ? 0 : undefined, variant: "popout", class: "my-2" },
+      () => [
+        h(VExpansionPanel, {}, () => [
+          h(VExpansionPanelTitle, {}, () => title),
+          h(VExpansionPanelText, {}, () => createTree(innerText, baseUrl)),
+        ]),
+      ],
+    );
+  },
+};
+
+const customMatchers: Array<{
+  name: string;
+  regex: RegExp;
+  isValid?: (match: RegExpExecArray) => boolean;
+  render: (match: RegExpExecArray, baseUrl: string) => TreeNode;
+}> = [
+  {
+    name: "Code",
+    regex: /`([^`]+)`/,
+    render(match) {
+      return customBbElementGenerator.code({ innerText: match[1], baseUrl: "" });
+    },
+  },
+  {
+    name: "Headers",
+    regex: /^h([1-6])\.\s*(.*)$/im,
+    render(match, baseUrl) {
+      return h(`h${match[1]}`, {}, createTree(match[2], baseUrl));
+    },
+  },
+  {
+    name: "Lists",
+    regex: /(?:^|\n)((?:\*+\s+.+(?:\n|$))+)/,
+    render(match, baseUrl) {
+      const input = match[1].trim();
+      const listRegex = /^(\*+)\s+(.+)/gim;
+      const items: TreeNode[] = [];
+      let listMatch: RegExpExecArray | null;
+      while ((listMatch = listRegex.exec(input))) {
+        const depth = listMatch[1].length - 1;
+        items.push(
+          h(
+            "li",
+            { style: { marginLeft: `${depth}em` } },
+            createTree(listMatch[2], baseUrl),
+          ),
+        );
+      }
+      return h("ul", items);
+    },
+  },
+  {
+    name: "BBElements",
+    regex: /\[(\w+)((?:=| \w+=|,\w+=).*?)?\][\n\s]*([^]*?)[\n\s]*\[(\/\1)\]/im,
+    isValid: (match) => validBbElements.includes(match[1].toLowerCase()),
+    render(match, baseUrl) {
+      const bbElement = match[1].toLowerCase();
+      const attributes = match[2];
+      const innerText = match[3];
+      const generator = customBbElementGenerator[bbElement];
+      if (typeof generator === "function") {
+        return generator({ innerText, attributes, baseUrl });
+      }
+      return h(bbElement, createTree(innerText, baseUrl));
+    },
+  },
+  {
+    name: "@Username",
+    regex: /@([a-zA-Z0-9\-_~']+)/,
+    render(match, baseUrl) {
+      return h(
+        ExternalLink,
+        { href: joinBase(baseUrl, `users/${match[1]}`) },
+        () => [h("b", match[0])],
+      );
+    },
+  },
+  {
+    name: "URLs",
+    regex:
+      /(?:"(.+?)":)?(https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,6}\b[-a-zA-Z0-9@:%_+.~#?&//=]*)/,
+    render(match) {
+      return h(ExternalLink, { href: match[2] }, () => match[1] || match[2]);
+    },
+  },
+  {
+    name: "e621 URLs",
+    regex: /"(.+?)":(\/[-a-zA-Z0-9@:%_+.~#?&//=]*)/,
+    render(match, baseUrl) {
+      return h(
+        ExternalLink,
+        { href: joinBase(baseUrl, match[2]) },
+        () => match[1],
+      );
+    },
+  },
+];
 
 export default defineComponent({
-  components: {
-    ExternalLink,
-  },
+  name: "DText",
   props: {
     text: {
       type: String,
@@ -291,25 +246,25 @@ export default defineComponent({
     },
   },
   setup(props) {
-    // const fixedText = computed(() => fixEmojis(props.text));
+    const urlStore = useUrlStore();
     const fixedText = computed(() => props.text);
-
+    const baseUrl = computed(() => urlStore.e621Url);
     return {
       fixedText,
+      baseUrl,
     };
   },
   render() {
-    // if (this.enabled) {
-    //   return h(
-    //     "span",
-    //     { style: { whiteSpace: "pre-wrap" } },
-    //     createTree(h, this.fixedText as string),
-    //   );
-    // }
-    // return <span style={{ whiteSpace: "pre-wrap" }} >{this.text}</span>;
+    if (this.enabled) {
+      return h(
+        "span",
+        { class: "dtext", style: { whiteSpace: "pre-wrap" } },
+        createTree(this.fixedText as string, this.baseUrl),
+      );
+    }
     return h(
       "span",
-      { style: { whiteSpace: "pre-wrap" } },
+      { class: "dtext", style: { whiteSpace: "pre-wrap" } },
       this.fixedText as string,
     );
   },
@@ -317,21 +272,31 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.spoiler {
+.dtext :deep(.spoiler) {
   transition: background 0.3s ease-in-out, color 0.3s ease-in-out;
-
 }
 
-  .spoiler a {
-    transition: background 0.3s ease-in-out, color 0.3s ease-in-out;
-  }
+.dtext :deep(.spoiler a) {
+  transition: background 0.3s ease-in-out, color 0.3s ease-in-out;
+}
 
-.spoiler:not(:hover) {
+.dtext :deep(.spoiler:not(:hover)) {
   color: black;
   background-color: black;
-
 }
-.spoiler:not(:hover) a {
+
+.dtext :deep(.spoiler:not(:hover) a) {
   color: black;
+}
+
+.dtext :deep(.dtext-table) {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+}
+
+.dtext :deep(.dtext-table th),
+.dtext :deep(.dtext-table td) {
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  padding: 0.25em 0.5em;
 }
 </style>

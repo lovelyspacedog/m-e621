@@ -35,7 +35,6 @@ import type { EnhancedPost } from "@/worker/ApiService";
 import { saveLocalResume } from "@/misc/util/localMedia";
 import type { ComponentPublicInstance, PropType} from "vue";
 import { computed, defineComponent, nextTick, onBeforeUnmount, onBeforeUpdate, onMounted, provide, ref, watch } from "vue";
-// import Intersect from "vue-intersect";
 
 const isAnyPartOfElementInViewport = (el: Element) => {
   const rect = el.getBoundingClientRect();
@@ -66,9 +65,6 @@ const getOffset = (el: Element) => {
 };
 
 export default defineComponent({
-  components: {
-    // Intersect,
-  },
   props: {
     visiblePosts: {
       type: Array as PropType<EnhancedPost[]>,
@@ -105,6 +101,9 @@ export default defineComponent({
     const fullWidthFeed = computed(() => postsStore.fullWidthFeed);
     const isGrid = computed(() => postsStore.feedLayout === "grid");
     provide("feedIsGrid", isGrid);
+
+    let observer: IntersectionObserver | null = null;
+    const elementIndexMap = new WeakMap<Element, number>();
 
     watch(props.visiblePosts,
       () => {
@@ -150,6 +149,8 @@ export default defineComponent({
       detachVideoTimeListener();
       if (resumeSaveTimer) window.clearTimeout(resumeSaveTimer);
       clearAutoNextSchedule();
+      observer?.disconnect();
+      observer = null;
     });
 
     // gridSizes() {
@@ -192,13 +193,18 @@ export default defineComponent({
 
     onBeforeUpdate(() => {
       // Make sure to reset the refs before each update.
+      observer?.disconnect();
       posts.value = [];
     });
 
     const addElement = (idx: number, el: ComponentPublicInstance) => {
-      if (el) {
-        posts.value[idx] = el;
-      }
+      if (!el) return;
+      posts.value[idx] = el;
+      if (!observer || !shouldHaveIntersectionObserver(idx)) return;
+      const node = el.$el instanceof Element ? el.$el : null;
+      if (!node) return;
+      elementIndexMap.set(node, idx);
+      observer.observe(node);
     }
 
     let clearAutoNext: (() => void) | null = null;
@@ -681,6 +687,29 @@ export default defineComponent({
         index === indexThatTriggersNextPage.value
       );
     };
+
+    onMounted(() => {
+      observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            const idx = elementIndexMap.get(entry.target);
+            if (idx !== undefined) {
+              triggerLoad(idx, entry.isIntersecting ? "enter" : "leave", entry);
+            }
+          }
+        },
+        { threshold: 0.1 },
+      );
+      posts.value.forEach((el, idx) => addElement(idx, el));
+    });
+
+    watch(
+      () => postsStore.autoLoad,
+      () => {
+        observer?.disconnect();
+        posts.value.forEach((el, idx) => addElement(idx, el));
+      },
+    );
 
     return {
       isGrid,

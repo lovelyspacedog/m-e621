@@ -98,9 +98,9 @@ export class DashboardService {
           }
           const counts = counters.tags[category][tag]!;
           counts.count += 1;
-          counts.up = post.score.up;
-          counts.down = post.score.down;
-          counts.favorites = post.fav_count;
+          counts.up += post.score.up;
+          counts.down += post.score.down;
+          counts.favorites += post.fav_count;
         }
       }
       const uploadDate = parseISO(post.created_at);
@@ -228,9 +228,14 @@ export class DashboardService {
       },
       heatmap: {
         days: counters.heatmap,
-        max: Math.max(
-          ...Object.values(counters.heatmap).filter((n): n is number => !!n),
-        ),
+        max: (() => {
+          const vals = Object.values(counters.heatmap).filter(
+            (n): n is number => !!n,
+          );
+          // Math.max(...[]) === -Infinity; use 0 so the heatmap renders blank
+          // rather than corrupting every cell's opacity calculation.
+          return vals.length ? Math.max(...vals) : 0;
+        })(),
       },
     };
   }
@@ -262,7 +267,7 @@ export class DashboardService {
         break;
       }
     }
-    return posts;
+    return posts.slice(0, DashboardService.POST_LIMIT);
   }
 }
 

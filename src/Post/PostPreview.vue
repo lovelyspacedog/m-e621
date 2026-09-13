@@ -1,5 +1,5 @@
 <template>
-  <fixed-aspect-ratio-box @click.native="handleClick" :ratio="file.height / file.width" v-ripple="!canPlayInline && !unplayable">
+  <fixed-aspect-ratio-box @click="handleClick" :ratio="file.height / file.width" v-ripple="!canPlayInline && !unplayable">
     <video
       v-if="playableUrl"
       :ref="setVideoEl"

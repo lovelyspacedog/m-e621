@@ -129,6 +129,82 @@ function e621VotesProxy(): Plugin {
   };
 }
 
+function e621FavoritesProxy(): Plugin {
+  return {
+    name: 'e621-favorites-proxy',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url?.startsWith('/api/favorites')) { next(); return; }
+        if (req.method !== 'POST' && req.method !== 'DELETE') { next(); return; }
+
+        const siteBase = String(req.headers['x-site-base'] || 'https://e621.net/');
+        let base: URL;
+        try {
+          base = new URL(siteBase.endsWith('/') ? siteBase : `${siteBase}/`);
+        } catch {
+          res.statusCode = 400; res.end('invalid X-Site-Base'); return;
+        }
+        if (!['e621.net', 'e926.net', 'e6ai.net'].includes(base.hostname.toLowerCase())) {
+          res.statusCode = 400; res.end('host not allowed'); return;
+        }
+        const auth = req.headers.authorization;
+        if (!auth || !String(auth).toLowerCase().startsWith('basic ')) {
+          res.statusCode = 401; res.end('missing basic auth'); return;
+        }
+
+        // Determine if this is DELETE /api/favorites/:id
+        const deleteMatch = req.url.match(/^\/api\/favorites\/(\d+)/);
+
+        try {
+          if (req.method === 'POST') {
+            const chunks: Buffer[] = [];
+            for await (const chunk of req) {
+              chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+            }
+            let payload: { post_id?: number } = {};
+            try { payload = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); }
+            catch { res.statusCode = 400; res.end('invalid json'); return; }
+            if (typeof payload.post_id !== 'number') {
+              res.statusCode = 400; res.end('post_id required'); return;
+            }
+            const remote = await fetch(`${base.origin}/favorites.json`, {
+              method: 'POST',
+              headers: {
+                Authorization: String(auth),
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'm-e621-favorites-proxy/1.0',
+              },
+              body: new URLSearchParams({ post_id: String(payload.post_id) }).toString(),
+            });
+            res.statusCode = remote.status;
+            res.setHeader('Content-Type', remote.headers.get('content-type') || 'application/json');
+            res.end(Buffer.from(await remote.arrayBuffer()));
+          } else if (req.method === 'DELETE' && deleteMatch) {
+            const remote = await fetch(
+              `${base.origin}/favorites/${deleteMatch[1]}.json`,
+              {
+                method: 'DELETE',
+                headers: {
+                  Authorization: String(auth),
+                  'User-Agent': 'm-e621-favorites-proxy/1.0',
+                },
+              },
+            );
+            res.statusCode = remote.status;
+            res.setHeader('Content-Type', remote.headers.get('content-type') || 'application/json');
+            res.end(Buffer.from(await remote.arrayBuffer()));
+          } else {
+            next();
+          }
+        } catch (err) {
+          res.statusCode = 502;
+          res.end(String(err));
+        }
+      });
+    },
+  };
+}
+
 function e621CommentsProxy(): Plugin {
   return {
     name: 'e621-comments-proxy',
@@ -250,6 +326,7 @@ export default defineConfig(({ mode }) => {
       e621MediaProxy(),
       e621VotesProxy(),
       e621CommentsProxy(),
+      e621FavoritesProxy(),
       generateSitemap(env),
       vue(),
       vuetify(),
@@ -305,17 +382,6 @@ export default defineConfig(({ mode }) => {
       headers: {
         "Cross-Origin-Opener-Policy": "same-origin",
         "Cross-Origin-Embedder-Policy": "credentialless",
-      },
-      proxy: {
-        '/api/favorites': {
-          target: 'https://e621.net',
-          changeOrigin: true,
-          rewrite: (path) =>
-            path.replace(
-              /^\/api\/favorites(?:\/(\d+))?$/,
-              (_m, id) => (id ? `/favorites/${id}.json` : '/favorites.json'),
-            ),
-        },
       },
     },
     build: {

@@ -80,6 +80,7 @@ export interface Post {
   relationships: Relationships;
   approver_id?: number;
   uploader_id: number;
+  uploader_name?: string;
   description: string;
   comment_count: number;
   is_favorited: boolean;

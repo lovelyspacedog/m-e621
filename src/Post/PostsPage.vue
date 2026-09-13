@@ -486,17 +486,15 @@ const suggestTags = async () => {
 };
 
 const onSearchClick = debounce(async () => {
-  if (!loading.value) {
-    await removeRouterQuery(["page"]);
-    if (siteMode.isLocal) {
-      invalidateLocalMediaIndex();
-      revokeLocalBlobUrls();
-      restorePath.value = null;
-      restoreVideoTime.value = undefined;
-    }
-    clearPosts();
-    loadNextPage();
+  await removeRouterQuery(["page"]);
+  if (siteMode.isLocal) {
+    invalidateLocalMediaIndex();
+    revokeLocalBlobUrls();
+    restorePath.value = null;
+    restoreVideoTime.value = undefined;
   }
+  clearPosts();
+  loadNextPage();
 }, 50);
 
 watch(
@@ -508,6 +506,14 @@ watch(
     }
   },
   { immediate: false },
+);
+
+// When the user switches site mode from the nav drawer, router.push to the
+// same blank /posts route is a no-op.  Watch the store signal so we always
+// reload posts after a mode change regardless of route state.
+watch(
+  () => siteMode.modeChangeCount,
+  () => { onSearchClick(); },
 );
 
 const activeOrder = computed(

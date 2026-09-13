@@ -76,15 +76,20 @@ const weights = computed<any>(() => {
 
 const result = ref<FavoriteTagsResult | null>(null);
 
+let analyzeGeneration = 0;
 const analyze = async (username: string) => {
+  const thisGen = ++analyzeGeneration;
   const service = await getAnalyzeService();
-  result.value = await service.getFavoriteTags(
+  const r = await service.getFavoriteTags(
     username,
     urlStore.e621Url,
     Comlink.proxy((progressEvent) => {
       progress.value = progressEvent;
     }),
   );
+  // Discard stale responses (user changed name while request was in flight)
+  if (thisGen !== analyzeGeneration) return;
+  result.value = r;
   await nextTick();
   await loadNextPage();
 };

@@ -115,7 +115,7 @@ export class AnalyzeService {
     const service = new ApiService();
     const posts: Post[] = [];
     let page = 1;
-    const key = [tags, postLimit].join("");
+    const key = JSON.stringify({ tags, postLimit, baseUrl });
     log("start fetch");
     if (key && this.cache[key]) {
       posts.push(...this.cache[key]!);
@@ -138,9 +138,9 @@ export class AnalyzeService {
           break;
         }
       }
-      this.cache[key] = posts;
+      this.cache[key] = posts.slice(0, postLimit);
     }
-    return posts;
+    return posts.slice(0, postLimit);
   }
 
   async analyzeTags(

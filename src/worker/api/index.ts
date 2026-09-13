@@ -56,14 +56,14 @@ export const e621 = {
       if (args.page !== undefined) {
         page = args.page;
       }
-      const auth = args?.auth || {};
       const url = buildUrl(args.baseUrl, "posts.json", {
         tags: args.tags || "",
         limit: args.limit,
         page,
-        ...auth,
       });
-      return fetchJson<Posts>(url)
+      // Use Authorization header instead of query params so credentials
+      // don't appear in browser history, proxies, or Referer headers.
+      return fetchJson<Posts>(url, { headers: getAuthHeader(args?.auth) })
     },
   },
   tags: {
@@ -126,6 +126,22 @@ export const e621 = {
         limit: args.limit ?? 100,
       });
       return fetchJson<Note[]>(url);
+    },
+  },
+  users: {
+    get(args: { baseUrl: string; name: string; auth?: { login: string; api_key: string } }) {
+      const url = buildUrl(args.baseUrl, `users/${encodeURIComponent(args.name)}.json`);
+      return fetchJson<{ name: string; id: number }>(url, {
+        headers: getAuthHeader(args.auth),
+      });
+    },
+  },
+  favorites: {
+    list(args: { baseUrl: string; auth: { login: string; api_key: string }; limit?: number }) {
+      const url = buildUrl(args.baseUrl, "favorites.json", {
+        limit: args.limit ?? 1,
+      });
+      return fetchJson<unknown>(url, { headers: getAuthHeader(args.auth) });
     },
   },
 };

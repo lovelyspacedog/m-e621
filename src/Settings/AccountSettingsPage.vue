@@ -86,7 +86,6 @@ import LocalFolderPicker from "./LocalFolderPicker.vue";
 import { useAccountStore, useSavedSearchStore, useSiteModeStore, useUrlStore } from "@/services";
 import type { SavedSearchEntry, SiteMode } from "@/services/types";
 import { getApiService } from "@/worker/services";
-import { BlacklistMode } from "@/services/types";
 import { useHead } from "@unhead/vue";
 
 useHead({ title: "Account Settings", });
@@ -170,14 +169,10 @@ const verifyCredentials = async () => {
   verification.value.loading = true;
   try {
     const service = await getApiService();
-    await service.getPosts({
-      page: 1,
-      limit: 1,
-      tags: ["rating:s"],
-      blacklist: [],
-      blacklistMode: BlacklistMode.hide,
-      auth: account.auth,
-      baseUrl: url.e621Url
+    await service.verifyAccount({
+      username: username.value,
+      apiKey: apiKey.value,
+      baseUrl: url.e621Url,
     });
     verification.value.success = true;
     verification.value.message = "Credentials are valid";

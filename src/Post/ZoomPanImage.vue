@@ -13,6 +13,7 @@ import {
   computed,
   defineComponent,
   nextTick,
+  onBeforeUnmount,
   onMounted,
   reactive,
   ref,
@@ -40,6 +41,11 @@ export default defineComponent({
 
     onMounted(() => {
       enableTouchRecognizer();
+    });
+
+    onBeforeUnmount(() => {
+      hammer?.destroy();
+      hammer = null;
     });
 
     let hammer: HammerManager | null = null;

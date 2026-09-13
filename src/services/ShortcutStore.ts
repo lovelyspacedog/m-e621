@@ -9,6 +9,7 @@ export const useShortcutStore = defineStore("shortcuts", () => {
   const shortcuts = computed(() => main.shortcuts);
 
   const deleteShortcut = (index: number) => {
+    if (index < 0 || index >= main.shortcuts.length) return;
     main.shortcuts.splice(index, 1);
   };
 

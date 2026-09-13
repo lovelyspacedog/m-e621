@@ -145,7 +145,16 @@ watch(
 );
 
 const castVote = (score: 1 | -1 | 0) => {
+  const prevScore = voteScore.value;
+  const prevTotal = props.post.score.total;
   voteScore.value = score;
   emit("set-post-vote", { postId: props.post.id, score });
+  // Roll back the optimistic highlight if the server did not change the score
+  // within 5 seconds (network failure, deduplication, etc.).
+  setTimeout(() => {
+    if (props.post.score.total === prevTotal && voteScore.value === score) {
+      voteScore.value = prevScore;
+    }
+  }, 5000);
 };
 </script>

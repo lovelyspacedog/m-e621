@@ -41,14 +41,14 @@ Alternatively, you can use `docker-compose up` with this [docker-compose.yml](./
 ### Development
 
 ```bash
-pnpm install
-pnpm run dev
+npm install
+npm run dev
 ```
 
 ```bash
-pnpx playwright test
-pnpx playwright test --debug
-pnpx playwright codegen
+npx playwright test
+npx playwright test --debug
+npx playwright codegen
 ```
 
 Or, to build the desktop app:

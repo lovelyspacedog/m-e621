@@ -146,4 +146,27 @@ export class ApiService {
       throw error;
     }
   }
+
+  async verifyAccount(args: {
+    username: string;
+    apiKey: string;
+    baseUrl: string;
+  }) {
+    const auth = { login: args.username, api_key: args.apiKey };
+    const user = await e621.users.get({
+      baseUrl: args.baseUrl,
+      name: args.username,
+      auth,
+    });
+    if (!user?.name || user.name.toLowerCase() !== args.username.toLowerCase()) {
+      throw new Error("Username does not match the authenticated account");
+    }
+    // users.json is public; favorites.json requires valid Basic auth.
+    await e621.favorites.list({
+      baseUrl: args.baseUrl,
+      auth,
+      limit: 1,
+    });
+    return true;
+  }
 }

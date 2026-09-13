@@ -114,9 +114,13 @@ import { getApiService } from "@/worker/services";
 
 const appIsFullscreen = ref(!!document.fullscreenElement);
 
-document.querySelector("#app")?.addEventListener("fullscreenchange", () => {
-  appIsFullscreen.value = !!document.fullscreenElement;
-});
+let fsListenerRegistered = false;
+if (!fsListenerRegistered) {
+  document.querySelector("#app")?.addEventListener("fullscreenchange", () => {
+    appIsFullscreen.value = !!document.fullscreenElement;
+  });
+  fsListenerRegistered = true;
+}
 
 const emit = defineEmits(["close", "next-post", "previous-post", "set-post-favorite", "open-post-details"]);
 
@@ -375,7 +379,7 @@ onBeforeUnmount(() => {
   shortcutService.emitter.off("fullscreenExit", exitFullscreen);
   shortcutService.emitter.off("fullscreenAddFavorite", addFavorite);
   shortcutService.emitter.off("fullscreenRemoveFavorite", removeFavorite);
-  shortcutService.emitter.off("fullscreenToggleFavorite", addFavorite);
+  shortcutService.emitter.off("fullscreenToggleFavorite", toggleFavorite);
   shortcutService.emitter.off("fullscreenSlideshowToggle", toggleSlideshow);
 });
 onMounted(() => {

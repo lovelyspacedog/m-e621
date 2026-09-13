@@ -93,5 +93,8 @@ const query = computed<RouteLocationRaw>(() => ({
   query: { tags: tags.value.join(" ") },
 }));
 const addTag = (tag: string) => tags.value.push(tag);
-const removeTag = (tag: string) => tags.value.splice(tags.value.indexOf(tag), 1);
+const removeTag = (tag: string) => {
+  const i = tags.value.indexOf(tag);
+  if (i >= 0) tags.value.splice(i, 1);
+};
 </script>

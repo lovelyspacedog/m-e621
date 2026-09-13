@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useMainStore } from "./state";
 import { useSnackbarStore } from "./SnackbarStore";
 import type { ButtonType, SiteMode } from "./types";
@@ -20,6 +20,9 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const snackbar = useSnackbarStore();
 
   const activeMode = computed(() => main.activeMode);
+  /** Incremented on every mode switch; pages can watch this to force-reload
+   *  even when the route query doesn't change (e.g. blank /posts). */
+  const modeChangeCount = ref(0);
   const isLocal = computed(() => main.activeMode === "local");
   const activeLabel = computed(() =>
     main.activeMode === "e6ai"
@@ -41,6 +44,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     }
     applyActiveProfileToMirrors(main.$state);
     snackbar.addMessage(`Switched to ${mode}`);
+    modeChangeCount.value++;
   };
 
   const filterButtons = (buttons: ButtonType[]) =>
@@ -55,5 +59,6 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     setMode,
     filterButtons,
     siteModes: ["e621", "e6ai", "local"] as SiteMode[],
+    modeChangeCount,
   };
 });
