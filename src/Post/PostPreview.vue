@@ -1,6 +1,18 @@
 <template>
-  <fixed-aspect-ratio-box @click.native="handleClick" :ratio="file.height / file.width" v-ripple="true">
-    <img :loading="loading" v-if="(isImage || isVideo) && imageSrc" :src="imageSrc" class="clickable" />
+  <fixed-aspect-ratio-box @click.native="handleClick" :ratio="file.height / file.width" v-ripple="!canPlayInline">
+    <video
+      v-if="playableUrl"
+      :ref="setVideoEl"
+      class="card-video"
+      controls
+      playsinline
+      preload="metadata"
+      :poster="preview.url || undefined"
+      @click.stop
+    >
+      <source :src="playableUrl" :type="videoType" />
+    </video>
+    <img :loading="loading" v-else-if="(isImage || isVideo) && imageSrc" :src="imageSrc" class="clickable" />
     <div v-else-if="isImage || isVideo" class="centered clickable play-button">
       <v-chip color="red" text-color="white">Global Blacklist</v-chip>
       <p class="pa-3 text-center">
@@ -12,7 +24,7 @@
       <v-icon size="100">mdi-flash</v-icon>
       <div>Flash</div>
     </div>
-    <div v-else-if="isVideo" class="centered clickable play-button">
+    <div v-else-if="isVideo && !canPlayInline && imageSrc" class="centered clickable play-button">
       <v-icon size="100">mdi-play</v-icon>
     </div>
   </fixed-aspect-ratio-box>
@@ -24,7 +36,7 @@ import { usePostsStore } from "@/services";
 import { DataSaverType } from "@/services/types";
 import type { File, Preview, Sample } from "@/worker/api";
 import type { PropType } from "vue";
-import { computed, defineComponent } from "vue";
+import { computed, defineComponent, onBeforeUnmount } from "vue";
 import FixedAspectRatioBox from "./FixedAspectRatioBox.vue";
 import { useRouter } from "vue-router";
 
@@ -47,11 +59,42 @@ export default defineComponent({
   setup(props, context) {
     const posts = usePostsStore();
     const isSwf = computed(() => props.file.ext === "swf");
-    const isVideo = computed(() => props.file.ext === "webm");
+    const isVideo = computed(() =>
+      props.file.ext === "webm" || props.file.ext === "mp4",
+    );
     const isImage = computed(() => !isSwf.value && !isVideo.value);
+    const playableUrl = computed(() =>
+      isVideo.value && props.file.url ? props.file.url : null,
+    );
+    let visibilityObserver: IntersectionObserver | null = null;
+    const setVideoEl = (el: unknown) => {
+      visibilityObserver?.disconnect();
+      visibilityObserver = null;
+      if (!(el instanceof HTMLVideoElement)) return;
+      if (typeof IntersectionObserver === "undefined") return;
+      visibilityObserver = new IntersectionObserver(
+        ([entry]) => {
+          if (!entry?.isIntersecting) {
+            el.pause();
+          }
+        },
+        { threshold: 0.15 },
+      );
+      visibilityObserver.observe(el);
+    };
+    onBeforeUnmount(() => {
+      visibilityObserver?.disconnect();
+    });
+    const canPlayInline = computed(() => !!playableUrl.value);
+    const videoType = computed(() =>
+      props.file.ext === "mp4" ? "video/mp4" : "video/webm",
+    );
         const router = useRouter()
 
     const handleClick = async () => {
+      if (canPlayInline.value) {
+        return;
+      }
       if (imageSrc.value) {
         context.emit("open-post");
       } else {
@@ -127,6 +170,10 @@ export default defineComponent({
       isSwf,
       isVideo,
       isImage,
+      canPlayInline,
+      playableUrl,
+      setVideoEl,
+      videoType,
       imageSrc,
       handleClick,
       loading,
@@ -152,6 +199,10 @@ export default defineComponent({
 	 top: 0;
 	 height: 100%;
 	 pointer-events: none;
+}
+ .card-video {
+	 object-fit: contain;
+	 background: #000;
 }
  
 </style>
