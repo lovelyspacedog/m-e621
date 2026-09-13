@@ -8,7 +8,8 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 REMOTE_DIR="${M_E621_DIR:-/home/user/m-e621}"
 PORT="${M_E621_PORT:-18621}"
 DOMAIN="${M_E621_DOMAIN:-localhost}"
-REPO_URL="${M_E621_REPO:-https://github.com/lovelyspacedog/material-e621.git}"
+# Expedition uses an SSH host alias + deploy key (see ~/.ssh/config Host github.com).
+REPO_URL="${M_E621_REPO:-git@github.com:lovelyspacedog/material-e621.git}"
 BRANCH="${M_E621_BRANCH:-master}"
 
 if [[ ! -f "$SECRET" ]]; then
