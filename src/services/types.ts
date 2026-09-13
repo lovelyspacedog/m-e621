@@ -4,7 +4,7 @@ export enum BlacklistMode {
   blackout,
 }
 
-export type ButtonType = "info" | "fullscreen" | "external" | "favorite";
+export type ButtonType = "info" | "fullscreen" | "external" | "favorite" | "save_local";
 
 export enum FullscreenZoomUiMode {
   alwaysHide,
@@ -65,7 +65,7 @@ export interface FavoriteTagEntry {
 // }
 
 export interface ISettingsServiceState {
-  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
   shortcuts: Shortcut[];
   blacklist: {
     mode: BlacklistMode;
@@ -113,6 +113,10 @@ export interface ISettingsServiceState {
     autoLoadNext: boolean;
     fullWidthFeed: boolean;
     slideshowIntervalMs: number;
+    saveLocal: {
+      pathTemplate: string;
+      directoryName: string | null;
+    };
   };
   favorites: {
     groups: FavoriteTagGroup[];

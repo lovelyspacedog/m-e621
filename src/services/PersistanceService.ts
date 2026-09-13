@@ -203,6 +203,15 @@ class PersistanceService {
       }
       newState.configVersion = 13;
     }
+    if (newState.configVersion < 14) {
+      newState.posts.saveLocal = reactive(clone(defaultSettings.posts.saveLocal));
+      const ensureButton = (list: typeof newState.posts.buttons) => {
+        if (!list.includes("save_local")) list.push("save_local");
+      };
+      ensureButton(newState.posts.fullscreenButtons);
+      ensureButton(newState.posts.detailsButtons);
+      newState.configVersion = 14;
+    }
 
     this.main.$state = newState;
   }

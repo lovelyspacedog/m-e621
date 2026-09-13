@@ -34,7 +34,7 @@ export const fullscreenSlideshowShortcut: Shortcut = {
 };
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 13,
+  configVersion: 14,
   shortcuts: [
     // { action: "favorite_post", sequence: "f p" },
     // { action: "toggle_fullscreen", sequence: "t f" },
@@ -113,9 +113,9 @@ export const defaultSettings: ISettingsServiceState = {
     username: null,
   },
   posts: {
-    buttons: ["info", "fullscreen", "external", "favorite"],
-    fullscreenButtons: ["external", "info", "favorite"],
-    detailsButtons: ["external", "favorite"],
+    buttons: ["info", "fullscreen", "external", "favorite", "save_local"],
+    fullscreenButtons: ["external", "info", "favorite", "save_local"],
+    detailsButtons: ["external", "favorite", "save_local"],
     fullscreenZoomUiMode: FullscreenZoomUiMode.hideWhileZoomed,
     postListFetchLimit: 30,
     sidebarSuggestionLimit: 40,
@@ -126,6 +126,10 @@ export const defaultSettings: ISettingsServiceState = {
     autoLoadNext: true,
     fullWidthFeed: false,
     slideshowIntervalMs: 15000,
+    saveLocal: {
+      pathTemplate: "%artist%/%tags 1-5%.%ext%",
+      directoryName: null,
+    },
   },
   favorites: {
     groups: [

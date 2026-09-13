@@ -109,11 +109,28 @@ export const usePostsStore = defineStore("posts", () => {
       main.posts.slideshowIntervalMs = value;
     },
   });
+  const saveLocalPathTemplate = computed({
+    get() {
+      return main.posts.saveLocal.pathTemplate;
+    },
+    set(value) {
+      main.posts.saveLocal.pathTemplate = value;
+    },
+  });
+  const saveLocalDirectoryName = computed({
+    get() {
+      return main.posts.saveLocal.directoryName;
+    },
+    set(value) {
+      main.posts.saveLocal.directoryName = value;
+    },
+  });
   const allButtonTypes = computed<ButtonType[]>(() => [
     "info",
     "fullscreen",
     "external",
     "favorite",
+    "save_local",
   ]);
 
   return {
@@ -130,6 +147,8 @@ export const usePostsStore = defineStore("posts", () => {
     autoLoad,
     fullWidthFeed,
     slideshowIntervalMs,
+    saveLocalPathTemplate,
+    saveLocalDirectoryName,
     allButtonTypes,
   };
 });

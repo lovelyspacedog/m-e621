@@ -14,6 +14,8 @@ export interface ITagsListArgs extends IBaseArgs {
   limit: number;
   order: "count" | "date";
   query?: string;
+  /** Exact tag name (e621 search[name]) */
+  name?: string;
 }
 
 export interface ITagAliasesArgs extends IBaseArgs {

@@ -74,6 +74,7 @@ export const e621 = {
         limit: args.limit,
         "search[order]": args.order,
         "search[name_matches]": args.query,
+        "search[name]": args.name,
       });
       return fetchJson<Tag[] | { tags: [] }>(url);
     },

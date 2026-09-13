@@ -1,15 +1,17 @@
 <template>
-  <v-btn icon @click="button.onClick" :loading="button.loading">
+  <v-btn icon @click="button.onClick" :loading="button.loading" :disabled="button.disabled">
     <v-icon :color="button.color">{{ button.icon }}</v-icon>
   </v-btn>
 </template>
 
 <script lang="ts">
 import { openE6PostInStandaloneWindow } from "@/misc/util/url";
+import { savePostLocally } from "@/misc/util/saveLocal";
+import { useSnackbarStore } from "@/services";
 import type { ButtonType } from "@/services/types";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { PropType } from "vue";
-import { computed, defineComponent, watch } from "vue";
+import { computed, defineComponent, ref } from "vue";
 import type { usePostListManager } from "./postListManager";
 
 interface IButton {
@@ -17,6 +19,7 @@ interface IButton {
   icon: string;
   onClick: () => void;
   loading?: boolean;
+  disabled?: boolean;
 }
 
 export default defineComponent({
@@ -24,14 +27,15 @@ export default defineComponent({
     type: {
       type: String as PropType<ButtonType>,
       required: true,
-      // validator: (v: any): v is ButtonType =>
-      //   posts.allButtonTypes.indexOf(v) !== -1,
     },
     post: {
       type: Object as PropType<EnhancedPost>,
     },
   },
   setup(props, context) {
+    const saving = ref(false);
+    const snackbar = useSnackbarStore();
+
     const buttons = computed<{ [key in ButtonType]: IButton }>(() => ({
       info: {
         color: "",
@@ -66,7 +70,25 @@ export default defineComponent({
           } as Parameters<ReturnType<typeof usePostListManager>["setPostFavorite"]>["0"]);
         },
       },
-      // TODO: download?
+      save_local: {
+        color: "",
+        icon: "mdi-download",
+        loading: saving.value,
+        disabled: !props.post?.file?.url || saving.value,
+        onClick: async () => {
+          if (!props.post?.file?.url || saving.value) return;
+          saving.value = true;
+          try {
+            await savePostLocally(props.post);
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : "Failed to save locally";
+            snackbar.addMessage(message);
+          } finally {
+            saving.value = false;
+          }
+        },
+      },
     }));
 
     const button = computed(() => buttons.value[props.type]);
