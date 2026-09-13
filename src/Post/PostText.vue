@@ -1,13 +1,13 @@
 <template>
   <div>
     <div>
-      <v-chip variant="outlined" class="mr-2 mb-2 no-before-content">
+      <v-chip v-if="!isLocal" variant="outlined" class="mr-2 mb-2 no-before-content">
         <v-icon>mdi-thumbs-up-down</v-icon>
         <span class="ml-2">
           {{ post.score.total }}
         </span>
       </v-chip>
-      <v-chip variant="outlined" class="mr-2 mb-2 no-before-content">
+      <v-chip v-if="!isLocal" variant="outlined" class="mr-2 mb-2 no-before-content">
         <v-icon>mdi-heart</v-icon>
         <span class="ml-2">
           {{ post.fav_count }}
@@ -36,6 +36,7 @@ import DateDisplay from "@/ArtistDashboard/DateDisplay.vue";
 import { prettyBytes } from "@/misc/util/prettyBytes";
 import { getTagColorFromCategory } from "@/misc/util/utilities";
 import { getCreatorTags, useSiteLabels } from "@/misc/util/siteLabels";
+import { useSiteModeStore } from "@/services";
 import TagWithMenu from "@/Tag/TagWithMenu.vue";
 import type { ScoredPost } from "@/worker/AnalyzeService";
 import type { Post } from "@/worker/api";
@@ -55,6 +56,7 @@ export default defineComponent({
   },
   setup(props, context) {
     const { creatorCategory } = useSiteLabels();
+    const isLocal = computed(() => useSiteModeStore().isLocal);
     const creatorTags = computed(() => getCreatorTags(props.post.tags));
     const fileSize = computed(() => prettyBytes(props.post.file.size));
     const score = computed(() => {
@@ -69,6 +71,7 @@ export default defineComponent({
       artistColor,
       creatorTags,
       creatorCategory,
+      isLocal,
     };
   },
   components: { DateDisplay, TagWithMenu },

@@ -175,7 +175,7 @@ export const buildSaveRelativePath = async (
   return parts.join("/");
 };
 
-const ensurePermission = async (
+export const ensurePermission = async (
   handle: FileSystemDirectoryHandle,
 ): Promise<boolean> => {
   const mode = { mode: "readwrite" as const };

@@ -1,5 +1,6 @@
 import { useSavedSearchStore } from "@/services";
 import { useFavoritesStore } from "@/services/FavoriteStore";
+import { useSiteModeStore } from "@/services/SiteModeStore";
 import { useSiteLabels } from "@/misc/util/siteLabels";
 import { computed } from "vue";
 import { useRouter } from "vue-router";
@@ -43,9 +44,18 @@ export const useHomeNavigationItem = () => {
 
 export const useTrailingNavigationItems = () => {
   const router = useRouter();
+  const siteMode = useSiteModeStore();
   const { creatorLabel } = useSiteLabels();
-  return computed(() =>
-    [
+  return computed(() => {
+    const settings = {
+      icon: "mdi-cog",
+      name: "Settings",
+      exact: false,
+      to: {
+        name: "Settings",
+      },
+    };
+    const remoteItems = [
       {
         icon: "mdi-chart-timeline-variant-shimmer",
         name: "Post Suggester",
@@ -82,16 +92,11 @@ export const useTrailingNavigationItems = () => {
             },
           ]
         : []),
-      {
-        icon: "mdi-cog",
-        name: "Settings",
-        exact: false,
-        to: {
-          name: "Settings",
-        },
-      },
-    ].map((item) => resolveItem(router, item)),
-  );
+    ];
+    return [...(siteMode.isLocal ? [] : remoteItems), settings].map((item) =>
+      resolveItem(router, item),
+    );
+  });
 };
 
 export const useNavigationItems = () => {

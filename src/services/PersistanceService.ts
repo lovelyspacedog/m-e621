@@ -278,6 +278,7 @@ class PersistanceService {
       newState.profiles = {
         e621: createEmptySiteProfile("e621"),
         e6ai: createEmptySiteProfile("e6ai"),
+        local: createEmptySiteProfile("local"),
       };
       // Current flat fields become the active mode's profile (usually e621).
       newState.profiles[mode] = profileFromMirrors({
@@ -294,23 +295,46 @@ class PersistanceService {
       }
       newState.configVersion = 16;
     }
+    if (newState.configVersion < 17) {
+      if (!newState.profiles) {
+        newState.profiles = {
+          e621: createEmptySiteProfile("e621"),
+          e6ai: createEmptySiteProfile("e6ai"),
+          local: createEmptySiteProfile("local"),
+        };
+      } else {
+        newState.profiles.local =
+          newState.profiles.local || createEmptySiteProfile("local");
+      }
+      newState.configVersion = 17;
+    }
 
     // Ensure profiles exist even if a partial export skipped them.
-    if (!newState.profiles?.e621 || !newState.profiles?.e6ai) {
-      newState.activeMode = newState.activeMode || "e621";
+    if (!newState.profiles) {
       newState.profiles = {
-        e621: newState.profiles?.e621 || createEmptySiteProfile("e621"),
-        e6ai: newState.profiles?.e6ai || createEmptySiteProfile("e6ai"),
+        e621: createEmptySiteProfile("e621"),
+        e6ai: createEmptySiteProfile("e6ai"),
+        local: createEmptySiteProfile("local"),
       };
-      if (!newState.profiles.e621.account) {
-        newState.profiles.e621 = profileFromMirrors({
-          ...newState,
-          activeMode: "e621",
-          profiles: newState.profiles,
-        } as ISettingsServiceState);
-      }
     }
-    if (!newState.activeMode) {
+    newState.profiles.e621 =
+      newState.profiles.e621 || createEmptySiteProfile("e621");
+    newState.profiles.e6ai =
+      newState.profiles.e6ai || createEmptySiteProfile("e6ai");
+    newState.profiles.local =
+      newState.profiles.local || createEmptySiteProfile("local");
+    if (!newState.profiles.e621.account) {
+      newState.profiles.e621 = profileFromMirrors({
+        ...newState,
+        activeMode: "e621",
+        profiles: newState.profiles,
+      } as ISettingsServiceState);
+    }
+    if (
+      newState.activeMode !== "e621" &&
+      newState.activeMode !== "e6ai" &&
+      newState.activeMode !== "local"
+    ) {
       newState.activeMode = "e621";
     }
     // Normalize base URLs

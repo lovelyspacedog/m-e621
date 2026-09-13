@@ -14,12 +14,12 @@
             <div v-if="current.file.ext == 'swf'" class="overflow flash">
               flash is not supported
             </div>
-            <video v-else-if="current.file.ext == 'webm' && currentFileUrl"
+            <video v-else-if="isVideoPost && currentFileUrl"
               ref="videoEl"
               class="overflow flash bg-black position-relative" controls
               :loop="!slideshowPlaying" autoplay playsinline preload="metadata"
               @ended="onVideoEnded">
-              <source v-if="current.file.url" :src="current.file.url" type="video/webm" />
+              <source v-if="current.file.url" :src="current.file.url" :type="videoType" />
               Video type not supported by your browser
             </video>
             <div v-else class="overflow">
@@ -71,7 +71,7 @@
 
 <script setup lang="ts">
 import AppLogo from "../App/AppLogo.vue";
-import { useAppearanceStore, useBlacklistStore, usePostsStore, useShortcutService } from "@/services";
+import { useAppearanceStore, useBlacklistStore, usePostsStore, useShortcutService, useSiteModeStore } from "@/services";
 import ZoomPanImage from "./ZoomPanImage.vue";
 import { useBlacklistClasses } from "../misc/util/blacklist";
 import {
@@ -121,6 +121,7 @@ const props = defineProps({
 const appearance = useAppearanceStore();
 const blacklist = useBlacklistStore();
 const posts = usePostsStore();
+const siteMode = useSiteModeStore();
 const shortcutService = useShortcutService();
 
 const lastFullscreenId = ref<number | null>();
@@ -136,7 +137,12 @@ const { classes: blacklistClasses } = useBlacklistClasses({
   postIsBlacklisted,
 });
 
-const buttons = computed(() => posts.fullscreenButtons);
+const buttons = computed(() => siteMode.filterButtons(posts.fullscreenButtons));
+const isVideoExt = (ext?: string) => ext === "webm" || ext === "mp4";
+const isVideoPost = computed(() => isVideoExt(props.current?.file.ext));
+const videoType = computed(() =>
+  props.current?.file.ext === "mp4" ? "video/mp4" : "video/webm",
+);
 
 const { enterTransitionName, leaveTransitionName, setTransitionNames } =
   useDirectionalTransitions({
@@ -184,7 +190,7 @@ const stopSlideshow = () => {
 const scheduleSlideshowAdvance = () => {
   clearSlideshowTimer();
   if (!slideshowPlaying.value || !props.current || isZoomed.value) return;
-  if (props.current.file.ext === "webm") {
+  if (isVideoExt(props.current.file.ext)) {
     // Video advances on @ended while slideshow is playing.
     return;
   }
@@ -314,7 +320,7 @@ watch(
       if (val) {
         await nextTick();
         loading.value = true;
-        if (slideshowPlaying.value && val.file.ext === "webm") {
+        if (slideshowPlaying.value && isVideoExt(val.file.ext)) {
           // Wait for video ended; ensure playback starts.
           await nextTick();
           videoEl.value?.play().catch(() => undefined);

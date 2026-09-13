@@ -8,7 +8,9 @@
       @click="onSelect(mode)"
     >
       <template #prepend>
-        <v-icon>{{ mode === "e6ai" ? "mdi-robot" : "mdi-paw" }}</v-icon>
+        <v-icon>{{
+          mode === "e6ai" ? "mdi-robot" : mode === "local" ? "mdi-folder-image" : "mdi-paw"
+        }}</v-icon>
       </template>
       <v-list-item-title>{{ mode }}</v-list-item-title>
     </v-list-item>

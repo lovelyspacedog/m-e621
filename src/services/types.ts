@@ -43,11 +43,12 @@ export interface SavedSearchEntry {
 
 export const UNGROUPED_FAVORITE_GROUP_ID = "ungrouped";
 
-export type SiteMode = "e621" | "e6ai";
+export type SiteMode = "e621" | "e6ai" | "local";
 
 export const SITE_MODE_URLS: Record<SiteMode, string> = {
   e621: "https://e621.net/",
   e6ai: "https://e6ai.net/",
+  local: "",
 };
 
 export interface FavoriteTagGroup {
@@ -96,7 +97,7 @@ export interface SiteProfile {
 // }
 
 export interface ISettingsServiceState {
-  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
+  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];

@@ -67,26 +67,7 @@
             hint="%artist%  %tags 1-5% (2 species + 3 tags)  %ext%  %id%"
             persistent-hint
           />
-          <div class="text-left text-caption text-medium-emphasis px-1 mb-2">
-            {{ saveFolderStatus }}
-          </div>
-          <div class="d-flex flex-wrap ga-2">
-            <v-btn
-              color="accent"
-              variant="tonal"
-              :disabled="!directoryPickerSupported"
-              @click="onChooseFolder"
-            >
-              Choose save folder
-            </v-btn>
-            <v-btn
-              variant="text"
-              :disabled="!posts.saveLocalDirectoryName"
-              @click="onClearFolder"
-            >
-              Clear folder
-            </v-btn>
-          </div>
+          <local-folder-picker />
         </settings-page-item>
       </v-col>
     </v-row>
@@ -94,15 +75,11 @@
 </template>
 
 <script setup lang="ts">
-import { usePostsStore, useSnackbarStore } from "@/services";
+import { usePostsStore } from "@/services";
 import { DataSaverType, FullscreenZoomUiMode } from "@/services/types";
-import {
-  clearSavedDirectoryHandle,
-  pickSaveDirectory,
-  supportsDirectoryPicker,
-} from "@/misc/util/saveLocal";
 import { computed } from "vue";
 import AutomaticDataSaverInfo from "./AutomaticDataSaverInfo.vue";
+import LocalFolderPicker from "./LocalFolderPicker.vue";
 import PostButtonEditor from "./PostButtonEditor.vue";
 import SettingsPageItem from "./SettingsPageItem.vue";
 import SettingsPageTitle from "./SettingsPageTitle.vue";
@@ -113,7 +90,6 @@ useHead({
 });
 
 const posts = usePostsStore();
-const snackbar = useSnackbarStore();
 const availableButtons = computed(() => posts.allButtonTypes);
 const slideshowIntervalSeconds = computed(() =>
   Math.round(posts.slideshowIntervalMs / 1000),
@@ -121,34 +97,6 @@ const slideshowIntervalSeconds = computed(() =>
 const onSlideshowIntervalSeconds = (value: number | number[]) => {
   const seconds = Array.isArray(value) ? value[0] : value;
   posts.slideshowIntervalMs = Math.round(seconds) * 1000;
-};
-
-const directoryPickerSupported = supportsDirectoryPicker();
-const saveFolderStatus = computed(() => {
-  if (!directoryPickerSupported) {
-    return "Using browser Downloads (no folder API in this browser).";
-  }
-  if (posts.saveLocalDirectoryName) {
-    return `Saving into: ${posts.saveLocalDirectoryName}`;
-  }
-  return "No folder chosen — Save Locally will use Downloads until you pick one.";
-});
-
-const onChooseFolder = async () => {
-  try {
-    const handle = await pickSaveDirectory();
-    snackbar.addMessage(`Save folder set to ${handle.name}`);
-  } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") return;
-    snackbar.addMessage(
-      err instanceof Error ? err.message : "Could not choose folder",
-    );
-  }
-};
-
-const onClearFolder = async () => {
-  await clearSavedDirectoryHandle();
-  snackbar.addMessage("Save folder cleared");
 };
 
 const fullscreenZoomUiModeItems = computed(() => [

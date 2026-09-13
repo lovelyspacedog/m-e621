@@ -5,6 +5,7 @@
         <tag-search v-view-transition-name="'tagsearch'" style="flex: 1 1 auto" :tags="tags" @add-tag="addTag"
           @remove-tag="removeTag" @confirm-search="updateQuery(), onSearchClick()" label="Tags" />
         <v-btn
+          v-if="!siteMode.isLocal"
           class="text-none"
           size="small"
           variant="text"
@@ -14,6 +15,7 @@
           Score
         </v-btn>
         <v-btn
+          v-if="!siteMode.isLocal"
           class="text-none"
           size="small"
           variant="text"
@@ -40,6 +42,12 @@
         </v-menu>
       </div>
     </portal>
+    <div v-if="siteMode.isLocal && !loading && !posts.length" class="pa-6 text-center">
+      <p class="mb-4">{{ localEmptyMessage }}</p>
+      <div class="d-inline-block text-left" style="max-width: 420px">
+        <local-folder-picker @changed="reloadLocal" />
+      </div>
+    </div>
     <posts :posts="posts" :loading="loading" :has-previous="hasPrevious" @load-previous="loadPreviousPage()"
       @load-next="loadNextPage()" @open-post="openFullscreenPost" :fullscreen-post="fullscreenPost || undefined"
       @exit-fullscreen="fullscreenPost = null" @next-fullscreen-post="openNextFullscreenPost()"
@@ -78,13 +86,20 @@ import { useHistory } from "@/Post/historyManager";
 import { usePostListManager } from "@/Post/postListManager";
 import Posts from "@/Post/Posts.vue";
 import { useRouterTagManager } from "@/Post/routerTagManager";
-import { useAccountStore, useBlacklistStore, usePostsStore, useUrlStore } from "@/services";
+import { useAccountStore, useBlacklistStore, usePostsStore, useSiteModeStore, useUrlStore } from "@/services";
 import type { ITag } from "@/Tag/ITag";
 import { debounce, isEqual } from "lodash";
-import { computed, onMounted, ref, toRaw, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from "vue";
 import { useRouterQueryHelpers } from "../misc/util/utilities";
+import {
+  getLocalPostsPage,
+  invalidateLocalMediaIndex,
+  localStatusMessage,
+  revokeLocalBlobUrls,
+} from "../misc/util/localMedia";
 import HistoryList from "../Tag/HistoryList.vue";
 import TagSearch from "../Tag/TagSearch.vue";
+import LocalFolderPicker from "../Settings/LocalFolderPicker.vue";
 import { getAnalyzeService, getApiService } from "../worker/services";
 import Suggestions from "./Suggestions.vue";
 import { useDisplay } from "vuetify";
@@ -94,6 +109,8 @@ const { mdAndUp } = useDisplay();
 const account = useAccountStore();
 const blacklist = useBlacklistStore();
 const postsStore = usePostsStore();
+const siteMode = useSiteModeStore();
+const localEmptyMessage = ref(localStatusMessage("no-folder"));
 const { tags, addTag, removeTag, updateQuery, query, setTags } =
   useRouterTagManager();
 const urlStore = useUrlStore();
@@ -131,6 +148,17 @@ const {
     }
   },
   async loadPosts(page) {
+    if (siteMode.isLocal) {
+      const result = await getLocalPostsPage(
+        page,
+        toRaw(postsStore.postListFetchLimit),
+        toRaw(tags.value),
+        page <= 1,
+      );
+      localEmptyMessage.value =
+        localStatusMessage(result.status) || "No matching local files.";
+      return result.posts;
+    }
     const service = await getApiService();
     const posts = await service.getPosts(toRaw({
       limit: toRaw(postsStore.postListFetchLimit),
@@ -145,8 +173,19 @@ const {
   },
 });
 
+const reloadLocal = () => {
+  invalidateLocalMediaIndex();
+  revokeLocalBlobUrls();
+  clearPosts();
+  loadNextPage();
+};
+
 onMounted(() => {
   loadNextPage();
+});
+
+onBeforeUnmount(() => {
+  revokeLocalBlobUrls();
 });
 
 const { historyEntries, addHistoryEntry, removeHistoryEntry } =
@@ -157,6 +196,27 @@ const suggestTags = async () => {
   const settingsSuggestedTagsCount = postsStore.sidebarSuggestionLimit;
   if (!posts.value.length) {
     suggestedTags.value = [];
+    return;
+  }
+  if (siteMode.isLocal) {
+    const counts = new Map<string, ITag>();
+    for (const post of posts.value) {
+      for (const [category, names] of Object.entries(post.tags)) {
+        if (!Array.isArray(names)) continue;
+        for (const name of names) {
+          const key = `${category}:${name}`;
+          const prev = counts.get(key);
+          if (prev) {
+            prev.post_count = (prev.post_count || 0) + 1;
+          } else {
+            counts.set(key, { name, category, post_count: 1 });
+          }
+        }
+      }
+    }
+    suggestedTags.value = [...counts.values()]
+      .sort((a, b) => (b.post_count || 0) - (a.post_count || 0))
+      .slice(0, settingsSuggestedTagsCount);
     return;
   }
   const service = await getAnalyzeService();
@@ -177,6 +237,10 @@ const suggestTags = async () => {
 const onSearchClick = debounce(async () => {
   if (!loading.value) {
     await removeRouterQuery(["page"]);
+    if (siteMode.isLocal) {
+      invalidateLocalMediaIndex();
+      revokeLocalBlobUrls();
+    }
     clearPosts();
     loadNextPage();
   }

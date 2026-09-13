@@ -27,7 +27,7 @@
 
 <script lang="ts">
 import { useBlacklistClasses } from "@/misc/util/blacklist";
-import { useBlacklistStore, usePostsStore } from "@/services";
+import { useBlacklistStore, usePostsStore, useSiteModeStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { PropType } from "vue";
 import { computed, defineComponent } from "vue";
@@ -51,6 +51,7 @@ export default defineComponent({
   setup(props, context) {
     const blacklist = useBlacklistStore();
     const posts = usePostsStore();
+    const siteMode = useSiteModeStore();
     const postIsBlacklisted = computed(
       () => Boolean(props.post?.__meta.isBlacklisted), // TODO: types
     );
@@ -64,7 +65,7 @@ export default defineComponent({
       context.emit("open-post", props.post.id);
     };
 
-    const buttons = computed(() => posts.buttons);
+    const buttons = computed(() => siteMode.filterButtons(posts.buttons));
 
     return {
       blacklistClasses,

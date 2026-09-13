@@ -1,7 +1,11 @@
 <template>
   <v-table class="text-caption" density="compact">
     <tbody>
-      <tr align="right">
+      <tr align="right" v-if="isLocal">
+        <th>Path:</th>
+        <td>{{ post.sources[0] || "—" }}</td>
+      </tr>
+      <tr align="right" v-else>
         <th>ID:</th>
         <td>{{ post.id }}</td>
       </tr>
@@ -18,14 +22,14 @@
           <TagWithMenu small v-for="pool in post.pools" :key="pool" :tag="{ name: `pool:${pool}`, category: 'pool' }" />
         </td>
       </tr>
-      <tr align="right">
+      <tr align="right" v-if="!isLocal">
         <th>Score:</th>
         <td>
           {{ post.score.total }}
           ({{ post.score.up }} up - {{ post.score.down }} down)
         </td>
       </tr>
-      <tr align="right">
+      <tr align="right" v-if="!isLocal">
         <th>Favorites:</th>
         <td>{{ post.fav_count }}</td>
       </tr>
@@ -42,11 +46,11 @@
           {{ post.file.width }}x{{ post.file.height }} ({{ megapixel }} Megapixel)
         </td>
       </tr>
-      <tr align="right">
+      <tr align="right" v-if="!isLocal">
         <th>Hash:</th>
         <td>{{ post.file.md5 }}</td>
       </tr>
-      <tr align="right">
+      <tr align="right" v-if="!isLocal">
         <th>Rating:</th>
         <td>{{ post.rating }}</td>
       </tr>
@@ -69,6 +73,7 @@ import { computed } from "vue";
 import TagWithMenu from "@/Tag/TagWithMenu.vue";
 import { prettyBytes } from "@/misc/util/prettyBytes";
 import { getCreatorTags, useSiteLabels } from "@/misc/util/siteLabels";
+import { useSiteModeStore } from "@/services";
 
 const props = defineProps({
   post: {
@@ -77,6 +82,7 @@ const props = defineProps({
   },
 });
 const { creatorLabel, creatorCategory } = useSiteLabels();
+const isLocal = computed(() => useSiteModeStore().isLocal);
 const creatorTags = computed(() => getCreatorTags(props.post.tags));
 const fileSize = computed(() => prettyBytes(props.post.file.size));
 const megapixel = computed(() => Math.round(((props.post.file.width * props.post.file.height) / 1000000) * 100) / 100);

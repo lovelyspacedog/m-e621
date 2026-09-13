@@ -14,13 +14,20 @@
           >
             <v-btn value="e621">e621</v-btn>
             <v-btn value="e6ai">e6ai</v-btn>
+            <v-btn value="local">local</v-btn>
           </v-btn-toggle>
           <p class="text-left">
             Each site keeps its own username, API key, starred tags, blacklist, saved searches, and history.
-            Switching clears the current post search.
+            Local mode reads the Save Locally folder on this PC. Switching clears the current post search.
           </p>
         </settings-page-item>
-        <settings-page-item title="Credentials" select>
+        <settings-page-item title="Local folder" select v-if="siteMode.isLocal">
+          <p class="text-left">
+            Local mode shows images and videos from the Save Locally folder on this PC.
+          </p>
+          <local-folder-picker />
+        </settings-page-item>
+        <settings-page-item title="Credentials" select v-if="!siteMode.isLocal">
           <v-text-field variant="filled" :label="`${siteLabel} username`" type="text" v-model="username" autocomplete="username" />
           <v-text-field variant="filled" :append-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
             :type="showPassword ? 'text' : 'password'" :label="`${siteLabel} API key`" v-model="apiKey"
@@ -51,7 +58,7 @@
             {{ usernameSavedSearchExists ? `Remove "Favorites" saved search` : `Add "Favorites" saved search` }}
           </v-btn>
         </settings-page-item>
-        <settings-page-item title="API" select>
+        <settings-page-item title="API" select v-if="!siteMode.isLocal">
           <v-select variant="filled" :label="`${siteLabel} API`" type="text" v-model="e621Url"
             :items="apiUrlItems" />
           <v-text-field variant="filled" :label="`Custom ${siteLabel} URL`" type="text" v-model="e621Url" autocomplete="url"
@@ -75,6 +82,7 @@ import SettingsPageItem from "./SettingsPageItem.vue";
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import ExternalLink from "@/App/ExternalLink.vue";
+import LocalFolderPicker from "./LocalFolderPicker.vue";
 import { useAccountStore, useSavedSearchStore, useSiteModeStore, useUrlStore } from "@/services";
 import type { SavedSearchEntry, SiteMode } from "@/services/types";
 import { getApiService } from "@/worker/services";

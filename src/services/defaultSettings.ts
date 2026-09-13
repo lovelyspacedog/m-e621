@@ -35,11 +35,12 @@ export const fullscreenSlideshowShortcut: Shortcut = {
 };
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 16,
+  configVersion: 17,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
     e6ai: createEmptySiteProfile("e6ai"),
+    local: createEmptySiteProfile("local"),
   },
   shortcuts: [
     { action: "go_to_posts", sequence: "g p" },
@@ -148,6 +149,7 @@ export const defaultSettings: ISettingsServiceState = {
   },
 };
 
-// Seed e621 profile from mirrors (includes Hot / Popular searches); e6ai stays empty.
+// Seed e621 profile from mirrors (includes Hot / Popular searches); e6ai and local stay empty.
 defaultSettings.profiles.e621 = profileFromMirrors(defaultSettings);
 defaultSettings.profiles.e6ai = createEmptySiteProfile("e6ai");
+defaultSettings.profiles.local = createEmptySiteProfile("local");

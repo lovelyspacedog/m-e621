@@ -6,7 +6,7 @@
           <v-tab value="overview">Overview</v-tab>
           <v-tab value="tags">Tags</v-tab>
           <v-tab value="description">Description</v-tab>
-          <v-tab value="share">Share</v-tab>
+          <v-tab v-if="!isLocal" value="share">Share</v-tab>
         </v-tabs>
       </v-card-title>
       <v-card-text>
@@ -34,7 +34,7 @@
               </v-card-text>
             </v-card>
           </v-tabs-window-item>
-          <v-tabs-window-item value="share">
+          <v-tabs-window-item v-if="!isLocal" value="share">
             <v-card text>
               <v-card-text>
                 <link-share
@@ -74,7 +74,7 @@ import PostButtons from "@/Post/PostButtons.vue";
 import type { PropType} from "vue";
 import { computed, defineComponent, ref } from "vue";
 import type { EnhancedPost } from "@/worker/ApiService";
-import { usePostsStore } from "@/services";
+import { usePostsStore, useSiteModeStore } from "@/services";
 import type { ITag } from "@/Tag/ITag";
 
 export default defineComponent({
@@ -93,7 +93,9 @@ export default defineComponent({
   },
   setup(props, context) {
     const posts = usePostsStore();
-    const buttons = computed(() => posts.detailsButtons);
+    const siteMode = useSiteModeStore();
+    const isLocal = computed(() => siteMode.isLocal);
+    const buttons = computed(() => siteMode.filterButtons(posts.detailsButtons));
     const tabs = ref(1);
     const tags = computed(() => {
       const allTags: ITag[] = [];
@@ -129,6 +131,7 @@ export default defineComponent({
       tabs,
       tags,
       dialog,
+      isLocal,
     };
   },
 });

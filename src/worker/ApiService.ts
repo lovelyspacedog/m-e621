@@ -24,6 +24,7 @@ export interface EnhancedPost extends Post {
     isBlacklisted: boolean;
     isFavoriteLoading?: boolean;
     pageNumber: number;
+    localPath?: string;
   };
 }
 
