@@ -125,7 +125,7 @@
         </div>
         <div class="ts-comic-info">
           <div class="ts-comic-title">{{ comic.name }}</div>
-          <div class="ts-comic-artist">{{ comic.displayName }}</div>
+          <div class="ts-comic-artist">{{ comic.displayName || comic.artistName }}</div>
           <div class="ts-comic-stats">
             <span title="Rating">
               <v-icon size="12">mdi-star</v-icon>

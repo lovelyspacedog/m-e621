@@ -307,10 +307,23 @@ function tailspaceProxy(): Plugin {
               'User-Agent': 'me621-tailspace-proxy/1.0',
             },
           });
-          res.statusCode = remote.status;
-          res.setHeader('Content-Type', remote.headers.get('content-type') || 'application/json');
+          if (!remote.ok) {
+            res.statusCode = remote.status;
+            res.end(JSON.stringify({ ok: false, message: `upstream ${remote.status}` }));
+            return;
+          }
+          const payload = await remote.json() as Record<string, unknown>;
+          const data = (payload?.data && typeof payload.data === 'object'
+            ? payload.data
+            : payload) as Record<string, unknown>;
+          const normalized = {
+            posts: Array.isArray(data?.posts) ? data.posts : [],
+            hasNextPage: Boolean(data?.hasNextPage),
+          };
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
           res.setHeader('Cache-Control', 'no-store');
-          res.end(Buffer.from(await remote.arrayBuffer()));
+          res.end(JSON.stringify(normalized));
         } catch (err) {
           res.statusCode = 502;
           res.end(JSON.stringify({ ok: false, message: String(err) }));
@@ -408,6 +421,19 @@ function tsDecodePool(pool: unknown[]): unknown {
   return decode(0);
 }
 
+function findComicsPayload(obj: unknown): Record<string, unknown> | null {
+  if (obj && typeof obj === 'object') {
+    if (!Array.isArray(obj) && 'comicsAndAds' in (obj as Record<string, unknown>)) {
+      return obj as Record<string, unknown>;
+    }
+    for (const value of Object.values(obj as Record<string, unknown>)) {
+      const found = findComicsPayload(value);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 function parseTailspaceComics(text: string): { comics: unknown[]; numberOfPages: number; totalNumComics: number } {
   const trimmed = text.trim();
 
@@ -415,31 +441,29 @@ function parseTailspaceComics(text: string): { comics: unknown[]; numberOfPages:
   if (trimmed.startsWith('{')) {
     try {
       const data = JSON.parse(trimmed) as Record<string, unknown>;
-      if ('comicsAndAds' in data) return extractComicsPayload(data);
+      const found = findComicsPayload(data);
+      if (found) return extractComicsPayload(found);
     } catch { /* fall through */ }
   }
 
-  // Try pool array
+  // Try pool array — comicsAndAds is nested under routes/pages/browse/BrowsePage
   if (trimmed.startsWith('[')) {
     try {
       const pool = JSON.parse(trimmed) as unknown[];
-      const decoded = tsDecodePool(pool) as Record<string, unknown>;
-      if (decoded && 'comicsAndAds' in decoded) return extractComicsPayload(decoded);
-      // May be wrapped
-      for (const candidate of [decoded?.['loaderData'], decoded?.['data']]) {
-        const c = candidate as Record<string, unknown> | undefined;
-        if (c && 'comicsAndAds' in c) return extractComicsPayload(c);
-      }
+      const decoded = tsDecodePool(pool);
+      const found = findComicsPayload(decoded);
+      if (found) return extractComicsPayload(found);
     } catch { /* fall through */ }
   }
 
   // Try line-by-line
   for (const line of trimmed.split('\n')) {
     const l = line.trim();
-    if (!l.startsWith('{')) continue;
+    if (!l.startsWith('{') && !l.startsWith('[')) continue;
     try {
-      const chunk = JSON.parse(l) as Record<string, unknown>;
-      if ('comicsAndAds' in chunk) return extractComicsPayload(chunk);
+      const chunk = JSON.parse(l) as unknown;
+      const found = findComicsPayload(chunk);
+      if (found) return extractComicsPayload(found);
     } catch { /* ignore */ }
   }
 

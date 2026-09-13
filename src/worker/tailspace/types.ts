@@ -57,10 +57,10 @@ export interface TailspaceComic {
   name: string;
   category: string; // "Mix" | "Male" | "Female" | "Intersex"
   artistName: string; // slug
-  displayName: string;
+  displayName: string | null;
   thumbnailVersion: number;
   numberOfPages: number;
-  state: "wip" | "complete" | "cancelled";
+  state: "wip" | "complete" | "finished" | "cancelled";
   sumStars: number;
   numTimesStarred: number;
   avgStars: number;

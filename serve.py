@@ -161,6 +161,23 @@ def _do_pull() -> None:
                 "log_tail": "\n".join(log[-40:]),
             }
         )
+        # Bounce the HTTP process so new serve.py routes (e.g. Tailspace proxy) load.
+        # Delay so this status write and the API response can finish first.
+        restart_cmd = (
+            f"sleep 2; "
+            f"pkill -f '{APP_DIR}/serve.py' || true; "
+            f"rm -f '{CONFIG_DIR}/m-e621.pid'; "
+            f"sleep 1; "
+            f"'{APP_DIR}/start'"
+        )
+        subprocess.Popen(
+            ["bash", "-c", restart_cmd],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        log.append("$ scheduled serve.py restart")
+        _state["log_tail"] = "\n".join(log[-40:])
     except Exception as exc:  # noqa: BLE001 — surface any failure to API client
         _state.update(
             {
@@ -243,6 +260,23 @@ def _ts_decode_pool(pool: list) -> object:
     return decode(0)
 
 
+def _find_comics_payload(obj: object) -> dict | None:
+    """Recursively find an object containing comicsAndAds (nested under RR routes)."""
+    if isinstance(obj, dict):
+        if "comicsAndAds" in obj:
+            return obj
+        for value in obj.values():
+            found = _find_comics_payload(value)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = _find_comics_payload(item)
+            if found is not None:
+                return found
+    return None
+
+
 def _parse_tailspace_comics_response(raw: bytes) -> dict:
     """Parse a tailspace /browse.data response into a clean dict."""
     text = raw.decode("utf-8", errors="replace").strip()
@@ -254,16 +288,12 @@ def _parse_tailspace_comics_response(raw: bytes) -> dict:
             # Plain object
             if isinstance(data, dict) and "comicsAndAds" in data:
                 return _extract_comics_payload(data)
-            # Pool array
+            # Pool array — comicsAndAds lives under routes/pages/browse/BrowsePage
             if isinstance(data, list):
                 decoded = _ts_decode_pool(data)
-                if isinstance(decoded, dict):
-                    # May be wrapped in a loaderData envelope
-                    inner = (decoded.get("loaderData") or decoded.get("data") or decoded)
-                    if isinstance(inner, dict) and "comicsAndAds" in inner:
-                        return _extract_comics_payload(inner)
-                    if "comicsAndAds" in decoded:
-                        return _extract_comics_payload(decoded)
+                found = _find_comics_payload(decoded)
+                if found is not None:
+                    return _extract_comics_payload(found)
         except (json.JSONDecodeError, Exception):
             pass
 
@@ -272,8 +302,9 @@ def _parse_tailspace_comics_response(raw: bytes) -> dict:
     for line in lines:
         try:
             chunk = json.loads(line)
-            if isinstance(chunk, dict) and "comicsAndAds" in chunk:
-                return _extract_comics_payload(chunk)
+            found = _find_comics_payload(chunk)
+            if found is not None:
+                return _extract_comics_payload(found)
         except json.JSONDecodeError:
             pass
 
@@ -291,6 +322,19 @@ def _extract_comics_payload(data: dict) -> dict:
         "comics": comics,
         "numberOfPages": int(data.get("numberOfPages") or 1),
         "totalNumComics": int(data.get("totalNumComics") or len(comics)),
+    }
+
+
+def _normalize_tailspace_posts(payload: object) -> dict:
+    """Unwrap {success,data:{posts,hasNextPage}} into a flat posts response."""
+    if not isinstance(payload, dict):
+        raise ValueError("posts payload is not an object")
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    if not isinstance(data, dict) or "posts" not in data:
+        raise ValueError("posts payload missing posts array")
+    return {
+        "posts": data.get("posts") or [],
+        "hasNextPage": bool(data.get("hasNextPage")),
     }
 
 
@@ -594,10 +638,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
         body, status, ct = self._tailspace_request(url)
         if status == 200:
             try:
-                data = json.loads(body)
+                data = _normalize_tailspace_posts(json.loads(body))
                 self._json(200, data)
                 return
-            except json.JSONDecodeError as exc:
+            except (json.JSONDecodeError, ValueError) as exc:
                 self._json(502, {"ok": False, "message": f"upstream JSON parse error: {exc}"})
                 return
         self._json(status, {"ok": False, "message": f"upstream returned {status}"})

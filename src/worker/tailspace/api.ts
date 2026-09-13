@@ -32,9 +32,13 @@ async function fetchJson<T>(url: string): Promise<T> {
 // Posts
 // ---------------------------------------------------------------------------
 
-export function getPosts(page: number): Promise<TailspacePostsResponse> {
+export async function getPosts(page: number): Promise<TailspacePostsResponse> {
   const url = `${proxyBase()}/posts?page=${page}`;
-  return fetchJson<TailspacePostsResponse>(url);
+  const raw = await fetchJson<TailspacePostsResponse & { data?: TailspacePostsResponse }>(url);
+  // Defensive: accept either flat {posts,hasNextPage} or wrapped {data:{...}}
+  if (raw && Array.isArray(raw.posts)) return raw;
+  if (raw?.data && Array.isArray(raw.data.posts)) return raw.data;
+  return { posts: [], hasNextPage: false };
 }
 
 // ---------------------------------------------------------------------------
