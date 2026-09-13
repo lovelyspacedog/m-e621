@@ -1,6 +1,8 @@
-/** Remux local videos to browser-playable MP4 via ffmpeg.wasm (CDN UMD + local helpers). */
+/** Remux local videos to browser-playable MP4 via ffmpeg.wasm.
+ * FFmpeg UMD + worker are served same-origin from /ffmpeg/ (Workers can't load cross-origin CDN scripts).
+ * Core wasm still comes from jsDelivr via blob URLs.
+ */
 
-const FFMPEG_VERSION = "0.12.15";
 const CORE_VERSION = "0.12.6";
 
 type FFmpegInstance = {
@@ -16,6 +18,12 @@ type FFmpegInstance = {
 type FFmpegCtor = new () => FFmpegInstance;
 
 let ffmpegPromise: Promise<FFmpegInstance> | null = null;
+
+const ffmpegBaseUrl = () => {
+  const base = import.meta.env.BASE_URL || "/";
+  const root = base.endsWith("/") ? base : `${base}/`;
+  return `${root}ffmpeg/`;
+};
 
 const loadScript = (src: string) =>
   new Promise<void>((resolve, reject) => {
@@ -74,19 +82,21 @@ const ensureFFmpeg = async (
 ): Promise<FFmpegInstance> => {
   if (!ffmpegPromise) {
     ffmpegPromise = (async () => {
-      await loadScript(
-        `https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@${FFMPEG_VERSION}/dist/umd/ffmpeg.js`,
-      );
+      // Same-origin UMD so the package can spawn ./814.ffmpeg.js as a Worker.
+      await loadScript(`${ffmpegBaseUrl()}ffmpeg.js`);
       const FFmpeg = getFFmpegCtor();
-      const base = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${CORE_VERSION}/dist/umd`;
+      const coreBase = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${CORE_VERSION}/dist/umd`;
       const ffmpeg = new FFmpeg();
       if (onProgress) {
         ffmpeg.on("progress", ({ progress }) => onProgress(progress));
       }
       await ffmpeg.load({
-        coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
+        coreURL: await toBlobURL(
+          `${coreBase}/ffmpeg-core.js`,
+          "text/javascript",
+        ),
         wasmURL: await toBlobURL(
-          `${base}/ffmpeg-core.wasm`,
+          `${coreBase}/ffmpeg-core.wasm`,
           "application/wasm",
         ),
       });
