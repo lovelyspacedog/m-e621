@@ -125,15 +125,13 @@ const filter = (itemText: string, queryText: string, item: InternalItem<ListItem
 };
 const favorites = computed(() => {
   const result: ITagWithText[] = [];
-  for (const [category, tags] of Object.entries(favoritesStore.tags)) {
-    for (const [tag, display] of Object.entries(tags)) {
-      result.push({
-        category,
-        name: typeof display === "string" ? display : tag,
-        text: tag,
-        post_count: Infinity, // should show first
-      });
-    }
+  for (const tag of favoritesStore.tags) {
+    result.push({
+      category: tag.category,
+      name: tag.display || tag.name,
+      text: tag.name,
+      post_count: Infinity, // should show first
+    });
   }
   return result;
 });

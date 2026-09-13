@@ -14,6 +14,24 @@
         <settings-page-item title="Go fullscreen when viewing posts" switch>
           <v-switch v-model="posts.goFullscreen" />
         </settings-page-item>
+        <settings-page-item title="Full-width post feed" switch
+          description="Use the full content width for scrolling posts instead of the centered column.">
+          <v-switch v-model="posts.fullWidthFeed" />
+        </settings-page-item>
+        <settings-page-item title="Slideshow interval" select
+          description="Seconds between images while slideshow is playing. Videos wait until they finish.">
+          <v-slider
+            color="accent"
+            class="my-0 mx-3"
+            :model-value="slideshowIntervalSeconds"
+            @update:model-value="onSlideshowIntervalSeconds"
+            thumb-label
+            :min="3"
+            :max="60"
+            :step="1"
+            label="Seconds per image"
+          />
+        </settings-page-item>
         <settings-page-item title="Limits" select>
           <v-slider color="accent" class="my-0 mx-3" v-model="posts.postListFetchLimit" thumb-label :min="10" :max="320"
             label="Posts per page" />
@@ -59,6 +77,13 @@ useHead({
 
 const posts = usePostsStore();
 const availableButtons = computed(() => posts.allButtonTypes);
+const slideshowIntervalSeconds = computed(() =>
+  Math.round(posts.slideshowIntervalMs / 1000),
+);
+const onSlideshowIntervalSeconds = (value: number | number[]) => {
+  const seconds = Array.isArray(value) ? value[0] : value;
+  posts.slideshowIntervalMs = Math.round(seconds) * 1000;
+};
 
 const fullscreenZoomUiModeItems = computed(() => [
   {

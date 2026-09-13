@@ -2,11 +2,14 @@ import { useMainStore } from "./state";
 import localforage from "localforage";
 // TODO: remove localforage and implement persistance ourselves
 import type {
+  FavoriteTagEntry,
+  FavoriteTagGroup,
   ISettingsServiceState
 } from "./types";
 import {
   DataSaverType,
-  FullscreenZoomUiMode
+  FullscreenZoomUiMode,
+  UNGROUPED_FAVORITE_GROUP_ID,
 } from "./types";
 import clone from "clone";
 import { reactive, toRaw, watch } from "vue";
@@ -14,6 +17,7 @@ import {
   defaultSettings,
   focusSearchShortcut,
   fullscreenFavoriteShortcuts,
+  fullscreenSlideshowShortcut,
 } from "./defaultSettings";
 import { debug } from "@/misc/util/debug";
 
@@ -146,6 +150,58 @@ class PersistanceService {
     if (newState.configVersion < 12) {
       newState.appearance.hideMigrationInfo = defaultSettings.appearance.hideMigrationInfo;
       newState.configVersion = 12;
+    }
+    if (newState.configVersion < 13) {
+      newState.posts.fullWidthFeed = defaultSettings.posts.fullWidthFeed;
+      newState.posts.slideshowIntervalMs = defaultSettings.posts.slideshowIntervalMs;
+      if (!newState.shortcuts.some((s) => s.action === "fullscreen_slideshow_toggle")) {
+        newState.shortcuts.push(clone(fullscreenSlideshowShortcut));
+      }
+
+      const fav = newState.favorites as {
+        groups?: FavoriteTagGroup[];
+        tags:
+          | FavoriteTagEntry[]
+          | { [category: string]: { [tag: string]: true | string } };
+      };
+      if (!Array.isArray(fav.groups) || !Array.isArray(fav.tags)) {
+        const oldMap =
+          fav.tags && !Array.isArray(fav.tags)
+            ? (fav.tags as { [category: string]: { [tag: string]: true | string } })
+            : {};
+        const groups: FavoriteTagGroup[] = [
+          {
+            id: UNGROUPED_FAVORITE_GROUP_ID,
+            name: "Ungrouped",
+            collapsed: false,
+            order: 0,
+          },
+        ];
+        const tags: FavoriteTagEntry[] = [];
+        let groupOrder = 1;
+        for (const [category, tagMap] of Object.entries(oldMap)) {
+          const groupId = `migrated-${category}`;
+          groups.push({
+            id: groupId,
+            name: category,
+            collapsed: false,
+            order: groupOrder++,
+          });
+          let tagOrder = 0;
+          for (const [name, display] of Object.entries(tagMap || {})) {
+            tags.push({
+              id: `tag-${category}-${encodeURIComponent(name)}`,
+              name,
+              category,
+              display: typeof display === "string" ? display : undefined,
+              groupId,
+              order: tagOrder++,
+            });
+          }
+        }
+        newState.favorites = reactive({ groups, tags });
+      }
+      newState.configVersion = 13;
     }
 
     this.main.$state = newState;

@@ -15,7 +15,10 @@
               flash is not supported
             </div>
             <video v-else-if="current.file.ext == 'webm' && currentFileUrl"
-              class="overflow flash bg-black position-relative" controls loop autoplay playsinline preload="metadata">
+              ref="videoEl"
+              class="overflow flash bg-black position-relative" controls
+              :loop="!slideshowPlaying" autoplay playsinline preload="metadata"
+              @ended="onVideoEnded">
               <source v-if="current.file.url" :src="current.file.url" type="video/webm" />
               Video type not supported by your browser
             </video>
@@ -31,7 +34,7 @@
                     ">
                     <img v-if="currentSampleFileUrl" :class="{ grey: false, 'darken-3': false }"
                       :src="currentSampleFileUrl" />
-                    <img v-if="currentFileUrl" @loadstart="loadStart" @load="loadEnd" :class="{
+                    <img v-if="currentFileUrl" @loadstart="loadStart" @load="onImageLoad" :class="{
                       grey: false,
                       'darken-3': false,
                       hidden: loading,
@@ -51,6 +54,11 @@
       </div>
       <div class="top-right" v-ripple @click.stop="exitFullscreen">
         <v-icon size="40" class="ml-2 mt-2">mdi-close</v-icon>
+      </div>
+      <div class="bottom-left" v-show="!hideUi">
+        <v-btn icon size="large" color="white" variant="text" @click="toggleSlideshow">
+          <v-icon size="36">{{ slideshowPlaying ? "mdi-pause" : "mdi-play" }}</v-icon>
+        </v-btn>
       </div>
       <div class="bottom-right" v-show="!hideUi">
         <post-buttons v-if="current" :key="current.id" :buttons="buttons" :post="current"
@@ -117,6 +125,9 @@ const shortcutService = useShortcutService();
 
 const lastFullscreenId = ref<number | null>();
 const isZoomed = ref(false);
+const slideshowPlaying = ref(false);
+const slideshowTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+const videoEl = ref<HTMLVideoElement | null>(null);
 const postIsBlacklisted = computed(() =>
   Boolean(props?.current?.__meta.isBlacklisted),
 );
@@ -147,6 +158,7 @@ const hideUi = computed(() => {
 });
 
 const exitFullscreen = () => {
+  stopSlideshow();
   const postId = props.current?.id;
   if (postId) {
     setTimeout(() => {
@@ -156,6 +168,53 @@ const exitFullscreen = () => {
 
   emit("close");
 }
+
+const clearSlideshowTimer = () => {
+  if (slideshowTimer.value !== null) {
+    clearTimeout(slideshowTimer.value);
+    slideshowTimer.value = null;
+  }
+};
+
+const stopSlideshow = () => {
+  slideshowPlaying.value = false;
+  clearSlideshowTimer();
+};
+
+const scheduleSlideshowAdvance = () => {
+  clearSlideshowTimer();
+  if (!slideshowPlaying.value || !props.current || isZoomed.value) return;
+  if (props.current.file.ext === "webm") {
+    // Video advances on @ended while slideshow is playing.
+    return;
+  }
+  slideshowTimer.value = setTimeout(() => {
+    if (!slideshowPlaying.value) return;
+    if (!props.hasNextFullscreenPost) {
+      stopSlideshow();
+      return;
+    }
+    showNextImage();
+  }, posts.slideshowIntervalMs);
+};
+
+const toggleSlideshow = () => {
+  if (slideshowPlaying.value) {
+    stopSlideshow();
+    return;
+  }
+  slideshowPlaying.value = true;
+  scheduleSlideshowAdvance();
+};
+
+const onVideoEnded = () => {
+  if (!slideshowPlaying.value) return;
+  if (!props.hasNextFullscreenPost) {
+    stopSlideshow();
+    return;
+  }
+  showNextImage();
+};
 
 const loadTimeout: Ref<any> = ref(null);
 
@@ -170,15 +229,26 @@ const loadEnd = () => {
   clearTimeout(loadTimeout.value);
   loading.value = false;
 };
+const onImageLoad = () => {
+  loadEnd();
+  if (slideshowPlaying.value) {
+    scheduleSlideshowAdvance();
+  }
+};
 
 const showNextImage = () => {
-  if (!props.hasNextFullscreenPost) return;
+  if (!props.hasNextFullscreenPost) {
+    stopSlideshow();
+    return;
+  }
+  clearSlideshowTimer();
   loadStart();
   emit("next-post");
   setTransitionNames("right");
 };
 const showPreviousImage = () => {
   if (!props.hasPreviousFullscreenPost) return;
+  clearSlideshowTimer();
   loadStart();
   emit("previous-post");
   setTransitionNames("left");
@@ -195,12 +265,14 @@ const removeFavorite = updateFavorite(() => false)
 const toggleFavorite = updateFavorite((cur) => !cur)
 
 onBeforeUnmount(() => {
+  stopSlideshow();
   shortcutService.emitter.off("fullscreenNext", showNextImage);
   shortcutService.emitter.off("fullscreenPrevious", showPreviousImage);
   shortcutService.emitter.off("fullscreenExit", exitFullscreen);
   shortcutService.emitter.off("fullscreenAddFavorite", addFavorite);
   shortcutService.emitter.off("fullscreenRemoveFavorite", removeFavorite);
   shortcutService.emitter.off("fullscreenToggleFavorite", addFavorite);
+  shortcutService.emitter.off("fullscreenSlideshowToggle", toggleSlideshow);
 });
 onMounted(() => {
   shortcutService.emitter.on("fullscreenNext", showNextImage);
@@ -209,6 +281,7 @@ onMounted(() => {
   shortcutService.emitter.on("fullscreenAddFavorite", addFavorite);
   shortcutService.emitter.on("fullscreenRemoveFavorite", removeFavorite);
   shortcutService.emitter.on("fullscreenToggleFavorite", toggleFavorite);
+  shortcutService.emitter.on("fullscreenSlideshowToggle", toggleSlideshow);
 });
 
 const scrollToPost = (postId: number) => {
@@ -219,23 +292,6 @@ const scrollToPost = (postId: number) => {
 const switched = ref(false);
 const loading = ref(false);
 
-watch(
-  () => props.current,
-  async (val, prev) => {
-    if (val) lastFullscreenId.value = val.id;
-    if (val && (!prev || val.id != prev.id)) {
-      scrollToPost(props.current!.id);
-      switched.value = true;
-      await nextTick();
-      switched.value = false;
-      if (val) {
-        await nextTick();
-        loading.value = true;
-      }
-    }
-  },
-);
-
 const open = computed(() => !!props.current);
 
 const currentFileUrl = computed(() =>
@@ -245,8 +301,40 @@ const currentSampleFileUrl = computed(() =>
   switched.value ? false : props.current?.preview.url,
 );
 
+watch(
+  () => props.current,
+  async (val, prev) => {
+    if (val) lastFullscreenId.value = val.id;
+    if (val && (!prev || val.id != prev.id)) {
+      clearSlideshowTimer();
+      scrollToPost(props.current!.id);
+      switched.value = true;
+      await nextTick();
+      switched.value = false;
+      if (val) {
+        await nextTick();
+        loading.value = true;
+        if (slideshowPlaying.value && val.file.ext === "webm") {
+          // Wait for video ended; ensure playback starts.
+          await nextTick();
+          videoEl.value?.play().catch(() => undefined);
+        }
+      }
+    }
+  },
+);
+
+watch(isZoomed, (zoomed) => {
+  if (zoomed) {
+    clearSlideshowTimer();
+  } else if (slideshowPlaying.value) {
+    scheduleSlideshowAdvance();
+  }
+});
+
 watch(open, () => {
   if (!open.value) {
+    stopSlideshow();
     setTransitionNames("none");
   }
   if (open.value && posts.goFullscreen) {

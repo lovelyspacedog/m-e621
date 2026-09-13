@@ -26,6 +26,7 @@ export type Action =
   | "fullscreen_next_post"
   | "fullscreen_previous_post"
   | "fullscreen_exit"
+  | "fullscreen_slideshow_toggle"
   | "go_to_posts"
   | "go_to_settings"
   | "focus_search";
@@ -40,13 +41,31 @@ export interface SavedSearchEntry {
   tags: string[];
 }
 
+export const UNGROUPED_FAVORITE_GROUP_ID = "ungrouped";
+
+export interface FavoriteTagGroup {
+  id: string;
+  name: string;
+  collapsed: boolean;
+  order: number;
+}
+
+export interface FavoriteTagEntry {
+  id: string;
+  name: string;
+  category: string;
+  display?: string;
+  groupId: string;
+  order: number;
+}
+
 // export interface FavoritedSearch {
 //   tags: string[];
 //   firstPost?: number;
 // }
 
 export interface ISettingsServiceState {
-  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
   shortcuts: Shortcut[];
   blacklist: {
     mode: BlacklistMode;
@@ -92,12 +111,12 @@ export interface ISettingsServiceState {
     dataSaver: DataSaverType;
     lazyLoadImages: boolean;
     autoLoadNext: boolean;
+    fullWidthFeed: boolean;
+    slideshowIntervalMs: number;
   };
   favorites: {
-    // searches: FavoritedSearch[];
-    tags: {
-      [category: string]: { [tag: string]: true | string };
-    };
+    groups: FavoriteTagGroup[];
+    tags: FavoriteTagEntry[];
   };
   // postList: {
   //   postLayout:

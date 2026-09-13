@@ -93,6 +93,22 @@ export const usePostsStore = defineStore("posts", () => {
       main.posts.autoLoadNext = value;
     },
   });
+  const fullWidthFeed = computed({
+    get() {
+      return main.posts.fullWidthFeed;
+    },
+    set(value) {
+      main.posts.fullWidthFeed = value;
+    },
+  });
+  const slideshowIntervalMs = computed({
+    get() {
+      return main.posts.slideshowIntervalMs;
+    },
+    set(value) {
+      main.posts.slideshowIntervalMs = value;
+    },
+  });
   const allButtonTypes = computed<ButtonType[]>(() => [
     "info",
     "fullscreen",
@@ -112,6 +128,8 @@ export const usePostsStore = defineStore("posts", () => {
     dataSaver,
     lazyLoad,
     autoLoad,
+    fullWidthFeed,
+    slideshowIntervalMs,
     allButtonTypes,
   };
 });

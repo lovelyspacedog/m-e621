@@ -28,8 +28,13 @@ export const fullscreenFavoriteShortcuts: Shortcut[] = [
   },
 ];
 
+export const fullscreenSlideshowShortcut: Shortcut = {
+  action: "fullscreen_slideshow_toggle",
+  sequence: "space",
+};
+
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 12,
+  configVersion: 13,
   shortcuts: [
     // { action: "favorite_post", sequence: "f p" },
     // { action: "toggle_fullscreen", sequence: "t f" },
@@ -59,6 +64,7 @@ export const defaultSettings: ISettingsServiceState = {
     { action: "fullscreen_previous_post", sequence: "h" },
 
     ...fullscreenFavoriteShortcuts,
+    fullscreenSlideshowShortcut,
   ],
   blacklist: {
     mode: BlacklistMode.blur,
@@ -118,9 +124,19 @@ export const defaultSettings: ISettingsServiceState = {
     dataSaver: DataSaverType.auto,
     lazyLoadImages: true,
     autoLoadNext: true,
+    fullWidthFeed: false,
+    slideshowIntervalMs: 15000,
   },
   favorites: {
-    tags: {},
+    groups: [
+      {
+        id: "ungrouped",
+        name: "Ungrouped",
+        collapsed: false,
+        order: 0,
+      },
+    ],
+    tags: [],
   },
   misc: {
     urls: {

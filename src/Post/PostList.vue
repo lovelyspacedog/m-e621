@@ -12,7 +12,14 @@
   </v-row> -->
   <!-- blog/feed -->
   <!-- v-else -->
-  <v-col cols="12" lg="6" md="8" offset-lg="3" offset-md="2" wrap="">
+  <v-col
+    cols="12"
+    :lg="fullWidthFeed ? 12 : 6"
+    :md="fullWidthFeed ? 12 : 8"
+    :offset-lg="fullWidthFeed ? 0 : 3"
+    :offset-md="fullWidthFeed ? 0 : 2"
+    wrap=""
+  >
     <v-col :key="post.id" cols="12" class="mb-5" v-for="(post, idx) in visiblePosts" :ref="(ref) => addElement(idx, ref as any)">
 <!-- ((ref: Element | ComponentPublicInstance | null, refs: Record<string, any>) => void -->
       <!-- <intersect @enter="triggerLoad(idx, 'enter', $event)" @leave="triggerLoad(idx, 'leave', $event)" :threshold="[0]" -->
@@ -82,6 +89,7 @@ export default defineComponent({
     const hasLeftElementThatTriggersPreviousPage = ref(false);
     const canTriggerLoad = ref({ previous: false, next: false });
     const postsStore = usePostsStore();
+    const fullWidthFeed = computed(() => postsStore.fullWidthFeed);
 
     watch(props.visiblePosts,
       () => {
@@ -193,6 +201,7 @@ export default defineComponent({
       layout,
       size,
       posts,
+      fullWidthFeed,
       addElement,
       triggerLoad,
       shouldHaveIntersectionObserver,

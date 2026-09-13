@@ -30,6 +30,14 @@
       @close-details="detailsPost = null" @set-post-favorite="setPostFavorite($event)" />
     <!-- TODO: set has-(next|previous)-fullscreen-post -->
     <portal to="sidebar-suggestions">
+      <v-switch
+        class="mt-0 mb-2"
+        color="accent"
+        density="compact"
+        hide-details
+        label="Full-width feed"
+        v-model="postsStore.fullWidthFeed"
+      />
       <div class="text-overline" v-if="hiddenPostCount > 0">Blacklisted posts hidden: {{ hiddenPostCount }}</div>
       <div class="text-overline" v-if="suggestedTags.length > 0">Tags on this page</div>
       <suggestions :tags="suggestedTags" />

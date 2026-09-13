@@ -12,6 +12,7 @@ export type Events = {
   fullscreenAddFavorite: void;
   fullscreenRemoveFavorite: void;
   fullscreenToggleFavorite: void;
+  fullscreenSlideshowToggle: void;
 };
 
 class ShortcutService {
@@ -51,6 +52,9 @@ class ShortcutService {
             break;
           case "fullscreen_toggle_favorite":
             this.emitter.emit("fullscreenToggleFavorite");
+            break;
+          case "fullscreen_slideshow_toggle":
+            this.emitter.emit("fullscreenSlideshowToggle");
             break;
           default:
             expectNever(action);

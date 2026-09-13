@@ -140,6 +140,7 @@ export default defineComponent({
       "fullscreen_exit",
       "fullscreen_next_post",
       "fullscreen_previous_post",
+      "fullscreen_slideshow_toggle",
     ];
 
     return {
