@@ -6,9 +6,15 @@
   filter: blur(24px) !important;
 }
 
+/* --me621-bg is the primary surface override hook for browser extensions.
+   Transparent Zen / Zen Internet can set it to `transparent` on :root
+   to make the whole page transparent in one rule. */
+:root {
+  --me621-bg: #000000; /* fallback; overwritten at runtime by MainContent */
+}
+
 body {
   user-select: initial !important;
-  background-color: #000000;
   background-color: rgb(var(--v-theme-secondary));
 }
 

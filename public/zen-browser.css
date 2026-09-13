@@ -1,0 +1,129 @@
+/*
+ * Transparent Zen / Zen Internet – styles for Material e621
+ * https://material-e621.avoonix.com
+ *
+ * Submit this file as  styles/material-e621.avoonix.com.css  in either:
+ *   • https://github.com/frostybiscuit/transparent-zen
+ *   • https://github.com/sameerasw/my-internet
+ *
+ * All backgrounds are driven by Vuetify 3 CSS custom properties
+ * (--v-theme-secondary, etc.) so they automatically adapt to whatever
+ * colour theme the user has chosen in the app's Appearance settings.
+ *
+ * The --me621-bg variable is the primary override hook added specifically
+ * for Zen Browser compatibility.
+ */
+
+/* ─── 1. Page / root background ─────────────────────────────────────────── */
+
+:root {
+  --me621-bg: transparent !important;
+}
+
+body,
+.v-application,
+.v-application__wrap {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Main content well */
+.v-main,
+.v-main__wrap,
+.me621-main {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* ─── 2. Navigation drawer (sidebar) ────────────────────────────────────── */
+
+.v-navigation-drawer {
+  background-color: rgba(var(--v-theme-secondary), 0.55) !important;
+  backdrop-filter: blur(24px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
+  border-right: 1px solid rgba(var(--v-theme-primary), 0.15) !important;
+}
+
+.v-navigation-drawer__content {
+  background: transparent !important;
+}
+
+/* ─── 3. App bar / toolbar ───────────────────────────────────────────────── */
+
+.v-app-bar,
+.v-toolbar,
+.v-app-bar.v-toolbar {
+  background-color: rgba(var(--v-theme-secondary), 0.55) !important;
+  backdrop-filter: blur(24px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
+}
+
+/* ─── 4. Cards and sheets ────────────────────────────────────────────────── */
+
+.v-card {
+  background-color: rgba(var(--v-theme-secondary), 0.5) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+/* Post cards specifically */
+.post-card {
+  background-color: rgba(var(--v-theme-secondary), 0.45) !important;
+}
+
+.v-sheet:not(.v-card):not(.v-app-bar):not(.v-toolbar):not(.v-navigation-drawer) {
+  background-color: rgba(var(--v-theme-secondary), 0.45) !important;
+}
+
+/* ─── 5. Lists (sidebar nav, menus) ─────────────────────────────────────── */
+
+.v-list,
+.v-list-item,
+.v-list-item__content {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* ─── 6. Menus / overlays / dialogs ─────────────────────────────────────── */
+
+/* Non-fullscreen overlays (dropdowns, menus) */
+.v-overlay__content > .v-card,
+.v-overlay__content > .v-list {
+  background-color: rgba(var(--v-theme-secondary), 0.85) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+}
+
+/* Full-screen dialogs (post details, fullscreen viewer) */
+.v-dialog > .v-overlay__content {
+  background: transparent !important;
+}
+
+.v-dialog .v-card {
+  background-color: rgba(var(--v-theme-secondary), 0.92) !important;
+  backdrop-filter: blur(32px) !important;
+  -webkit-backdrop-filter: blur(32px) !important;
+}
+
+/* ─── 7. Tables ──────────────────────────────────────────────────────────── */
+
+.v-table,
+.v-table__wrapper {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* ─── 8. Miscellaneous ───────────────────────────────────────────────────── */
+
+/* Chip backgrounds keep a slight tint for readability */
+.v-chip {
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+/* Select / combobox dropdowns */
+.v-select__content .v-list {
+  background-color: rgba(var(--v-theme-secondary), 0.9) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
