@@ -1,4 +1,5 @@
 import { useRouter } from "vue-router";
+import { useMainStore } from "@/services/state";
 
 export const getAppName = () => "Material e621";
 export const getBaseUrl = () => document.location.origin;
@@ -11,6 +12,7 @@ const tagColorMapping: { [idx: string]: string | undefined } = {
   default: "grey",
   species: "deep-orange",
   artist: "orange",
+  director: "orange",
   lore: "green",
   pool: "pink",
   meta: "grey",
@@ -19,6 +21,7 @@ const tagIconMapping: { [idx: string]: string | undefined } = {
   default: "mdi-tag",
   pool: "mdi-format-list-text",
   artist: "mdi-palette",
+  director: "mdi-movie-open",
 };
 
 export const categoryIdToCategoryName = (id: number) => {
@@ -32,7 +35,15 @@ export const categoryIdToCategoryName = (id: number) => {
     7: "meta",
     8: "lore",
   };
-  return categories[id] || "invalid";
+  const name = categories[id] || "invalid";
+  if (name === "artist") {
+    try {
+      if (useMainStore().activeMode === "e6ai") return "director";
+    } catch {
+      // Pinia not ready (e.g. worker); keep "artist"
+    }
+  }
+  return name;
 };
 
 export const useRouterQueryHelpers = () => {

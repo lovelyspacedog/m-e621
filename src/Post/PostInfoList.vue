@@ -5,11 +5,11 @@
         <th>ID:</th>
         <td>{{ post.id }}</td>
       </tr>
-      <tr align="right" v-if="post.tags.artist?.length">
-        <th>Artist:</th>
+      <tr align="right" v-if="creatorTags.length">
+        <th>{{ creatorLabel }}:</th>
         <td>
-          <TagWithMenu small v-for="artist in post.tags.artist" :key="artist"
-            :tag="{ name: artist, category: 'artist' }" />
+          <TagWithMenu small v-for="name in creatorTags" :key="name"
+            :tag="{ name, category: creatorCategory }" />
         </td>
       </tr>
       <tr align="right" v-if="post.pools?.length">
@@ -68,6 +68,7 @@ import type { PropType } from "vue";
 import { computed } from "vue";
 import TagWithMenu from "@/Tag/TagWithMenu.vue";
 import { prettyBytes } from "@/misc/util/prettyBytes";
+import { getCreatorTags, useSiteLabels } from "@/misc/util/siteLabels";
 
 const props = defineProps({
   post: {
@@ -75,6 +76,8 @@ const props = defineProps({
     required: true,
   },
 });
+const { creatorLabel, creatorCategory } = useSiteLabels();
+const creatorTags = computed(() => getCreatorTags(props.post.tags));
 const fileSize = computed(() => prettyBytes(props.post.file.size));
 const megapixel = computed(() => Math.round(((props.post.file.width * props.post.file.height) / 1000000) * 100) / 100);
 </script>

@@ -14,8 +14,18 @@ export interface ScoredPost extends EnhancedPost {
   __score: number;
 }
 
+type CountCategory =
+  | "artist"
+  | "character"
+  | "copyright"
+  | "general"
+  | "invalid"
+  | "lore"
+  | "meta"
+  | "species";
+
 export type Counts = {
-  [K in keyof PostTags]: {
+  [K in CountCategory]: {
     [idx: string]: number;
   };
 };
@@ -57,14 +67,20 @@ export class AnalyzeService {
       meta: {},
       species: {},
     };
-    for (const c of Object.keys(counts) as (keyof PostTags)[]) {
+    for (const c of Object.keys(counts) as CountCategory[]) {
       for (const tag of tags) {
-        if(tag[c]) {
-          for (const t of tag[c]) {
-            counts[c][t] = (counts[c][t] || 0) + 1;
-          }
-        } else {
-          console.warn(tag, "does not contain", c)
+        const list =
+          c === "artist"
+            ? tag.artist?.length
+              ? tag.artist
+              : tag.director || []
+            : c === "copyright"
+              ? tag.copyright?.length
+                ? tag.copyright
+                : tag.franchise || []
+              : tag[c] || [];
+        for (const t of list) {
+          counts[c][t] = (counts[c][t] || 0) + 1;
         }
       }
     }

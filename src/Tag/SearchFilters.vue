@@ -2,7 +2,7 @@
   <v-list-item>
     <div class="d-flex flex-column flex-md-row fill-width" style="gap: 8px;">
       <v-select v-model="sortBy" item-title="name" item-value="tag" hide-details variant="outlined" label="Sort by"
-        :items="sortTags" class="fill-width shrink" />
+        :items="sortTagItems" class="fill-width shrink" />
       <v-select v-model="rating" item-title="name" item-value="tag" hide-details variant="outlined" label="Rating"
         :items="ratingTags" multiple class="fill-width shrink" />
     </div>
@@ -62,6 +62,16 @@ const ratingTags = [
 <script setup lang="ts">
 import type { PropType } from "vue";
 import { computed } from "vue";
+import { useSiteLabels } from "@/misc/util/siteLabels";
+
+const { creatorLabel } = useSiteLabels();
+const sortTagItems = computed(() =>
+  sortTags.map((item) =>
+    item.name.startsWith("Artist Tags")
+      ? { ...item, name: item.name.replace("Artist", creatorLabel.value) }
+      : item,
+  ),
+);
 
 const emit = defineEmits<{
   (e: "add-tag", tag: string): void;

@@ -1,5 +1,6 @@
 import { useSavedSearchStore } from "@/services";
 import { useFavoritesStore } from "@/services/FavoriteStore";
+import { useSiteLabels } from "@/misc/util/siteLabels";
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 
@@ -15,6 +16,7 @@ const customItems = computed(() => {
 
 export const useNavigationItems = () => {
   const router = useRouter();
+  const { creatorLabel } = useSiteLabels();
   const navigationItems = computed(() => [
     {
       icon: "mdi-home",
@@ -53,7 +55,7 @@ export const useNavigationItems = () => {
     },
     {
       icon: "mdi-view-dashboard-variant",
-      name: "Artist Dashboard",
+      name: `${creatorLabel.value} Dashboard`,
       exact: true,
       to: {
         name: "Dashboard"

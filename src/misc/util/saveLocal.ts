@@ -1,6 +1,7 @@
 import localforage from "localforage";
 import { downloadjs } from "@/Settings/download";
 import { usePostsStore, useSnackbarStore, useUrlStore } from "@/services";
+import { getCreatorTags } from "@/misc/util/siteLabels";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { getApiService } from "@/worker/services";
 
@@ -142,7 +143,7 @@ export const buildSaveRelativePath = async (
   post: EnhancedPost,
   template: string,
 ): Promise<string> => {
-  const artists = (post.tags.artist || []).map((a) => sanitizeSegment(a));
+  const artists = getCreatorTags(post.tags).map((a) => sanitizeSegment(a));
   const artistStr = artists.length ? artists.join(" ") : "_unknown_artist";
   const topTags = await resolveTopTags(post, 5);
   const tagsStr = topTags.length

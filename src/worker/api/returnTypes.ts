@@ -35,6 +35,11 @@ export interface PostTags {
   character: string[];
   copyright: string[];
   artist: string[];
+  /** e6ai — same slot as artist */
+  director?: string[];
+  /** e6ai — same slot as copyright */
+  franchise?: string[];
+  contributor?: string[];
   invalid: string[];
   lore: string[];
   meta: string[];

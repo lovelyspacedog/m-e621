@@ -19,7 +19,7 @@
           {{ score }}
         </span>
       </v-chip>
-      <tag-with-menu v-for="artist in post.tags.artist" :key="artist" :tag="{ name: artist, category: 'artist' }" />
+      <tag-with-menu v-for="name in creatorTags" :key="name" :tag="{ name, category: creatorCategory }" />
       <tag-with-menu v-for="pool in post.pools || []" :key="pool" :tag="{ name: `pool:${pool}`, category: 'pool' }" />
       <v-chip variant="outlined" class="mb-2 no-before-content">
         <v-icon>mdi-clock</v-icon>
@@ -35,6 +35,7 @@
 import DateDisplay from "@/ArtistDashboard/DateDisplay.vue";
 import { prettyBytes } from "@/misc/util/prettyBytes";
 import { getTagColorFromCategory } from "@/misc/util/utilities";
+import { getCreatorTags, useSiteLabels } from "@/misc/util/siteLabels";
 import TagWithMenu from "@/Tag/TagWithMenu.vue";
 import type { ScoredPost } from "@/worker/AnalyzeService";
 import type { Post } from "@/worker/api";
@@ -53,6 +54,8 @@ export default defineComponent({
     },
   },
   setup(props, context) {
+    const { creatorCategory } = useSiteLabels();
+    const creatorTags = computed(() => getCreatorTags(props.post.tags));
     const fileSize = computed(() => prettyBytes(props.post.file.size));
     const score = computed(() => {
       if (isScoredPost(props.post)) {
@@ -64,6 +67,8 @@ export default defineComponent({
       fileSize,
       score,
       artistColor,
+      creatorTags,
+      creatorCategory,
     };
   },
   components: { DateDisplay, TagWithMenu },

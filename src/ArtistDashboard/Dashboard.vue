@@ -5,7 +5,7 @@
         <v-expand-transition>
           <v-btn :to="query" class="mb-3" block color="primary" v-if="tags.length">View dashboard of {{ tags[0] }}</v-btn>
         </v-expand-transition>
-        <tag-search label="Search Artist" :tags="tags" @add-tag="addTag" @remove-tag="removeTag" />
+        <tag-search :label="`Search ${creatorLabel}`" :tags="tags" @add-tag="addTag" @remove-tag="removeTag" />
         <!-- <v-text-field
             v-model="username"
             append-icon="mdi-send"
@@ -18,12 +18,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, ref } from "vue";
+import { computed, ref } from "vue";
 import TagSearch from "../Tag/TagSearch.vue";
 import { useHead } from "@unhead/vue";
+import { useSiteLabels } from "@/misc/util/siteLabels";
 import type { RouteLocationRaw } from "vue-router";
 
-useHead({ title: "Artist Dashboard" });
+const { creatorLabel } = useSiteLabels();
+useHead({ title: computed(() => `${creatorLabel.value} Dashboard`) });
 
 const tags = ref<string[]>([]);
 const query = computed<RouteLocationRaw>(() => ({

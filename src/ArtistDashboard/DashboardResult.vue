@@ -94,6 +94,7 @@ import ArtistMetrics from "./ArtistMetrics.vue";
 import ArtistTags from "./ArtistTags.vue";
 import UploadHeatmap from "./UploadHeatmap.vue";
 import { useUrlStore } from "@/services";
+import { useSiteLabels } from "@/misc/util/siteLabels";
 import { useHead } from "@unhead/vue";
 
 useHead({ title: "Dashboard" });
@@ -134,6 +135,9 @@ watch(args, () => {
 
 const url = useUrlStore();
 
-const artistUrl = computed(() => `${url.e621Url}artists/${encodeURIComponent(artist.value)}`)
+const { creatorPath } = useSiteLabels();
+const artistUrl = computed(
+  () => `${url.e621Url}${creatorPath.value}/${encodeURIComponent(artist.value)}`,
+);
 
 </script>

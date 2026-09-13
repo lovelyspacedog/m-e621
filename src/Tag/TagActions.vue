@@ -13,6 +13,7 @@ import { useBlacklistStore, useUrlStore } from "@/services";
 import { useFavoritesStore } from "@/services/FavoriteStore";
 import { computed, defineComponent } from "vue";
 import { openUrlInNewTab } from "@/misc/util/url";
+import { isCreatorCategory, useSiteLabels } from "@/misc/util/siteLabels";
 import { useRouter } from "vue-router";
 
 // const menu = {
@@ -42,6 +43,7 @@ export default defineComponent({
         const isBlacklisted = computed(() => blacklist.tagIsBlacklisted(props.name));
         const isFavorited = computed(() => favorites.isFavorited(props.name, props.category));
         const router = useRouter();
+        const { creatorLabel } = useSiteLabels();
         const pool = computed(() => {
             if(props.category === "pool") {
                 const match = /pool:(\d+)/.exec(props.name);
@@ -114,7 +116,7 @@ export default defineComponent({
                 visible: true,
             },
             {
-                text: "View in Artist Dashboard",
+                text: `View in ${creatorLabel.value} Dashboard`,
                 action: async () => {
                     router.push({
                         name: "DashboardResult",
@@ -123,7 +125,7 @@ export default defineComponent({
                         },
                     });
                 },
-                visible: props.category === "artist",
+                visible: isCreatorCategory(props.category),
             },
         ].filter(item => item.visible));
         return {
