@@ -63,7 +63,9 @@ const theme = computed(() => appearance.theme);
 
 useSyncedTheme();
 
-onMounted(() => persistance.persist())
+onMounted(() => {
+  nextTick(() => persistance.persist());
+});
 
 const logoStyle = computed(() => appearance.logoStyle);
 const onLogoClick = () => {

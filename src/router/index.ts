@@ -195,7 +195,10 @@ const router = createRouter({
 })
 
 router.beforeResolve(async (to, from) => {
-  if (from.name === to.name) {
+  // First load has no `from` route. Starting a view transition there captures the
+  // empty shell, then persist() replaces the whole store and the overlay never
+  // clears — every label renders twice and Posts looks stuck loading.
+  if (!from.name || from.name === to.name) {
     return true;
   }
   const viewTransition = startViewTransition(async () => {

@@ -17,7 +17,7 @@
 
 <script setup lang="ts">
 import { useRouter } from "vue-router";
-import { useSiteModeStore } from "@/services";
+import { useSiteModeStore } from "@/services/SiteModeStore";
 import type { SiteMode } from "@/services/types";
 
 const siteMode = useSiteModeStore();

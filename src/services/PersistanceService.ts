@@ -13,7 +13,7 @@ import {
   UNGROUPED_FAVORITE_GROUP_ID,
 } from "./types";
 import clone from "clone";
-import { reactive, toRaw, watch } from "vue";
+import { nextTick, reactive, toRaw, watch } from "vue";
 import {
   defaultSettings,
   focusSearchShortcut,
@@ -38,9 +38,12 @@ localforage.config({
 const log = debug("app:PersistanceService");
 
 class PersistanceService {
+  private applying = false;
+
   constructor(private main: ReturnType<typeof useMainStore>) { }
 
   public async saveState() {
+    if (this.applying) return;
     // Sync on a snapshot only. Writing back into the live store here retriggers
     // this $subscribe and overflows the stack (Home/Posts writes history on load).
     const snapshot = JSON.parse(JSON.stringify(this.getState())) as ISettingsServiceState;
@@ -87,7 +90,10 @@ class PersistanceService {
 
   public async persist() {
     await this.loadState();
-    this.main.$subscribe(() => this.saveState(), { deep: true });
+    this.main.$subscribe(() => {
+      if (this.applying) return;
+      this.saveState();
+    }, { deep: true, flush: "sync" });
   }
 
   public resetStateToDefault() {
@@ -103,6 +109,15 @@ class PersistanceService {
   }
 
   public setState(newState: ISettingsServiceState) {
+    this.applying = true;
+    this.applyMigrationsAndReplace(newState);
+    // Pinia $subscribe is async (flush: pre). Keep the gate up until watchers run.
+    nextTick(() => {
+      this.applying = false;
+    });
+  }
+
+  private applyMigrationsAndReplace(newState: ISettingsServiceState) {
     // migrations
     if (!newState.configVersion) {
       newState.configVersion = 1;
