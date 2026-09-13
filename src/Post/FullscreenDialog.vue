@@ -18,7 +18,9 @@
               ref="videoEl"
               class="overflow flash bg-black position-relative" controls
               :loop="!slideshowPlaying" autoplay playsinline preload="metadata"
-              @ended="onVideoEnded">
+              @ended="onVideoEnded"
+              @volumechange="onFullscreenVolumeChange"
+              @ratechange="onFullscreenRateChange">
               <source v-if="current.file.url" :src="current.file.url" :type="videoType" />
               Video type not supported by your browser
             </video>
@@ -143,6 +145,27 @@ const isVideoPost = computed(() => isVideoExt(props.current?.file.ext));
 const videoType = computed(() =>
   props.current?.file.ext === "mp4" ? "video/mp4" : "video/webm",
 );
+
+const applyFullscreenPlaybackPrefs = () => {
+  const el = videoEl.value;
+  if (!el) return;
+  el.muted = posts.videoMuted;
+  el.volume = Math.min(1, Math.max(0, posts.videoVolume));
+  el.playbackRate = posts.videoPlaybackRate || 1;
+};
+
+const onFullscreenVolumeChange = () => {
+  const el = videoEl.value;
+  if (!el) return;
+  posts.videoMuted = el.muted;
+  posts.videoVolume = el.volume;
+};
+
+const onFullscreenRateChange = () => {
+  const el = videoEl.value;
+  if (!el) return;
+  posts.videoPlaybackRate = el.playbackRate;
+};
 
 const { enterTransitionName, leaveTransitionName, setTransitionNames } =
   useDirectionalTransitions({
@@ -323,7 +346,11 @@ watch(
         if (slideshowPlaying.value && isVideoExt(val.file.ext)) {
           // Wait for video ended; ensure playback starts.
           await nextTick();
+          applyFullscreenPlaybackPrefs();
           videoEl.value?.play().catch(() => undefined);
+        } else if (isVideoExt(val.file.ext)) {
+          await nextTick();
+          applyFullscreenPlaybackPrefs();
         }
       }
     }

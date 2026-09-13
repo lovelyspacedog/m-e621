@@ -148,6 +148,10 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      headers: {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "credentialless",
+      },
       proxy: {
         '/api/favorites': {
           target: 'https://e621.net',

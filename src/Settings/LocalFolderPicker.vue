@@ -19,6 +19,30 @@
       >
         Clear folder
       </v-btn>
+      <template v-if="!isSave">
+        <v-btn
+          variant="text"
+          :disabled="!directoryName"
+          :loading="exporting"
+          @click="onExportSidecars"
+        >
+          Export tags/favs
+        </v-btn>
+        <v-btn
+          variant="text"
+          :disabled="!directoryName"
+          @click="openImport"
+        >
+          Import tags/favs
+        </v-btn>
+        <input
+          ref="fileInput"
+          class="file-btn"
+          type="file"
+          accept="application/json,.json"
+          @change="onImportSidecars"
+        />
+      </template>
     </div>
   </div>
 </template>
@@ -26,15 +50,19 @@
 <script setup lang="ts">
 import {
   clearLocalDirectoryHandle,
+  exportLocalSidecars,
+  importLocalSidecars,
   pickLocalDirectory,
+  type LocalSidecarExport,
 } from "@/misc/util/localMedia";
 import {
   clearSavedDirectoryHandle,
   pickSaveDirectory,
   supportsDirectoryPicker,
 } from "@/misc/util/saveLocal";
+import { downloadjs } from "@/Settings/download";
 import { usePostsStore, useSnackbarStore } from "@/services";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 
 const props = withDefaults(
   defineProps<{
@@ -54,6 +82,8 @@ const isSave = computed(() => props.purpose === "save");
 const directoryName = computed(() =>
   isSave.value ? posts.saveLocalDirectoryName : posts.localDirectoryName,
 );
+const fileInput = ref<HTMLInputElement>();
+const exporting = ref(false);
 
 const status = computed(() => {
   if (!directoryPickerSupported) {
@@ -96,4 +126,54 @@ const onClearFolder = async () => {
   }
   emit("changed");
 };
+
+const onExportSidecars = async () => {
+  exporting.value = true;
+  try {
+    const data = await exportLocalSidecars();
+    const json = `${JSON.stringify(data, null, 2)}\n`;
+    downloadjs(
+      json,
+      `me621-local-${data.folder}-tags-favs.json`,
+      "application/json",
+    );
+    snackbar.addMessage("Exported Local tags and favorites");
+  } catch (err) {
+    snackbar.addMessage(
+      err instanceof Error ? err.message : "Export failed",
+    );
+  } finally {
+    exporting.value = false;
+  }
+};
+
+const openImport = () => {
+  fileInput.value?.click();
+};
+
+const onImportSidecars = async () => {
+  const file = fileInput.value?.files?.[0];
+  if (!file) return;
+  try {
+    const parsed = JSON.parse(await file.text()) as LocalSidecarExport;
+    await importLocalSidecars(parsed);
+    snackbar.addMessage("Imported Local tags and favorites");
+    emit("changed");
+  } catch (err) {
+    snackbar.addMessage(
+      err instanceof Error ? err.message : "Import failed",
+    );
+  } finally {
+    if (fileInput.value) fileInput.value.value = "";
+  }
+};
 </script>
+
+<style scoped>
+.file-btn {
+  opacity: 0;
+  position: absolute;
+  height: 0;
+  width: 0;
+}
+</style>

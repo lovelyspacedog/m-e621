@@ -17,7 +17,8 @@
         <!-- :layout="layout" -->
         <post :post="post" @open-post="$emit('open-post', $event)"
           @open-post-details="$emit('open-post-details', $event)"
-          @set-post-favorite="$emit('set-post-favorite', $event)" />
+          @set-post-favorite="$emit('set-post-favorite', $event)"
+          @remuxed="$emit('remuxed')" />
       </template>
     </post-list>
     <app-logo v-if="loading" type="loader" />
@@ -92,7 +93,7 @@ import { useHead } from "@unhead/vue";
 
 useHead({ title: "Posts", });
 
-const emit = defineEmits(["load-next", "load-previous", "open-post", "open-post-details", "exit-fullscreen", "set-post-favorite", "close-details", "next-fullscreen-post", "previous-fullscreen-post", "restored"]);
+const emit = defineEmits(["load-next", "load-previous", "open-post", "open-post-details", "exit-fullscreen", "set-post-favorite", "close-details", "next-fullscreen-post", "previous-fullscreen-post", "restored", "remuxed"]);
 
 const props = defineProps({
   fullscreenPost: { type: Object as PropType<EnhancedPost> },

@@ -1,5 +1,5 @@
 <template>
-  <fixed-aspect-ratio-box @click.native="handleClick" :ratio="file.height / file.width" v-ripple="!canPlayInline">
+  <fixed-aspect-ratio-box @click.native="handleClick" :ratio="file.height / file.width" v-ripple="!canPlayInline && !unplayable">
     <video
       v-if="playableUrl"
       :ref="setVideoEl"
@@ -9,6 +9,8 @@
       preload="metadata"
       :poster="preview.url || undefined"
       @click.stop
+      @volumechange="onVolumeChange"
+      @ratechange="onRateChange"
     >
       <source :src="playableUrl" :type="videoType" />
     </video>
@@ -24,8 +26,19 @@
         <v-chip class="mt-2" color="warning" variant="flat">
           Can't play .{{ file.ext }} in browser
         </v-chip>
-        <p class="pa-3 text-center text-medium-emphasis">
-          Remux to MP4/WebM to watch inline.
+        <v-btn
+          class="mt-3"
+          color="accent"
+          variant="flat"
+          :loading="remuxing"
+          :disabled="remuxing"
+          @click.stop="onRemux"
+        >
+          Remux to MP4
+        </v-btn>
+        <p v-if="remuxError" class="pa-3 text-center text-error">{{ remuxError }}</p>
+        <p v-else class="pa-3 text-center text-medium-emphasis">
+          Converts in the browser (first run downloads ffmpeg.wasm).
         </p>
       </div>
     </template>
@@ -49,11 +62,12 @@
 
 <script lang="ts">
 import { useDataSaverInfo } from "@/misc/util/dataSaver";
-import { usePostsStore } from "@/services";
+import { remuxLocalPath } from "@/misc/util/localMedia";
+import { usePostsStore, useSnackbarStore } from "@/services";
 import { DataSaverType } from "@/services/types";
 import type { File, Preview, Sample } from "@/worker/api";
 import type { PropType } from "vue";
-import { computed, defineComponent, onBeforeUnmount } from "vue";
+import { computed, defineComponent, onBeforeUnmount, ref } from "vue";
 import FixedAspectRatioBox from "./FixedAspectRatioBox.vue";
 import { useRouter } from "vue-router";
 
@@ -78,9 +92,17 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    localPath: {
+      type: String,
+      default: "",
+    },
   },
+  emits: ["open-post", "remuxed"],
   setup(props, context) {
     const posts = usePostsStore();
+    const snackbar = useSnackbarStore();
+    const remuxing = ref(false);
+    const remuxError = ref("");
     const isSwf = computed(() => props.file.ext === "swf");
     const isVideo = computed(() => VIDEO_EXTS.has(props.file.ext));
     const isImage = computed(() => !isSwf.value && !isVideo.value);
@@ -88,10 +110,21 @@ export default defineComponent({
       !props.unplayable && isVideo.value && props.file.url ? props.file.url : null,
     );
     let visibilityObserver: IntersectionObserver | null = null;
+    let boundVideo: HTMLVideoElement | null = null;
+
+    const applyPlaybackPrefs = (el: HTMLVideoElement) => {
+      el.muted = posts.videoMuted;
+      el.volume = Math.min(1, Math.max(0, posts.videoVolume));
+      el.playbackRate = posts.videoPlaybackRate || 1;
+    };
+
     const setVideoEl = (el: unknown) => {
       visibilityObserver?.disconnect();
       visibilityObserver = null;
+      boundVideo = null;
       if (!(el instanceof HTMLVideoElement)) return;
+      boundVideo = el;
+      applyPlaybackPrefs(el);
       if (typeof IntersectionObserver === "undefined") return;
       visibilityObserver = new IntersectionObserver(
         ([entry]) => {
@@ -103,9 +136,22 @@ export default defineComponent({
       );
       visibilityObserver.observe(el);
     };
+
+    const onVolumeChange = () => {
+      if (!boundVideo) return;
+      posts.videoMuted = boundVideo.muted;
+      posts.videoVolume = boundVideo.volume;
+    };
+
+    const onRateChange = () => {
+      if (!boundVideo) return;
+      posts.videoPlaybackRate = boundVideo.playbackRate;
+    };
+
     onBeforeUnmount(() => {
       visibilityObserver?.disconnect();
     });
+
     const canPlayInline = computed(() => !!playableUrl.value);
     const videoType = computed(() =>
       props.file.ext === "mp4" ? "video/mp4" : "video/webm",
@@ -120,6 +166,23 @@ export default defineComponent({
         context.emit("open-post");
       } else {
         router.push({ name: "AccountSettings" });
+      }
+    };
+
+    const onRemux = async () => {
+      if (!props.localPath || remuxing.value) return;
+      remuxing.value = true;
+      remuxError.value = "";
+      try {
+        const result = await remuxLocalPath(props.localPath, () => undefined);
+        snackbar.addMessage(`Remuxed to ${result.newPath.split("/").pop()}`);
+        context.emit("remuxed", result.newPath);
+      } catch (err) {
+        remuxError.value =
+          err instanceof Error ? err.message : "Remux failed";
+        snackbar.addMessage(remuxError.value);
+      } finally {
+        remuxing.value = false;
       }
     };
 
@@ -198,6 +261,11 @@ export default defineComponent({
       imageSrc,
       handleClick,
       loading,
+      remuxing,
+      remuxError,
+      onRemux,
+      onVolumeChange,
+      onRateChange,
     };
   },
 });
@@ -236,7 +304,6 @@ export default defineComponent({
 	 position: absolute;
 	 inset: 0;
 	 background: rgba(0, 0, 0, 0.55);
-	 pointer-events: none;
 }
  
 </style>

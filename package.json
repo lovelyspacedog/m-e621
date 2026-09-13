@@ -27,6 +27,8 @@
   },
   "dependencies": {
     "@asika32764/vue-animate": "^3.0.2",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "@fontsource/roboto": "^5.2.5",
     "@mdi/font": "^7.4.47",
     "@types/clone": "^2.1.4",

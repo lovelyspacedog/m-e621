@@ -79,6 +79,16 @@
           class="text-none"
           size="small"
           variant="text"
+          :color="activeOrder === 'order:duration' ? 'accent' : undefined"
+          @click="applyOrder('order:duration')"
+        >
+          Duration
+        </v-btn>
+        <v-btn
+          v-if="siteMode.isLocal"
+          class="text-none"
+          size="small"
+          variant="text"
           :color="hasTypeTag('type:favorited') ? 'accent' : undefined"
           @click="toggleTypeTag('type:favorited')"
         >
@@ -126,7 +136,8 @@
       :resume-enabled="siteMode.isLocal"
       :restore-path="restorePath || undefined"
       :restore-video-time="restoreVideoTime"
-      @restored="onRestored" />
+      @restored="onRestored"
+      @remuxed="reloadLocal" />
     <!-- TODO: set has-(next|previous)-fullscreen-post -->
     <portal to="sidebar-suggestions">
       <v-list class="pa-0 mt-1 mb-2" density="compact">
@@ -147,6 +158,21 @@
         </v-list-item>
         <v-list-item>
           <template #prepend>
+            <v-icon>mdi-card-text-outline</v-icon>
+          </template>
+          <v-list-item-title>Compact cards</v-list-item-title>
+          <template #append>
+            <v-switch
+              class="ma-0"
+              color="accent"
+              density="compact"
+              hide-details
+              v-model="postsStore.compactCards"
+            />
+          </template>
+        </v-list-item>
+        <v-list-item>
+          <template #prepend>
             <v-icon>mdi-skip-next</v-icon>
           </template>
           <v-list-item-title>Auto-next cards</v-list-item-title>
@@ -161,7 +187,10 @@
           </template>
         </v-list-item>
         <v-list-item v-if="postsStore.cardAutoNext" class="text-medium-emphasis">
-          <v-list-item-subtitle>Space pauses · hover pauses</v-list-item-subtitle>
+          <v-list-item-subtitle>Space pauses · hover pauses · j/k next/prev</v-list-item-subtitle>
+        </v-list-item>
+        <v-list-item v-else class="text-medium-emphasis">
+          <v-list-item-subtitle>j/k next/prev card</v-list-item-subtitle>
         </v-list-item>
       </v-list>
       <div class="text-overline" v-if="hiddenPostCount > 0">Blacklisted posts hidden: {{ hiddenPostCount }}</div>

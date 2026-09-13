@@ -65,6 +65,7 @@ export interface LocalMediaEntry {
   lastModified: number;
   kind: LocalMediaKind;
   playable: boolean;
+  duration?: number;
   tags: string[];
   artistTags: string[];
   generalTags: string[];
@@ -103,6 +104,7 @@ type PosterMeta = {
   size: number;
   width: number;
   height: number;
+  duration?: number;
 };
 type PosterMetaStore = Record<string, Record<string, PosterMeta>>;
 type FavoritesStore = Record<string, string[]>;
@@ -380,7 +382,12 @@ const posterFileName = (id: number) => `${id}.jpg`;
 const readCachedPoster = async (
   entry: LocalMediaEntry,
   id: number,
-): Promise<{ url: string; width: number; height: number } | null> => {
+): Promise<{
+  url: string;
+  width: number;
+  height: number;
+  duration?: number;
+} | null> => {
   const meta = posterMetaByPath[entry.relativePath];
   if (
     !meta ||
@@ -399,6 +406,7 @@ const readCachedPoster = async (
       url: URL.createObjectURL(file),
       width: meta.width || 3,
       height: meta.height || 4,
+      duration: meta.duration,
     };
   } catch {
     return null;
@@ -411,6 +419,7 @@ const writeCachedPoster = async (
   posterUrl: string,
   width: number,
   height: number,
+  duration?: number,
 ) => {
   try {
     const response = await fetch(posterUrl);
@@ -428,6 +437,7 @@ const writeCachedPoster = async (
       size: entry.size,
       width,
       height,
+      duration: duration && duration > 0 ? duration : undefined,
     };
     await persistPosterMeta();
   } catch {
@@ -662,6 +672,16 @@ export const scanLocalMedia = async (
   }
   const entries: LocalMediaEntry[] = [];
   await walkDirectory(handle, "", entries);
+  for (const entry of entries) {
+    const meta = posterMetaByPath[entry.relativePath];
+    if (
+      meta?.duration &&
+      meta.lastModified === entry.lastModified &&
+      meta.size === entry.size
+    ) {
+      entry.duration = meta.duration;
+    }
+  }
   entries.sort((a, b) => b.lastModified - a.lastModified);
   cachedIndex = entries;
   cachedRootName = handle.name;
@@ -801,6 +821,18 @@ const orderLocalMedia = (
     case "order:filesize_asc":
       next.sort((a, b) => a.size - b.size || compareName(a, b));
       break;
+    case "order:duration":
+      next.sort(
+        (a, b) =>
+          (b.duration || 0) - (a.duration || 0) || compareName(a, b),
+      );
+      break;
+    case "order:duration_asc":
+      next.sort(
+        (a, b) =>
+          (a.duration || 0) - (b.duration || 0) || compareName(a, b),
+      );
+      break;
     case "order:newest":
     default:
       next.sort((a, b) => b.lastModified - a.lastModified || compareName(a, b));
@@ -829,24 +861,41 @@ const probeImageDimensions = (
 
 const captureVideoFrame = (
   url: string,
-): Promise<{ poster: string | null; width: number; height: number }> => {
-  const fallback = { poster: null, width: 3, height: 4 };
+): Promise<{
+  poster: string | null;
+  width: number;
+  height: number;
+  duration: number;
+}> => {
+  const fallback = { poster: null, width: 3, height: 4, duration: 0 };
   return new Promise((resolve) => {
     const video = document.createElement("video");
     video.muted = true;
     video.playsInline = true;
     video.preload = "auto";
     let settled = false;
-    const finish = (result: { poster: string | null; width: number; height: number }) => {
+    const finish = (result: {
+      poster: string | null;
+      width: number;
+      height: number;
+      duration?: number;
+    }) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      const duration =
+        result.duration && Number.isFinite(result.duration)
+          ? result.duration
+          : Number.isFinite(video.duration)
+            ? video.duration
+            : 0;
       video.removeAttribute("src");
       video.load();
       resolve({
         poster: result.poster,
         width: result.width || fallback.width,
         height: result.height || fallback.height,
+        duration: duration > 0 ? duration : 0,
       });
     };
     const timer = setTimeout(() => finish(fallback), 2500);
@@ -864,6 +913,7 @@ const captureVideoFrame = (
           poster: null,
           width: video.videoWidth,
           height: video.videoHeight,
+          duration,
         });
       }
     };
@@ -877,27 +927,33 @@ const captureVideoFrame = (
         canvas.height = height || 1;
         const ctx = canvas.getContext("2d");
         if (!ctx || !width || !height) {
-          finish({ poster: null, width, height });
+          finish({ poster: null, width, height, duration: video.duration });
           return;
         }
         ctx.drawImage(video, 0, 0);
         canvas.toBlob(
           (blob) => {
             if (!blob) {
-              finish({ poster: null, width, height });
+              finish({ poster: null, width, height, duration: video.duration });
               return;
             }
             finish({
               poster: URL.createObjectURL(blob),
               width,
               height,
+              duration: video.duration,
             });
           },
           "image/jpeg",
           0.82,
         );
       } catch {
-        finish({ poster: null, width, height });
+        finish({
+          poster: null,
+          width,
+          height,
+          duration: video.duration,
+        });
       }
     };
     video.src = url;
@@ -945,13 +1001,20 @@ const resolveVideoPreview = async (
   const cached = await readCachedPoster(entry, id);
   if (cached) {
     posterUrls.set(id, cached.url);
+    if (cached.duration && cached.duration > 0) {
+      entry.duration = cached.duration;
+    }
     return {
       width: cached.width,
       height: cached.height,
       previewUrl: cached.url,
+      duration: cached.duration || 0,
     };
   }
   const frame = await captureVideoFrame(fileUrl);
+  if (frame.duration > 0) {
+    entry.duration = frame.duration;
+  }
   if (frame.poster) {
     posterUrls.set(id, frame.poster);
     await writeCachedPoster(
@@ -960,17 +1023,20 @@ const resolveVideoPreview = async (
       frame.poster,
       frame.width,
       frame.height,
+      frame.duration,
     );
     return {
       width: frame.width,
       height: frame.height,
       previewUrl: frame.poster,
+      duration: frame.duration,
     };
   }
   return {
     width: frame.width,
     height: frame.height,
     previewUrl: "",
+    duration: frame.duration,
   };
 };
 
@@ -1069,6 +1135,151 @@ export const getLocalPostsPage = async (
     posts: await localEntriesToPosts(slice, page),
     status: ordered.length ? "ok" : "empty",
   };
+};
+
+type DirWalker = FileSystemDirectoryHandle & {
+  getDirectoryHandle: (
+    name: string,
+    opts?: { create?: boolean },
+  ) => Promise<FileSystemDirectoryHandle>;
+  getFileHandle: (
+    name: string,
+    opts?: { create?: boolean },
+  ) => Promise<FileSystemFileHandle>;
+  removeEntry: (name: string, opts?: { recursive?: boolean }) => Promise<void>;
+};
+
+const resolveParentAndName = async (
+  root: FileSystemDirectoryHandle,
+  relativePath: string,
+  createDirs: boolean,
+) => {
+  const parts = relativePath.replace(/\\/g, "/").split("/").filter(Boolean);
+  if (!parts.length) throw new Error("Invalid path");
+  let dir = root as DirWalker;
+  for (let i = 0; i < parts.length - 1; i++) {
+    dir = (await dir.getDirectoryHandle(parts[i]!, {
+      create: createDirs,
+    })) as DirWalker;
+  }
+  return { dir, name: parts[parts.length - 1]! };
+};
+
+const migratePathKeys = async (fromPath: string, toPath: string) => {
+  if (fromPath === toPath) return;
+  if (extraTagsByPath[fromPath]) {
+    extraTagsByPath[toPath] = uniqueTags([
+      ...(extraTagsByPath[toPath] || []),
+      ...extraTagsByPath[fromPath],
+    ]);
+    delete extraTagsByPath[fromPath];
+    await persistExtraTags();
+  }
+  if (favoritedPaths.has(fromPath)) {
+    favoritedPaths.delete(fromPath);
+    favoritedPaths.add(toPath);
+    await persistFavorites();
+  }
+  if (posterMetaByPath[fromPath]) {
+    posterMetaByPath[toPath] = posterMetaByPath[fromPath]!;
+    delete posterMetaByPath[fromPath];
+    await persistPosterMeta();
+  }
+};
+
+export const remuxLocalPath = async (
+  relativePath: string,
+  onProgress?: (ratio: number) => void,
+): Promise<{ newPath: string }> => {
+  const { remuxBlobToMp4 } = await import("@/misc/util/localRemux");
+  const root = browseRoot || (await getLocalDirectoryHandle());
+  if (!root) throw new Error("No Local browse folder");
+  const allowed = await ensurePermission(root, "readwrite");
+  if (!allowed) throw new Error("Write access to the browse folder was denied");
+  browseRoot = root;
+
+  const { dir, name } = await resolveParentAndName(root, relativePath, false);
+  const fileHandle = await dir.getFileHandle(name);
+  const file = await fileHandle.getFile();
+  const remuxed = await remuxBlobToMp4(file, name, onProgress);
+
+  const lower = name.toLowerCase();
+  const keepSameName = lower.endsWith(".mp4");
+  const newName = keepSameName
+    ? name
+    : `${name.replace(/\.[^.]+$/, "")}.mp4`;
+  const prefix = relativePath.includes("/")
+    ? relativePath.slice(0, relativePath.lastIndexOf("/") + 1)
+    : "";
+  const newPath = `${prefix}${newName}`;
+
+  const outHandle = await dir.getFileHandle(newName, { create: true });
+  const writable = await outHandle.createWritable();
+  await writable.write(remuxed);
+  await writable.close();
+
+  if (!keepSameName) {
+    try {
+      await dir.removeEntry(name);
+    } catch {
+      // keep original if delete fails
+    }
+    await migratePathKeys(relativePath, newPath);
+  } else {
+    // Drop stale poster meta so the next load re-probes the real MP4.
+    delete posterMetaByPath[relativePath];
+    await persistPosterMeta();
+  }
+
+  invalidateLocalMediaIndex();
+  revokeLocalBlobUrls();
+  return { newPath };
+};
+
+export type LocalSidecarExport = {
+  version: 1;
+  folder: string;
+  tags: Record<string, string[]>;
+  favorites: string[];
+};
+
+export const exportLocalSidecars = async (): Promise<LocalSidecarExport> => {
+  const folder = folderName();
+  if (!folder) throw new Error("No Local browse folder");
+  // Ensure maps are loaded
+  await scanLocalMedia(false);
+  return {
+    version: 1,
+    folder,
+    tags: { ...extraTagsByPath },
+    favorites: [...favoritedPaths].sort(),
+  };
+};
+
+export const importLocalSidecars = async (payload: LocalSidecarExport) => {
+  if (!payload || payload.version !== 1) {
+    throw new Error("Unsupported Local sidecar file");
+  }
+  await scanLocalMedia(false);
+  for (const [path, tags] of Object.entries(payload.tags || {})) {
+    if (!Array.isArray(tags)) continue;
+    extraTagsByPath[path] = uniqueTags([
+      ...(extraTagsByPath[path] || []),
+      ...tags.filter((tag): tag is string => typeof tag === "string"),
+    ]);
+  }
+  for (const path of payload.favorites || []) {
+    if (typeof path === "string" && path) favoritedPaths.add(path);
+  }
+  for (const entry of cachedIndex || []) {
+    mergeExtraIntoEntry(entry);
+  }
+  for (const entry of cachedOrdered || []) {
+    mergeExtraIntoEntry(entry);
+  }
+  await persistExtraTags();
+  await persistFavorites();
+  invalidateLocalMediaIndex();
 };
 
 export const localStatusMessage = (status: LocalMediaStatus) => {

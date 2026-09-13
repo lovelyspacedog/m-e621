@@ -125,6 +125,38 @@ export const usePostsStore = defineStore("posts", () => {
       main.posts.cardAutoNextIntervalMs = value;
     },
   });
+  const compactCards = computed({
+    get() {
+      return main.posts.compactCards;
+    },
+    set(value) {
+      main.posts.compactCards = value;
+    },
+  });
+  const videoVolume = computed({
+    get() {
+      return main.posts.videoVolume;
+    },
+    set(value) {
+      main.posts.videoVolume = value;
+    },
+  });
+  const videoMuted = computed({
+    get() {
+      return main.posts.videoMuted;
+    },
+    set(value) {
+      main.posts.videoMuted = value;
+    },
+  });
+  const videoPlaybackRate = computed({
+    get() {
+      return main.posts.videoPlaybackRate;
+    },
+    set(value) {
+      main.posts.videoPlaybackRate = value;
+    },
+  });
   const saveLocalPathTemplate = computed({
     get() {
       return main.posts.saveLocal.pathTemplate;
@@ -173,6 +205,10 @@ export const usePostsStore = defineStore("posts", () => {
     slideshowIntervalMs,
     cardAutoNext,
     cardAutoNextIntervalMs,
+    compactCards,
+    videoVolume,
+    videoMuted,
+    videoPlaybackRate,
     saveLocalPathTemplate,
     saveLocalDirectoryName,
     localDirectoryName,

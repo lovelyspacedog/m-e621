@@ -532,9 +532,35 @@ export default defineComponent({
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== "Space" && event.key !== " ") return;
-      if (!postsStore.cardAutoNext || props.autoNextPaused) return;
       if (isTypingTarget(event.target)) return;
+      if (props.autoNextPaused) return;
+
+      const key = event.key.toLowerCase();
+      if (key === "j" || key === "k") {
+        event.preventDefault();
+        const index = currentCardIndex();
+        if (key === "j") {
+          const next = index + 1;
+          if (next >= props.visiblePosts.length) {
+            context.emit("load-next-page");
+            return;
+          }
+          lastDwellIndex = next;
+          goToIndex(next);
+          if (postsStore.cardAutoNext) scheduleAutoNextAt(next);
+          if (props.resumeEnabled) scheduleResumeSave();
+          return;
+        }
+        const prev = Math.max(0, index - 1);
+        lastDwellIndex = prev;
+        goToIndex(prev);
+        if (postsStore.cardAutoNext) scheduleAutoNextAt(prev);
+        if (props.resumeEnabled) scheduleResumeSave();
+        return;
+      }
+
+      if (event.code !== "Space" && event.key !== " ") return;
+      if (!postsStore.cardAutoNext) return;
       event.preventDefault();
       userPaused.value = !userPaused.value;
       if (userPaused.value) {

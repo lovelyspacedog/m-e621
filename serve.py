@@ -190,6 +190,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/" or path.endswith(".html") or ("." not in Path(path).name):
             self.send_header("Cache-Control", "no-cache")
+        # SharedArrayBuffer for ffmpeg.wasm; credentialless keeps e621 CDN images working
+        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+        self.send_header("Cross-Origin-Embedder-Policy", "credentialless")
         super().end_headers()
 
     def _json(self, code: int, payload: dict) -> None:

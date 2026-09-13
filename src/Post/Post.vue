@@ -1,18 +1,27 @@
 <template>
-  <v-card :id="'post_' + post.id" color="secondary" class="post-card">
+  <v-card
+    :id="'post_' + post.id"
+    color="secondary"
+    class="post-card"
+    :class="{ compact: compactCards, expanded: forceExpanded }"
+    tabindex="0"
+    @click="onCardActivate"
+  >
     <div :class="[blacklistClasses]">
       <post-preview
         :file="post.file"
         :preview="post.preview"
         :sample="post.sample"
         :unplayable="isUnplayable"
+        :local-path="post.__meta?.localPath || ''"
         @open-post="setClicked"
+        @remuxed="$emit('remuxed')"
       />
     </div>
-    <v-card-text>
+    <v-card-text class="post-card-chrome">
       <post-text :post="post" />
     </v-card-text>
-    <v-card-actions>
+    <v-card-actions class="post-card-chrome">
       <v-spacer />
       <post-buttons
         :buttons="buttons"
@@ -70,10 +79,12 @@ export default defineComponent({
       required: true,
     },
   },
+  emits: ["open-post", "open-post-details", "set-post-favorite", "remuxed"],
   setup(props, context) {
     const blacklist = useBlacklistStore();
     const posts = usePostsStore();
     const siteMode = useSiteModeStore();
+    const forceExpanded = ref(false);
     const postIsBlacklisted = computed(
       () => Boolean(props.post?.__meta.isBlacklisted), // TODO: types
     );
@@ -91,6 +102,18 @@ export default defineComponent({
     const isUnplayable = computed(
       () => siteMode.isLocal && props.post.__meta?.localPlayable === false,
     );
+    const compactCards = computed(() => posts.compactCards);
+
+    const onCardActivate = (event: MouseEvent) => {
+      if (!compactCards.value) return;
+      if ((event.target as HTMLElement | null)?.closest("button, a, video, input")) {
+        return;
+      }
+      // Touch / click expands chrome once on coarse pointers.
+      if (window.matchMedia("(hover: none)").matches) {
+        forceExpanded.value = !forceExpanded.value;
+      }
+    };
 
     const autoNext = inject<CardAutoNextInject>("cardAutoNext", fallbackAutoNext);
     const showAutoNextProgress = computed(
@@ -108,6 +131,9 @@ export default defineComponent({
       isUnplayable,
       autoNext,
       showAutoNextProgress,
+      compactCards,
+      forceExpanded,
+      onCardActivate,
     };
   },
 });
@@ -133,5 +159,8 @@ export default defineComponent({
   height: 100%;
   background: rgb(var(--v-theme-accent));
   transition: width 80ms linear;
+}
+.post-card.compact:not(:hover):not(:focus-within):not(.expanded) .post-card-chrome {
+  display: none;
 }
 </style>

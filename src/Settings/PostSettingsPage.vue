@@ -18,6 +18,33 @@
           description="Use the full content width for scrolling posts instead of the centered column.">
           <v-switch v-model="posts.fullWidthFeed" />
         </settings-page-item>
+        <settings-page-item title="Compact cards" switch
+          description="Hide tags and buttons until you hover the card (tap to expand on touch).">
+          <v-switch v-model="posts.compactCards" />
+        </settings-page-item>
+        <settings-page-item title="Video volume" select
+          description="Remembered for feed cards and fullscreen. Default muted helps autoplay.">
+          <v-switch v-model="posts.videoMuted" label="Muted" class="mb-2" />
+          <v-slider
+            color="accent"
+            class="my-0 mx-3"
+            v-model="posts.videoVolume"
+            :disabled="posts.videoMuted"
+            thumb-label
+            :min="0"
+            :max="1"
+            :step="0.05"
+            label="Volume"
+          />
+          <v-select
+            class="mt-2"
+            variant="outlined"
+            hide-details
+            label="Playback speed"
+            :items="playbackRateItems"
+            v-model="posts.videoPlaybackRate"
+          />
+        </settings-page-item>
         <settings-page-item title="Slideshow interval" select
           description="Seconds between images while slideshow is playing. Videos wait until they finish.">
           <v-slider
@@ -127,6 +154,15 @@ const onCardAutoNextIntervalSeconds = (value: number | number[]) => {
   const seconds = Array.isArray(value) ? value[0] : value;
   posts.cardAutoNextIntervalMs = Math.round(seconds) * 1000;
 };
+
+const playbackRateItems = [
+  { title: "0.5×", value: 0.5 },
+  { title: "0.75×", value: 0.75 },
+  { title: "1×", value: 1 },
+  { title: "1.25×", value: 1.25 },
+  { title: "1.5×", value: 1.5 },
+  { title: "2×", value: 2 },
+];
 
 const fullscreenZoomUiModeItems = computed(() => [
   {
