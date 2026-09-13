@@ -4,6 +4,24 @@
       <div style="display: flex; align-items: center; flex-grow: 999;">
         <tag-search v-view-transition-name="'tagsearch'" style="flex: 1 1 auto" :tags="tags" @add-tag="addTag"
           @remove-tag="removeTag" @confirm-search="updateQuery(), onSearchClick()" label="Tags" />
+        <v-btn
+          class="text-none"
+          size="small"
+          variant="text"
+          :color="activeOrder === 'order:score' ? 'accent' : undefined"
+          @click="applyOrder('order:score')"
+        >
+          Score
+        </v-btn>
+        <v-btn
+          class="text-none"
+          size="small"
+          variant="text"
+          :color="activeOrder === 'order:favcount' ? 'accent' : undefined"
+          @click="applyOrder('order:favcount')"
+        >
+          Favs
+        </v-btn>
         <v-btn icon @click="updateQuery(), onSearchClick()" :loading="loading">
           <v-icon>mdi-magnify</v-icon>
         </v-btn>
@@ -63,7 +81,7 @@ import { useRouterTagManager } from "@/Post/routerTagManager";
 import { useAccountStore, useBlacklistStore, usePostsStore, useUrlStore } from "@/services";
 import type { ITag } from "@/Tag/ITag";
 import { debounce, isEqual } from "lodash";
-import { onMounted, ref, toRaw, watch } from "vue";
+import { computed, onMounted, ref, toRaw, watch } from "vue";
 import { useRouterQueryHelpers } from "../misc/util/utilities";
 import HistoryList from "../Tag/HistoryList.vue";
 import TagSearch from "../Tag/TagSearch.vue";
@@ -174,6 +192,18 @@ watch(
   },
   { immediate: false },
 );
+
+const activeOrder = computed(
+  () => tags.value.find((tag) => tag.startsWith("order:")) || null,
+);
+
+const applyOrder = (orderTag: string) => {
+  const withoutOrder = tags.value.filter((tag) => !tag.startsWith("order:"));
+  setTags(
+    activeOrder.value === orderTag ? withoutOrder : [...withoutOrder, orderTag],
+  );
+  updateQuery();
+};
 
 const onHistoryEntryClick = (entry: string[]) => {
   setTags(entry);
