@@ -1,6 +1,6 @@
 import type { EnhancedPost } from "@/worker/ApiService";
 import { getApiService } from "@/worker/services";
-import { computed, ref, watch } from "vue";
+import { computed, ref, toRaw, watch } from "vue";
 import { useAccountStore, useSnackbarStore, useUrlStore, useBlacklistStore, usePostsStore, useSiteModeStore } from "@/services";
 import { BlacklistMode } from "@/services/types";
 import { useRouter } from "vue-router";
@@ -45,7 +45,7 @@ export const usePostListManager = ({
     try {
       const account = useAccountStore();
       const service = await getApiService();
-      const updated = await service.enrichInkbunnyPost(post, {
+      const updated = await service.enrichInkbunnyPost(toRaw(post), {
         sid: account.apiKey,
       });
       const idx = posts.value.findIndex((p) => p.id === post.id);
