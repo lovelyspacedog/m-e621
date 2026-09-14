@@ -25,6 +25,24 @@
           </div>
         </div>
         <div class="ts-reader-actions">
+          <v-btn-toggle
+            v-if="comic"
+            v-model="viewMode"
+            mandatory
+            density="compact"
+            variant="outlined"
+            divided
+            class="ts-view-toggle"
+          >
+            <v-btn value="gallery" size="small" :title="'Gallery'">
+              <v-icon size="18">mdi-view-grid</v-icon>
+              <span class="ts-view-label">Gallery</span>
+            </v-btn>
+            <v-btn value="scroll" size="small" :title="'Scroll'">
+              <v-icon size="18">mdi-view-agenda</v-icon>
+              <span class="ts-view-label">Scroll</span>
+            </v-btn>
+          </v-btn-toggle>
           <v-btn
             v-if="comic"
             :href="comicUrl(comic.name)"
@@ -72,8 +90,8 @@
       <v-skeleton-loader v-for="n in 12" :key="n" type="image" class="ts-page-skeleton" />
     </div>
 
-    <!-- Page grid (pool-like) -->
-    <div v-else-if="comic" class="ts-reader-grid">
+    <!-- Gallery grid (pool-like) -->
+    <div v-else-if="comic && viewMode === 'gallery'" class="ts-reader-grid">
       <button
         v-for="page in comic.pages"
         :key="page.token"
@@ -93,6 +111,66 @@
           <div v-if="page.isAnimated" class="ts-page-gif">GIF</div>
         </div>
       </button>
+    </div>
+
+    <!-- Scroll mode: full pages stacked -->
+    <div v-else-if="comic && viewMode === 'scroll'" class="ts-scroll">
+      <div
+        v-for="page in comic.pages"
+        :key="page.token"
+        :id="`comic-page-${page.pageNumber}`"
+        class="ts-scroll-page"
+      >
+        <button
+          type="button"
+          class="ts-scroll-img-btn"
+          :title="`Page ${page.pageNumber}`"
+          @click="openPage(page.pageNumber)"
+        >
+          <img
+            class="ts-scroll-img"
+            :src="comicPageFull(comic.id, page.token, page.fileType)"
+            loading="lazy"
+            decoding="async"
+            :alt="`Page ${page.pageNumber}`"
+            :width="page.widthPx || undefined"
+            :height="page.heightPx || undefined"
+          />
+        </button>
+        <div class="ts-scroll-caption">Page {{ page.pageNumber }}</div>
+        <p v-if="page.description" class="ts-scroll-desc">{{ page.description }}</p>
+      </div>
+
+      <div class="ts-scroll-end">
+        <v-btn
+          variant="outlined"
+          size="small"
+          prepend-icon="mdi-arrow-up"
+          @click="scrollToTop"
+        >
+          To top
+        </v-btn>
+        <div v-if="comic.previousComic || comic.nextComic" class="ts-scroll-neighbors">
+          <v-btn
+            v-if="comic.previousComic"
+            variant="text"
+            size="small"
+            prepend-icon="mdi-chevron-left"
+            :to="readerRoute(comic.previousComic.name)"
+          >
+            {{ comic.previousComic.name }}
+          </v-btn>
+          <v-btn
+            v-if="comic.nextComic"
+            variant="text"
+            size="small"
+            append-icon="mdi-chevron-right"
+            :to="readerRoute(comic.nextComic.name)"
+          >
+            {{ comic.nextComic.name }}
+          </v-btn>
+        </div>
+      </div>
     </div>
 
     <!-- Fullscreen page viewer -->
@@ -184,6 +262,17 @@ import {
   type TailspaceComicDetail,
 } from "@/worker/tailspace/api";
 
+type ViewMode = "gallery" | "scroll";
+const VIEW_MODE_KEY = "tailspace-comic-view-mode";
+
+function loadViewMode(): ViewMode {
+  try {
+    const v = localStorage.getItem(VIEW_MODE_KEY);
+    if (v === "scroll" || v === "gallery") return v;
+  } catch { /* ignore */ }
+  return "gallery";
+}
+
 const route = useRoute();
 const router = useRouter();
 
@@ -193,6 +282,11 @@ const error = ref<string | null>(null);
 const viewerOpen = ref(false);
 const pageIndex = ref(0);
 const viewerEl = ref<HTMLElement | null>(null);
+const viewMode = ref<ViewMode>(loadViewMode());
+
+watch(viewMode, (mode) => {
+  try { localStorage.setItem(VIEW_MODE_KEY, mode); } catch { /* ignore */ }
+});
 
 const comicName = computed(() => {
   const raw = route.params.name;
@@ -210,6 +304,19 @@ function readerRoute(name: string) {
   return { name: "TailspaceComic", params: { name } };
 }
 
+function scrollToTop() {
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function scrollToPage(pageNumber: number) {
+  nextTick(() => {
+    document.getElementById(`comic-page-${pageNumber}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  });
+}
+
 async function loadComic(name: string) {
   if (!name) return;
   loading.value = true;
@@ -221,7 +328,13 @@ async function loadComic(name: string) {
     const qPage = Number(route.query.page);
     if (qPage > 0) {
       const idx = comic.value.pages.findIndex((p) => p.pageNumber === qPage);
-      if (idx >= 0) openPage(qPage);
+      if (idx >= 0) {
+        if (viewMode.value === "scroll") {
+          scrollToPage(qPage);
+        } else {
+          openPage(qPage);
+        }
+      }
     }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : "Failed to load comic.";
@@ -284,6 +397,11 @@ watch(viewerOpen, (open) => {
   if (!open) return;
   nextTick(() => viewerEl.value?.focus());
 });
+watch(viewMode, (mode) => {
+  if (mode !== "scroll") return;
+  const qPage = Number(route.query.page);
+  if (qPage > 0) scrollToPage(qPage);
+});
 </script>
 
 <style scoped>
@@ -325,6 +443,25 @@ watch(viewerOpen, (open) => {
   align-items: center;
   gap: 3px;
 }
+.ts-reader-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.ts-view-toggle {
+  flex-shrink: 0;
+}
+.ts-view-label {
+  margin-left: 4px;
+}
+@media (max-width: 599px) {
+  .ts-view-label {
+    display: none;
+  }
+}
+
 .ts-reader-neighbors {
   display: flex;
   justify-content: space-between;
@@ -352,6 +489,70 @@ watch(viewerOpen, (open) => {
   .ts-reader-grid {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   }
+}
+
+/* ── Scroll mode ── */
+.ts-scroll {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.5rem 0.75rem 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.ts-scroll-page {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  scroll-margin-top: 12px;
+}
+.ts-scroll-img-btn {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: zoom-in;
+  line-height: 0;
+}
+.ts-scroll-img {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: none;
+  display: block;
+  margin: 0 auto;
+  border-radius: 4px;
+  background: rgba(var(--v-border-color), 0.12);
+}
+.ts-scroll-caption {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  opacity: 0.55;
+}
+.ts-scroll-desc {
+  margin: 6px 0 0;
+  max-width: 720px;
+  font-size: 0.85rem;
+  opacity: 0.8;
+  white-space: pre-wrap;
+  text-align: left;
+  align-self: stretch;
+}
+.ts-scroll-end {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 1rem 0 0.5rem;
+}
+.ts-scroll-neighbors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
 }
 
 .ts-page-card {
