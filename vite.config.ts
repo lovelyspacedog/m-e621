@@ -1059,6 +1059,64 @@ function parseTailspaceComments(text: string): Record<string, unknown>[] {
   return [];
 }
 
+function rufflePlugin(): Plugin {
+  const ruffleDir = path.resolve(process.cwd(), 'node_modules/@ruffle-rs/ruffle');
+
+  return {
+    name: 'ruffle-plugin',
+
+    // Dev: serve /ruffle/* directly from node_modules
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url?.startsWith('/ruffle/')) {
+          next();
+          return;
+        }
+        const filename = req.url.slice('/ruffle/'.length).split('?')[0];
+        // Reject path traversal or subdirectory requests
+        if (!filename || filename.includes('/') || filename.includes('..')) {
+          res.statusCode = 400;
+          res.end('bad request');
+          return;
+        }
+        const filePath = path.join(ruffleDir, filename);
+        if (!fs.existsSync(filePath)) {
+          res.statusCode = 404;
+          res.end('not found');
+          return;
+        }
+        const ext = path.extname(filename).toLowerCase();
+        const mime =
+          ext === '.wasm'
+            ? 'application/wasm'
+            : ext === '.js'
+              ? 'application/javascript'
+              : 'application/octet-stream';
+        res.setHeader('Content-Type', mime);
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.end(fs.readFileSync(filePath));
+      });
+    },
+
+    // Build: copy Ruffle files into dist/ruffle/
+    closeBundle() {
+      const outDir = path.resolve(process.cwd(), 'dist/ruffle');
+      try {
+        fs.mkdirSync(outDir, { recursive: true });
+        const files = fs.readdirSync(ruffleDir).filter(
+          (f: string) => f.endsWith('.js') || f.endsWith('.wasm'),
+        );
+        for (const file of files) {
+          fs.copyFileSync(path.join(ruffleDir, file), path.join(outDir, file));
+        }
+        console.log(`[ruffle] Copied ${files.length} file(s) to dist/ruffle/`);
+      } catch {
+        // Ignore — dist may not exist for non-build invocations
+      }
+    },
+  };
+}
+
 function generateSitemap(env: Record<string, string>): Plugin {
   return {
     name: 'generate-sitemap',
@@ -1106,12 +1164,17 @@ export default defineConfig(({ mode }) => {
       tailspaceProxy(),
       furbooruProxy(),
       inkbunnyProxy(),
+      rufflePlugin(),
       generateSitemap(env),
       vue(),
       vuetify(),
       vueDevTools(),
       VitePWA({
         registerType: 'prompt',
+        workbox: {
+          // Ruffle WASM files are large and loaded on-demand — exclude from precache
+          globIgnores: ['ruffle/**'],
+        },
         manifest: {
           id: "/#/posts",
           name: "Material e621",

@@ -36,7 +36,7 @@
 
         <div class="ib-media-wrap">
           <div v-if="loadingDetails" class="ib-writing">Loading…</div>
-          <div v-else-if="isFlash" class="ib-writing">Flash is not supported</div>
+          <ruffle-player v-else-if="isFlash" class="ib-media" style="min-height: 400px" :url="currentFileUrl || null" />
           <video
             v-else-if="isVideo && currentFileUrl"
             class="ib-media"
@@ -198,6 +198,7 @@ import type { EnhancedPost } from "@/worker/ApiService";
 import type { InkbunnyFile } from "@/worker/inkbunny/api";
 import { submissionUrl } from "@/worker/inkbunny/api";
 import TagWithMenu from "@/Tag/TagWithMenu.vue";
+import RufflePlayer from "@/Post/RufflePlayer.vue";
 import { useShortcutService, useUiStore } from "@/services";
 
 const KEYWORD_LIMIT = 6;

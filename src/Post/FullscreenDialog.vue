@@ -11,9 +11,7 @@
         <zoom-pan-image @update-zoomed="isZoomed = $event" @swipe-down="!$event.zoomedIn && exitFullscreen()"
           @swipe-right="!$event.zoomedIn && showPreviousImage()" @swipe-left="!$event.zoomedIn && showNextImage()">
           <div v-if="current" style="height: 100%" class="middle bg-black" :class="blacklistClasses">
-            <div v-if="current.file.ext == 'swf'" class="overflow flash">
-              flash is not supported
-            </div>
+            <ruffle-player v-if="current.file.ext == 'swf'" class="overflow flash" :url="currentFileUrl || null" />
             <video v-else-if="isVideoPost && currentFileUrl"
               ref="videoEl"
               class="overflow flash bg-black position-relative" controls
@@ -90,6 +88,7 @@
 <script setup lang="ts">
 import AppLogo from "../App/AppLogo.vue";
 import { useAppearanceStore, useBlacklistStore, usePostsStore, useShortcutService, useSiteModeStore, useUiStore, useUrlStore } from "@/services";
+import RufflePlayer from "./RufflePlayer.vue";
 import ZoomPanImage from "./ZoomPanImage.vue";
 import NotesOverlay from "./NotesOverlay.vue";
 import { useBlacklistClasses } from "../misc/util/blacklist";
