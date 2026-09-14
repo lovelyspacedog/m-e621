@@ -109,9 +109,9 @@ export function comicThumb(id: number, version: number, size: "1x" | "2x" = "2x"
   return `${TAILSPACE_CDN}/comics/${id}/thumbnail-${size}.webp?v=${version ?? 0}`;
 }
 
-/** External URL to a comic on Tailspace. */
-export function comicUrl(artistName: string, comicId: number): string {
-  return `https://tailspace.com/comic/${artistName}/${comicId}`;
+/** External URL to a comic on Tailspace (`/c/{name}`). */
+export function comicUrl(comicName: string): string {
+  return `https://tailspace.com/c/${encodeURIComponent(comicName)}`;
 }
 
 /** External URL to a post on Tailspace. */

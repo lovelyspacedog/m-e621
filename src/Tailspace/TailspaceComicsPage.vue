@@ -217,7 +217,7 @@ const sort = ref("Updated");
 const finishedOnly = ref(false);
 
 function comicUrlFor(comic: TailspaceComic) {
-  return comicUrl(comic.artistName, comic.id);
+  return comicUrl(comic.name);
 }
 
 async function loadPage(p: number) {
