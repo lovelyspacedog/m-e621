@@ -76,7 +76,10 @@ export function getComics(params: ComicsParams = {}): Promise<TailspaceComicsRes
   if (params.categories && params.categories.length > 0 && !params.categories.includes("All")) {
     for (const c of params.categories) q.append("c", c);
   }
-  if (params.sort && params.sort !== "Updated") q.set("sort", params.sort);
+  // Tailspace expects lowercase hyphenated sort keys (e.g. "alphabetical").
+  if (params.sort && params.sort !== "Updated") {
+    q.set("sort", params.sort.toLowerCase().replace(/\s+/g, "-"));
+  }
   for (const id of params.tagIDs ?? []) q.append("tag", String(id));
   for (const id of params.excludeTagIDs ?? []) q.append("excludeTag", String(id));
   if (params.finishedOnly) q.set("finishedOnly", "true");

@@ -158,7 +158,7 @@
       />
 
       <!-- Page number buttons (show up to 7) -->
-      <template v-for="p in pageButtons" :key="p">
+      <template v-for="(p, i) in pageButtons" :key="`${p}-${i}`">
         <v-btn
           v-if="p !== '...'"
           :variant="p === page ? 'flat' : 'text'"
@@ -271,12 +271,17 @@ function clearFilters() {
 }
 
 function changePage(p: number) {
-  page.value = p;
+  const next = Math.max(1, p);
+  const samePage = page.value === next;
+  page.value = next;
   const q: Record<string, string> = {};
-  if (p > 1) q.page = String(p);
+  if (next > 1) q.page = String(next);
   if (activeSearch.value) q.search = activeSearch.value;
   router.replace({ query: q });
   window.scrollTo({ top: 0, behavior: "smooth" });
+  // watch(page) only fires on value change — reload explicitly when
+  // filters/search re-request the same page.
+  if (samePage) void loadPage(next);
 }
 
 /** Generate the visible page buttons with ellipsis. */
