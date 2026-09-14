@@ -52,6 +52,17 @@
             </v-btn>
           </v-btn-toggle>
           <v-btn
+            v-if="comic && viewMode === 'scroll'"
+            size="small"
+            variant="outlined"
+            :color="fullWidthScroll ? 'primary' : undefined"
+            :title="fullWidthScroll ? 'Exit full width' : 'Full width'"
+            @click="fullWidthScroll = !fullWidthScroll"
+          >
+            <v-icon size="18">mdi-arrow-expand-horizontal</v-icon>
+            <span class="ts-view-label">{{ fullWidthScroll ? "Fit" : "Full width" }}</span>
+          </v-btn>
+          <v-btn
             v-if="comic"
             :href="comicUrl(comic.name)"
             target="_blank"
@@ -122,7 +133,11 @@
     </div>
 
     <!-- Scroll mode: full pages stacked -->
-    <div v-else-if="comic && viewMode === 'scroll'" class="ts-scroll">
+    <div
+      v-else-if="comic && viewMode === 'scroll'"
+      class="ts-scroll"
+      :class="{ 'ts-scroll--full': fullWidthScroll }"
+    >
       <div
         v-for="page in visiblePages"
         :key="page.token"
@@ -342,6 +357,7 @@ import {
 
 type ViewMode = "gallery" | "scroll";
 const VIEW_MODE_KEY = "tailspace-comic-view-mode";
+const FULL_WIDTH_KEY = "tailspace-comic-scroll-full-width";
 /** Thumbs are cheap — show more per chunk. */
 const GALLERY_CHUNK_SIZE = 24;
 /** Full-res scroll images are heavy — smaller chunks. */
@@ -355,6 +371,14 @@ function loadViewMode(): ViewMode {
   return "gallery";
 }
 
+function loadFullWidthScroll(): boolean {
+  try {
+    return localStorage.getItem(FULL_WIDTH_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 const route = useRoute();
 const router = useRouter();
 
@@ -365,11 +389,18 @@ const viewerOpen = ref(false);
 const pageIndex = ref(0);
 const viewerEl = ref<HTMLElement | null>(null);
 const viewMode = ref<ViewMode>(loadViewMode());
+const fullWidthScroll = ref(loadFullWidthScroll());
 /** 1-based chunk within gallery/scroll (not the comic page number). */
 const chunkPage = ref(Number(route.query.chunk) || 1);
 
 watch(viewMode, (mode) => {
   try { localStorage.setItem(VIEW_MODE_KEY, mode); } catch { /* ignore */ }
+});
+
+watch(fullWidthScroll, (on) => {
+  try {
+    localStorage.setItem(FULL_WIDTH_KEY, on ? "1" : "0");
+  } catch { /* ignore */ }
 });
 
 const comicName = computed(() => {
@@ -730,6 +761,11 @@ watch(chunkCount, (n) => {
   max-width: 1100px;
   margin: 0 auto;
 }
+.ts-scroll--full {
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
+}
 .ts-scroll-page {
   width: 100%;
   display: flex;
@@ -755,6 +791,14 @@ watch(chunkCount, (n) => {
   margin: 0 auto;
   border-radius: 4px;
   background: rgba(var(--v-border-color), 0.12);
+}
+.ts-scroll--full .ts-scroll-img {
+  width: 100%;
+  border-radius: 0;
+}
+.ts-scroll--full .ts-scroll-desc {
+  max-width: min(720px, 100%);
+  padding: 0 0.75rem;
 }
 .ts-scroll-caption {
   margin-top: 6px;

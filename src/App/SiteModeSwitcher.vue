@@ -26,8 +26,8 @@ const router = useRouter();
 const modeIcon = (mode: SiteMode) => {
   switch (mode) {
     case "e6ai": return "mdi-robot";
-    case "local": return "mdi-folder-image";
-    case "tailspace": return "mdi-space-station";
+    case "local": return "mdi-harddisk";
+    case "tailspace": return "mdi-rocket-launch";
     case "furbooru": return "mdi-dog";
     case "inkbunny": return "mdi-rabbit";
     default: return "mdi-paw";
@@ -36,6 +36,7 @@ const modeIcon = (mode: SiteMode) => {
 
 const modeLabel = (mode: SiteMode) => {
   switch (mode) {
+    case "local": return "Local";
     case "tailspace": return "Tailspace";
     case "furbooru": return "Furbooru";
     case "inkbunny": return "Inkbunny";
