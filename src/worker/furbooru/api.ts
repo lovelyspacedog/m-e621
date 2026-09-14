@@ -29,6 +29,7 @@ export interface PhilomenaImage {
   id: number;
   created_at: string;
   updated_at: string;
+  first_seen_at?: string;
   /** Flat list of tag strings, e.g. "artist:foo", "species:wolf", "safe" */
   tags: string[];
   tag_ids: number[];
@@ -38,14 +39,16 @@ export interface PhilomenaImage {
   faves: number;
   comment_count: number;
   description: string;
-  /** "safe" | "suggestive" | "questionable" | "explicit" | null */
-  rating: string | null;
+  /** "safe" | "suggestive" | "questionable" | "explicit" | null — often absent; rating lives in tags */
+  rating?: string | null;
   /** MIME type, e.g. "image/jpeg" */
   mime_type: string;
   /** File extension, e.g. "jpg" */
   format: string;
   width: number;
   height: number;
+  /** Byte size of the original file */
+  size?: number;
   view_url: string;
   representations: PhilomenaRepresentations;
   /** Whether the image is favorited by the authenticated user */
@@ -55,6 +58,11 @@ export interface PhilomenaImage {
   name?: string;
   source_url?: string | null;
   source_urls?: string[];
+  uploader?: string | null;
+  uploader_id?: number | null;
+  wilson_score?: number;
+  duration?: number;
+  animated?: boolean;
 }
 
 export interface PhilomenaSearchResponse {
@@ -163,15 +171,25 @@ function adaptTags(tags: string[]): PostTags {
   return result;
 }
 
-/** Map a Philomena rating string to e621 rating character. */
-function adaptRating(rating: string | null): "s" | "q" | "e" {
+/** Map a Philomena rating string or rating tag to e621 rating character. */
+function adaptRating(img: PhilomenaImage): "s" | "q" | "e" {
+  const fromField = (img.rating || "").toLowerCase();
+  const tags = (img.tags || []).map((t) => t.toLowerCase());
+  const rating =
+    fromField ||
+    tags.find((t) =>
+      ["safe", "suggestive", "questionable", "explicit", "semi-grimdark", "grimdark"].includes(t),
+    ) ||
+    "";
   switch (rating) {
     case "safe":
       return "s";
     case "explicit":
+    case "grimdark":
       return "e";
     case "suggestive":
     case "questionable":
+    case "semi-grimdark":
       return "q";
     default:
       return "q";
@@ -181,6 +199,13 @@ function adaptRating(rating: string | null): "s" | "q" | "e" {
 /** Map a Philomena image to an e621-shaped Post. */
 export function adaptImage(img: PhilomenaImage): Post {
   const rep = img.representations;
+  const sources = (img.source_urls && img.source_urls.length
+    ? img.source_urls
+    : img.source_url
+      ? [img.source_url]
+      : []
+  ).filter(Boolean) as string[];
+
   return {
     id: img.id,
     created_at: img.created_at,
@@ -190,7 +215,8 @@ export function adaptImage(img: PhilomenaImage): Post {
       ext: img.format,
       width: img.width,
       height: img.height,
-      size: 0,
+      size: img.size ?? 0,
+      // Philomena uses SHA-512; surface it in the md5 slot for the overview hash row
       md5: img.sha512_hash ?? "",
     },
     preview: {
@@ -205,11 +231,11 @@ export function adaptImage(img: PhilomenaImage): Post {
       height: img.height,
     },
     score: {
-      up: img.upvotes,
-      down: img.downvotes,
-      total: img.score,
+      up: img.upvotes ?? 0,
+      down: Math.abs(img.downvotes ?? 0),
+      total: img.score ?? 0,
     },
-    tags: adaptTags(img.tags),
+    tags: adaptTags(img.tags || []),
     locked_tags: [],
     change_seq: 0,
     flags: {
@@ -220,18 +246,19 @@ export function adaptImage(img: PhilomenaImage): Post {
       rating_locked: false,
       deleted: false,
     },
-    rating: adaptRating(img.rating),
-    fav_count: img.faves,
-    sources: img.source_urls ?? (img.source_url ? [img.source_url] : []),
+    rating: adaptRating(img),
+    fav_count: img.faves ?? 0,
+    sources,
     pools: [],
     relationships: {
       has_children: false,
       has_active_children: false,
       children: [],
     },
-    uploader_id: 0,
+    uploader_id: img.uploader_id ?? 0,
+    uploader_name: img.uploader ?? undefined,
     description: img.description ?? "",
-    comment_count: img.comment_count,
+    comment_count: img.comment_count ?? 0,
     is_favorited: img.is_favorited ?? false,
     has_notes: false,
   };
