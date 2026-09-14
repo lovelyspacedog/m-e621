@@ -220,13 +220,13 @@
     <div v-if="comic" id="comic-comments" class="ts-comic-comments">
       <div class="ts-comic-comments-header">
         <h2 class="text-subtitle-1 font-weight-bold mb-0">Comments</h2>
-        <span class="ts-comic-comments-count">{{ comic.comments?.length || 0 }}</span>
+        <span class="ts-comic-comments-count">{{ sortedComments.length }}</span>
       </div>
-      <div v-if="!(comic.comments?.length)" class="ts-comic-comments-empty">
+      <div v-if="!(sortedComments.length)" class="ts-comic-comments-empty">
         No comments yet.
       </div>
       <div v-else class="ts-comic-comments-list">
-        <div v-for="c in comic.comments" :key="c.id" class="ts-comic-comment">
+        <div v-for="c in sortedComments" :key="c.id" class="ts-comic-comment">
           <img
             v-if="c.profilePictureToken"
             class="ts-comic-comment-avatar"
@@ -383,6 +383,20 @@ const comicName = computed(() => {
 });
 
 const currentPage = computed(() => comic.value?.pages[pageIndex.value] ?? null);
+
+const sortedComments = computed(() => {
+  const list = [...(comic.value?.comments ?? [])];
+  list.sort((a, b) => {
+    const at = a.timestamp;
+    const bt = b.timestamp;
+    if (at == null && bt == null) return (b.id || 0) - (a.id || 0);
+    if (at == null) return 1;
+    if (bt == null) return -1;
+    if (bt !== at) return bt - at;
+    return (b.id || 0) - (a.id || 0);
+  });
+  return list;
+});
 
 const chunkSize = computed(() =>
   viewMode.value === "scroll" ? SCROLL_CHUNK_SIZE : GALLERY_CHUNK_SIZE,

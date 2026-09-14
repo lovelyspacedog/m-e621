@@ -684,6 +684,16 @@ function normalizeComments(comments: unknown[]): Record<string, unknown>[] {
       isHidden: Boolean(row.isHidden),
     });
   }
+  // Newest first (null timestamps last; tie-break by id).
+  out.sort((a, b) => {
+    const at = typeof a.timestamp === 'number' ? a.timestamp : null;
+    const bt = typeof b.timestamp === 'number' ? b.timestamp : null;
+    if (at == null && bt == null) return Number(b.id || 0) - Number(a.id || 0);
+    if (at == null) return 1;
+    if (bt == null) return -1;
+    if (bt !== at) return bt - at;
+    return Number(b.id || 0) - Number(a.id || 0);
+  });
   return out;
 }
 

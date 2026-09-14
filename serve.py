@@ -393,6 +393,15 @@ def _normalize_comments(comments: list) -> list:
                 "isHidden": bool(item.get("isHidden")),
             }
         )
+    # Newest first (null timestamps last; tie-break by id).
+    out.sort(
+        key=lambda c: (
+            0 if c.get("timestamp") is None else 1,
+            c.get("timestamp") or 0,
+            c.get("id") or 0,
+        ),
+        reverse=True,
+    )
     return out
 
 

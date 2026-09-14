@@ -269,7 +269,15 @@ async function loadComments() {
   commentsLoading.value = true;
   try {
     const res = await getPostComments(props.post.creator.username, props.post.id);
-    comments.value = res.comments || [];
+    comments.value = (res.comments || []).slice().sort((a, b) => {
+      const at = a.timestamp;
+      const bt = b.timestamp;
+      if (at == null && bt == null) return (b.id || 0) - (a.id || 0);
+      if (at == null) return 1;
+      if (bt == null) return -1;
+      if (bt !== at) return bt - at;
+      return (b.id || 0) - (a.id || 0);
+    });
   } catch (e: unknown) {
     commentsError.value = e instanceof Error ? e.message : "Failed to load comments.";
   } finally {
