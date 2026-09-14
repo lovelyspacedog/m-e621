@@ -7,16 +7,6 @@
     @keydown.esc="$emit('close')"
   >
     <div class="ts-dialog" @click.self="$emit('close')">
-      <!-- Close button -->
-      <v-btn
-        class="ts-dialog-close"
-        icon="mdi-close"
-        variant="text"
-        color="white"
-        size="small"
-        @click="$emit('close')"
-      />
-
       <!-- Post navigation (prev post / next post) -->
       <v-btn
         v-if="hasPrevPost"
@@ -37,6 +27,15 @@
 
       <!-- Main media viewer -->
       <div class="ts-dialog-main" @click.self="$emit('close')">
+        <!-- Floating close over media (not over the info panel) -->
+        <v-btn
+          class="ts-dialog-close"
+          icon="mdi-close"
+          variant="text"
+          color="white"
+          size="small"
+          @click="$emit('close')"
+        />
         <!-- Current media -->
         <div class="ts-media-wrap">
           <template v-if="currentMedia">
@@ -107,21 +106,30 @@
       <div class="ts-dialog-info">
         <!-- Title + artist -->
         <div class="ts-info-header">
-          <div>
+          <div class="ts-info-heading">
             <div class="ts-info-title">{{ post.title }}</div>
             <div class="ts-info-artist">{{ post.creator.displayName }}</div>
           </div>
-          <v-btn
-            :href="postUrl(post.creator.username, post.id)"
-            target="_blank"
-            rel="noopener"
-            variant="outlined"
-            size="x-small"
-            append-icon="mdi-open-in-new"
-            class="ml-2 flex-shrink-0"
-          >
-            Open
-          </v-btn>
+          <div class="ts-info-actions">
+            <v-btn
+              :href="postUrl(post.creator.username, post.id)"
+              target="_blank"
+              rel="noopener"
+              variant="outlined"
+              size="x-small"
+              append-icon="mdi-open-in-new"
+            >
+              Open
+            </v-btn>
+            <v-btn
+              icon="mdi-close"
+              variant="text"
+              size="x-small"
+              density="comfortable"
+              aria-label="Close"
+              @click="$emit('close')"
+            />
+          </div>
         </div>
 
         <!-- Stats row -->
@@ -425,6 +433,16 @@ function formatCommentTime(ts: number) {
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 6px;
+}
+.ts-info-heading {
+  min-width: 0;
+  flex: 1;
+}
+.ts-info-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
 }
 .ts-info-title {
   font-weight: 700;

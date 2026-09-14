@@ -305,6 +305,9 @@ class PersistanceService {
         e621: createEmptySiteProfile("e621"),
         e6ai: createEmptySiteProfile("e6ai"),
         local: createEmptySiteProfile("local"),
+        tailspace: createEmptySiteProfile("tailspace"),
+        furbooru: createEmptySiteProfile("furbooru"),
+        inkbunny: createEmptySiteProfile("inkbunny"),
       };
       // Current flat fields become the active mode's profile (usually e621).
       newState.profiles[mode] = profileFromMirrors({
@@ -327,6 +330,9 @@ class PersistanceService {
           e621: createEmptySiteProfile("e621"),
           e6ai: createEmptySiteProfile("e6ai"),
           local: createEmptySiteProfile("local"),
+          tailspace: createEmptySiteProfile("tailspace"),
+          furbooru: createEmptySiteProfile("furbooru"),
+          inkbunny: createEmptySiteProfile("inkbunny"),
         };
       } else {
         newState.profiles.local =
@@ -386,6 +392,12 @@ class PersistanceService {
       }
       newState.configVersion = 23;
     }
+    if (newState.configVersion < 24) {
+      if (newState.profiles && !newState.profiles.inkbunny) {
+        newState.profiles.inkbunny = createEmptySiteProfile("inkbunny");
+      }
+      newState.configVersion = 24;
+    }
 
     // Ensure profiles exist even if a partial export skipped them.
     if (!newState.profiles) {
@@ -393,7 +405,9 @@ class PersistanceService {
         e621: createEmptySiteProfile("e621"),
         e6ai: createEmptySiteProfile("e6ai"),
         local: createEmptySiteProfile("local"),
+        tailspace: createEmptySiteProfile("tailspace"),
         furbooru: createEmptySiteProfile("furbooru"),
+        inkbunny: createEmptySiteProfile("inkbunny"),
       };
     }
     newState.profiles.e621 =
@@ -402,8 +416,12 @@ class PersistanceService {
       newState.profiles.e6ai || createEmptySiteProfile("e6ai");
     newState.profiles.local =
       newState.profiles.local || createEmptySiteProfile("local");
+    newState.profiles.tailspace =
+      newState.profiles.tailspace || createEmptySiteProfile("tailspace");
     newState.profiles.furbooru =
       newState.profiles.furbooru || createEmptySiteProfile("furbooru");
+    newState.profiles.inkbunny =
+      newState.profiles.inkbunny || createEmptySiteProfile("inkbunny");
     if (!newState.profiles.e621.account) {
       // Do NOT copy active-mode mirrors here: account/blacklist/etc. may
       // reflect a different site (e.g. e6ai at export time).  Merge any
@@ -417,7 +435,9 @@ class PersistanceService {
       newState.activeMode !== "e621" &&
       newState.activeMode !== "e6ai" &&
       newState.activeMode !== "local" &&
-      newState.activeMode !== "furbooru"
+      newState.activeMode !== "tailspace" &&
+      newState.activeMode !== "furbooru" &&
+      newState.activeMode !== "inkbunny"
     ) {
       newState.activeMode = "e621";
     }
@@ -426,6 +446,10 @@ class PersistanceService {
       newState.profiles.e621.baseUrl || SITE_MODE_URLS.e621;
     newState.profiles.e6ai.baseUrl =
       newState.profiles.e6ai.baseUrl || SITE_MODE_URLS.e6ai;
+    newState.profiles.furbooru.baseUrl =
+      newState.profiles.furbooru.baseUrl || SITE_MODE_URLS.furbooru;
+    newState.profiles.inkbunny.baseUrl =
+      newState.profiles.inkbunny.baseUrl || SITE_MODE_URLS.inkbunny;
 
     if (newState.posts.localDirectoryName === undefined) {
       newState.posts.localDirectoryName = null;

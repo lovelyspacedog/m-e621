@@ -43,7 +43,7 @@ export interface SavedSearchEntry {
 
 export const UNGROUPED_FAVORITE_GROUP_ID = "ungrouped";
 
-export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "furbooru";
+export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "furbooru" | "inkbunny";
 
 export const SITE_MODE_URLS: Record<SiteMode, string> = {
   e621: "https://e621.net/",
@@ -51,6 +51,7 @@ export const SITE_MODE_URLS: Record<SiteMode, string> = {
   local: "",
   tailspace: "https://tailspace.com/",
   furbooru: "https://furbooru.org/",
+  inkbunny: "https://inkbunny.net/",
 };
 
 export interface FavoriteTagGroup {
@@ -74,6 +75,8 @@ export interface SiteProfile {
   account: {
     username: string | null;
     apiKey: string | null;
+    /** Inkbunny member user_id (not used on other sites). */
+    userId?: number | null;
   };
   favorites: {
     groups: FavoriteTagGroup[];
@@ -99,7 +102,7 @@ export interface SiteProfile {
 // }
 
 export interface ISettingsServiceState {
-  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23;
+  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];
@@ -169,6 +172,7 @@ export interface ISettingsServiceState {
   account: {
     username: string | null;
     apiKey: string | null;
+    userId?: number | null;
   };
   misc: {
     urls: {

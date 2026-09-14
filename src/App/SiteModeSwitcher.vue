@@ -29,6 +29,7 @@ const modeIcon = (mode: SiteMode) => {
     case "local": return "mdi-folder-image";
     case "tailspace": return "mdi-space-station";
     case "furbooru": return "mdi-dog";
+    case "inkbunny": return "mdi-rabbit";
     default: return "mdi-paw";
   }
 };
@@ -37,6 +38,7 @@ const modeLabel = (mode: SiteMode) => {
   switch (mode) {
     case "tailspace": return "Tailspace";
     case "furbooru": return "Furbooru";
+    case "inkbunny": return "Inkbunny";
     default: return mode;
   }
 };

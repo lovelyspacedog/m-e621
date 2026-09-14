@@ -188,7 +188,7 @@ watch(
 
 const loadNotesForCurrent = async () => {
   const post = props.current;
-  if (!post?.has_notes || isVideoExt(post.file.ext) || siteMode.isLocal) {
+  if (!post?.has_notes || isVideoExt(post.file.ext) || siteMode.isLocal || siteMode.isInkbunny) {
     notes.value = [];
     return;
   }

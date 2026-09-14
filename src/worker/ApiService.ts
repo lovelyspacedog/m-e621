@@ -14,12 +14,15 @@ import {
   custom
 } from "./api";
 import * as furbooru from "./furbooru/api";
+import * as inkbunny from "./inkbunny/api";
+import type { InkbunnyMeta } from "./inkbunny/api";
 import { isPostBlacklisted } from "./blacklist";
 import type { BlacklistMode } from "@/services/types";
 import { createTagQuery } from "@/misc/util/createTagQuery";
 import { debug } from "@/misc/util/debug";
 
 const isFurbooruUrl = (baseUrl: string) => baseUrl.includes("furbooru.org");
+const isInkbunnyUrl = (baseUrl: string) => baseUrl.includes("inkbunny.net");
 
 // debug.disable();
 // debug.enable("app:*");
@@ -36,6 +39,7 @@ export interface EnhancedPost extends Post {
     localExtraTags?: string[];
     localPlayable?: boolean;
     localKind?: "image" | "video";
+    inkbunny?: InkbunnyMeta;
   };
 }
 
@@ -48,6 +52,7 @@ export class ApiService {
     blacklistMode: BlacklistMode;
     auth?: IPostsListArgs["auth"];
     baseUrl: string;
+    userId?: number | null;
   }) {
     log(args);
 
@@ -67,6 +72,24 @@ export class ApiService {
         __meta: {
           isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
           pageNumber: args.page,
+        },
+      }));
+    }
+
+    if (isInkbunnyUrl(args.baseUrl)) {
+      const result = await inkbunny.searchSubmissions({
+        tags: args.tags.filter(Boolean),
+        page: args.page,
+        limit: args.limit,
+        sid: args.auth?.api_key ?? null,
+        userId: args.userId ?? null,
+      });
+      return result.posts.map<EnhancedPost>((post, index) => ({
+        ...post,
+        __meta: {
+          isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
+          pageNumber: args.page,
+          inkbunny: inkbunny.inkbunnyMetaFromHit(result.hits[index] || {}, result.sid),
         },
       }));
     }
@@ -104,6 +127,12 @@ export class ApiService {
         apiKey: null,
       });
     }
+    if (isInkbunnyUrl(args.baseUrl)) {
+      return inkbunny.searchKeywords({
+        query: args.query ?? args.name ?? "",
+        sid: null,
+      });
+    }
     const data = await e621.tags.list(args);
     if (Array.isArray(data)) {
       return data;
@@ -113,6 +142,9 @@ export class ApiService {
   }
 
   async getPools(args: IPoolsArgs) {
+    if (isFurbooruUrl(args.baseUrl) || isInkbunnyUrl(args.baseUrl)) {
+      return [];
+    }
     return (await e621.pools.list(args));
   }
 
@@ -121,6 +153,9 @@ export class ApiService {
   }
 
   async getComments(args: ICommentsListArgs) {
+    if (isInkbunnyUrl(args.baseUrl)) {
+      return [];
+    }
     if (isFurbooruUrl(args.baseUrl)) {
       return furbooru.getComments({
         imageId: args.postId,
@@ -132,10 +167,16 @@ export class ApiService {
   }
 
   async getNotes(args: INotesListArgs) {
+    if (isFurbooruUrl(args.baseUrl) || isInkbunnyUrl(args.baseUrl)) {
+      return [];
+    }
     return e621.notes.list(args);
   }
 
   async favoritePost(args: IPostFavoriteArgs) {
+    if (isInkbunnyUrl(args.baseUrl)) {
+      return false;
+    }
     if (isFurbooruUrl(args.baseUrl)) {
       await furbooru.favoriteImage({
         postId: args.postId,
@@ -156,6 +197,9 @@ export class ApiService {
   }
 
   async unfavoritePost(args: IPostFavoriteArgs) {
+    if (isInkbunnyUrl(args.baseUrl)) {
+      return false;
+    }
     if (isFurbooruUrl(args.baseUrl)) {
       await furbooru.unfavoriteImage({
         postId: args.postId,
@@ -176,6 +220,9 @@ export class ApiService {
   }
 
   async votePost(args: IPostVoteArgs) {
+    if (isInkbunnyUrl(args.baseUrl)) {
+      return { score: 0, up: 0, down: 0 };
+    }
     if (isFurbooruUrl(args.baseUrl)) {
       const value = args.score > 0 ? "up" : "down";
       return furbooru.voteImage({
@@ -196,6 +243,9 @@ export class ApiService {
   }
 
   async createComment(args: IPostCommentArgs) {
+    if (isInkbunnyUrl(args.baseUrl)) {
+      throw new Error("Inkbunny does not support posting comments via API");
+    }
     if (isFurbooruUrl(args.baseUrl)) {
       return furbooru.createComment({
         postId: args.postId,
@@ -219,6 +269,15 @@ export class ApiService {
     apiKey: string;
     baseUrl: string;
   }) {
+    if (isInkbunnyUrl(args.baseUrl)) {
+      await inkbunny.searchSubmissions({
+        tags: [],
+        page: 1,
+        limit: 1,
+        sid: args.apiKey,
+      });
+      return true;
+    }
     if (isFurbooruUrl(args.baseUrl)) {
       // Furbooru uses API key only — no username needed
       await furbooru.verifyApiKey({ apiKey: args.apiKey });
@@ -240,5 +299,37 @@ export class ApiService {
       limit: 1,
     });
     return true;
+  }
+
+  async loginInkbunny(args: { username: string; password?: string }) {
+    return inkbunny.login(args.username, args.password);
+  }
+
+  async logoutInkbunny(args: { sid: string }) {
+    await inkbunny.logout(args.sid);
+    await inkbunny.login("guest");
+  }
+
+  async getInkbunnyWatchlist(args: { sid: string }) {
+    return inkbunny.getWatchlist(args.sid);
+  }
+
+  async enrichInkbunnyPost(post: EnhancedPost, args: { sid?: string | null }) {
+    const subs = await inkbunny.getSubmissions({
+      ids: [post.id],
+      sid: args.sid ?? null,
+    });
+    const sub = subs[0];
+    if (!sub) return post;
+    const sid = args.sid ?? null;
+    const adapted = inkbunny.adaptDetails(sub, sid);
+    return {
+      ...post,
+      ...adapted,
+      __meta: {
+        ...post.__meta,
+        inkbunny: inkbunny.inkbunnyMetaFromHit(sub, sid, true),
+      },
+    } satisfies EnhancedPost;
   }
 }

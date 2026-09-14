@@ -39,6 +39,26 @@ export const usePostListManager = ({
     console.log(error);
   };
 
+  const enrichInkbunny = async (post: EnhancedPost) => {
+    if (!siteMode.isInkbunny) return post;
+    if (post.__meta.inkbunny?.detailsLoaded) return post;
+    try {
+      const account = useAccountStore();
+      const service = await getApiService();
+      const updated = await service.enrichInkbunnyPost(post, {
+        sid: account.apiKey,
+      });
+      const idx = posts.value.findIndex((p) => p.id === post.id);
+      if (idx >= 0) posts.value[idx] = updated;
+      if (detailsPost.value?.id === updated.id) detailsPost.value = updated;
+      if (fullscreenPost.value?.id === updated.id) fullscreenPost.value = updated;
+      return updated;
+    } catch (error) {
+      handleError(error);
+      return post;
+    }
+  };
+
   const setPostFavorite = async (args: {
     postId: number;
     favorited: boolean;
@@ -207,8 +227,9 @@ export const usePostListManager = ({
     { deep: true },
   );
 
-  const openPostDetails = (postId: number) => {
-    detailsPost.value = posts.value.find((p) => p.id === postId) || null;
+  const openPostDetails = async (postId: number) => {
+    const found = posts.value.find((p) => p.id === postId) || null;
+    detailsPost.value = found ? await enrichInkbunny(found) : null;
   };
   const isValidNextPost = (post: EnhancedPost) => {
     return !!post.file.url && !post.__meta.isBlacklisted;
@@ -228,7 +249,7 @@ export const usePostListManager = ({
         );
         const nextPost = posts.value[nextPostIdx];
         if (nextPost) {
-          fullscreenPost.value = nextPost;
+          fullscreenPost.value = await enrichInkbunny(nextPost);
           return true;
         } else {
           if (offset > 0) {

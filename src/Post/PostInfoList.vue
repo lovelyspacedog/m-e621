@@ -36,27 +36,32 @@
         </td>
       </tr>
       <tr v-if="!isLocal">
-        <th>Score</th>
+        <th>{{ isInkbunny ? "Views" : "Score" }}</th>
         <td class="post-info-value">
           <div class="d-flex align-center justify-end ga-1 flex-wrap">
-            <span>
+            <span v-if="isInkbunny">
+              {{ post.score.total || "—" }}
+            </span>
+            <span v-else>
               {{ post.score.total }}
               ({{ post.score.up }} up − {{ post.score.down }} down)
             </span>
-            <v-btn
-              size="x-small"
-              variant="text"
-              icon="mdi-arrow-up-bold"
-              :color="voteScore === 1 ? 'success' : undefined"
-              @click="castVote(voteScore === 1 ? 0 : 1)"
-            />
-            <v-btn
-              size="x-small"
-              variant="text"
-              icon="mdi-arrow-down-bold"
-              :color="voteScore === -1 ? 'error' : undefined"
-              @click="castVote(voteScore === -1 ? 0 : -1)"
-            />
+            <template v-if="!isInkbunny">
+              <v-btn
+                size="x-small"
+                variant="text"
+                icon="mdi-arrow-up-bold"
+                :color="voteScore === 1 ? 'success' : undefined"
+                @click="castVote(voteScore === 1 ? 0 : 1)"
+              />
+              <v-btn
+                size="x-small"
+                variant="text"
+                icon="mdi-arrow-down-bold"
+                :color="voteScore === -1 ? 'error' : undefined"
+                @click="castVote(voteScore === -1 ? 0 : -1)"
+              />
+            </template>
           </div>
         </td>
       </tr>
@@ -64,7 +69,7 @@
         <th>Comments</th>
         <td class="post-info-value">{{ post.comment_count }}</td>
       </tr>
-      <tr v-if="!isLocal && !isFurbooru">
+      <tr v-if="!isLocal && !isFurbooru && !isInkbunny">
         <th>Notes</th>
         <td class="post-info-value">{{ post.has_notes ? "Yes" : "No" }}</td>
       </tr>
@@ -154,6 +159,7 @@ const { creatorLabel, creatorCategory } = useSiteLabels();
 const siteMode = useSiteModeStore();
 const isLocal = computed(() => siteMode.isLocal);
 const isFurbooru = computed(() => siteMode.isFurbooru);
+const isInkbunny = computed(() => siteMode.isInkbunny);
 const creatorTags = computed(() => getCreatorTags(props.post.tags));
 const fileSize = computed(() => prettyBytes(props.post.file.size));
 const megapixel = computed(
@@ -165,11 +171,11 @@ const hashLabel = computed(() => (isFurbooru.value ? "SHA-512" : "Hash"));
 const ratingLabel = computed(() => {
   switch (props.post.rating) {
     case "s":
-      return "Safe";
+      return isInkbunny.value ? "General" : "Safe";
     case "q":
-      return "Questionable";
+      return isInkbunny.value ? "Mature" : "Questionable";
     case "e":
-      return "Explicit";
+      return isInkbunny.value ? "Adult" : "Explicit";
     default:
       return props.post.rating || "—";
   }

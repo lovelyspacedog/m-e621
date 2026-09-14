@@ -15,6 +15,10 @@ const LOCAL_HIDDEN_BUTTONS = new Set<ButtonType>([
   "save_local",
 ]);
 
+const INKBUNNY_HIDDEN_BUTTONS = new Set<ButtonType>([
+  "favorite",
+]);
+
 export const useSiteModeStore = defineStore("site-mode", () => {
   const main = useMainStore();
   const snackbar = useSnackbarStore();
@@ -26,12 +30,14 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const isLocal = computed(() => main.activeMode === "local");
   const isTailspace = computed(() => main.activeMode === "tailspace");
   const isFurbooru = computed(() => main.activeMode === "furbooru");
+  const isInkbunny = computed(() => main.activeMode === "inkbunny");
   const activeLabel = computed(() => {
     switch (main.activeMode) {
       case "e6ai": return "e6ai";
       case "local": return "local";
       case "tailspace": return "tailspace";
       case "furbooru": return "Furbooru";
+      case "inkbunny": return "Inkbunny";
       default: return "e621";
     }
   });
@@ -51,20 +57,22 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     modeChangeCount.value++;
   };
 
-  const filterButtons = (buttons: ButtonType[]) =>
-    isLocal.value
-      ? buttons.filter((button) => !LOCAL_HIDDEN_BUTTONS.has(button))
-      : buttons;
+  const filterButtons = (buttons: ButtonType[]) => {
+    if (isLocal.value) return buttons.filter((button) => !LOCAL_HIDDEN_BUTTONS.has(button));
+    if (isInkbunny.value) return buttons.filter((button) => !INKBUNNY_HIDDEN_BUTTONS.has(button));
+    return buttons;
+  };
 
   return {
     activeMode,
     isLocal,
     isTailspace,
     isFurbooru,
+    isInkbunny,
     activeLabel,
     setMode,
     filterButtons,
-    siteModes: ["e621", "e6ai", "local", "tailspace", "furbooru"] as SiteMode[],
+    siteModes: ["e621", "e6ai", "local", "tailspace", "furbooru", "inkbunny"] as SiteMode[],
     modeChangeCount,
   };
 });

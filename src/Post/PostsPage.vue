@@ -9,6 +9,7 @@
           class="text-none"
           size="small"
           variant="text"
+          :title="siteMode.isInkbunny ? 'Inkbunny sorts by views' : undefined"
           :color="activeOrder === 'order:score' ? 'accent' : undefined"
           @click="applyOrder('order:score')"
         >
@@ -19,6 +20,7 @@
           class="text-none"
           size="small"
           variant="text"
+          :title="siteMode.isInkbunny ? 'Inkbunny sorts by views' : undefined"
           :color="activeOrder === 'order:favcount' ? 'accent' : undefined"
           @click="applyOrder('order:favcount')"
         >
@@ -338,6 +340,7 @@ const {
       blacklist: toRaw(blacklist.tags),
       blacklistMode: toRaw(blacklist.mode),
       auth: toRaw(account.auth),
+      userId: toRaw(account.userId),
       baseUrl: toRaw(urlStore.e621Url),
     }));
     return posts;
@@ -390,6 +393,7 @@ const toggleSaveSearch = async () => {
             blacklist: toRaw(blacklist.tags),
             blacklistMode: toRaw(blacklist.mode),
             auth: toRaw(account.auth),
+            userId: toRaw(account.userId),
             baseUrl: toRaw(urlStore.e621Url),
           }),
         );

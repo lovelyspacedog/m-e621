@@ -20,6 +20,14 @@ export const useAccountStore = defineStore("account", () => {
       main.account.apiKey = value;
     },
   });
+  const userId = computed({
+    get() {
+      return main.account.userId ?? null;
+    },
+    set(value) {
+      main.account.userId = value;
+    },
+  });
   const auth = computed(() =>
     main.account.apiKey && main.account.username
       ? {
@@ -32,6 +40,7 @@ export const useAccountStore = defineStore("account", () => {
   return {
     username,
     apiKey,
+    userId,
     auth,
   };
 });

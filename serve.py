@@ -46,6 +46,18 @@ FURBOORU_FAVES_PATH = re.compile(r"^/api/furbooru/images/(\d+)/faves$")
 FURBOORU_VOTES_PATH = re.compile(r"^/api/furbooru/images/(\d+)/votes$")
 FURBOORU_COMMENTS_POST_PATH = re.compile(r"^/api/furbooru/comments$")
 
+INKBUNNY_BASE = "https://inkbunny.net"
+INKBUNNY_POST_ROUTES = {
+    "/api/inkbunny/login": "api_login.php",
+    "/api/inkbunny/logout": "api_logout.php",
+    "/api/inkbunny/ratings": "api_userrating.php",
+    "/api/inkbunny/search": "api_search.php",
+    "/api/inkbunny/submissions": "api_submissions.php",
+    "/api/inkbunny/watchlist": "api_watchlist.php",
+}
+INKBUNNY_KEYWORDS_PATH = re.compile(r"^/api/inkbunny/keywords$")
+INKBUNNY_MEDIA_HOSTS = frozenset({"inkbunny.net", "ib.metapix.net"})
+
 _pull_lock = threading.Lock()
 _state: dict = {
     "running": False,
@@ -741,6 +753,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return None
         if host in FAVORITE_HOSTS or host.endswith(MEDIA_HOST_SUFFIXES):
             return parsed.geturl()
+        if host in INKBUNNY_MEDIA_HOSTS or host.endswith(".metapix.net"):
+            return parsed.geturl()
         return None
 
     def _proxy_media(self, raw_url: str) -> None:
@@ -754,6 +768,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
             f"m-e621-download-proxy/1.0 (https://{DOMAIN})",
         )
         req.add_header("Accept", "*/*")
+        host = (urlparse(url).hostname or "").lower()
+        if host in INKBUNNY_MEDIA_HOSTS or host.endswith(".metapix.net"):
+            req.add_header("Referer", "https://inkbunny.net")
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
                 payload = resp.read()
@@ -1045,6 +1062,68 @@ class SpaHandler(SimpleHTTPRequestHandler):
         )
         self._furbooru_respond(resp_body, status, ct)
 
+    def _inkbunny_request(
+        self,
+        url: str,
+        *,
+        method: str = "GET",
+        body: bytes = b"",
+        content_type: str = "application/x-www-form-urlencoded",
+        timeout: int = 30,
+    ) -> tuple[bytes, int, str]:
+        req = urllib.request.Request(url, method=method)
+        req.add_header("Accept", "application/json")
+        req.add_header(
+            "User-Agent",
+            f"me621-inkbunny-proxy/1.0 (https://{DOMAIN}; browser proxy)",
+        )
+        if body:
+            req.add_header("Content-Type", content_type)
+            req.data = body
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = resp.read()
+                status = getattr(resp, "status", 200)
+                ct = resp.headers.get("Content-Type", "application/json")
+            return data, status, ct
+        except urllib.error.HTTPError as exc:
+            return exc.read(), exc.code, "application/json"
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"ok": False, "message": str(exc)}).encode(), 502, "application/json"
+
+    def _proxy_inkbunny_post(self, php_script: str, body: bytes, content_type: str) -> None:
+        url = f"{INKBUNNY_BASE}/{php_script}"
+        data, status, ct = self._inkbunny_request(
+            url,
+            method="POST",
+            body=body,
+            content_type=content_type or "application/x-www-form-urlencoded",
+        )
+        self.send_response(status)
+        self.send_header("Content-Type", ct)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _proxy_inkbunny_keywords(self, parsed) -> None:
+        params = parse_qs(parsed.query)
+        fwd = {}
+        for key in ("keyword", "ratingsmask", "underscorespaces"):
+            vals = params.get(key)
+            if vals:
+                fwd[key] = vals[0]
+        url = f"{INKBUNNY_BASE}/api_search_autosuggest.php?{urlencode(fwd)}"
+        data, status, ct = self._inkbunny_request(url)
+        self.send_response(status)
+        self.send_header("Content-Type", ct)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
@@ -1086,6 +1165,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return
         if FURBOORU_USER_PATH.match(path):
             self._proxy_furbooru_user(parsed)
+            return
+        if INKBUNNY_KEYWORDS_PATH.match(path):
+            self._proxy_inkbunny_keywords(parsed)
             return
         if path.startswith("/api/"):
             self._json(404, {"ok": False, "message": "not found"})
@@ -1148,6 +1230,14 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
         if FURBOORU_COMMENTS_POST_PATH.match(path):
             self._proxy_furbooru_comments_post(parsed, body)
+            return
+
+        php = INKBUNNY_POST_ROUTES.get(path)
+        if php:
+            content_type = self.headers.get(
+                "Content-Type", "application/x-www-form-urlencoded"
+            )
+            self._proxy_inkbunny_post(php, body, content_type)
             return
 
         if path != "/api/git/pull":

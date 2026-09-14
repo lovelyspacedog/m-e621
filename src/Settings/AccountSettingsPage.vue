@@ -16,6 +16,7 @@
             <v-btn value="e6ai">e6ai</v-btn>
             <v-btn value="local">local</v-btn>
             <v-btn value="furbooru">Furbooru</v-btn>
+            <v-btn value="inkbunny">Inkbunny</v-btn>
           </v-btn-toggle>
           <p class="text-left">
             Each site keeps its own username, API key, starred tags, blacklist, saved searches, and history.
@@ -28,7 +29,7 @@
           </p>
           <local-folder-picker purpose="local" />
         </settings-page-item>
-        <settings-page-item title="Credentials" select v-if="!siteMode.isLocal">
+        <settings-page-item title="Credentials" select v-if="!siteMode.isLocal && !siteMode.isInkbunny">
           <!-- Username: hidden for Furbooru (API key only) -->
           <v-text-field
             v-if="!siteMode.isFurbooru"
@@ -85,7 +86,83 @@
             {{ furbooruFavsSearchExists ? `Remove "My Faves" saved search` : `Add "My Faves" saved search` }}
           </v-btn>
         </settings-page-item>
-        <settings-page-item title="API" select v-if="!siteMode.isLocal && !siteMode.isFurbooru">
+        <settings-page-item title="Credentials" select v-else-if="siteMode.isInkbunny">
+          <v-text-field
+            variant="filled"
+            label="Inkbunny username"
+            type="text"
+            v-model="username"
+            autocomplete="username"
+            :disabled="inkbunnyLoggedIn"
+          />
+          <v-text-field
+            v-if="!inkbunnyLoggedIn"
+            variant="filled"
+            :append-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
+            :type="showPassword ? 'text' : 'password'"
+            label="Inkbunny password"
+            v-model="inkbunnyPassword"
+            @click:append="showPassword = !showPassword"
+            autocomplete="current-password"
+          />
+          <p class="text-left">
+            Enable API Access at <external-link href="https://inkbunny.net/account.php" />.
+            If you set an Allowed IP Range, the server IP must be included
+            (<external-link href="https://inkbunny.net/iprange.php" />).
+            The password is used only to log in and is not saved.
+          </p>
+          <div>
+            <v-btn
+              v-if="!inkbunnyLoggedIn"
+              :disabled="!username || !inkbunnyPassword"
+              :loading="inkbunnyAuth.loading"
+              :color="inkbunnyAuth.success ? 'success' : inkbunnyAuth.message ? 'error' : 'accent'"
+              variant="text"
+              @click="loginInkbunny"
+            >
+              Log in
+            </v-btn>
+            <v-btn
+              v-else
+              :loading="inkbunnyAuth.loading"
+              color="accent"
+              variant="text"
+              @click="logoutInkbunny"
+            >
+              Log out
+            </v-btn>
+            <p v-if="inkbunnyAuth.message">{{ inkbunnyAuth.message }}</p>
+          </div>
+          <v-btn
+            class="mt-4"
+            :disabled="!inkbunnyLoggedIn"
+            color="accent"
+            variant="text"
+            @click="toggleInkbunnyUnreadSearch"
+          >
+            {{ inkbunnyUnreadExists ? `Remove "Unread" saved search` : `Add "Unread" saved search` }}
+          </v-btn>
+          <v-btn
+            class="mt-2"
+            :disabled="!inkbunnyLoggedIn"
+            color="accent"
+            variant="text"
+            @click="toggleInkbunnyFavsSearch"
+          >
+            {{ inkbunnyFavsExists ? `Remove "My Favs" saved search` : `Add "My Favs" saved search` }}
+          </v-btn>
+          <v-btn
+            class="mt-2"
+            :disabled="!inkbunnyLoggedIn"
+            :loading="inkbunnyWatchlistLoading"
+            color="accent"
+            variant="text"
+            @click="addWatchlistSearches"
+          >
+            Add watchlist artists as saved searches
+          </v-btn>
+        </settings-page-item>
+        <settings-page-item title="API" select v-if="!siteMode.isLocal && !siteMode.isFurbooru && !siteMode.isInkbunny">
           <v-select variant="filled" :label="`${siteLabel} API`" type="text" v-model="e621Url"
             :items="apiUrlItems" />
           <v-text-field variant="filled" :label="`Custom ${siteLabel} URL`" type="text" v-model="e621Url" autocomplete="url"
@@ -201,6 +278,120 @@ const toggleFurbooruFavoritesMenuItem = () => {
   }
 };
 
+const inkbunnyPassword = ref("");
+const inkbunnyWatchlistLoading = ref(false);
+const inkbunnyAuth = ref({
+  success: false,
+  loading: false,
+  message: "",
+});
+const inkbunnyLoggedIn = computed(
+  () =>
+    !!account.apiKey &&
+    !!account.username &&
+    account.username.toLowerCase() !== "guest",
+);
+
+const hasSingleTagSearch = (tag: string) =>
+  !!savedSearches.entries.find((e) => e.tags.length === 1 && e.tags[0] === tag);
+
+const upsertSingleTagSearch = (tag: string, name: string) => {
+  if (!hasSingleTagSearch(tag)) savedSearches.addEntry([tag], name);
+};
+
+const toggleSingleTagSearch = (tag: string, name: string) => {
+  const idx = savedSearches.entries.findIndex(
+    (e) => e.tags.length === 1 && e.tags[0] === tag,
+  );
+  if (idx >= 0) savedSearches.deleteEntry(idx);
+  else savedSearches.addEntry([tag], name);
+};
+
+const INKBUNNY_UNREAD_TAG = "unread:yes";
+const INKBUNNY_FAVS_TAG = "favs:me";
+const inkbunnyUnreadExists = computed(() => hasSingleTagSearch(INKBUNNY_UNREAD_TAG));
+const inkbunnyFavsExists = computed(() => hasSingleTagSearch(INKBUNNY_FAVS_TAG));
+const toggleInkbunnyUnreadSearch = () =>
+  toggleSingleTagSearch(INKBUNNY_UNREAD_TAG, "Unread");
+const toggleInkbunnyFavsSearch = () =>
+  toggleSingleTagSearch(INKBUNNY_FAVS_TAG, "My Favs");
+
+const loginInkbunny = async () => {
+  if (!username.value || !inkbunnyPassword.value) return;
+  if (username.value.toLowerCase() === "guest") {
+    inkbunnyAuth.value.success = false;
+    inkbunnyAuth.value.message = "Use a member account. Guest browsing needs no login.";
+    return;
+  }
+  inkbunnyAuth.value.loading = true;
+  inkbunnyAuth.value.message = "";
+  try {
+    const service = await getApiService();
+    const result = await service.loginInkbunny({
+      username: username.value,
+      password: inkbunnyPassword.value,
+    });
+    account.username = result.username;
+    account.apiKey = result.sid;
+    account.userId = result.userId;
+    inkbunnyPassword.value = "";
+    upsertSingleTagSearch(INKBUNNY_UNREAD_TAG, "Unread");
+    upsertSingleTagSearch(INKBUNNY_FAVS_TAG, "My Favs");
+    inkbunnyAuth.value.success = true;
+    inkbunnyAuth.value.message = `Logged in as ${result.username}`;
+  } catch (e: any) {
+    inkbunnyAuth.value.success = false;
+    inkbunnyAuth.value.message = e?.message || String(e);
+  } finally {
+    inkbunnyAuth.value.loading = false;
+  }
+};
+
+const logoutInkbunny = async () => {
+  inkbunnyAuth.value.loading = true;
+  try {
+    const service = await getApiService();
+    if (account.apiKey) {
+      await service.logoutInkbunny({ sid: account.apiKey });
+    }
+  } catch {
+    // SID may already be dead; still clear local credentials
+  } finally {
+    account.username = null;
+    account.apiKey = null;
+    account.userId = null;
+    inkbunnyPassword.value = "";
+    inkbunnyAuth.value.loading = false;
+    inkbunnyAuth.value.success = false;
+    inkbunnyAuth.value.message = "Logged out. Browsing as guest.";
+  }
+};
+
+const addWatchlistSearches = async () => {
+  if (!account.apiKey) return;
+  inkbunnyWatchlistLoading.value = true;
+  try {
+    const service = await getApiService();
+    const watches = await service.getInkbunnyWatchlist({ sid: account.apiKey });
+    let added = 0;
+    for (const watch of watches) {
+      const tag = `user:${watch.username}`;
+      if (!hasSingleTagSearch(tag)) {
+        savedSearches.addEntry([tag], watch.username);
+        added += 1;
+      }
+    }
+    inkbunnyAuth.value.message =
+      added > 0
+        ? `Added ${added} watchlist artist search${added === 1 ? "" : "es"}`
+        : "No new watchlist artists to add";
+  } catch (e: any) {
+    inkbunnyAuth.value.message = e?.message || String(e);
+  } finally {
+    inkbunnyWatchlistLoading.value = false;
+  }
+};
+
 const verification = ref({
   success: false,
   loading: false,
@@ -233,6 +424,10 @@ watch(username, () => {
 watch(apiKey, () => {
   verification.value.message = "";
   verification.value.success = false;
+});
+watch(inkbunnyPassword, () => {
+  inkbunnyAuth.value.message = "";
+  inkbunnyAuth.value.success = false;
 });
 
 </script>

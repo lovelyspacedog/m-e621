@@ -11,7 +11,12 @@ import path from 'path';
 
 const MEDIA_HOST_OK = (host: string) =>
   ['.e621.net', '.e926.net', '.e6ai.net'].some((s) => host.endsWith(s)) ||
-  ['e621.net', 'e926.net', 'e6ai.net'].includes(host);
+  ['e621.net', 'e926.net', 'e6ai.net', 'inkbunny.net'].includes(host) ||
+  host === 'ib.metapix.net' ||
+  host.endsWith('.metapix.net');
+
+const isInkbunnyMediaHost = (host: string) =>
+  host === 'inkbunny.net' || host === 'ib.metapix.net' || host.endsWith('.metapix.net');
 
 function e621MediaProxy(): Plugin {
   return {
@@ -37,7 +42,13 @@ function e621MediaProxy(): Plugin {
           return;
         }
         fetch(target.toString(), {
-          headers: { 'User-Agent': 'm-e621-download-proxy/1.0' },
+          headers: {
+            'User-Agent': 'm-e621-download-proxy/1.0',
+            ...(isInkbunnyMediaHost(target.hostname.toLowerCase())
+              ? { Referer: 'https://inkbunny.net' }
+              : {}),
+          },
+          redirect: 'follow',
         })
           .then(async (remote) => {
             res.statusCode = remote.status;
@@ -522,6 +533,103 @@ function furbooruProxy(): Plugin {
   };
 }
 
+function inkbunnyProxy(): Plugin {
+  const INKBUNNY_BASE = 'https://inkbunny.net';
+  const POST_MAP: Record<string, string> = {
+    '/api/inkbunny/login': 'api_login.php',
+    '/api/inkbunny/logout': 'api_logout.php',
+    '/api/inkbunny/ratings': 'api_userrating.php',
+    '/api/inkbunny/search': 'api_search.php',
+    '/api/inkbunny/submissions': 'api_submissions.php',
+    '/api/inkbunny/watchlist': 'api_watchlist.php',
+  };
+
+  async function readBody(req: { [Symbol.asyncIterator](): AsyncIterator<unknown> }): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string));
+    }
+    return Buffer.concat(chunks);
+  }
+
+  return {
+    name: 'inkbunny-proxy',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const urlPath = (req.url || '').split('?')[0];
+        if (!urlPath.startsWith('/api/inkbunny/')) {
+          next();
+          return;
+        }
+
+        const jsonError = (status: number, message: string) => {
+          res.statusCode = status;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ ok: false, message }));
+        };
+
+        try {
+          if (urlPath === '/api/inkbunny/keywords') {
+            if (req.method !== 'GET') {
+              jsonError(405, 'method not allowed');
+              return;
+            }
+            const qs = req.url?.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+            const params = new URLSearchParams(qs);
+            const fwd = new URLSearchParams();
+            for (const key of ['keyword', 'ratingsmask', 'underscorespaces']) {
+              const v = params.get(key);
+              if (v !== null) fwd.set(key, v);
+            }
+            const remote = await fetch(`${INKBUNNY_BASE}/api_search_autosuggest.php?${fwd}`, {
+              headers: {
+                Accept: 'application/json',
+                'User-Agent': 'me621-inkbunny-proxy/1.0',
+              },
+            });
+            res.statusCode = remote.status;
+            const ct = remote.headers.get('content-type');
+            if (ct) res.setHeader('Content-Type', ct);
+            res.setHeader('Cache-Control', 'no-store');
+            res.end(Buffer.from(await remote.arrayBuffer()));
+            return;
+          }
+
+          const php = POST_MAP[urlPath];
+          if (!php) {
+            jsonError(404, 'not found');
+            return;
+          }
+          if (req.method !== 'POST') {
+            jsonError(405, 'method not allowed');
+            return;
+          }
+          const body = await readBody(req);
+          const contentType =
+            (req.headers['content-type'] as string | undefined) ||
+            'application/x-www-form-urlencoded';
+          const remote = await fetch(`${INKBUNNY_BASE}/${php}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': contentType,
+              Accept: 'application/json',
+              'User-Agent': 'me621-inkbunny-proxy/1.0',
+            },
+            body,
+          });
+          res.statusCode = remote.status;
+          const ct = remote.headers.get('content-type');
+          if (ct) res.setHeader('Content-Type', ct);
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(Buffer.from(await remote.arrayBuffer()));
+        } catch (err) {
+          jsonError(502, String(err));
+        }
+      });
+    },
+  };
+}
+
 function tailspaceProxy(): Plugin {
   const TAILSPACE_BASE = 'https://tailspace.com';
 
@@ -997,6 +1105,7 @@ export default defineConfig(({ mode }) => {
       e621FavoritesProxy(),
       tailspaceProxy(),
       furbooruProxy(),
+      inkbunnyProxy(),
       generateSitemap(env),
       vue(),
       vuetify(),

@@ -35,12 +35,15 @@ export const fullscreenSlideshowShortcut: Shortcut = {
 };
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 22,
+  configVersion: 24,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
     e6ai: createEmptySiteProfile("e6ai"),
     local: createEmptySiteProfile("local"),
+    tailspace: createEmptySiteProfile("tailspace"),
+    furbooru: createEmptySiteProfile("furbooru"),
+    inkbunny: createEmptySiteProfile("inkbunny"),
   },
   shortcuts: [
     { action: "go_to_posts", sequence: "g p" },
@@ -109,6 +112,7 @@ export const defaultSettings: ISettingsServiceState = {
   account: {
     apiKey: null,
     username: null,
+    userId: null,
   },
   posts: {
     buttons: ["info", "fullscreen", "external", "favorite", "save_local"],
@@ -160,3 +164,6 @@ export const defaultSettings: ISettingsServiceState = {
 defaultSettings.profiles.e621 = profileFromMirrors(defaultSettings);
 defaultSettings.profiles.e6ai = createEmptySiteProfile("e6ai");
 defaultSettings.profiles.local = createEmptySiteProfile("local");
+defaultSettings.profiles.tailspace = createEmptySiteProfile("tailspace");
+defaultSettings.profiles.furbooru = createEmptySiteProfile("furbooru");
+defaultSettings.profiles.inkbunny = createEmptySiteProfile("inkbunny");

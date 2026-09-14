@@ -20,12 +20,15 @@ const emptyFavorites = () => ({
   tags: [] as SiteProfile["favorites"]["tags"],
 });
 
+const emptyAccount = (): SiteProfile["account"] => ({
+  username: null,
+  apiKey: null,
+  userId: null,
+});
+
 export const createEmptySiteProfile = (mode: SiteMode): SiteProfile => ({
   baseUrl: SITE_MODE_URLS[mode],
-  account: {
-    username: null,
-    apiKey: null,
-  },
+  account: emptyAccount(),
   favorites: emptyFavorites(),
   blacklist: {
     mode: BlacklistMode.blur,
@@ -43,7 +46,7 @@ export const createEmptySiteProfile = (mode: SiteMode): SiteProfile => ({
 
 export const profileFromMirrors = (state: ISettingsServiceState): SiteProfile => ({
   baseUrl: state.misc?.urls?.e621 || SITE_MODE_URLS[state.activeMode || "e621"],
-  account: cloneRaw(state.account, { username: null, apiKey: null }),
+  account: cloneRaw(state.account, emptyAccount()),
   favorites: cloneRaw(state.favorites, emptyFavorites()),
   blacklist: cloneRaw(state.blacklist, {
     mode: BlacklistMode.blur,
@@ -65,7 +68,7 @@ export const applyActiveProfileToMirrors = (state: ISettingsServiceState) => {
   if (!state.profiles || !state.activeMode) return;
   const profile = state.profiles[state.activeMode] || createEmptySiteProfile(state.activeMode);
   state.profiles[state.activeMode] = profile;
-  state.account = cloneRaw(profile.account, { username: null, apiKey: null });
+  state.account = cloneRaw(profile.account, emptyAccount());
   state.favorites = cloneRaw(profile.favorites, emptyFavorites());
   state.blacklist = cloneRaw(profile.blacklist, {
     mode: BlacklistMode.blur,

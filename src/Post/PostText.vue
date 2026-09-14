@@ -8,17 +8,25 @@
       {{ filename }}
     </div>
     <div>
-      <v-chip v-if="!isLocal" variant="outlined" class="mr-2 mb-2 no-before-content">
+      <v-chip v-if="!isLocal && !isInkbunny" variant="outlined" class="mr-2 mb-2 no-before-content">
         <v-icon>mdi-thumbs-up-down</v-icon>
         <span class="ml-2">
           {{ post.score.total }}
         </span>
       </v-chip>
-      <v-chip v-if="!isLocal" variant="outlined" class="mr-2 mb-2 no-before-content">
+      <v-chip v-if="!isLocal && !isInkbunny" variant="outlined" class="mr-2 mb-2 no-before-content">
         <v-icon>mdi-heart</v-icon>
         <span class="ml-2">
           {{ post.fav_count }}
         </span>
+      </v-chip>
+      <v-chip
+        v-if="isInkbunny && inkbunnyPagecount > 1"
+        variant="outlined"
+        class="mr-2 mb-2 no-before-content"
+      >
+        <v-icon>mdi-image-multiple</v-icon>
+        <span class="ml-2">{{ inkbunnyPagecount }}</span>
       </v-chip>
       <v-chip variant="outlined" class="mr-2 mb-2 no-before-content" v-if="score">
         <v-icon>mdi-counter</v-icon>
@@ -108,6 +116,7 @@ export default defineComponent({
   setup(props, context) {
     const { creatorCategory } = useSiteLabels();
     const isLocal = computed(() => useSiteModeStore().isLocal);
+    const isInkbunny = computed(() => useSiteModeStore().isInkbunny);
     const creatorTags = computed(() => getCreatorTags(props.post.tags));
     const creatorsExpanded = ref(false);
     watch(
@@ -125,6 +134,9 @@ export default defineComponent({
       Math.max(0, creatorTags.value.length - CREATOR_TAG_LIMIT),
     );
     const enhanced = computed(() => props.post as EnhancedPost);
+    const inkbunnyPagecount = computed(
+      () => enhanced.value.__meta?.inkbunny?.pagecount || 1,
+    );
     const localPath = computed(
       () => enhanced.value.__meta?.localPath || props.post.sources?.[0] || "",
     );
@@ -177,6 +189,8 @@ export default defineComponent({
       hiddenCreatorCount,
       creatorsExpanded,
       isLocal,
+      isInkbunny,
+      inkbunnyPagecount,
       filename,
       localDerivedGeneral,
       localExtraTags,

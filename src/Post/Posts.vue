@@ -27,11 +27,22 @@
         next page
       </v-btn>
     </div>
-    <fullscreen-dialog :has-previous-fullscreen-post="hasPreviousFullscreenPost"
+    <fullscreen-dialog
+      v-if="!useInkbunnyViewer"
+      :has-previous-fullscreen-post="hasPreviousFullscreenPost"
       :has-next-fullscreen-post="hasNextFullscreenPost" :current="fullscreenPost || null"
       @close="$emit('exit-fullscreen')" @next-post="$emit('next-fullscreen-post')"
       @previous-post="$emit('previous-fullscreen-post')" @open-post-details="$emit('open-post-details', $event)"
       @set-post-favorite="$emit('set-post-favorite', $event)" />
+    <inkbunny-submission-dialog
+      v-else
+      :current="fullscreenPost || null"
+      :has-previous="hasPreviousFullscreenPost"
+      :has-next="hasNextFullscreenPost"
+      @close="$emit('exit-fullscreen')"
+      @next-post="$emit('next-fullscreen-post')"
+      @previous-post="$emit('previous-fullscreen-post')"
+    />
     <details-dialog :current="detailsPost" @close="$emit('close-details')"
       @open-post-fullscreen="$emit('open-post', $event)" @set-post-favorite="$emit('set-post-favorite', $event)"
       @set-post-vote="$emit('set-post-vote', $event)" />
@@ -86,10 +97,13 @@ import Post from "@/Post/Post.vue";
 import PostList from "@/Post/PostList.vue";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { PropType } from "vue";
-import { defineComponent } from "vue";
+import { computed } from "vue";
 import AppLogo from "../App/AppLogo.vue";
 import DetailsDialog from "./DetailsDialog.vue";
 import FullscreenDialog from "./FullscreenDialog.vue";
+import InkbunnySubmissionDialog from "@/Inkbunny/InkbunnySubmissionDialog.vue";
+import { useSiteModeStore } from "@/services";
+import { shouldUseInkbunnyViewer } from "@/worker/inkbunny/api";
 import { useHead } from "@unhead/vue";
 
 useHead({ title: "Posts", });
@@ -108,6 +122,13 @@ const props = defineProps({
   restorePath: { type: String, default: undefined },
   restoreVideoTime: { type: Number, default: undefined },
 });
+
+const siteMode = useSiteModeStore();
+const useInkbunnyViewer = computed(
+  () =>
+    siteMode.isInkbunny &&
+    shouldUseInkbunnyViewer(props.fullscreenPost?.__meta?.inkbunny),
+);
 
 // data() {
 //   return {

@@ -5,7 +5,7 @@
 </template>
 
 <script lang="ts">
-import { openE6PostInStandaloneWindow } from "@/misc/util/url";
+import { openE6PostInStandaloneWindow, openUrlInNewTab } from "@/misc/util/url";
 import { savePostLocally } from "@/misc/util/saveLocal";
 import { useSnackbarStore } from "@/services";
 import type { ButtonType } from "@/services/types";
@@ -55,7 +55,12 @@ export default defineComponent({
         color: "",
         icon: "mdi-open-in-new",
         onClick: () => {
-          if (props.post) openE6PostInStandaloneWindow(props.post.id);
+          const source = props.post?.sources?.find((url) => /^https?:\/\//.test(url));
+          if (source) {
+            openUrlInNewTab(source);
+          } else if (props.post) {
+            openE6PostInStandaloneWindow(props.post.id);
+          }
         },
       },
       favorite: {
