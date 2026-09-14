@@ -330,7 +330,7 @@ function tailspaceProxy(): Plugin {
         }
       });
 
-      // ── Comics: GET /api/tailspace/comics?page=N&search=X&c=Y... ─────────
+      // ── Comics list: GET /api/tailspace/comics?... ────────────────────────
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith('/api/tailspace/comics') || req.method !== 'GET') {
           next();
@@ -366,6 +366,45 @@ function tailspaceProxy(): Plugin {
           }
           const raw = await remote.text();
           const data = parseTailspaceComics(raw);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(JSON.stringify(data));
+        } catch (err) {
+          res.statusCode = 502;
+          res.end(JSON.stringify({ ok: false, message: String(err) }));
+        }
+      });
+
+      // ── Comic detail: GET /api/tailspace/comic?name=X ────────────────────
+      server.middlewares.use(async (req, res, next) => {
+        const pathOnly = req.url?.split('?')[0] || '';
+        if (pathOnly !== '/api/tailspace/comic' || req.method !== 'GET') {
+          next();
+          return;
+        }
+        const qs = req.url!.includes('?') ? req.url!.slice(req.url!.indexOf('?')) : '';
+        const name = (new URLSearchParams(qs).get('name') || '').trim();
+        if (!name) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ ok: false, message: 'name required' }));
+          return;
+        }
+        const url = `${TAILSPACE_BASE}/c/${encodeURIComponent(name)}.data`;
+        try {
+          const remote = await fetch(url, {
+            headers: {
+              Accept: 'text/x-turbo-stream, application/json, */*',
+              Referer: `${TAILSPACE_BASE}/`,
+              'User-Agent': 'me621-tailspace-proxy/1.0',
+            },
+          });
+          if (!remote.ok) {
+            res.statusCode = remote.status;
+            res.end(JSON.stringify({ ok: false, message: `upstream ${remote.status}` }));
+            return;
+          }
+          const data = parseTailspaceComicDetail(await remote.text());
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
           res.setHeader('Cache-Control', 'no-store');
@@ -541,6 +580,84 @@ function extractComicsPayload(data: Record<string, unknown>) {
     comics,
     numberOfPages: Number(data['numberOfPages'] ?? 1),
     totalNumComics: Number(data['totalNumComics'] ?? comics.length),
+  };
+}
+
+function findComicDetail(obj: unknown): Record<string, unknown> | null {
+  if (obj && typeof obj === 'object') {
+    if (!Array.isArray(obj)) {
+      const row = obj as Record<string, unknown>;
+      const pages = row.pages;
+      if (
+        Array.isArray(pages) &&
+        typeof row.id === 'number' &&
+        typeof row.name === 'string' &&
+        pages.length > 0 &&
+        typeof pages[0] === 'object' &&
+        pages[0] !== null &&
+        'token' in (pages[0] as object)
+      ) {
+        return row;
+      }
+    }
+    for (const value of Object.values(obj as Record<string, unknown>)) {
+      const found = findComicDetail(value);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function parseTailspaceComicDetail(text: string) {
+  const data = JSON.parse(text.trim()) as unknown;
+  let comic: Record<string, unknown> | null = null;
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    comic = findComicDetail(data);
+  } else if (Array.isArray(data)) {
+    comic = findComicDetail(tsDecodePool(data));
+  }
+  if (!comic) throw new Error('comic pages not found in response');
+  const pages = ((comic.pages as unknown[]) || [])
+    .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null && !!(p as Record<string, unknown>).token)
+    .map((p) => {
+      let fileType = p.fileType;
+      if (!fileType || fileType === true || fileType === false) fileType = 'jpg';
+      return {
+        token: p.token,
+        pageNumber: Number(p.pageNumber || 0),
+        fileType: String(fileType),
+        isAnimated: Boolean(p.isAnimated),
+        widthPx: p.widthPx ?? null,
+        heightPx: p.heightPx ?? null,
+        description: p.description ?? null,
+        thumbHash: p.thumbHash ?? null,
+      };
+    })
+    .sort((a, b) => a.pageNumber - b.pageNumber);
+  const artist = (comic.artist && typeof comic.artist === 'object'
+    ? (comic.artist as Record<string, unknown>)
+    : {}) as Record<string, unknown>;
+  const prev = comic.previousComic && typeof comic.previousComic === 'object'
+    ? (comic.previousComic as Record<string, unknown>)
+    : null;
+  const next = comic.nextComic && typeof comic.nextComic === 'object'
+    ? (comic.nextComic as Record<string, unknown>)
+    : null;
+  return {
+    id: comic.id,
+    name: comic.name,
+    category: comic.category ?? null,
+    state: comic.state ?? null,
+    numberOfPages: Number(comic.numberOfPages || pages.length),
+    description: comic.description ?? null,
+    avgStars: comic.avgStars ?? null,
+    commentCount: Array.isArray(comic.comments) ? comic.comments.length : comic.commentCount ?? 0,
+    thumbnailVersion: comic.thumbnailVersion ?? 0,
+    artistName: artist.name || artist.creatorUsername || '',
+    artistDisplayName: artist.name || artist.creatorUsername || '',
+    pages,
+    previousComic: prev ? { id: prev.id, name: prev.name } : null,
+    nextComic: next ? { id: next.id, name: next.name } : null,
   };
 }
 

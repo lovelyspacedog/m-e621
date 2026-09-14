@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 
 ROOT = Path(os.environ.get("M_E621_ROOT", Path.home() / "m-e621" / "dist")).resolve()
@@ -34,6 +34,7 @@ TAILSPACE_BASE = "https://tailspace.com"
 TAILSPACE_CDN = "https://pics.tailspace.com"
 TAILSPACE_POSTS_PATH = re.compile(r"^/api/tailspace/posts$")
 TAILSPACE_COMICS_PATH = re.compile(r"^/api/tailspace/comics$")
+TAILSPACE_COMIC_PATH = re.compile(r"^/api/tailspace/comic$")
 TAILSPACE_COMMENTS_PATH = re.compile(r"^/api/tailspace/comments$")
 
 _pull_lock = threading.Lock()
@@ -395,6 +396,91 @@ def _normalize_comments(comments: list) -> list:
     return out
 
 
+def _find_comic_detail(obj: object) -> dict | None:
+    """Find the comic object that includes a pages[] array."""
+    if isinstance(obj, dict):
+        pages = obj.get("pages")
+        if (
+            isinstance(pages, list)
+            and isinstance(obj.get("id"), int)
+            and isinstance(obj.get("name"), str)
+            and pages
+            and isinstance(pages[0], dict)
+            and "token" in pages[0]
+        ):
+            return obj
+        for value in obj.values():
+            found = _find_comic_detail(value)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = _find_comic_detail(item)
+            if found is not None:
+                return found
+    return None
+
+
+def _normalize_comic_page(page: dict) -> dict:
+    file_type = page.get("fileType")
+    if not file_type or file_type is True or file_type is False:
+        file_type = "jpg"
+    return {
+        "token": page.get("token"),
+        "pageNumber": int(page.get("pageNumber") or 0),
+        "fileType": str(file_type),
+        "isAnimated": bool(page.get("isAnimated")),
+        "widthPx": page.get("widthPx"),
+        "heightPx": page.get("heightPx"),
+        "description": page.get("description"),
+        "thumbHash": page.get("thumbHash"),
+    }
+
+
+def _parse_tailspace_comic_detail(raw: bytes) -> dict:
+    """Parse /c/{name}.data into { comic meta + pages }."""
+    text = raw.decode("utf-8", errors="replace").strip()
+    data = json.loads(text)
+    comic = None
+    if isinstance(data, dict):
+        comic = _find_comic_detail(data)
+    elif isinstance(data, list):
+        comic = _find_comic_detail(_ts_decode_pool(data))
+    if comic is None:
+        raise ValueError("comic pages not found in response")
+    pages = [
+        _normalize_comic_page(p)
+        for p in (comic.get("pages") or [])
+        if isinstance(p, dict) and p.get("token")
+    ]
+    pages.sort(key=lambda p: p["pageNumber"])
+    artist = comic.get("artist") if isinstance(comic.get("artist"), dict) else {}
+    return {
+        "id": comic.get("id"),
+        "name": comic.get("name"),
+        "category": comic.get("category"),
+        "state": comic.get("state"),
+        "numberOfPages": int(comic.get("numberOfPages") or len(pages)),
+        "description": comic.get("description"),
+        "avgStars": comic.get("avgStars"),
+        "commentCount": len(comic.get("comments") or []) if isinstance(comic.get("comments"), list) else comic.get("commentCount"),
+        "thumbnailVersion": comic.get("thumbnailVersion") or 0,
+        "artistName": artist.get("name") or artist.get("creatorUsername") or "",
+        "artistDisplayName": artist.get("name") or artist.get("creatorUsername") or "",
+        "pages": pages,
+        "previousComic": (
+            {"id": comic["previousComic"].get("id"), "name": comic["previousComic"].get("name")}
+            if isinstance(comic.get("previousComic"), dict)
+            else None
+        ),
+        "nextComic": (
+            {"id": comic["nextComic"].get("id"), "name": comic["nextComic"].get("name")}
+            if isinstance(comic.get("nextComic"), dict)
+            else None
+        ),
+    }
+
+
 def _normalize_tailspace_posts(payload: object) -> dict:
     """Unwrap {success,data:{posts,hasNextPage}} into a flat posts response."""
     if not isinstance(payload, dict):
@@ -746,6 +832,27 @@ class SpaHandler(SimpleHTTPRequestHandler):
         except Exception as exc:  # noqa: BLE001
             self._json(502, {"ok": False, "message": f"parse error: {exc}"})
 
+    def _proxy_tailspace_comic(self, parsed) -> None:
+        params = parse_qs(parsed.query)
+        name = (params.get("name") or [""])[0].strip()
+        if not name:
+            self._json(400, {"ok": False, "message": "name required"})
+            return
+
+        url = f"{TAILSPACE_BASE}/c/{quote(name, safe='')}.data"
+        body, status, _ct = self._tailspace_request(
+            url,
+            accept="text/x-turbo-stream, application/json, */*",
+        )
+        if status != 200:
+            self._json(status, {"ok": False, "message": f"upstream returned {status}"})
+            return
+        try:
+            data = _parse_tailspace_comic_detail(body)
+            self._json(200, data)
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "message": f"parse error: {exc}"})
+
     def _proxy_tailspace_comments(self, parsed) -> None:
         params = parse_qs(parsed.query)
         username = (params.get("username") or [""])[0].strip()
@@ -791,6 +898,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return
         if TAILSPACE_POSTS_PATH.match(path):
             self._proxy_tailspace_posts(parsed)
+            return
+        if TAILSPACE_COMIC_PATH.match(path):
+            self._proxy_tailspace_comic(parsed)
             return
         if TAILSPACE_COMICS_PATH.match(path):
             self._proxy_tailspace_comics(parsed)

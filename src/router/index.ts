@@ -210,6 +210,12 @@ const router = createRouter({
         import(/* webpackChunkName: "tailspace" */ "@/Tailspace/TailspaceComicsPage.vue"),
     },
     {
+      path: "/tailspace/comic/:name+",
+      name: "TailspaceComic",
+      component: () =>
+        import(/* webpackChunkName: "tailspace" */ "@/Tailspace/TailspaceComicReader.vue"),
+    },
+    {
       path: "/:pathMatch(.*)",
       name: "ErrorPage",
       component: () =>

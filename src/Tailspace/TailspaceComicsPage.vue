@@ -94,13 +94,11 @@
 
     <!-- Comics grid -->
     <div v-else-if="comics.length > 0" class="ts-grid">
-      <a
+      <router-link
         v-for="comic in comics"
         :key="comic.id"
         class="ts-comic-card"
-        :href="comicUrlFor(comic)"
-        target="_blank"
-        rel="noopener"
+        :to="{ name: 'TailspaceComic', params: { name: comic.name } }"
         :title="comic.name"
       >
         <div class="ts-comic-thumb">
@@ -137,7 +135,7 @@
             </span>
           </div>
         </div>
-      </a>
+      </router-link>
     </div>
 
     <!-- Empty -->
@@ -191,7 +189,6 @@ import { useRoute, useRouter } from "vue-router";
 import {
   getComics,
   comicThumb,
-  comicUrl,
   type TailspaceComic,
 } from "@/worker/tailspace/api";
 
@@ -215,10 +212,6 @@ const activeSearch = ref((route.query.search as string) || "");
 const selectedCategories = ref<string[]>([]);
 const sort = ref("Updated");
 const finishedOnly = ref(false);
-
-function comicUrlFor(comic: TailspaceComic) {
-  return comicUrl(comic.name);
-}
 
 async function loadPage(p: number) {
   loading.value = true;

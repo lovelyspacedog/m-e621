@@ -95,3 +95,38 @@ export interface TailspaceComicsResponse {
   numberOfPages: number;
   totalNumComics: number;
 }
+
+/** One page inside a Tailspace comic */
+export interface TailspaceComicPage {
+  token: string;
+  pageNumber: number;
+  fileType: string;
+  isAnimated: boolean;
+  widthPx: number | null;
+  heightPx: number | null;
+  description: string | null;
+  thumbHash: string | null;
+}
+
+export interface TailspaceComicNeighbor {
+  id: number;
+  name: string;
+}
+
+/** Full comic detail including ordered pages (from /c/{name}.data) */
+export interface TailspaceComicDetail {
+  id: number;
+  name: string;
+  category: string | null;
+  state: string | null;
+  numberOfPages: number;
+  description: string | null;
+  avgStars: number | null;
+  commentCount: number;
+  thumbnailVersion: number;
+  artistName: string;
+  artistDisplayName: string;
+  pages: TailspaceComicPage[];
+  previousComic: TailspaceComicNeighbor | null;
+  nextComic: TailspaceComicNeighbor | null;
+}

@@ -8,6 +8,7 @@ import type {
   TailspacePostsResponse,
   TailspaceComicsResponse,
   TailspaceCommentsResponse,
+  TailspaceComicDetail,
 } from "./types";
 
 export * from "./types";
@@ -85,6 +86,11 @@ export function getComics(params: ComicsParams = {}): Promise<TailspaceComicsRes
   return fetchJson<TailspaceComicsResponse>(url);
 }
 
+export function getComic(name: string): Promise<TailspaceComicDetail> {
+  const q = new URLSearchParams({ name });
+  return fetchJson<TailspaceComicDetail>(`${proxyBase()}/comic?${q}`);
+}
+
 // ---------------------------------------------------------------------------
 // Media URL helpers
 // ---------------------------------------------------------------------------
@@ -107,6 +113,16 @@ export function profilePhoto(token: string): string {
 /** Thumbnail for a comic series. */
 export function comicThumb(id: number, version: number, size: "1x" | "2x" = "2x"): string {
   return `${TAILSPACE_CDN}/comics/${id}/thumbnail-${size}.webp?v=${version ?? 0}`;
+}
+
+/** Full-size comic page image. */
+export function comicPageFull(comicId: number, token: string, fileType = "jpg"): string {
+  return `${TAILSPACE_CDN}/comics/${comicId}/${token}.${fileType || "jpg"}`;
+}
+
+/** Mini comic page thumbnail. */
+export function comicPageThumb(comicId: number, token: string): string {
+  return `${TAILSPACE_CDN}/comics/${comicId}/${token}-mini.jpg`;
 }
 
 /** External URL to a comic on Tailspace (`/c/{name}`). */
