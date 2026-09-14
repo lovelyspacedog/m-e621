@@ -52,13 +52,15 @@ export class ApiService {
     log(args);
 
     if (isFurbooruUrl(args.baseUrl)) {
-      // Furbooru: join tags into Philomena query, blacklist applied client-side
-      const query = args.tags.filter(Boolean).join(", ") || "*";
+      // Furbooru: strip e621 order:* tags → Philomena sf/sd; join rest as query
+      const { sort, tags: searchTags } = furbooru.mapOrderTags(args.tags.filter(Boolean));
+      const query = searchTags.join(", ") || "*";
       const result = await furbooru.searchImages({
         query,
         page: args.page,
         limit: args.limit,
         apiKey: args.auth?.api_key ?? null,
+        sort,
       });
       return result.posts.map<EnhancedPost>((post) => ({
         ...post,

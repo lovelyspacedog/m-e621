@@ -407,7 +407,7 @@ function furbooruProxy(): Plugin {
           res.end(JSON.stringify({ ok: false, message: 'key required' }));
           return;
         }
-        const url = `${FURBOORU_BASE}/api/v1/json/users/me?key=${encodeURIComponent(key)}`;
+        const url = `${FURBOORU_BASE}/api/v1/json/filters/user?key=${encodeURIComponent(key)}`;
         try {
           const remote = await fetch(url, {
             headers: { Accept: 'application/json', 'User-Agent': 'me621-furbooru-proxy/1.0' },

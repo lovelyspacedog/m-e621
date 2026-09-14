@@ -241,6 +241,43 @@ export function adaptImage(img: PhilomenaImage): Post {
 // Read API
 // ---------------------------------------------------------------------------
 
+/** Philomena sort field / direction (sf / sd query params). */
+export interface FurbooruSort {
+  sf: string;
+  sd?: "asc" | "desc";
+}
+
+/**
+ * Map e621-style `order:*` tags to Philomena `sf`/`sd`.
+ * Returns the sort params and the remaining (non-order) tags.
+ */
+export function mapOrderTags(tags: string[]): { sort: FurbooruSort | null; tags: string[] } {
+  const orderTag = tags.find((t) => t.toLowerCase().startsWith("order:"))?.toLowerCase() ?? null;
+  const rest = tags.filter((t) => !t.toLowerCase().startsWith("order:"));
+  if (!orderTag) return { sort: null, tags: rest };
+
+  const map: Record<string, FurbooruSort> = {
+    "order:score": { sf: "score", sd: "desc" },
+    "order:score_asc": { sf: "score", sd: "asc" },
+    "order:favcount": { sf: "faves", sd: "desc" },
+    "order:favcount_asc": { sf: "faves", sd: "asc" },
+    "order:random": { sf: "random" },
+    "order:id": { sf: "id", sd: "asc" },
+    "order:id_desc": { sf: "id", sd: "desc" },
+    "order:rank": { sf: "wilson_score", sd: "desc" },
+    "order:comment_count": { sf: "comment_count", sd: "desc" },
+    "order:comment_count_asc": { sf: "comment_count", sd: "asc" },
+    "order:mpixels": { sf: "pixels", sd: "desc" },
+    "order:mpixels_asc": { sf: "pixels", sd: "asc" },
+    "order:filesize": { sf: "size", sd: "desc" },
+    "order:filesize_asc": { sf: "size", sd: "asc" },
+    "order:duration": { sf: "duration", sd: "desc" },
+    "order:duration_asc": { sf: "duration", sd: "asc" },
+  };
+
+  return { sort: map[orderTag] ?? null, tags: rest };
+}
+
 export interface FurbooruSearchArgs {
   /** Tag query string (same Philomena syntax: tag1, -tag2, my:faves, etc.) */
   query: string;
@@ -248,6 +285,8 @@ export interface FurbooruSearchArgs {
   limit: number;
   /** Furbooru API key for authenticated requests */
   apiKey?: string | null;
+  /** Philomena sort — mapped from e621 order:* tags */
+  sort?: FurbooruSort | null;
 }
 
 export async function searchImages(args: FurbooruSearchArgs): Promise<{ posts: Post[]; total: number }> {
@@ -257,6 +296,10 @@ export async function searchImages(args: FurbooruSearchArgs): Promise<{ posts: P
     per_page: String(args.limit),
   });
   if (args.apiKey) q.set("key", args.apiKey);
+  if (args.sort?.sf) {
+    q.set("sf", args.sort.sf);
+    if (args.sort.sd) q.set("sd", args.sort.sd);
+  }
   const url = `${proxyBase()}/images?${q}`;
   const data = await fetchJson<PhilomenaSearchResponse>(url);
   return {
@@ -415,13 +458,18 @@ export interface FurbooruVerifyArgs {
   apiKey: string;
 }
 
-/** Verify an API key by fetching the authenticated user profile. */
-export async function verifyApiKey(args: FurbooruVerifyArgs): Promise<{ name: string }> {
+/** Verify an API key by fetching the user's filters list.
+ *  Philomena has no /users/me; /filters/user returns 200 with a valid key
+ *  and 403 without one / with a bad key. */
+export async function verifyApiKey(args: FurbooruVerifyArgs): Promise<{ ok: true }> {
   const q = new URLSearchParams({ key: args.apiKey });
   const url = `${proxyBase()}/user?${q}`;
-  const data = await fetchJson<{ user: { name: string; id: number } }>(url);
-  if (!data?.user?.name) {
-    throw new Error("Invalid API key or unexpected response from Furbooru");
+  const response = await fetch(url);
+  if (response.status === 403) {
+    throw new Error("Invalid API key");
   }
-  return { name: data.user.name };
+  if (!response.ok) {
+    throw new Error(`Furbooru proxy error: ${response.status} ${response.statusText}`);
+  }
+  return { ok: true };
 }

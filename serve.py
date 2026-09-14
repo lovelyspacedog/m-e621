@@ -994,13 +994,17 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self._furbooru_respond(body, status, ct)
 
     def _proxy_furbooru_user(self, parsed) -> None:
-        """GET /api/furbooru/user?key=... → /api/v1/json/users/me"""
+        """GET /api/furbooru/user?key=... → /api/v1/json/filters/user
+
+        Philomena has no /users/me. /filters/user returns 200 with a valid
+        key and 403 without one / with a bad key — used for credential verify.
+        """
         params = parse_qs(parsed.query)
         key = (params.get("key") or [""])[0].strip()
         if not key:
             self._json(400, {"ok": False, "message": "key required"})
             return
-        url = f"{FURBOORU_BASE}/api/v1/json/users/me?key={quote(key)}"
+        url = f"{FURBOORU_BASE}/api/v1/json/filters/user?key={quote(key)}"
         body, status, ct = self._furbooru_request(url)
         self._furbooru_respond(body, status, ct)
 
