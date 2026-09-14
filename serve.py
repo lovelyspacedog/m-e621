@@ -977,19 +977,29 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self._furbooru_respond(body, status, ct)
 
     def _proxy_furbooru_comments_get(self, parsed) -> None:
-        """GET /api/furbooru/comments → /api/v1/json/comments/search"""
+        """GET /api/furbooru/comments → /api/v1/json/search/comments
+
+        Philomena expects q=image_id:N (not image_id= as a query param).
+        /comments/search is not a valid path and returns 400.
+        """
         params = parse_qs(parsed.query)
 
         def _first(key: str) -> str | None:
             vals = params.get(key)
             return vals[0] if vals else None
 
-        fwd = {}
-        for key in ("image_id", "per_page", "key"):
+        fwd: dict[str, str] = {}
+        q = _first("q")
+        image_id = _first("image_id")
+        if q:
+            fwd["q"] = q
+        elif image_id:
+            fwd["q"] = f"image_id:{image_id}"
+        for key in ("per_page", "key", "page", "sf", "sd"):
             v = _first(key)
             if v is not None:
                 fwd[key] = v
-        url = f"{FURBOORU_BASE}/api/v1/json/comments/search?{urlencode(fwd)}"
+        url = f"{FURBOORU_BASE}/api/v1/json/search/comments?{urlencode(fwd)}"
         body, status, ct = self._furbooru_request(url)
         self._furbooru_respond(body, status, ct)
 

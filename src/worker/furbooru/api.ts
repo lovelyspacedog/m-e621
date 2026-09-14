@@ -355,7 +355,7 @@ export interface FurbooruCommentsArgs {
 
 export async function getComments(args: FurbooruCommentsArgs): Promise<Comment[]> {
   const q = new URLSearchParams({
-    image_id: String(args.imageId),
+    q: `image_id:${args.imageId}`,
     per_page: String(args.limit ?? 100),
   });
   if (args.apiKey) q.set("key", args.apiKey);

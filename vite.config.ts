@@ -364,7 +364,7 @@ function furbooruProxy(): Plugin {
         }
       });
 
-      // ── Comment search: GET /api/furbooru/comments?image_id=...&per_page=... ─
+      // ── Comment search: GET /api/furbooru/comments?q=image_id:N&per_page=... ─
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith('/api/furbooru/comments') || req.method !== 'GET') {
           next();
@@ -373,11 +373,16 @@ function furbooruProxy(): Plugin {
         const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
         const params = new URLSearchParams(qs);
         const fwd = new URLSearchParams();
-        for (const key of ['image_id', 'per_page', 'key']) {
+        // Prefer explicit q=; fall back to image_id= for older clients
+        const imageId = params.get('image_id');
+        const q = params.get('q') || (imageId ? `image_id:${imageId}` : null);
+        if (q) fwd.set('q', q);
+        for (const key of ['per_page', 'key', 'page', 'sf', 'sd']) {
           const v = params.get(key);
           if (v !== null) fwd.set(key, v);
         }
-        const url = `${FURBOORU_BASE}/api/v1/json/comments/search?${fwd}`;
+        // Philomena path is /search/comments — /comments/search returns 400
+        const url = `${FURBOORU_BASE}/api/v1/json/search/comments?${fwd}`;
         try {
           const remote = await fetch(url, {
             headers: { Accept: 'application/json', 'User-Agent': 'me621-furbooru-proxy/1.0' },

@@ -42,7 +42,7 @@
           <v-tabs-window-item v-if="!isLocal" value="comments">
             <v-card text>
               <v-card-text>
-                <div class="mb-4">
+                <div v-if="!isFurbooru" class="mb-4">
                   <v-textarea
                     v-model="draftComment"
                     label="Write a comment"
@@ -183,6 +183,7 @@ export default defineComponent({
     const snackbar = useSnackbarStore();
     const router = useRouter();
     const isLocal = computed(() => siteMode.isLocal);
+    const isFurbooru = computed(() => siteMode.isFurbooru);
     const buttons = computed(() => siteMode.filterButtons(posts.detailsButtons));
     const tabs = ref("overview");
     const comments = ref<Comment[]>([]);
@@ -322,6 +323,7 @@ export default defineComponent({
       tags,
       dialog,
       isLocal,
+      isFurbooru,
       comments,
       notes,
       commentsLoading,
