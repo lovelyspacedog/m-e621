@@ -53,21 +53,23 @@ body,
   background-color: transparent !important;
 }
 
-/* Cards: slight tint for readability, not theme blue */
+/* Cards: frosted glass — must beat .bg-secondary from color="secondary" */
 .v-card,
+.v-card.bg-secondary,
 .post-card,
+.v-card.post-card,
 .v-sheet:not(.v-card):not(.v-app-bar):not(.v-toolbar):not(.v-navigation-drawer) {
-  background: rgba(0, 0, 0, 0.4) !important;
-  background-color: rgba(0, 0, 0, 0.4) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  background: rgba(0, 0, 0, 0.58) !important;
+  background-color: rgba(0, 0, 0, 0.58) !important;
+  backdrop-filter: blur(16px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(140%) !important;
 }
 
 .v-overlay__content > .v-card,
 .v-overlay__content > .v-list,
 .v-select__content .v-list {
-  background: rgba(0, 0, 0, 0.75) !important;
-  background-color: rgba(0, 0, 0, 0.75) !important;
+  background: rgba(0, 0, 0, 0.85) !important;
+  background-color: rgba(0, 0, 0, 0.85) !important;
   backdrop-filter: blur(24px) !important;
   -webkit-backdrop-filter: blur(24px) !important;
 }
@@ -76,9 +78,10 @@ body,
   background: transparent !important;
 }
 
-.v-dialog .v-card {
-  background: rgba(0, 0, 0, 0.85) !important;
-  background-color: rgba(0, 0, 0, 0.85) !important;
+.v-dialog .v-card,
+.v-dialog .v-card.bg-secondary {
+  background: rgba(0, 0, 0, 0.9) !important;
+  background-color: rgba(0, 0, 0, 0.9) !important;
   backdrop-filter: blur(32px) !important;
   -webkit-backdrop-filter: blur(32px) !important;
 }
@@ -89,8 +92,7 @@ body,
   background-color: transparent !important;
 }
 
-/* Kill leftover opaque theme fills from Vuetify color= props */
-.bg-secondary,
+/* Clear theme fills on the page shell only — not on cards */
 .bg-background,
 .v-theme--dark.v-application {
   background: transparent !important;

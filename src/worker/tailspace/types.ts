@@ -127,6 +127,7 @@ export interface TailspaceComicDetail {
   artistName: string;
   artistDisplayName: string;
   pages: TailspaceComicPage[];
+  comments: TailspaceComment[];
   previousComic: TailspaceComicNeighbor | null;
   nextComic: TailspaceComicNeighbor | null;
 }

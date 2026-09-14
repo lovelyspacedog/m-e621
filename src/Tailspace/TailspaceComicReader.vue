@@ -22,6 +22,14 @@
               <v-icon size="12">mdi-star</v-icon>
               {{ Number(comic.avgStars).toFixed(1) }}
             </span>
+            <button
+              type="button"
+              class="ts-reader-comments-link"
+              @click="scrollToComments"
+            >
+              <v-icon size="12">mdi-comment-outline</v-icon>
+              {{ comic.comments?.length ?? comic.commentCount ?? 0 }}
+            </button>
           </div>
         </div>
         <div class="ts-reader-actions">
@@ -93,7 +101,7 @@
     <!-- Gallery grid (pool-like) -->
     <div v-else-if="comic && viewMode === 'gallery'" class="ts-reader-grid">
       <button
-        v-for="page in comic.pages"
+        v-for="page in visiblePages"
         :key="page.token"
         type="button"
         class="ts-page-card"
@@ -116,7 +124,7 @@
     <!-- Scroll mode: full pages stacked -->
     <div v-else-if="comic && viewMode === 'scroll'" class="ts-scroll">
       <div
-        v-for="page in comic.pages"
+        v-for="page in visiblePages"
         :key="page.token"
         :id="`comic-page-${page.pageNumber}`"
         class="ts-scroll-page"
@@ -169,6 +177,75 @@
           >
             {{ comic.nextComic.name }}
           </v-btn>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page-chunk pagination (gallery + scroll) -->
+    <div
+      v-if="comic && chunkCount > 1 && (viewMode === 'gallery' || viewMode === 'scroll')"
+      class="ts-chunk-pagination"
+    >
+      <v-btn
+        :disabled="chunkPage <= 1"
+        variant="outlined"
+        size="small"
+        icon="mdi-chevron-left"
+        @click="changeChunk(chunkPage - 1)"
+      />
+      <template v-for="(p, i) in chunkButtons" :key="`${p}-${i}`">
+        <v-btn
+          v-if="p !== '...'"
+          :variant="p === chunkPage ? 'flat' : 'text'"
+          :color="p === chunkPage ? 'primary' : undefined"
+          size="small"
+          min-width="36"
+          @click="changeChunk(Number(p))"
+        >
+          {{ p }}
+        </v-btn>
+        <span v-else class="ts-chunk-ellipsis">…</span>
+      </template>
+      <v-btn
+        :disabled="chunkPage >= chunkCount"
+        variant="outlined"
+        size="small"
+        icon="mdi-chevron-right"
+        @click="changeChunk(chunkPage + 1)"
+      />
+      <span class="ts-chunk-range">{{ chunkRangeLabel }}</span>
+    </div>
+
+    <!-- Comments -->
+    <div v-if="comic" id="comic-comments" class="ts-comic-comments">
+      <div class="ts-comic-comments-header">
+        <h2 class="text-subtitle-1 font-weight-bold mb-0">Comments</h2>
+        <span class="ts-comic-comments-count">{{ comic.comments?.length || 0 }}</span>
+      </div>
+      <div v-if="!(comic.comments?.length)" class="ts-comic-comments-empty">
+        No comments yet.
+      </div>
+      <div v-else class="ts-comic-comments-list">
+        <div v-for="c in comic.comments" :key="c.id" class="ts-comic-comment">
+          <img
+            v-if="c.profilePictureToken"
+            class="ts-comic-comment-avatar"
+            :src="profilePhoto(c.profilePictureToken)"
+            :alt="c.username"
+            loading="lazy"
+          />
+          <div v-else class="ts-comic-comment-avatar ts-comic-comment-avatar--placeholder">
+            <v-icon size="16">mdi-account</v-icon>
+          </div>
+          <div class="ts-comic-comment-body">
+            <div class="ts-comic-comment-meta">
+              <span class="ts-comic-comment-user">{{ c.username }}</span>
+              <span v-if="c.timestamp" class="ts-comic-comment-time">
+                {{ formatCommentTime(c.timestamp) }}
+              </span>
+            </div>
+            <div class="ts-comic-comment-text">{{ c.comment }}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -259,11 +336,16 @@ import {
   comicUrl,
   comicPageFull,
   comicPageThumb,
+  profilePhoto,
   type TailspaceComicDetail,
 } from "@/worker/tailspace/api";
 
 type ViewMode = "gallery" | "scroll";
 const VIEW_MODE_KEY = "tailspace-comic-view-mode";
+/** Thumbs are cheap — show more per chunk. */
+const GALLERY_CHUNK_SIZE = 24;
+/** Full-res scroll images are heavy — smaller chunks. */
+const SCROLL_CHUNK_SIZE = 10;
 
 function loadViewMode(): ViewMode {
   try {
@@ -283,6 +365,8 @@ const viewerOpen = ref(false);
 const pageIndex = ref(0);
 const viewerEl = ref<HTMLElement | null>(null);
 const viewMode = ref<ViewMode>(loadViewMode());
+/** 1-based chunk within gallery/scroll (not the comic page number). */
+const chunkPage = ref(Number(route.query.chunk) || 1);
 
 watch(viewMode, (mode) => {
   try { localStorage.setItem(VIEW_MODE_KEY, mode); } catch { /* ignore */ }
@@ -300,6 +384,48 @@ const comicName = computed(() => {
 
 const currentPage = computed(() => comic.value?.pages[pageIndex.value] ?? null);
 
+const chunkSize = computed(() =>
+  viewMode.value === "scroll" ? SCROLL_CHUNK_SIZE : GALLERY_CHUNK_SIZE,
+);
+
+const chunkCount = computed(() => {
+  const total = comic.value?.pages.length ?? 0;
+  if (total <= 0) return 1;
+  return Math.ceil(total / chunkSize.value);
+});
+
+const visiblePages = computed(() => {
+  const pages = comic.value?.pages ?? [];
+  const size = chunkSize.value;
+  const start = (chunkPage.value - 1) * size;
+  return pages.slice(start, start + size);
+});
+
+const chunkRangeLabel = computed(() => {
+  const pages = comic.value?.pages ?? [];
+  if (!pages.length) return "";
+  const size = chunkSize.value;
+  const start = (chunkPage.value - 1) * size;
+  const first = pages[start]?.pageNumber ?? start + 1;
+  const last = pages[Math.min(start + size, pages.length) - 1]?.pageNumber ?? pages.length;
+  return `${first}–${last} / ${pages.length}`;
+});
+
+const chunkButtons = computed((): (number | "...")[] => {
+  const n = chunkCount.value;
+  const cur = chunkPage.value;
+  const add = (pages: (number | "...")[], p: number) => {
+    if (!pages.includes(p)) pages.push(p);
+  };
+  const pages: (number | "...")[] = [];
+  add(pages, 1);
+  if (cur > 3) pages.push("...");
+  for (let p = Math.max(2, cur - 1); p <= Math.min(n - 1, cur + 1); p++) add(pages, p);
+  if (cur < n - 2) pages.push("...");
+  if (n > 1) add(pages, n);
+  return pages;
+});
+
 function readerRoute(name: string) {
   return { name: "TailspaceComic", params: { name } };
 }
@@ -308,7 +434,58 @@ function scrollToTop() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function scrollToComments() {
+  document.getElementById("comic-comments")?.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
+}
+
+function formatCommentTime(ts: number) {
+  try {
+    return new Date(ts).toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function chunkForPageIndex(idx: number): number {
+  return Math.floor(idx / chunkSize.value) + 1;
+}
+
+function syncChunkQuery(chunk: number) {
+  const q = { ...route.query };
+  if (chunk > 1) q.chunk = String(chunk);
+  else delete q.chunk;
+  router.replace({ query: q });
+}
+
+function changeChunk(p: number) {
+  if (p < 1 || p > chunkCount.value || p === chunkPage.value) return;
+  chunkPage.value = p;
+  syncChunkQuery(p);
+  scrollToTop();
+}
+
+function ensureChunkForPageNumber(pageNumber: number) {
+  if (!comic.value) return;
+  const idx = comic.value.pages.findIndex((p) => p.pageNumber === pageNumber);
+  if (idx < 0) return;
+  const needed = chunkForPageIndex(idx);
+  if (needed !== chunkPage.value) {
+    chunkPage.value = needed;
+    syncChunkQuery(needed);
+  }
+}
+
 function scrollToPage(pageNumber: number) {
+  ensureChunkForPageNumber(pageNumber);
   nextTick(() => {
     document.getElementById(`comic-page-${pageNumber}`)?.scrollIntoView({
       behavior: "smooth",
@@ -326,15 +503,21 @@ async function loadComic(name: string) {
   try {
     comic.value = await getComic(name);
     const qPage = Number(route.query.page);
+    const qChunk = Number(route.query.chunk);
     if (qPage > 0) {
       const idx = comic.value.pages.findIndex((p) => p.pageNumber === qPage);
       if (idx >= 0) {
+        chunkPage.value = chunkForPageIndex(idx);
         if (viewMode.value === "scroll") {
           scrollToPage(qPage);
         } else {
           openPage(qPage);
         }
       }
+    } else if (qChunk > 0) {
+      chunkPage.value = Math.min(Math.max(1, qChunk), chunkCount.value);
+    } else {
+      chunkPage.value = 1;
     }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : "Failed to load comic.";
@@ -397,10 +580,27 @@ watch(viewerOpen, (open) => {
   if (!open) return;
   nextTick(() => viewerEl.value?.focus());
 });
-watch(viewMode, (mode) => {
+watch(viewMode, (mode, prevMode) => {
+  // Remap chunk so the same comic pages stay in view when chunk size changes.
+  const prevSize = prevMode === "scroll" ? SCROLL_CHUNK_SIZE : GALLERY_CHUNK_SIZE;
+  const startIdx = (chunkPage.value - 1) * prevSize;
+  const keepPage = comic.value?.pages[startIdx]?.pageNumber;
+  if (keepPage != null) {
+    ensureChunkForPageNumber(keepPage);
+  } else if (chunkPage.value > chunkCount.value) {
+    chunkPage.value = Math.max(1, chunkCount.value);
+    syncChunkQuery(chunkPage.value);
+  }
   if (mode !== "scroll") return;
   const qPage = Number(route.query.page);
   if (qPage > 0) scrollToPage(qPage);
+});
+watch(chunkCount, (n) => {
+  if (!comic.value) return;
+  if (chunkPage.value > n) {
+    chunkPage.value = n;
+    syncChunkQuery(n);
+  }
 });
 </script>
 
@@ -438,11 +638,26 @@ watch(viewMode, (mode) => {
   opacity: 0.65;
   margin-top: 2px;
 }
-.ts-reader-meta span {
+.ts-reader-meta span,
+.ts-reader-comments-link {
   display: inline-flex;
   align-items: center;
   gap: 3px;
 }
+.ts-reader-comments-link {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0.85;
+}
+.ts-reader-comments-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
 .ts-reader-actions {
   display: flex;
   flex-wrap: wrap;
@@ -553,6 +768,101 @@ watch(viewMode, (mode) => {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
+}
+
+.ts-chunk-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 1rem 0.75rem 0.25rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.ts-chunk-ellipsis {
+  opacity: 0.45;
+  padding: 0 2px;
+  user-select: none;
+}
+.ts-chunk-range {
+  margin-left: 8px;
+  font-size: 0.78rem;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+/* ── Comments ── */
+.ts-comic-comments {
+  max-width: 800px;
+  margin: 1.5rem auto 0;
+  padding: 1rem 1.25rem 2rem;
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  scroll-margin-top: 12px;
+}
+.ts-comic-comments-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.ts-comic-comments-count {
+  font-size: 0.8rem;
+  opacity: 0.55;
+  font-weight: 600;
+}
+.ts-comic-comments-empty {
+  font-size: 0.85rem;
+  opacity: 0.5;
+}
+.ts-comic-comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ts-comic-comment {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.ts-comic-comment-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: rgba(var(--v-border-color), 0.2);
+}
+.ts-comic-comment-avatar--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.55;
+}
+.ts-comic-comment-body {
+  min-width: 0;
+  flex: 1;
+}
+.ts-comic-comment-meta {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 2px;
+}
+.ts-comic-comment-user {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.ts-comic-comment-time {
+  font-size: 0.72rem;
+  opacity: 0.5;
+}
+.ts-comic-comment-text {
+  font-size: 0.9rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  opacity: 0.9;
 }
 
 .ts-page-card {

@@ -455,6 +455,8 @@ def _parse_tailspace_comic_detail(raw: bytes) -> dict:
     ]
     pages.sort(key=lambda p: p["pageNumber"])
     artist = comic.get("artist") if isinstance(comic.get("artist"), dict) else {}
+    raw_comments = comic.get("comments") if isinstance(comic.get("comments"), list) else []
+    comments = _normalize_comments(raw_comments)
     return {
         "id": comic.get("id"),
         "name": comic.get("name"),
@@ -463,11 +465,12 @@ def _parse_tailspace_comic_detail(raw: bytes) -> dict:
         "numberOfPages": int(comic.get("numberOfPages") or len(pages)),
         "description": comic.get("description"),
         "avgStars": comic.get("avgStars"),
-        "commentCount": len(comic.get("comments") or []) if isinstance(comic.get("comments"), list) else comic.get("commentCount"),
+        "commentCount": len(comments),
         "thumbnailVersion": comic.get("thumbnailVersion") or 0,
         "artistName": artist.get("name") or artist.get("creatorUsername") or "",
         "artistDisplayName": artist.get("name") or artist.get("creatorUsername") or "",
         "pages": pages,
+        "comments": comments,
         "previousComic": (
             {"id": comic["previousComic"].get("id"), "name": comic["previousComic"].get("name")}
             if isinstance(comic.get("previousComic"), dict)

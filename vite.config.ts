@@ -643,6 +643,9 @@ function parseTailspaceComicDetail(text: string) {
   const next = comic.nextComic && typeof comic.nextComic === 'object'
     ? (comic.nextComic as Record<string, unknown>)
     : null;
+  const comments = Array.isArray(comic.comments)
+    ? normalizeComments(comic.comments)
+    : [];
   return {
     id: comic.id,
     name: comic.name,
@@ -651,11 +654,12 @@ function parseTailspaceComicDetail(text: string) {
     numberOfPages: Number(comic.numberOfPages || pages.length),
     description: comic.description ?? null,
     avgStars: comic.avgStars ?? null,
-    commentCount: Array.isArray(comic.comments) ? comic.comments.length : comic.commentCount ?? 0,
+    commentCount: comments.length,
     thumbnailVersion: comic.thumbnailVersion ?? 0,
     artistName: artist.name || artist.creatorUsername || '',
     artistDisplayName: artist.name || artist.creatorUsername || '',
     pages,
+    comments,
     previousComic: prev ? { id: prev.id, name: prev.name } : null,
     nextComic: next ? { id: next.id, name: next.name } : null,
   };
