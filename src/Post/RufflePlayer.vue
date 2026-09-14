@@ -17,7 +17,10 @@ import { ensureRuffle, type RufflePlayerElement } from '@/misc/util/ruffle';
 import AppLogo from '@/App/AppLogo.vue';
 
 const props = defineProps<{
-  /** Raw (un-proxied) URL of the SWF file. */
+  /**
+   * SWF URL. May already be proxied (`/api/download?url=…`, Inkbunny) or a
+   * raw CDN URL (e621). Always resolved to a same-origin fetchable URL.
+   */
   url: string | null | undefined;
 }>();
 
@@ -27,14 +30,28 @@ const error = ref<string | null>(null);
 
 let player: RufflePlayerElement | null = null;
 
-/** Route the SWF through our same-origin download proxy so Ruffle can fetch it. */
-const proxyUrl = (url: string) => `/api/download?url=${encodeURIComponent(url)}`;
+/**
+ * Ruffle fetches SWFs via JS and needs CORS. Route cross-origin URLs through
+ * our download proxy — but don't wrap URLs that are already proxied.
+ */
+const resolveSwfUrl = (url: string): string => {
+  if (url.startsWith("/api/download")) return url;
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+  try {
+    const parsed = new URL(url, location.origin);
+    if (parsed.origin === location.origin) return parsed.pathname + parsed.search;
+  } catch {
+    // fall through
+  }
+  return `/api/download?url=${encodeURIComponent(url)}`;
+};
 
 const loadSwf = async (url: string) => {
   loading.value = true;
   error.value = null;
   try {
     const ruffle = await ensureRuffle();
+    const swfUrl = resolveSwfUrl(url);
 
     if (!player) {
       player = ruffle.createPlayer();
@@ -43,7 +60,7 @@ const loadSwf = async (url: string) => {
       containerEl.value?.appendChild(player);
     }
 
-    await player.load({ url: proxyUrl(url), allowScriptAccess: 'never' });
+    await player.load({ url: swfUrl, allowScriptAccess: 'never' });
     loading.value = false;
   } catch (e) {
     loading.value = false;
