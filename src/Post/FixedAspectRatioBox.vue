@@ -1,14 +1,14 @@
 <template>
   <div
     class="aspect-ratio-box"
-    :style="{ 'padding-top': `calc(${ratio} * 100%)` }"
+    :style="{ 'padding-top': `calc(${safeRatio} * 100%)` }"
   >
     <slot />
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { computed, defineComponent } from "vue";
 
 export default defineComponent({
   props: {
@@ -17,8 +17,12 @@ export default defineComponent({
       required: true,
     },
   },
-  setup(props, context) {
-    return {};
+  setup(props) {
+    const safeRatio = computed(() => {
+      const value = props.ratio;
+      return Number.isFinite(value) && value > 0 ? value : 1;
+    });
+    return { safeRatio };
   },
 });
 </script>

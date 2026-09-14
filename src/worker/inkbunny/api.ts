@@ -56,8 +56,21 @@ export interface InkbunnySearchHit {
   thumbnail_url_medium?: string;
   thumbnail_url_large?: string;
   thumbnail_url_huge?: string;
+  thumbnail_url_medium_noncustom?: string;
+  thumbnail_url_large_noncustom?: string;
+  thumbnail_url_huge_noncustom?: string;
   thumb_medium_x?: number | string;
   thumb_medium_y?: number | string;
+  thumb_large_x?: number | string;
+  thumb_large_y?: number | string;
+  thumb_huge_x?: number | string;
+  thumb_huge_y?: number | string;
+  thumb_medium_noncustom_x?: number | string;
+  thumb_medium_noncustom_y?: number | string;
+  thumb_large_noncustom_x?: number | string;
+  thumb_large_noncustom_y?: number | string;
+  thumb_huge_noncustom_x?: number | string;
+  thumb_huge_noncustom_y?: number | string;
   file_name?: string;
 }
 
@@ -213,9 +226,38 @@ export function shouldUseInkbunnyViewer(meta?: {
 
 function pickThumb(hit: InkbunnySearchHit, sid?: string | null): string | null {
   return (
-    proxyMediaUrl(hit.thumbnail_url_large || hit.thumbnail_url_huge || hit.thumbnail_url_medium, sid) ||
-    proxyMediaUrl(hit.file_url_preview, sid)
+    proxyMediaUrl(
+      hit.thumbnail_url_large ||
+        hit.thumbnail_url_huge ||
+        hit.thumbnail_url_medium ||
+        hit.thumbnail_url_large_noncustom ||
+        hit.thumbnail_url_huge_noncustom ||
+        hit.thumbnail_url_medium_noncustom,
+      sid,
+    ) || proxyMediaUrl(hit.file_url_preview, sid)
   );
+}
+
+function pickThumbSize(hit: InkbunnySearchHit): { width: number; height: number } {
+  const width =
+    num(hit.thumb_large_x) ||
+    num(hit.thumb_huge_x) ||
+    num(hit.thumb_medium_x) ||
+    num(hit.thumb_large_noncustom_x) ||
+    num(hit.thumb_huge_noncustom_x) ||
+    num(hit.thumb_medium_noncustom_x) ||
+    0;
+  const height =
+    num(hit.thumb_large_y) ||
+    num(hit.thumb_huge_y) ||
+    num(hit.thumb_medium_y) ||
+    num(hit.thumb_large_noncustom_y) ||
+    num(hit.thumb_huge_noncustom_y) ||
+    num(hit.thumb_medium_noncustom_y) ||
+    0;
+  if (width > 0 && height > 0) return { width, height };
+  // Avoid 0/0 → NaN aspect ratio (collapses the feed card preview).
+  return { width: 200, height: 200 };
 }
 
 function pickSample(hit: InkbunnySearchHit, sid?: string | null): string | null {
@@ -237,6 +279,7 @@ export function adaptSearchHit(hit: InkbunnySearchHit, sid?: string | null): Pos
   const sample = pickSample(hit, sid);
   const full = pickFull(hit, sid);
   const hidden = yn(hit.hidden);
+  const { width, height } = pickThumbSize(hit);
   return {
     id,
     created_at: hit.create_datetime || "",
@@ -244,21 +287,21 @@ export function adaptSearchHit(hit: InkbunnySearchHit, sid?: string | null): Pos
     file: {
       url: hidden ? null : full,
       ext: (hit.file_name || "").split(".").pop() || "",
-      width: num(hit.thumb_medium_x),
-      height: num(hit.thumb_medium_y),
+      width,
+      height,
       size: 0,
       md5: "",
     },
     preview: {
       url: preview || "",
-      width: num(hit.thumb_medium_x, 150),
-      height: num(hit.thumb_medium_y, 150),
+      width,
+      height,
     },
     sample: {
       has: !!sample,
       url: sample || "",
-      width: num(hit.thumb_medium_x),
-      height: num(hit.thumb_medium_y),
+      width,
+      height,
     },
     score: { up: 0, down: 0, total: 0 },
     tags,

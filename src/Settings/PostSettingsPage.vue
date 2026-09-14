@@ -109,7 +109,7 @@
           <v-switch v-model="posts.autoLoad" />
         </settings-page-item>
         <settings-page-item title="Save locally" select
-          description="Chromium can write into a chosen folder with subfolders. Firefox/Zen fall back to Downloads with a flattened filename. Folder grant is not included in settings export/restore.">
+          :description="saveLocallyDescription">
           <v-text-field
             class="mb-2"
             variant="outlined"
@@ -119,10 +119,14 @@
             hint="%artist%  %tags 1-5% (2 species + 3 tags)  %ext%  %id%"
             persistent-hint
           />
-          <local-folder-picker purpose="save" />
+          <local-folder-picker v-if="supportsLocalMode" purpose="save" />
         </settings-page-item>
-        <settings-page-item title="Local browse folder" select
-          description="Folder Local mode reads for images and videos. Separate from Save Locally.">
+        <settings-page-item
+          v-if="supportsLocalMode"
+          title="Local browse folder"
+          select
+          description="Folder Local mode reads for images and videos. Separate from Save Locally."
+        >
           <local-folder-picker purpose="local" />
         </settings-page-item>
       </v-col>
@@ -131,7 +135,7 @@
 </template>
 
 <script setup lang="ts">
-import { usePostsStore } from "@/services";
+import { usePostsStore, useSiteModeStore } from "@/services";
 import { DataSaverType, FullscreenZoomUiMode } from "@/services/types";
 import { computed } from "vue";
 import AutomaticDataSaverInfo from "./AutomaticDataSaverInfo.vue";
@@ -146,6 +150,13 @@ useHead({
 });
 
 const posts = usePostsStore();
+const siteMode = useSiteModeStore();
+const supportsLocalMode = computed(() => siteMode.supportsLocalMode);
+const saveLocallyDescription = computed(() =>
+  supportsLocalMode.value
+    ? "Chromium can write into a chosen folder with subfolders. Folder grant is not included in settings export/restore."
+    : "This browser downloads files with a flattened filename. Choosing a save folder needs Chromium (File System Access API).",
+);
 const availableButtons = computed(() => posts.allButtonTypes);
 const slideshowIntervalSeconds = computed(() =>
   Math.round(posts.slideshowIntervalMs / 1000),

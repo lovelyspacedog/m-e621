@@ -27,6 +27,8 @@ import {
   profileFromMirrors,
   syncMirrorsToActiveProfile,
 } from "./siteProfiles";
+import { supportsDirectoryPicker } from "@/misc/util/saveLocal";
+
 
 localforage.config({
   description: "",
@@ -439,6 +441,11 @@ class PersistanceService {
       newState.activeMode !== "furbooru" &&
       newState.activeMode !== "inkbunny"
     ) {
+      newState.activeMode = "e621";
+    }
+    // Local mode needs File System Access API (Chromium). Fall back quietly on
+    // restore so Firefox/Zen users are not stuck on an empty browse mode.
+    if (newState.activeMode === "local" && !supportsDirectoryPicker()) {
       newState.activeMode = "e621";
     }
     // Normalize base URLs

@@ -51,7 +51,7 @@ import NavigationList from "./App/NavigationList.vue";
 import NavigationToolbar from "./App/NavigationToolbar.vue";
 import PwaUpdateBanner from "./App/PwaUpdateBanner.vue";
 import { getAppName } from "./misc/util/utilities";
-import { useAppearanceStore, useMainStore, usePersistanceService, useShortcutService, useShortcutStore } from "./services";
+import { useAppearanceStore, useMainStore, usePersistanceService, useShortcutService, useShortcutStore, useSiteModeStore } from "./services";
 import { useHead } from '@unhead/vue';
 import { useDisplay } from 'vuetify';
 import { useSyncedTheme } from "./misc/util/syncTheme";
@@ -60,13 +60,15 @@ const persistance = usePersistanceService();
 const appearance = useAppearanceStore();
 const shortcuts = useShortcutStore();
 const shortcutService = useShortcutService();
+const siteMode = useSiteModeStore();
 const navMode = computed(() => appearance.navigationType);
 const theme = computed(() => appearance.theme);
 
 useSyncedTheme();
 
-onMounted(() => {
-  nextTick(() => persistance.persist());
+onMounted(async () => {
+  await persistance.persist();
+  siteMode.ensureCompatibleActiveMode();
 });
 
 const logoStyle = computed(() => appearance.logoStyle);

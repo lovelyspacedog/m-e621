@@ -14,16 +14,19 @@
           >
             <v-btn value="e621">e621</v-btn>
             <v-btn value="e6ai">e6ai</v-btn>
-            <v-btn value="local">local</v-btn>
+            <v-btn v-if="siteMode.supportsLocalMode" value="local">local</v-btn>
             <v-btn value="furbooru">Furbooru</v-btn>
             <v-btn value="inkbunny">Inkbunny</v-btn>
           </v-btn-toggle>
           <p class="text-left">
             Each site keeps its own username, API key, starred tags, blacklist, saved searches, and history.
-            Local mode reads a browse folder you pick (not the Save Locally folder). Switching clears the current post search.
+            <template v-if="siteMode.supportsLocalMode">
+              Local mode reads a browse folder you pick (not the Save Locally folder).
+            </template>
+            Switching clears the current post search.
           </p>
         </settings-page-item>
-        <settings-page-item title="Local folder" select v-if="siteMode.isLocal">
+        <settings-page-item title="Local folder" select v-if="siteMode.isLocal && siteMode.supportsLocalMode">
           <p class="text-left">
             Local mode shows images and videos from this folder. Save Locally still uses its own folder in Post settings.
           </p>
