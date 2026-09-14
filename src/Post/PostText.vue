@@ -26,7 +26,20 @@
           {{ score }}
         </span>
       </v-chip>
-      <tag-with-menu v-for="name in creatorTags" :key="name" :tag="{ name, category: creatorCategory }" />
+      <tag-with-menu
+        v-for="name in visibleCreatorTags"
+        :key="name"
+        :tag="{ name, category: creatorCategory }"
+      />
+      <v-chip
+        v-if="hiddenCreatorCount > 0 || creatorsExpanded"
+        class="mr-2 mb-2"
+        variant="tonal"
+        color="accent"
+        @click.stop="creatorsExpanded = !creatorsExpanded"
+      >
+        {{ creatorsExpanded ? "Show less" : `+${hiddenCreatorCount} more` }}
+      </v-chip>
       <template v-if="isLocal">
         <tag-with-menu
           v-for="name in localDerivedGeneral"
@@ -76,9 +89,12 @@ import type { ScoredPost } from "@/worker/AnalyzeService";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { Post } from "@/worker/api";
 import type { PropType } from "vue";
-import { computed, defineComponent, ref } from "vue";
+import { computed, defineComponent, ref, watch } from "vue";
 
 const isScoredPost = (post: any): post is ScoredPost => !!post.__score;
+
+/** Max artist/creator chips on a feed card before collapsing. */
+const CREATOR_TAG_LIMIT = 6;
 
 const artistColor = getTagColorFromCategory("artist");
 
@@ -93,6 +109,21 @@ export default defineComponent({
     const { creatorCategory } = useSiteLabels();
     const isLocal = computed(() => useSiteModeStore().isLocal);
     const creatorTags = computed(() => getCreatorTags(props.post.tags));
+    const creatorsExpanded = ref(false);
+    watch(
+      () => props.post.id,
+      () => {
+        creatorsExpanded.value = false;
+      },
+    );
+    const visibleCreatorTags = computed(() =>
+      creatorsExpanded.value
+        ? creatorTags.value
+        : creatorTags.value.slice(0, CREATOR_TAG_LIMIT),
+    );
+    const hiddenCreatorCount = computed(() =>
+      Math.max(0, creatorTags.value.length - CREATOR_TAG_LIMIT),
+    );
     const enhanced = computed(() => props.post as EnhancedPost);
     const localPath = computed(
       () => enhanced.value.__meta?.localPath || props.post.sources?.[0] || "",
@@ -142,6 +173,9 @@ export default defineComponent({
       artistColor,
       creatorTags,
       creatorCategory,
+      visibleCreatorTags,
+      hiddenCreatorCount,
+      creatorsExpanded,
       isLocal,
       filename,
       localDerivedGeneral,
