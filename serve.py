@@ -37,6 +37,15 @@ TAILSPACE_COMICS_PATH = re.compile(r"^/api/tailspace/comics$")
 TAILSPACE_COMIC_PATH = re.compile(r"^/api/tailspace/comic$")
 TAILSPACE_COMMENTS_PATH = re.compile(r"^/api/tailspace/comments$")
 
+FURBOORU_BASE = "https://furbooru.org"
+FURBOORU_IMAGES_PATH = re.compile(r"^/api/furbooru/images$")
+FURBOORU_TAGS_PATH = re.compile(r"^/api/furbooru/tags$")
+FURBOORU_COMMENTS_GET_PATH = re.compile(r"^/api/furbooru/comments$")
+FURBOORU_USER_PATH = re.compile(r"^/api/furbooru/user$")
+FURBOORU_FAVES_PATH = re.compile(r"^/api/furbooru/images/(\d+)/faves$")
+FURBOORU_VOTES_PATH = re.compile(r"^/api/furbooru/images/(\d+)/votes$")
+FURBOORU_COMMENTS_POST_PATH = re.compile(r"^/api/furbooru/comments$")
+
 _pull_lock = threading.Lock()
 _state: dict = {
     "running": False,
@@ -890,6 +899,138 @@ class SpaHandler(SimpleHTTPRequestHandler):
         except Exception as exc:  # noqa: BLE001
             self._json(502, {"ok": False, "message": f"parse error: {exc}"})
 
+    # ------------------------------------------------------------------
+    # Furbooru proxy helpers
+    # ------------------------------------------------------------------
+
+    def _furbooru_request(
+        self,
+        url: str,
+        *,
+        method: str = "GET",
+        body: bytes = b"",
+        content_type: str = "application/json",
+        timeout: int = 30,
+    ) -> tuple[bytes, int, str]:
+        """Make a request to Furbooru and return (body, status, content_type)."""
+        req = urllib.request.Request(url, method=method)
+        req.add_header("Accept", "application/json")
+        req.add_header(
+            "User-Agent",
+            f"me621-furbooru-proxy/1.0 (https://{DOMAIN}; browser proxy)",
+        )
+        if body:
+            req.add_header("Content-Type", content_type)
+            req.data = body
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = resp.read()
+                status = getattr(resp, "status", 200)
+                ct = resp.headers.get("Content-Type", "application/json")
+            return data, status, ct
+        except urllib.error.HTTPError as exc:
+            return exc.read(), exc.code, "application/json"
+        except Exception as exc:  # noqa: BLE001
+            return json.dumps({"ok": False, "message": str(exc)}).encode(), 502, "application/json"
+
+    def _furbooru_respond(self, data: bytes, status: int, content_type: str) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _proxy_furbooru_images(self, parsed) -> None:
+        """GET /api/furbooru/images → /api/v1/json/search/images"""
+        params = parse_qs(parsed.query)
+
+        def _first(key: str) -> str | None:
+            vals = params.get(key)
+            return vals[0] if vals else None
+
+        fwd = {}
+        for key in ("q", "page", "per_page", "key", "sf", "sd"):
+            v = _first(key)
+            if v is not None:
+                fwd[key] = v
+        url = f"{FURBOORU_BASE}/api/v1/json/search/images?{urlencode(fwd)}"
+        body, status, ct = self._furbooru_request(url)
+        self._furbooru_respond(body, status, ct)
+
+    def _proxy_furbooru_tags(self, parsed) -> None:
+        """GET /api/furbooru/tags → /api/v1/json/search/tags"""
+        params = parse_qs(parsed.query)
+
+        def _first(key: str) -> str | None:
+            vals = params.get(key)
+            return vals[0] if vals else None
+
+        fwd = {}
+        for key in ("q", "per_page", "key"):
+            v = _first(key)
+            if v is not None:
+                fwd[key] = v
+        url = f"{FURBOORU_BASE}/api/v1/json/search/tags?{urlencode(fwd)}"
+        body, status, ct = self._furbooru_request(url)
+        self._furbooru_respond(body, status, ct)
+
+    def _proxy_furbooru_comments_get(self, parsed) -> None:
+        """GET /api/furbooru/comments → /api/v1/json/comments/search"""
+        params = parse_qs(parsed.query)
+
+        def _first(key: str) -> str | None:
+            vals = params.get(key)
+            return vals[0] if vals else None
+
+        fwd = {}
+        for key in ("image_id", "per_page", "key"):
+            v = _first(key)
+            if v is not None:
+                fwd[key] = v
+        url = f"{FURBOORU_BASE}/api/v1/json/comments/search?{urlencode(fwd)}"
+        body, status, ct = self._furbooru_request(url)
+        self._furbooru_respond(body, status, ct)
+
+    def _proxy_furbooru_user(self, parsed) -> None:
+        """GET /api/furbooru/user?key=... → /api/v1/json/users/me"""
+        params = parse_qs(parsed.query)
+        key = (params.get("key") or [""])[0].strip()
+        if not key:
+            self._json(400, {"ok": False, "message": "key required"})
+            return
+        url = f"{FURBOORU_BASE}/api/v1/json/users/me?key={quote(key)}"
+        body, status, ct = self._furbooru_request(url)
+        self._furbooru_respond(body, status, ct)
+
+    def _proxy_furbooru_faves(self, method: str, image_id: str, parsed) -> None:
+        """POST/DELETE /api/furbooru/images/:id/faves"""
+        params = parse_qs(parsed.query)
+        key = (params.get("key") or [""])[0].strip()
+        url = f"{FURBOORU_BASE}/api/v1/json/images/{image_id}/faves?key={quote(key)}"
+        body, status, ct = self._furbooru_request(url, method=method)
+        self._furbooru_respond(body, status, ct)
+
+    def _proxy_furbooru_votes(self, image_id: str, parsed) -> None:
+        """POST /api/furbooru/images/:id/votes"""
+        params = parse_qs(parsed.query)
+        key = (params.get("key") or [""])[0].strip()
+        value = (params.get("value") or ["up"])[0]
+        url = f"{FURBOORU_BASE}/api/v1/json/images/{image_id}/votes?key={quote(key)}&value={quote(value)}"
+        body, status, ct = self._furbooru_request(url, method="POST")
+        self._furbooru_respond(body, status, ct)
+
+    def _proxy_furbooru_comments_post(self, parsed, body: bytes) -> None:
+        """POST /api/furbooru/comments"""
+        params = parse_qs(parsed.query)
+        key = (params.get("key") or [""])[0].strip()
+        url = f"{FURBOORU_BASE}/api/v1/json/comments?key={quote(key)}"
+        resp_body, status, ct = self._furbooru_request(
+            url, method="POST", body=body, content_type="application/json"
+        )
+        self._furbooru_respond(resp_body, status, ct)
+
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
@@ -920,6 +1061,18 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if TAILSPACE_COMMENTS_PATH.match(path):
             self._proxy_tailspace_comments(parsed)
             return
+        if FURBOORU_IMAGES_PATH.match(path):
+            self._proxy_furbooru_images(parsed)
+            return
+        if FURBOORU_TAGS_PATH.match(path):
+            self._proxy_furbooru_tags(parsed)
+            return
+        if FURBOORU_COMMENTS_GET_PATH.match(path):
+            self._proxy_furbooru_comments_get(parsed)
+            return
+        if FURBOORU_USER_PATH.match(path):
+            self._proxy_furbooru_user(parsed)
+            return
         if path.startswith("/api/"):
             self._json(404, {"ok": False, "message": "not found"})
             return
@@ -939,15 +1092,21 @@ class SpaHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_DELETE(self) -> None:  # noqa: N802
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         match = FAVORITE_PATH.match(path)
         if match and match.group(1):
             self._proxy_favorite("DELETE", b"", match.group(1))
             return
+        fav_match = FURBOORU_FAVES_PATH.match(path)
+        if fav_match:
+            self._proxy_furbooru_faves("DELETE", fav_match.group(1), parsed)
+            return
         self.send_error(404)
 
     def do_POST(self) -> None:  # noqa: N802
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         length = int(self.headers.get("Content-Length", "0") or 0)
         body = self.rfile.read(length) if length else b""
 
@@ -961,6 +1120,20 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
         if COMMENTS_PATH.match(path):
             self._proxy_comment(body)
+            return
+
+        fav_match = FURBOORU_FAVES_PATH.match(path)
+        if fav_match:
+            self._proxy_furbooru_faves("POST", fav_match.group(1), parsed)
+            return
+
+        vote_match = FURBOORU_VOTES_PATH.match(path)
+        if vote_match:
+            self._proxy_furbooru_votes(vote_match.group(1), parsed)
+            return
+
+        if FURBOORU_COMMENTS_POST_PATH.match(path):
+            self._proxy_furbooru_comments_post(parsed, body)
             return
 
         if path != "/api/git/pull":

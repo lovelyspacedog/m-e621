@@ -28,6 +28,7 @@ const modeIcon = (mode: SiteMode) => {
     case "e6ai": return "mdi-robot";
     case "local": return "mdi-folder-image";
     case "tailspace": return "mdi-space-station";
+    case "furbooru": return "mdi-dog";
     default: return "mdi-paw";
   }
 };
@@ -35,6 +36,7 @@ const modeIcon = (mode: SiteMode) => {
 const modeLabel = (mode: SiteMode) => {
   switch (mode) {
     case "tailspace": return "Tailspace";
+    case "furbooru": return "Furbooru";
     default: return mode;
   }
 };

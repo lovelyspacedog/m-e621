@@ -380,6 +380,12 @@ class PersistanceService {
       newState.posts.feedLayout = "list";
       newState.configVersion = 22;
     }
+    if (newState.configVersion < 23) {
+      if (newState.profiles && !newState.profiles.furbooru) {
+        newState.profiles.furbooru = createEmptySiteProfile("furbooru");
+      }
+      newState.configVersion = 23;
+    }
 
     // Ensure profiles exist even if a partial export skipped them.
     if (!newState.profiles) {
@@ -387,6 +393,7 @@ class PersistanceService {
         e621: createEmptySiteProfile("e621"),
         e6ai: createEmptySiteProfile("e6ai"),
         local: createEmptySiteProfile("local"),
+        furbooru: createEmptySiteProfile("furbooru"),
       };
     }
     newState.profiles.e621 =
@@ -395,6 +402,8 @@ class PersistanceService {
       newState.profiles.e6ai || createEmptySiteProfile("e6ai");
     newState.profiles.local =
       newState.profiles.local || createEmptySiteProfile("local");
+    newState.profiles.furbooru =
+      newState.profiles.furbooru || createEmptySiteProfile("furbooru");
     if (!newState.profiles.e621.account) {
       // Do NOT copy active-mode mirrors here: account/blacklist/etc. may
       // reflect a different site (e.g. e6ai at export time).  Merge any
@@ -407,7 +416,8 @@ class PersistanceService {
     if (
       newState.activeMode !== "e621" &&
       newState.activeMode !== "e6ai" &&
-      newState.activeMode !== "local"
+      newState.activeMode !== "local" &&
+      newState.activeMode !== "furbooru"
     ) {
       newState.activeMode = "e621";
     }

@@ -15,6 +15,7 @@
             <v-btn value="e621">e621</v-btn>
             <v-btn value="e6ai">e6ai</v-btn>
             <v-btn value="local">local</v-btn>
+            <v-btn value="furbooru">Furbooru</v-btn>
           </v-btn-toggle>
           <p class="text-left">
             Each site keeps its own username, API key, starred tags, blacklist, saved searches, and history.
@@ -28,17 +29,33 @@
           <local-folder-picker purpose="local" />
         </settings-page-item>
         <settings-page-item title="Credentials" select v-if="!siteMode.isLocal">
-          <v-text-field variant="filled" :label="`${siteLabel} username`" type="text" v-model="username" autocomplete="username" />
+          <!-- Username: hidden for Furbooru (API key only) -->
+          <v-text-field
+            v-if="!siteMode.isFurbooru"
+            variant="filled"
+            :label="`${siteLabel} username`"
+            type="text"
+            v-model="username"
+            autocomplete="username"
+          />
           <v-text-field variant="filled" :append-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
             :type="showPassword ? 'text' : 'password'" :label="`${siteLabel} API key`" v-model="apiKey"
-            @click:append="showPassword = !showPassword" autocomplete="password" counter="24" />
-          <p class="text-left">
+            @click:append="showPassword = !showPassword" autocomplete="password" :counter="siteMode.isFurbooru ? undefined : 24" />
+          <p class="text-left" v-if="!siteMode.isFurbooru">
             Go to <external-link :href="`${e621Url}users/home`" /> > Manage API Access to get the API key
           </p>
+          <p class="text-left" v-else>
+            Go to <external-link href="https://furbooru.org/registration/edit" /> > API Key to generate your key.
+            No username is required — the key identifies your account automatically.
+          </p>
           <div>
-            <v-btn :disabled="!username || !apiKey" :loading="verification.loading"
-              :color="verification.success ? 'success' : verification.message ? 'error' : 'accent'" variant="text"
-              @click="verifyCredentials">
+            <v-btn
+              :disabled="siteMode.isFurbooru ? !apiKey : (!username || !apiKey)"
+              :loading="verification.loading"
+              :color="verification.success ? 'success' : verification.message ? 'error' : 'accent'"
+              variant="text"
+              @click="verifyCredentials"
+            >
               Verify credentials
             </v-btn>
             <p v-if="verification.message">
@@ -46,19 +63,29 @@
             </p>
             <p class="text-left" v-if="!verification.success && verification.message">
               A network error means that <i>something</i> did not work.
-              Most likely, this was an authentication error. Double check if the username is exactly the same as on
-              <external-link :href="`${e621Url}users/home`" /> and make sure you copied the API key correctly - it
-              should be 24 characters long.
-              <br />
-              Due to a security policy (CORS), Material e621 cannot determine the cause of the error. There might be a
-              general error with the network or {{ siteLabel }}.
+              Most likely, this was an authentication error.
+              <template v-if="!siteMode.isFurbooru">
+                Double check if the username is exactly the same as on
+                <external-link :href="`${e621Url}users/home`" /> and make sure you copied the API key correctly - it
+                should be 24 characters long.
+                <br />
+                Due to a security policy (CORS), Material e621 cannot determine the cause of the error. There might be a
+                general error with the network or {{ siteLabel }}.
+              </template>
+              <template v-else>
+                Make sure you copied the Furbooru API key from
+                <external-link href="https://furbooru.org/registration/edit" /> correctly.
+              </template>
             </p>
           </div>
-          <v-btn class="mt-4" :disabled="!username" color="accent" variant="text" @click="toggleFavoritesMenuItem">
+          <v-btn v-if="!siteMode.isFurbooru" class="mt-4" :disabled="!username" color="accent" variant="text" @click="toggleFavoritesMenuItem">
             {{ usernameSavedSearchExists ? `Remove "Favorites" saved search` : `Add "Favorites" saved search` }}
           </v-btn>
+          <v-btn v-else class="mt-4" :disabled="!apiKey" color="accent" variant="text" @click="toggleFurbooruFavoritesMenuItem">
+            {{ furbooruFavsSearchExists ? `Remove "My Faves" saved search` : `Add "My Faves" saved search` }}
+          </v-btn>
         </settings-page-item>
-        <settings-page-item title="API" select v-if="!siteMode.isLocal">
+        <settings-page-item title="API" select v-if="!siteMode.isLocal && !siteMode.isFurbooru">
           <v-select variant="filled" :label="`${siteLabel} API`" type="text" v-model="e621Url"
             :items="apiUrlItems" />
           <v-text-field variant="filled" :label="`Custom ${siteLabel} URL`" type="text" v-model="e621Url" autocomplete="url"
@@ -159,6 +186,20 @@ const toggleFavoritesMenuItem = () => {
     savedSearches.addEntry([usernameSavedSearchTag.value], `Favorites (${username.value})`)
   }
 }
+
+// Furbooru: "my:faves" saved search
+const FURBOORU_FAVES_TAG = "my:faves";
+const furbooruFavsSearchExists = computed(() =>
+  !!savedSearches.entries.find((e) => e.tags.length === 1 && e.tags[0] === FURBOORU_FAVES_TAG)
+);
+const toggleFurbooruFavoritesMenuItem = () => {
+  const idx = savedSearches.entries.findIndex((e) => e.tags.length === 1 && e.tags[0] === FURBOORU_FAVES_TAG);
+  if (idx >= 0) {
+    savedSearches.deleteEntry(idx);
+  } else {
+    savedSearches.addEntry([FURBOORU_FAVES_TAG], "My Faves");
+  }
+};
 
 const verification = ref({
   success: false,

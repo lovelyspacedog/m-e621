@@ -1,4 +1,5 @@
 import { fileURLToPath, URL } from 'node:url'
+import type { ServerResponse } from 'node:http'
 import { defineConfig, Plugin, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
@@ -277,6 +278,239 @@ function e621CommentsProxy(): Plugin {
         } catch (err) {
           res.statusCode = 502;
           res.end(String(err));
+        }
+      });
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Furbooru proxy
+// ---------------------------------------------------------------------------
+
+function furbooruProxy(): Plugin {
+  const FURBOORU_BASE = 'https://furbooru.org';
+
+  /** Forward select headers from the upstream response to the client. */
+  function setResponseHeaders(res: ServerResponse, remote: Response) {
+    const ct = remote.headers.get('content-type');
+    if (ct) res.setHeader('Content-Type', ct);
+    res.setHeader('Cache-Control', 'no-store');
+  }
+
+  return {
+    name: 'furbooru-proxy',
+    configureServer(server) {
+
+      // ── Image search: GET /api/furbooru/images?q=...&page=...&per_page=... ──
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url?.startsWith('/api/furbooru/images') || req.method !== 'GET') {
+          next();
+          return;
+        }
+        // Exclude /api/furbooru/images/:id/* sub-paths
+        const pathPart = (req.url.split('?')[0] ?? '').replace(/^\/api\/furbooru\/images/, '');
+        if (pathPart && pathPart !== '/') {
+          next();
+          return;
+        }
+        const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+        const params = new URLSearchParams(qs);
+        const fwd = new URLSearchParams();
+        for (const key of ['q', 'page', 'per_page', 'key', 'sf', 'sd']) {
+          const v = params.get(key);
+          if (v !== null) fwd.set(key, v);
+        }
+        const url = `${FURBOORU_BASE}/api/v1/json/search/images?${fwd}`;
+        try {
+          const remote = await fetch(url, {
+            headers: { Accept: 'application/json', 'User-Agent': 'me621-furbooru-proxy/1.0' },
+          });
+          res.statusCode = remote.ok ? 200 : remote.status;
+          setResponseHeaders(res, remote);
+          res.end(Buffer.from(await remote.arrayBuffer()));
+        } catch (err) {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ ok: false, message: String(err) }));
+        }
+      });
+
+      // ── Tag search: GET /api/furbooru/tags?q=...&per_page=... ──────────────
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url?.startsWith('/api/furbooru/tags') || req.method !== 'GET') {
+          next();
+          return;
+        }
+        const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+        const params = new URLSearchParams(qs);
+        const fwd = new URLSearchParams();
+        for (const key of ['q', 'per_page', 'key']) {
+          const v = params.get(key);
+          if (v !== null) fwd.set(key, v);
+        }
+        const url = `${FURBOORU_BASE}/api/v1/json/search/tags?${fwd}`;
+        try {
+          const remote = await fetch(url, {
+            headers: { Accept: 'application/json', 'User-Agent': 'me621-furbooru-proxy/1.0' },
+          });
+          res.statusCode = remote.ok ? 200 : remote.status;
+          setResponseHeaders(res, remote);
+          res.end(Buffer.from(await remote.arrayBuffer()));
+        } catch (err) {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ ok: false, message: String(err) }));
+        }
+      });
+
+      // ── Comment search: GET /api/furbooru/comments?image_id=...&per_page=... ─
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url?.startsWith('/api/furbooru/comments') || req.method !== 'GET') {
+          next();
+          return;
+        }
+        const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+        const params = new URLSearchParams(qs);
+        const fwd = new URLSearchParams();
+        for (const key of ['image_id', 'per_page', 'key']) {
+          const v = params.get(key);
+          if (v !== null) fwd.set(key, v);
+        }
+        const url = `${FURBOORU_BASE}/api/v1/json/comments/search?${fwd}`;
+        try {
+          const remote = await fetch(url, {
+            headers: { Accept: 'application/json', 'User-Agent': 'me621-furbooru-proxy/1.0' },
+          });
+          res.statusCode = remote.ok ? 200 : remote.status;
+          setResponseHeaders(res, remote);
+          res.end(Buffer.from(await remote.arrayBuffer()));
+        } catch (err) {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ ok: false, message: String(err) }));
+        }
+      });
+
+      // ── Current user: GET /api/furbooru/user?key=... ──────────────────────
+      server.middlewares.use(async (req, res, next) => {
+        const pathOnly = (req.url ?? '').split('?')[0];
+        if (pathOnly !== '/api/furbooru/user' || req.method !== 'GET') {
+          next();
+          return;
+        }
+        const qs = req.url!.includes('?') ? req.url!.slice(req.url!.indexOf('?')) : '';
+        const key = new URLSearchParams(qs).get('key') ?? '';
+        if (!key) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ ok: false, message: 'key required' }));
+          return;
+        }
+        const url = `${FURBOORU_BASE}/api/v1/json/users/me?key=${encodeURIComponent(key)}`;
+        try {
+          const remote = await fetch(url, {
+            headers: { Accept: 'application/json', 'User-Agent': 'me621-furbooru-proxy/1.0' },
+          });
+          res.statusCode = remote.ok ? 200 : remote.status;
+          setResponseHeaders(res, remote);
+          res.end(Buffer.from(await remote.arrayBuffer()));
+        } catch (err) {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ ok: false, message: String(err) }));
+        }
+      });
+
+      // ── Faves: POST/DELETE /api/furbooru/images/:id/faves?key=... ──────────
+      server.middlewares.use(async (req, res, next) => {
+        const pathOnly = (req.url ?? '').split('?')[0];
+        const favMatch = /^\/api\/furbooru\/images\/(\d+)\/faves$/.exec(pathOnly);
+        if (!favMatch || (req.method !== 'POST' && req.method !== 'DELETE')) {
+          next();
+          return;
+        }
+        const imageId = favMatch[1];
+        const qs = req.url!.includes('?') ? req.url!.slice(req.url!.indexOf('?')) : '';
+        const key = new URLSearchParams(qs).get('key') ?? '';
+        const url = `${FURBOORU_BASE}/api/v1/json/images/${imageId}/faves?key=${encodeURIComponent(key)}`;
+        try {
+          const remote = await fetch(url, {
+            method: req.method,
+            headers: { Accept: 'application/json', 'User-Agent': 'me621-furbooru-proxy/1.0' },
+          });
+          res.statusCode = remote.status;
+          setResponseHeaders(res, remote);
+          const body = await remote.arrayBuffer();
+          res.end(body.byteLength ? Buffer.from(body) : '');
+        } catch (err) {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ ok: false, message: String(err) }));
+        }
+      });
+
+      // ── Votes: POST /api/furbooru/images/:id/votes?key=...&value=up|down ───
+      server.middlewares.use(async (req, res, next) => {
+        const pathOnly = (req.url ?? '').split('?')[0];
+        const voteMatch = /^\/api\/furbooru\/images\/(\d+)\/votes$/.exec(pathOnly);
+        if (!voteMatch || req.method !== 'POST') {
+          next();
+          return;
+        }
+        const imageId = voteMatch[1];
+        const qs = req.url!.includes('?') ? req.url!.slice(req.url!.indexOf('?')) : '';
+        const params = new URLSearchParams(qs);
+        const key = params.get('key') ?? '';
+        const value = params.get('value') ?? 'up';
+        const url = `${FURBOORU_BASE}/api/v1/json/images/${imageId}/votes?key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`;
+        try {
+          const remote = await fetch(url, {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'User-Agent': 'me621-furbooru-proxy/1.0' },
+          });
+          res.statusCode = remote.ok ? 200 : remote.status;
+          setResponseHeaders(res, remote);
+          res.end(Buffer.from(await remote.arrayBuffer()));
+        } catch (err) {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ ok: false, message: String(err) }));
+        }
+      });
+
+      // ── Create comment: POST /api/furbooru/comments?key=... ────────────────
+      server.middlewares.use(async (req, res, next) => {
+        const pathOnly = (req.url ?? '').split('?')[0];
+        if (pathOnly !== '/api/furbooru/comments' || req.method !== 'POST') {
+          next();
+          return;
+        }
+        const qs = req.url!.includes('?') ? req.url!.slice(req.url!.indexOf('?')) : '';
+        const key = new URLSearchParams(qs).get('key') ?? '';
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        const body = Buffer.concat(chunks);
+        const url = `${FURBOORU_BASE}/api/v1/json/comments?key=${encodeURIComponent(key)}`;
+        try {
+          const remote = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'User-Agent': 'me621-furbooru-proxy/1.0',
+            },
+            body,
+          });
+          res.statusCode = remote.ok ? 200 : remote.status;
+          setResponseHeaders(res, remote);
+          res.end(Buffer.from(await remote.arrayBuffer()));
+        } catch (err) {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ ok: false, message: String(err) }));
         }
       });
     },
@@ -757,6 +991,7 @@ export default defineConfig(({ mode }) => {
       e621CommentsProxy(),
       e621FavoritesProxy(),
       tailspaceProxy(),
+      furbooruProxy(),
       generateSitemap(env),
       vue(),
       vuetify(),

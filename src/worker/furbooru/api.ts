@@ -1,0 +1,427 @@
+/**
+ * Furbooru (Philomena) API client.
+ *
+ * All requests go through the local proxy at /api/furbooru/* because
+ * furbooru.org returns no CORS headers.  furrycdn.org (the media CDN)
+ * does support CORS, so image/video URLs are used directly.
+ *
+ * Auth: Furbooru uses a single API key (no username) sent as ?key=API_KEY.
+ */
+
+import type { Post, PostTags, Tag, Comment } from "@/worker/api/returnTypes";
+
+// ---------------------------------------------------------------------------
+// Philomena wire types
+// ---------------------------------------------------------------------------
+
+export interface PhilomenaRepresentations {
+  full: string;
+  large: string;
+  medium: string;
+  small: string;
+  tall: string;
+  thumb: string;
+  thumb_small: string;
+  thumb_tiny: string;
+}
+
+export interface PhilomenaImage {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  /** Flat list of tag strings, e.g. "artist:foo", "species:wolf", "safe" */
+  tags: string[];
+  tag_ids: number[];
+  score: number;
+  upvotes: number;
+  downvotes: number;
+  faves: number;
+  comment_count: number;
+  description: string;
+  /** "safe" | "suggestive" | "questionable" | "explicit" | null */
+  rating: string | null;
+  /** MIME type, e.g. "image/jpeg" */
+  mime_type: string;
+  /** File extension, e.g. "jpg" */
+  format: string;
+  width: number;
+  height: number;
+  view_url: string;
+  representations: PhilomenaRepresentations;
+  /** Whether the image is favorited by the authenticated user */
+  is_favorited?: boolean;
+  spoilered: boolean;
+  sha512_hash?: string;
+  name?: string;
+  source_url?: string | null;
+  source_urls?: string[];
+}
+
+export interface PhilomenaSearchResponse {
+  images: PhilomenaImage[];
+  total: number;
+}
+
+export interface PhilomenaTag {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  images: number;
+  /** 0=general, 1=artist, 3=copyright, 4=character, 5=species, 6=meta */
+  category: string | null;
+  aliased_tag?: string | null;
+  aliases?: string[];
+}
+
+export interface PhilomenaTagSearchResponse {
+  tags: PhilomenaTag[];
+}
+
+export interface PhilomenaComment {
+  id: number;
+  image_id: number;
+  user_id?: number;
+  author: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+  edited?: boolean;
+}
+
+export interface PhilomenaCommentSearchResponse {
+  comments: PhilomenaComment[];
+  total: number;
+}
+
+// ---------------------------------------------------------------------------
+// Proxy base URL
+// ---------------------------------------------------------------------------
+
+function proxyBase(): string {
+  const origin = typeof location !== "undefined" ? location.origin : "";
+  return `${origin}/api/furbooru`;
+}
+
+// ---------------------------------------------------------------------------
+// Fetch helper
+// ---------------------------------------------------------------------------
+
+async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    throw new Error(`Furbooru proxy error: ${response.status} ${response.statusText}`);
+  }
+  return response.json() as Promise<T>;
+}
+
+// ---------------------------------------------------------------------------
+// Philomena image → e621 Post adapter
+// ---------------------------------------------------------------------------
+
+/** Split flat Philomena tag strings into e621 PostTags categories. */
+function adaptTags(tags: string[]): PostTags {
+  const result: PostTags = {
+    general: [],
+    species: [],
+    character: [],
+    copyright: [],
+    artist: [],
+    invalid: [],
+    lore: [],
+    meta: [],
+  };
+  for (const tag of tags) {
+    const colon = tag.indexOf(":");
+    if (colon > 0) {
+      const prefix = tag.slice(0, colon).toLowerCase();
+      const rest = tag.slice(colon + 1);
+      switch (prefix) {
+        case "artist":
+          result.artist.push(rest);
+          continue;
+        case "species":
+          result.species.push(rest);
+          continue;
+        case "character":
+          result.character.push(rest);
+          continue;
+        case "copyright":
+        case "franchise":
+          result.copyright.push(rest);
+          continue;
+        case "meta":
+          result.meta.push(rest);
+          continue;
+        case "lore":
+          result.lore.push(rest);
+          continue;
+      }
+    }
+    result.general.push(tag);
+  }
+  return result;
+}
+
+/** Map a Philomena rating string to e621 rating character. */
+function adaptRating(rating: string | null): "s" | "q" | "e" {
+  switch (rating) {
+    case "safe":
+      return "s";
+    case "explicit":
+      return "e";
+    case "suggestive":
+    case "questionable":
+      return "q";
+    default:
+      return "q";
+  }
+}
+
+/** Map a Philomena image to an e621-shaped Post. */
+export function adaptImage(img: PhilomenaImage): Post {
+  const rep = img.representations;
+  return {
+    id: img.id,
+    created_at: img.created_at,
+    updated_at: img.updated_at ?? img.created_at,
+    file: {
+      url: rep.full,
+      ext: img.format,
+      width: img.width,
+      height: img.height,
+      size: 0,
+      md5: img.sha512_hash ?? "",
+    },
+    preview: {
+      url: rep.thumb_small ?? rep.thumb,
+      width: 150,
+      height: 150,
+    },
+    sample: {
+      has: true,
+      url: rep.large ?? rep.medium,
+      width: img.width,
+      height: img.height,
+    },
+    score: {
+      up: img.upvotes,
+      down: img.downvotes,
+      total: img.score,
+    },
+    tags: adaptTags(img.tags),
+    locked_tags: [],
+    change_seq: 0,
+    flags: {
+      pending: false,
+      flagged: false,
+      note_locked: false,
+      status_locked: false,
+      rating_locked: false,
+      deleted: false,
+    },
+    rating: adaptRating(img.rating),
+    fav_count: img.faves,
+    sources: img.source_urls ?? (img.source_url ? [img.source_url] : []),
+    pools: [],
+    relationships: {
+      has_children: false,
+      has_active_children: false,
+      children: [],
+    },
+    uploader_id: 0,
+    description: img.description ?? "",
+    comment_count: img.comment_count,
+    is_favorited: img.is_favorited ?? false,
+    has_notes: false,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Read API
+// ---------------------------------------------------------------------------
+
+export interface FurbooruSearchArgs {
+  /** Tag query string (same Philomena syntax: tag1, -tag2, my:faves, etc.) */
+  query: string;
+  page: number;
+  limit: number;
+  /** Furbooru API key for authenticated requests */
+  apiKey?: string | null;
+}
+
+export async function searchImages(args: FurbooruSearchArgs): Promise<{ posts: Post[]; total: number }> {
+  const q = new URLSearchParams({
+    q: args.query || "*",
+    page: String(args.page),
+    per_page: String(args.limit),
+  });
+  if (args.apiKey) q.set("key", args.apiKey);
+  const url = `${proxyBase()}/images?${q}`;
+  const data = await fetchJson<PhilomenaSearchResponse>(url);
+  return {
+    posts: (data.images ?? []).map(adaptImage),
+    total: data.total ?? 0,
+  };
+}
+
+export interface FurbooruTagsArgs {
+  query?: string;
+  limit?: number;
+  apiKey?: string | null;
+}
+
+export async function searchTags(args: FurbooruTagsArgs): Promise<Tag[]> {
+  const q = new URLSearchParams({
+    q: args.query ?? "*",
+    per_page: String(args.limit ?? 25),
+  });
+  if (args.apiKey) q.set("key", args.apiKey);
+  const url = `${proxyBase()}/tags?${q}`;
+  const data = await fetchJson<PhilomenaTagSearchResponse>(url);
+  return (data.tags ?? []).map((t) => ({
+    id: t.id,
+    name: t.name,
+    post_count: t.images,
+    related_tags: "",
+    related_tags_updated_at: new Date(),
+    // Philomena category → e621 numeric category (best-effort)
+    category: philomenaTagCategory(t.category),
+    is_locked: false,
+    created_at: new Date(),
+    updated_at: new Date(),
+  }));
+}
+
+function philomenaTagCategory(cat: string | null | undefined): number {
+  switch (cat) {
+    case "artist": return 1;
+    case "copyright": return 3;
+    case "character": return 4;
+    case "species": return 5;
+    case "meta": return 7;
+    default: return 0; // general
+  }
+}
+
+export interface FurbooruCommentsArgs {
+  imageId: number;
+  apiKey?: string | null;
+  limit?: number;
+}
+
+export async function getComments(args: FurbooruCommentsArgs): Promise<Comment[]> {
+  const q = new URLSearchParams({
+    image_id: String(args.imageId),
+    per_page: String(args.limit ?? 100),
+  });
+  if (args.apiKey) q.set("key", args.apiKey);
+  const url = `${proxyBase()}/comments?${q}`;
+  const data = await fetchJson<PhilomenaCommentSearchResponse>(url);
+  return (data.comments ?? []).map<Comment>((c) => ({
+    id: c.id,
+    created_at: c.created_at,
+    post_id: c.image_id,
+    creator_id: c.user_id ?? 0,
+    body: c.body,
+    score: 0,
+    updated_at: c.updated_at,
+    updater_id: c.user_id ?? 0,
+    do_not_bump_post: false,
+    is_hidden: false,
+    is_sticky: false,
+    creator_name: c.author,
+    updater_name: c.author,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Write API (requires API key)
+// ---------------------------------------------------------------------------
+
+export interface FurbooruWriteArgs {
+  postId: number;
+  apiKey: string;
+}
+
+export async function favoriteImage(args: FurbooruWriteArgs): Promise<void> {
+  const q = new URLSearchParams({ key: args.apiKey });
+  await fetch(`${proxyBase()}/images/${args.postId}/faves?${q}`, {
+    method: "POST",
+  });
+}
+
+export async function unfavoriteImage(args: FurbooruWriteArgs): Promise<void> {
+  const q = new URLSearchParams({ key: args.apiKey });
+  const response = await fetch(`${proxyBase()}/images/${args.postId}/faves?${q}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(`Furbooru unfavorite error: ${response.status}`);
+  }
+}
+
+export type VoteValue = "up" | "down";
+
+export async function voteImage(
+  args: FurbooruWriteArgs & { value: VoteValue },
+): Promise<{ score: number; up: number; down: number }> {
+  const q = new URLSearchParams({ key: args.apiKey, value: args.value });
+  const response = await fetch(`${proxyBase()}/images/${args.postId}/votes?${q}`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error(`Furbooru vote error: ${response.status}`);
+  }
+  const data = await response.json() as { image?: PhilomenaImage };
+  const img = data.image;
+  return {
+    score: img?.score ?? 0,
+    up: img?.upvotes ?? 0,
+    down: img?.downvotes ?? 0,
+  };
+}
+
+export async function createComment(args: FurbooruWriteArgs & { body: string }): Promise<Comment> {
+  const q = new URLSearchParams({ key: args.apiKey });
+  const response = await fetch(`${proxyBase()}/comments?${q}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ comment: { image_id: args.postId, body: args.body } }),
+  });
+  if (!response.ok) {
+    throw new Error(`Furbooru comment error: ${response.status}`);
+  }
+  const data = await response.json() as { comment: PhilomenaComment };
+  const c = data.comment;
+  return {
+    id: c.id,
+    created_at: c.created_at,
+    post_id: c.image_id,
+    creator_id: c.user_id ?? 0,
+    body: c.body,
+    score: 0,
+    updated_at: c.updated_at,
+    updater_id: c.user_id ?? 0,
+    do_not_bump_post: false,
+    is_hidden: false,
+    is_sticky: false,
+    creator_name: c.author,
+    updater_name: c.author,
+  };
+}
+
+export interface FurbooruVerifyArgs {
+  apiKey: string;
+}
+
+/** Verify an API key by fetching the authenticated user profile. */
+export async function verifyApiKey(args: FurbooruVerifyArgs): Promise<{ name: string }> {
+  const q = new URLSearchParams({ key: args.apiKey });
+  const url = `${proxyBase()}/user?${q}`;
+  const data = await fetchJson<{ user: { name: string; id: number } }>(url);
+  if (!data?.user?.name) {
+    throw new Error("Invalid API key or unexpected response from Furbooru");
+  }
+  return { name: data.user.name };
+}

@@ -25,11 +25,13 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const modeChangeCount = ref(0);
   const isLocal = computed(() => main.activeMode === "local");
   const isTailspace = computed(() => main.activeMode === "tailspace");
+  const isFurbooru = computed(() => main.activeMode === "furbooru");
   const activeLabel = computed(() => {
     switch (main.activeMode) {
       case "e6ai": return "e6ai";
       case "local": return "local";
       case "tailspace": return "tailspace";
+      case "furbooru": return "Furbooru";
       default: return "e621";
     }
   });
@@ -58,10 +60,11 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     activeMode,
     isLocal,
     isTailspace,
+    isFurbooru,
     activeLabel,
     setMode,
     filterButtons,
-    siteModes: ["e621", "e6ai", "local", "tailspace"] as SiteMode[],
+    siteModes: ["e621", "e6ai", "local", "tailspace", "furbooru"] as SiteMode[],
     modeChangeCount,
   };
 });
