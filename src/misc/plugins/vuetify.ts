@@ -5,6 +5,7 @@ import "@mdi/font/css/materialdesignicons.min.css";
 import { defaultSettings } from "@/services/defaultSettings";
 import { md3 } from 'vuetify/blueprints'
 import { FoxIcon } from "@/misc/icons/FoxIcon";
+import { TanukiAiIcon } from "@/misc/icons/TanukiAiIcon";
 
 export const vuetify = createVuetify({
   blueprint: md3,
@@ -32,6 +33,8 @@ export const vuetify = createVuetify({
     aliases: {
       // @mdi/font has no fox; used for FurAffinity site mode
       fox: FoxIcon,
+      // Iconify pajamas:tanuki-ai; used for e6ai site mode
+      tanukiAi: TanukiAiIcon,
     },
   },
   defaults: {

@@ -52,7 +52,7 @@ const router = useRouter();
 
 const modeIcon = (mode: SiteMode) => {
   switch (mode) {
-    case "e6ai": return "mdi-robot";
+    case "e6ai": return "$tanukiAi";
     case "local": return "mdi-harddisk";
     case "tailspace": return "mdi-rocket-launch";
     case "furbooru": return "mdi-dog";

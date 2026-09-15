@@ -230,7 +230,7 @@ const main = useMainStore();
 const unifiedChildModes = UNIFIED_CHILD_MODES;
 const unifiedChildIcon = (mode: UnifiedChildMode) => {
   switch (mode) {
-    case "e6ai": return "mdi-robot";
+    case "e6ai": return "$tanukiAi";
     case "furbooru": return "mdi-dog";
     case "inkbunny": return "mdi-rabbit";
     case "furaffinity": return "$fox";
