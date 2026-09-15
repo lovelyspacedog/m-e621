@@ -125,6 +125,16 @@ FURAFFINITY_PATH = re.compile(r"^/api/furaffinity/([a-z]+)$")
 FURAFFINITY_MEDIA_SUFFIXES = (".furaffinity.net", ".facdn.net")
 FURAFFINITY_MEDIA_HOSTS = frozenset({"furaffinity.net", "www.furaffinity.net", "facdn.net"})
 
+WEASYL_API_BASE = "https://www.weasyl.com"
+WEASYL_MEDIA_HOSTS = frozenset({"www.weasyl.com", "weasyl.com", "cdn.weasyl.com", "static.weasyl.com"})
+WEASYL_FRONTPAGE_PATH = re.compile(r"^/api/weasyl/frontpage$")
+WEASYL_SEARCH_PATH = re.compile(r"^/api/weasyl/search$")
+WEASYL_SUBMISSION_PATH = re.compile(r"^/api/weasyl/submission/(\d+)$")
+WEASYL_GALLERY_PATH = re.compile(r"^/api/weasyl/gallery/([^/]+)$")
+WEASYL_FAVORITES_PATH = re.compile(r"^/api/weasyl/favorites/([^/]+)$")
+WEASYL_USER_PATH = re.compile(r"^/api/weasyl/user/([^/]+)$")
+WEASYL_WHOAMI_PATH = re.compile(r"^/api/weasyl/whoami$")
+
 _pull_lock = threading.Lock()
 _state: dict = {
     "running": False,
@@ -702,6 +712,134 @@ def _normalize_tailspace_posts(payload: object) -> dict:
     }
 
 
+def _parse_weasyl_search_html(html_text: str) -> tuple[list[dict], int | None]:
+    """Parse Weasyl /search HTML and return (submissions, nextid).
+
+    Weasyl search result thumbnails follow a pattern like:
+      <figure class="thumb">
+        <a href="/~owner_login/submissions/123/slug">
+          <img src="https://...thumbnail..." alt="Title">
+        </a>
+        ...
+      </figure>
+    Pagination nextid is found in an <a rel="next"> or link with nextid= param.
+    """
+    from html.parser import HTMLParser
+    import html as html_module
+
+    submissions: list[dict] = []
+    page_nextid: int | None = None
+
+    class _Parser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self._in_thumb = False
+            self._thumb_depth = 0
+            self._current: dict | None = None
+            self._depth = 0
+
+        def handle_starttag(self, tag, attrs):
+            attr_map = dict(attrs)
+            self._depth += 1
+
+            # Detect <figure class="thumb ...">
+            cls = attr_map.get("class", "")
+            if tag == "figure" and "thumb" in cls.split():
+                self._in_thumb = True
+                self._thumb_depth = self._depth
+                self._current = {}
+                return
+
+            if not self._in_thumb or self._current is None:
+                # Also look for pagination link outside thumbs
+                if tag == "a":
+                    rel = attr_map.get("rel", "")
+                    href = attr_map.get("href", "")
+                    if rel == "next" and href and "nextid=" in href:
+                        try:
+                            nid_str = href.split("nextid=")[1].split("&")[0]
+                            nonlocal page_nextid
+                            page_nextid = int(nid_str)
+                        except (ValueError, IndexError):
+                            pass
+                return
+
+            if tag == "a" and "href" in attr_map:
+                href = attr_map["href"]
+                # Match /~owner_login/submissions/123 pattern
+                import re as _re
+                m = _re.search(r"/~([^/]+)/submissions/(\d+)", href)
+                if m:
+                    self._current["owner_login"] = m.group(1)
+                    self._current["submitid"] = int(m.group(2))
+                # Also catch pagination nextid from within-figure links
+                if "nextid=" in href and "submitid" not in self._current:
+                    try:
+                        nid_str = href.split("nextid=")[1].split("&")[0]
+                        page_nextid = int(nid_str)
+                    except (ValueError, IndexError):
+                        pass
+
+            if tag == "img" and "src" in attr_map:
+                src = attr_map["src"]
+                # Only pick up thumbnail-sized images (skip avatars etc.)
+                if "/thumbnail" in src or "/submit" in src or "weasyl.com" in src:
+                    if "thumbnail" not in self._current:
+                        self._current["thumbnail"] = src
+                alt = attr_map.get("alt", "")
+                if alt and "title" not in self._current:
+                    self._current["title"] = html_module.unescape(alt)
+
+            if tag == "span" or tag == "abbr":
+                # Some Weasyl themes expose rating via class like "rating-general"
+                for cls_part in attr_map.get("class", "").split():
+                    if cls_part.startswith("rating-"):
+                        self._current["rating"] = cls_part[len("rating-"):]
+
+        def handle_endtag(self, tag):
+            if self._in_thumb and self._depth == self._thumb_depth and tag == "figure":
+                if self._current and "submitid" in self._current:
+                    owner_login = self._current.get("owner_login", "")
+                    thumb_url = self._current.get("thumbnail", "")
+                    sub = {
+                        "submitid": self._current["submitid"],
+                        "title": self._current.get("title", ""),
+                        "owner": self._current.get("owner_login", ""),
+                        "owner_login": owner_login,
+                        "posted_at": "",
+                        "rating": self._current.get("rating", "general"),
+                        "type": "submission",
+                        "subtype": "visual",
+                        "tags": [],
+                        "media": {
+                            "thumbnail": [{"mediaid": None, "url": thumb_url}] if thumb_url else [],
+                        },
+                    }
+                    submissions.append(sub)
+                self._in_thumb = False
+                self._current = None
+            self._depth -= 1
+
+        def handle_data(self, data):
+            pass
+
+    parser = _Parser()
+    parser.feed(html_text)
+
+    # Also search for nextid in <a> tags with class "next-page" or rel="next"
+    # in case the parser missed them — simple regex fallback
+    import re
+    if page_nextid is None:
+        for m in re.finditer(r'[?&]nextid=(\d+)', html_text):
+            # Take the last one (usually the "next page" link)
+            try:
+                page_nextid = int(m.group(1))
+            except ValueError:
+                pass
+
+    return submissions, page_nextid
+
+
 class SpaHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -939,6 +1077,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if host in INKBUNNY_MEDIA_HOSTS or host.endswith(".metapix.net"):
             return parsed.geturl()
         if host in FURAFFINITY_MEDIA_HOSTS or host.endswith(FURAFFINITY_MEDIA_SUFFIXES):
+            return parsed.geturl()
+        if host in WEASYL_MEDIA_HOSTS:
             return parsed.geturl()
         return None
 
@@ -1465,6 +1605,186 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self._json(404, {"ok": False, "message": "not found"})
 
     # ------------------------------------------------------------------
+    # Weasyl proxy helpers
+    # ------------------------------------------------------------------
+
+    def _weasyl_api_request(
+        self,
+        url: str,
+        *,
+        api_key: str | None = None,
+        timeout: int = 30,
+    ) -> tuple[bytes, int, str]:
+        """Make a JSON API request to Weasyl and return (body, status, content_type)."""
+        req = urllib.request.Request(url, method="GET")
+        req.add_header("Accept", "application/json")
+        req.add_header(
+            "User-Agent",
+            f"me621-weasyl-proxy/1.0 (https://{DOMAIN}; browser proxy)",
+        )
+        if api_key:
+            req.add_header("X-Weasyl-API-Key", api_key)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = resp.read()
+                status = getattr(resp, "status", 200)
+                ct = resp.headers.get("Content-Type", "application/json")
+            return data, status, ct
+        except urllib.error.HTTPError as exc:
+            return exc.read(), exc.code, "application/json"
+        except Exception as exc:  # noqa: BLE001
+            return (
+                json.dumps({"error": {"name": str(exc)}}).encode(),
+                502,
+                "application/json",
+            )
+
+    def _weasyl_respond(self, body: bytes, status: int, content_type: str) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _weasyl_api_key(self, parsed) -> str | None:
+        """Extract API key from the `key` query param."""
+        params = parse_qs(parsed.query)
+        key = (params.get("key") or [""])[0].strip()
+        return key or None
+
+    def _proxy_weasyl_frontpage(self, parsed) -> None:
+        """GET /api/weasyl/frontpage → Weasyl /api/submissions/frontpage"""
+        params = parse_qs(parsed.query)
+        api_key = self._weasyl_api_key(parsed)
+        count = (params.get("count") or ["75"])[0]
+        since = (params.get("since") or [""])[0]
+        qs_parts = [f"count={count}"]
+        if since:
+            qs_parts.append(f"since={quote(since)}")
+        url = f"{WEASYL_API_BASE}/api/submissions/frontpage?{'&'.join(qs_parts)}"
+        body, status, ct = self._weasyl_api_request(url, api_key=api_key)
+        self._weasyl_respond(body, status, ct)
+
+    def _proxy_weasyl_submission(self, submitid: str, parsed) -> None:
+        """GET /api/weasyl/submission/<id> → Weasyl /api/submissions/<id>/view"""
+        api_key = self._weasyl_api_key(parsed)
+        url = f"{WEASYL_API_BASE}/api/submissions/{submitid}/view?anyway=1"
+        body, status, ct = self._weasyl_api_request(url, api_key=api_key)
+        self._weasyl_respond(body, status, ct)
+
+    def _proxy_weasyl_gallery(self, login: str, parsed) -> None:
+        """GET /api/weasyl/gallery/<login> → Weasyl /api/users/<login>/gallery"""
+        params = parse_qs(parsed.query)
+        api_key = self._weasyl_api_key(parsed)
+        qs_parts = []
+        for key in ("count", "nextid", "backid", "folderid", "since"):
+            val = (params.get(key) or [""])[0]
+            if val:
+                qs_parts.append(f"{key}={quote(val)}")
+        qs = "&".join(qs_parts)
+        url = f"{WEASYL_API_BASE}/api/users/{login}/gallery" + (f"?{qs}" if qs else "")
+        body, status, ct = self._weasyl_api_request(url, api_key=api_key)
+        self._weasyl_respond(body, status, ct)
+
+    def _proxy_weasyl_favorites(self, login: str, parsed) -> None:
+        """GET /api/weasyl/favorites/<login> → Weasyl /api/users/<login>/gallery (favorites tab)
+
+        Weasyl does not expose a favorites API endpoint in v1.2; we use the gallery
+        endpoint filtered to favorites as a best-effort fallback.
+        """
+        params = parse_qs(parsed.query)
+        api_key = self._weasyl_api_key(parsed)
+        qs_parts = []
+        for key in ("count", "nextid", "backid"):
+            val = (params.get(key) or [""])[0]
+            if val:
+                qs_parts.append(f"{key}={quote(val)}")
+        qs = "&".join(qs_parts)
+        # Try the gallery endpoint; if Weasyl adds a /favorites endpoint in future
+        # this is the place to switch the URL.
+        url = f"{WEASYL_API_BASE}/api/users/{login}/gallery" + (f"?{qs}" if qs else "")
+        body, status, ct = self._weasyl_api_request(url, api_key=api_key)
+        self._weasyl_respond(body, status, ct)
+
+    def _proxy_weasyl_user(self, login: str, parsed) -> None:
+        """GET /api/weasyl/user/<login> → Weasyl /api/users/<login>/view"""
+        api_key = self._weasyl_api_key(parsed)
+        url = f"{WEASYL_API_BASE}/api/users/{login}/view"
+        body, status, ct = self._weasyl_api_request(url, api_key=api_key)
+        self._weasyl_respond(body, status, ct)
+
+    def _proxy_weasyl_whoami(self, parsed) -> None:
+        """GET /api/weasyl/whoami → Weasyl /api/whoami (API key verification)"""
+        api_key = self._weasyl_api_key(parsed)
+        if not api_key:
+            err = json.dumps({"error": {"name": "Unauthorized"}}).encode()
+            self._weasyl_respond(err, 401, "application/json")
+            return
+        url = f"{WEASYL_API_BASE}/api/whoami"
+        body, status, ct = self._weasyl_api_request(url, api_key=api_key)
+        self._weasyl_respond(body, status, ct)
+
+    def _proxy_weasyl_search(self, parsed) -> None:
+        """GET /api/weasyl/search → scrape Weasyl /search HTML → return JSON.
+
+        Weasyl has no public JSON search API; this method fetches the HTML search
+        page and parses submission stubs out of it using stdlib html.parser.
+        Returns: {"submissions": [...], "nextid": <int or null>}
+        """
+        import html
+        from html.parser import HTMLParser
+
+        params = parse_qs(parsed.query)
+        api_key = self._weasyl_api_key(parsed)
+        q = (params.get("q") or [""])[0].strip()
+        nextid = (params.get("nextid") or [""])[0].strip()
+        count = (params.get("count") or [""])[0].strip()
+        orderby = (params.get("orderby") or [""])[0].strip()
+
+        if not q:
+            # Fall back to frontpage when called with no query
+            self._proxy_weasyl_frontpage(parsed)
+            return
+
+        qs_parts = [f"q={quote(q)}", "find=submit"]
+        if nextid:
+            qs_parts.append(f"nextid={nextid}")
+        if orderby == "popular":
+            qs_parts.append("orderby=faves")
+        scrape_url = f"{WEASYL_API_BASE}/search?{'&'.join(qs_parts)}"
+
+        req = urllib.request.Request(scrape_url, method="GET")
+        req.add_header("Accept", "text/html,application/xhtml+xml,*/*")
+        req.add_header("Accept-Language", "en-US,en;q=0.9")
+        req.add_header(
+            "User-Agent",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36 me621-weasyl-proxy/1.0",
+        )
+        if api_key:
+            req.add_header("X-Weasyl-API-Key", api_key)
+
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                raw_bytes = resp.read()
+        except urllib.error.HTTPError as exc:
+            err = json.dumps({"ok": False, "message": f"Weasyl search error: {exc.code}"}).encode()
+            self._weasyl_respond(err, exc.code, "application/json")
+            return
+        except Exception as exc:  # noqa: BLE001
+            err = json.dumps({"ok": False, "message": str(exc)}).encode()
+            self._weasyl_respond(err, 502, "application/json")
+            return
+
+        raw_html = raw_bytes.decode("utf-8", errors="replace")
+        submissions, page_nextid = _parse_weasyl_search_html(raw_html)
+
+        result = json.dumps({"submissions": submissions, "nextid": page_nextid}).encode()
+        self._weasyl_respond(result, 200, "application/json")
+
+    # ------------------------------------------------------------------
     # Furbooru proxy helpers
     # ------------------------------------------------------------------
 
@@ -1748,6 +2068,31 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return
         if INKBUNNY_KEYWORDS_PATH.match(path):
             self._proxy_inkbunny_keywords(parsed)
+            return
+        if WEASYL_FRONTPAGE_PATH.match(path):
+            self._proxy_weasyl_frontpage(parsed)
+            return
+        if WEASYL_SEARCH_PATH.match(path):
+            self._proxy_weasyl_search(parsed)
+            return
+        weasyl_sub = WEASYL_SUBMISSION_PATH.match(path)
+        if weasyl_sub:
+            self._proxy_weasyl_submission(weasyl_sub.group(1), parsed)
+            return
+        weasyl_gallery = WEASYL_GALLERY_PATH.match(path)
+        if weasyl_gallery:
+            self._proxy_weasyl_gallery(weasyl_gallery.group(1), parsed)
+            return
+        weasyl_faves = WEASYL_FAVORITES_PATH.match(path)
+        if weasyl_faves:
+            self._proxy_weasyl_favorites(weasyl_faves.group(1), parsed)
+            return
+        weasyl_user = WEASYL_USER_PATH.match(path)
+        if weasyl_user:
+            self._proxy_weasyl_user(weasyl_user.group(1), parsed)
+            return
+        if WEASYL_WHOAMI_PATH.match(path):
+            self._proxy_weasyl_whoami(parsed)
             return
         if path.startswith("/api/"):
             self._json(404, {"ok": False, "message": "not found"})

@@ -32,6 +32,8 @@ export const unifiedChildLabel = (mode: SiteMode | UnifiedChildMode): string => 
       return "Inkbunny";
     case "furaffinity":
       return "FurAffinity";
+    case "weasyl":
+      return "Weasyl";
     case "unified":
       return "Unified";
     case "local":
@@ -53,6 +55,8 @@ export const unifiedChildIcon = (mode: SiteMode | UnifiedChildMode): string => {
       return "mdi-rabbit";
     case "furaffinity":
       return "$fox";
+    case "weasyl":
+      return "$weasyl";
     case "unified":
       return "mdi-earth";
     case "local":
@@ -99,7 +103,8 @@ export const authFromAccount = (
     return { login: account.username || "", api_key: account.apiKey || "" };
   }
   if (!account.apiKey) return undefined;
-  if (mode === "furbooru") {
+  if (mode === "furbooru" || mode === "weasyl") {
+    // Furbooru and Weasyl use API key only; username is optional metadata
     return { login: account.username || "", api_key: account.apiKey };
   }
   if (!account.username) return undefined;
@@ -135,6 +140,7 @@ export const postPageUrl = (
     if (post.__meta?.furaffinity?.kind === "journal") return `${base}journal/${post.id}`;
     return `${base}view/${post.id}`;
   }
+  if (mode === "weasyl") return `${base}submission/${post.id}`;
   return `${base}posts/${post.id}`;
 };
 

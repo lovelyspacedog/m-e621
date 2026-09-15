@@ -60,9 +60,9 @@ export interface SavedSearchEntry {
 export const UNGROUPED_FAVORITE_GROUP_ID = "ungrouped";
 export const UNGROUPED_SAVED_SEARCH_GROUP_ID = "ungrouped";
 
-export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "furbooru" | "inkbunny" | "furaffinity" | "unified";
+export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "unified";
 
-export type UnifiedChildMode = "e621" | "e6ai" | "furbooru" | "inkbunny" | "furaffinity";
+export type UnifiedChildMode = "e621" | "e6ai" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl";
 
 export interface SavedPostEntry {
   originMode: UnifiedChildMode;
@@ -76,6 +76,7 @@ export const UNIFIED_CHILD_MODES: UnifiedChildMode[] = [
   "furbooru",
   "inkbunny",
   "furaffinity",
+  "weasyl",
 ];
 
 export type UnifiedSites = Record<UnifiedChildMode, boolean>;
@@ -86,6 +87,7 @@ export const defaultUnifiedSites = (): UnifiedSites => ({
   furbooru: true,
   inkbunny: true,
   furaffinity: true,
+  weasyl: false,
 });
 
 export const SITE_MODE_URLS: Record<SiteMode, string> = {
@@ -96,6 +98,7 @@ export const SITE_MODE_URLS: Record<SiteMode, string> = {
   furbooru: "https://furbooru.org/",
   inkbunny: "https://inkbunny.net/",
   furaffinity: "https://www.furaffinity.net/",
+  weasyl: "https://www.weasyl.com/",
   unified: "",
 };
 

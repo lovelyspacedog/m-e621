@@ -18,6 +18,7 @@ import * as inkbunny from "./inkbunny/api";
 import type { InkbunnyMeta } from "./inkbunny/api";
 import * as furaffinity from "./furaffinity/api";
 import type { FaMeta } from "./furaffinity/api";
+import * as weasyl from "./weasyl/api";
 import * as tailspace from "./tailspace/api";
 import { isPostBlacklisted } from "./blacklist";
 import { BlacklistMode, type SiteMode, type SavedPostEntry } from "@/services/types";
@@ -36,20 +37,24 @@ const isFurAffinityUrl = (baseUrl: string) =>
   /(?:^|\.)furaffinity\.net(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
 const isTailspaceUrl = (baseUrl: string) =>
   /(?:^|\.)tailspace\.com(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
+const isWeasylUrl = (baseUrl: string) =>
+  /(?:^|\.)weasyl\.com(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
 
 /** Prefer explicit mode; fall back to hostname only when mode omitted (M17). */
-type ApiBackend = "e621" | "furbooru" | "inkbunny" | "tailspace" | "furaffinity";
+type ApiBackend = "e621" | "furbooru" | "inkbunny" | "tailspace" | "furaffinity" | "weasyl";
 
 const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
   if (mode === "furbooru") return "furbooru";
   if (mode === "inkbunny") return "inkbunny";
   if (mode === "furaffinity") return "furaffinity";
   if (mode === "tailspace") return "tailspace";
+  if (mode === "weasyl") return "weasyl";
   if (mode === "e621" || mode === "e6ai" || mode === "local") return "e621";
   if (isFurbooruUrl(baseUrl)) return "furbooru";
   if (isInkbunnyUrl(baseUrl)) return "inkbunny";
   if (isFurAffinityUrl(baseUrl)) return "furaffinity";
   if (isTailspaceUrl(baseUrl)) return "tailspace";
+  if (isWeasylUrl(baseUrl)) return "weasyl";
   return "e621";
 };
 
@@ -352,6 +357,29 @@ export class ApiService {
       return results.filter((p): p is EnhancedPost => !!p);
     }
 
+    if (child.mode === "weasyl") {
+      const results = await Promise.all(
+        uniqueIds.map(async (id) => {
+          try {
+            const post = await weasyl.fetchSubmission({
+              id,
+              apiKey: child.auth?.api_key ?? null,
+            });
+            return stamp({
+              ...post,
+              __meta: {
+                isBlacklisted: isPostBlacklisted(post, child.blacklist),
+                pageNumber: 1,
+              },
+            });
+          } catch {
+            return null;
+          }
+        }),
+      );
+      return results.filter((p): p is EnhancedPost => !!p);
+    }
+
     // e621 / e6ai
     const results = await Promise.all(
       uniqueIds.map(async (id) => {
@@ -478,6 +506,29 @@ export class ApiService {
       }));
     }
 
+    if (backend === "weasyl") {
+      const hideNegations =
+        args.blacklistMode === BlacklistMode.hide
+          ? (args.blacklist || [])
+              .filter((line) => line.length === 1 && line[0] && !line[0].startsWith("~") && !line[0].startsWith("-"))
+              .map((line) => `-${line[0]}`)
+          : [];
+      const result = await weasyl.searchSubmissions({
+        tags: [...args.tags.filter(Boolean), ...hideNegations],
+        page: args.page,
+        limit: args.limit,
+        apiKey: args.auth?.api_key ?? null,
+        username: args.auth?.login ?? null,
+      });
+      return result.posts.map<EnhancedPost>((post) => ({
+        ...post,
+        __meta: {
+          isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
+          pageNumber: args.page,
+        },
+      }));
+    }
+
     const posts = (
       await e621.posts.list({
         ...args,
@@ -522,6 +573,10 @@ export class ApiService {
     if (backend === "furaffinity") {
       return furaffinity.searchKeywords(args.query ?? args.name ?? "");
     }
+    if (backend === "weasyl") {
+      // Weasyl has no public JSON tag autocomplete API
+      return [] as import("./api/returnTypes").Tag[];
+    }
     const data = await e621.tags.list(args);
     if (Array.isArray(data)) {
       return data;
@@ -533,7 +588,7 @@ export class ApiService {
   async getPools(args: IPoolsArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotTailspace(args.baseUrl, "getPools", args.mode);
-    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity") {
+    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl") {
       return [];
     }
     return (await e621.pools.list(args));
@@ -542,7 +597,7 @@ export class ApiService {
   async getPool(args: IGetPoolArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotTailspace(args.baseUrl, "getPool", args.mode);
-    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity") {
+    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl") {
       throw new Error("Pools are not supported on this site");
     }
     return (await e621.pools.get(args));
@@ -551,7 +606,7 @@ export class ApiService {
   async getComments(args: ICommentsListArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotTailspace(args.baseUrl, "getComments", args.mode);
-    if (backend === "inkbunny") {
+    if (backend === "inkbunny" || backend === "weasyl") {
       return [];
     }
     if (backend === "furaffinity") {
@@ -569,7 +624,7 @@ export class ApiService {
 
   async getNotes(args: INotesListArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity") {
+    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl") {
       return [];
     }
     return e621.notes.list(args);
@@ -577,7 +632,7 @@ export class ApiService {
 
   async favoritePost(args: IPostFavoriteArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    if (backend === "inkbunny") {
+    if (backend === "inkbunny" || backend === "weasyl") {
       return false;
     }
     if (backend === "furaffinity") {
@@ -605,7 +660,7 @@ export class ApiService {
 
   async unfavoritePost(args: IPostFavoriteArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    if (backend === "inkbunny") {
+    if (backend === "inkbunny" || backend === "weasyl") {
       return false;
     }
     if (backend === "furaffinity") {
@@ -633,7 +688,7 @@ export class ApiService {
 
   async votePost(args: IPostVoteArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    if (backend === "inkbunny" || backend === "furaffinity") {
+    if (backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl") {
       return { score: 0, up: 0, down: 0 };
     }
     if (backend === "furbooru") {
@@ -665,6 +720,9 @@ export class ApiService {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     if (backend === "inkbunny") {
       throw new Error("Inkbunny does not support posting comments via API");
+    }
+    if (backend === "weasyl") {
+      throw new Error("Weasyl does not support posting comments via API");
     }
     if (backend === "furaffinity") {
       await furaffinity.createComment(args.postId, args.body, args.auth?.api_key ?? null);
@@ -727,6 +785,15 @@ export class ApiService {
     if (backend === "furbooru") {
       // Furbooru uses API key only — no username needed
       await furbooru.verifyApiKey({ apiKey: args.apiKey });
+      return true;
+    }
+    if (backend === "weasyl") {
+      // Use whoami to validate key — confirms the key is valid for the given login
+      const result = await weasyl.whoami(args.apiKey);
+      const expectedLogin = args.username.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (expectedLogin && result.login && result.login !== expectedLogin) {
+        throw new Error(`Weasyl API key belongs to '${result.login}', not '${args.username}'`);
+      }
       return true;
     }
     const auth = { login: args.username, api_key: args.apiKey };

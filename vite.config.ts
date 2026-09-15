@@ -11,12 +11,14 @@ import fs from 'fs';
 import path from 'path';
 import { furaffinityProxy } from './vite-furaffinity-proxy'
 import { tailspaceProxy } from './vite-tailspace-proxy'
+import { weasylProxy } from './vite-weasyl-proxy'
 
 const MEDIA_HOST_OK = (host: string) =>
   ['.e621.net', '.e926.net', '.e6ai.net', '.furaffinity.net', '.facdn.net'].some((s) => host.endsWith(s)) ||
   ['e621.net', 'e926.net', 'e6ai.net', 'inkbunny.net', 'furaffinity.net', 'www.furaffinity.net', 'facdn.net'].includes(host) ||
   host === 'ib.metapix.net' ||
-  host.endsWith('.metapix.net');
+  host.endsWith('.metapix.net') ||
+  isWeasylMediaHost(host);
 
 const isInkbunnyMediaHost = (host: string) =>
   host === 'inkbunny.net' || host === 'ib.metapix.net' || host.endsWith('.metapix.net');
@@ -24,6 +26,9 @@ const isInkbunnyMediaHost = (host: string) =>
 const isFurAffinityMediaHost = (host: string) =>
   host === 'furaffinity.net' || host === 'www.furaffinity.net' || host === 'facdn.net' ||
   host.endsWith('.furaffinity.net') || host.endsWith('.facdn.net');
+
+const isWeasylMediaHost = (host: string) =>
+  host === 'www.weasyl.com' || host === 'weasyl.com' || host === 'cdn.weasyl.com' || host === 'static.weasyl.com';
 
 function e621MediaProxy(): Plugin {
   return {
@@ -835,6 +840,7 @@ export default defineConfig(({ mode }) => {
       furbooruProxy(),
       inkbunnyProxy(),
       furaffinityProxy(),
+      weasylProxy(),
       rufflePlugin(),
       generateSitemap(env),
       vue(),
