@@ -33,16 +33,35 @@
       v-if="playableUrl"
       :ref="setVideoEl"
       class="card-video"
-      controls
+      :controls="videoSrcLive"
       playsinline
       loop
       :preload="videoSrcLive ? 'metadata' : 'none'"
       :src="videoSrcLive ? playableUrl : undefined"
-      :poster="preview.url || undefined"
-      @click.stop
+      :poster="previewPoster || undefined"
+      @click.stop="onVideoSurfaceClick"
       @volumechange="onVolumeChange"
       @ratechange="onRateChange"
+      @error="onVideoError"
     />
+    <!-- Keep overlays inside playableUrl branch so the else-if chain below
+         stays mutually exclusive with the <video> (not with cold-buffer UI). -->
+    <template v-if="playableUrl">
+      <!-- Empty <video controls> with no src renders as 0:00 + disabled play. -->
+      <div
+        v-if="!videoSrcLive && !videoLoadFailed"
+        class="centered clickable play-button"
+        @click.stop="onVideoSurfaceClick"
+      >
+        <v-icon size="100">mdi-play</v-icon>
+      </div>
+      <div v-else-if="videoLoadFailed" class="centered unplayable-overlay">
+        <v-icon size="64">mdi-file-video-outline</v-icon>
+        <v-chip class="mt-2" color="warning" variant="flat">
+          Can't play this video
+        </v-chip>
+      </div>
+    </template>
     <template v-else-if="unplayable">
       <img
         v-if="imageSrc"
@@ -164,6 +183,7 @@ export default defineComponent({
     const remuxError = ref("");
     const naturalRatio = ref<number | null>(null);
     const mediaFailed = ref(false);
+    const videoLoadFailed = ref(false);
     const isSwf = computed(() => props.file.ext === "swf");
     const isVideo = computed(() => VIDEO_EXTS.has(props.file.ext));
     // e621-style preview/sample URLs are static frames; only the full file animates.
@@ -218,6 +238,13 @@ export default defineComponent({
         ? proxyDownloadUrl(props.file.url)
         : null,
     );
+    // Poster through same-origin proxy so COEP pages keep a still while src is dropped.
+    const previewPoster = computed(
+      () =>
+        proxyDownloadUrl(props.preview.url) ||
+        proxyDownloadUrl(props.sample.url) ||
+        "",
+    );
     const displayRatio = computed(() => {
       if (naturalRatio.value && naturalRatio.value > 0) return naturalRatio.value;
       const width = props.file.width;
@@ -239,6 +266,7 @@ export default defineComponent({
       () => {
         naturalRatio.value = null;
         mediaFailed.value = false;
+        videoLoadFailed.value = false;
       },
     );
     let visibilityObserver: IntersectionObserver | null = null;
@@ -265,9 +293,9 @@ export default defineComponent({
       el.load();
     };
 
-    const playWhenVisible = (el: HTMLVideoElement) => {
-      if (!posts.autoplayFeedVideo) return;
-      applyPlaybackPrefs(el, true);
+    const playWhenVisible = (el: HTMLVideoElement, force = false) => {
+      if (!force && !posts.autoplayFeedVideo) return;
+      applyPlaybackPrefs(el, !force && posts.autoplayFeedVideo);
       const playResult = el.play();
       if (playResult && typeof playResult.then === "function") {
         playResult.catch(() => {
@@ -276,13 +304,25 @@ export default defineComponent({
       }
     };
 
-    const attachAndMaybePlay = async (el: HTMLVideoElement) => {
+    const attachAndMaybePlay = async (el: HTMLVideoElement, forcePlay = false) => {
+      videoLoadFailed.value = false;
       if (!videoSrcLive.value) {
         videoSrcLive.value = true;
         await nextTick();
       }
       if (!el.isConnected) return;
-      playWhenVisible(el);
+      playWhenVisible(el, forcePlay);
+    };
+
+    const onVideoSurfaceClick = () => {
+      if (!boundVideo || videoLoadFailed.value) return;
+      // Manual play when autoplay eviction left the buffer cold, or autoplay was blocked.
+      void attachAndMaybePlay(boundVideo, true);
+    };
+
+    const onVideoError = () => {
+      if (!videoSrcLive.value) return;
+      videoLoadFailed.value = true;
     };
 
     const setVideoEl = (el: unknown) => {
@@ -305,6 +345,9 @@ export default defineComponent({
         void attachAndMaybePlay(el);
         return;
       }
+      // Observe the aspect-ratio box when present — more stable than the absolute video.
+      const observeTarget =
+        (el.closest(".aspect-ratio-box") as Element | null) || el;
       visibilityObserver = new IntersectionObserver(
         ([entry]) => {
           videoIsIntersecting = !!entry?.isIntersecting;
@@ -314,9 +357,10 @@ export default defineComponent({
           }
           void attachAndMaybePlay(el);
         },
-        { threshold: 0.15 },
+        // Any visible slice is enough; 0.15 left tall cards stuck with a cold src.
+        { threshold: 0.01 },
       );
-      visibilityObserver.observe(el);
+      visibilityObserver.observe(observeTarget);
     };
 
     watch(
@@ -496,12 +540,16 @@ export default defineComponent({
       documentExcerpt,
       canPlayInline,
       playableUrl,
+      previewPoster,
       videoSrcLive,
+      videoLoadFailed,
       setVideoEl,
       imageSrc,
       displayRatio,
       onPreviewLoad,
       onPreviewError,
+      onVideoSurfaceClick,
+      onVideoError,
       showUnavailable,
       unavailableLabel,
       unavailableHint,
@@ -533,7 +581,9 @@ export default defineComponent({
 	 position: absolute;
 	 top: 0;
 	 height: 100%;
-	 pointer-events: none;
+	 /* Allow click-to-load when autoplay left the buffer cold. */
+	 pointer-events: auto;
+	 z-index: 1;
 }
  .card-video {
 	 object-fit: contain;
