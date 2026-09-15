@@ -634,6 +634,61 @@ def _normalize_tailspace_session(raw: str) -> str:
     return f"tailspace_session={s}"
 
 
+def _decode_remix_payload(text: str) -> object | None:
+    """Decode Remix single-fetch / turbo-stream text into a Python object."""
+    trimmed = (text or "").strip()
+    if not trimmed:
+        return None
+    for line in trimmed.split("\n"):
+        chunk = line.strip()
+        if not (chunk.startswith("[") or chunk.startswith("{")):
+            continue
+        try:
+            parsed = json.loads(chunk)
+        except json.JSONDecodeError:
+            continue
+        return _ts_decode_pool(parsed) if isinstance(parsed, list) else parsed
+    try:
+        parsed = json.loads(trimmed)
+    except json.JSONDecodeError:
+        return None
+    return _ts_decode_pool(parsed) if isinstance(parsed, list) else parsed
+
+
+def _remix_action_data(decoded: object | None) -> dict:
+    if not isinstance(decoded, dict):
+        return {}
+    data = decoded.get("data")
+    if isinstance(data, dict):
+        return data
+    return decoded
+
+
+def _extract_tailspace_session_cookie(set_cookies: list[str] | None) -> str | None:
+    if not set_cookies:
+        return None
+    for line in set_cookies:
+        first = (line or "").split(";", 1)[0].strip()
+        m = re.match(r"^tailspace_session=(.*)$", first, flags=re.I)
+        if m and m.group(1):
+            return f"tailspace_session={m.group(1)}"
+    return None
+
+
+def _extract_tailspace_user(decoded: object | None) -> dict | None:
+    user = _find_key(decoded, "user")
+    if not isinstance(user, dict):
+        return None
+    username = str(user.get("username") or user.get("userName") or "").strip()
+    if not username:
+        return None
+    user_id = user.get("userId")
+    if not isinstance(user_id, int):
+        raw_id = user.get("id")
+        user_id = raw_id if isinstance(raw_id, int) else None
+    return {"username": username, "userId": user_id}
+
+
 def _normalize_tailspace_posts(payload: object) -> dict:
     """Unwrap {success,data:{posts,hasNextPage}} into a flat posts response."""
     if not isinstance(payload, dict):
@@ -1233,6 +1288,12 @@ class SpaHandler(SimpleHTTPRequestHandler):
         )
 
     def _proxy_tailspace_auth_post(self, path: str, body: bytes) -> None:
+        try:
+            self._proxy_tailspace_auth_post_inner(path, body)
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "message": str(exc)})
+
+    def _proxy_tailspace_auth_post_inner(self, path: str, body: bytes) -> None:
         try:
             payload = json.loads(body.decode("utf-8") or "{}") if body else {}
             if not isinstance(payload, dict):

@@ -33,10 +33,15 @@ fi
 before="$(git rev-parse HEAD)"
 
 # Helpers may exist as untracked copies from deploy.sh; drop them so ff-merge can land tracked versions.
+# Also reset dirty *tracked* copies (rsync from deploy.sh often dirties serve.py before pull).
 for f in start sync serve.py deploy.sh load-m-e621-env.sh; do
   if [[ -e "$f" ]] && ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
     echo "removing untracked $f so git merge can proceed"
     rm -f "$f"
+  elif git ls-files --error-unmatch "$f" >/dev/null 2>&1 \
+    && ! git diff --quiet -- "$f" 2>/dev/null; then
+    echo "resetting dirty tracked $f so git merge can proceed"
+    git checkout -- "$f"
   fi
 done
 
