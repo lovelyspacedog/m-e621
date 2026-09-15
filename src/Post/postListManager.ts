@@ -13,6 +13,7 @@ import {
   unifiedChildLabel,
 } from "@/misc/util/postOrigin";
 import { isDocumentPost } from "@/misc/util/documentPost";
+import { faUnavailableMeta, isFaNotFoundError } from "@/worker/furaffinity/api";
 
 type PostPointer = number | { postId: number; originMode?: string };
 type FullscreenAdvanceOpts = { skipDocuments?: boolean };
@@ -97,6 +98,27 @@ export const usePostListManager = ({
       }
       return updated;
     } catch (error) {
+      if (originFa && isFaNotFoundError(error)) {
+        const updated = {
+          ...post,
+          file: { ...post.file, url: null },
+          preview: { ...post.preview, url: "" },
+          sample: { ...post.sample, has: false, url: "" },
+          __meta: {
+            ...post.__meta,
+            furaffinity: faUnavailableMeta(post.__meta.furaffinity),
+          },
+        } satisfies EnhancedPost;
+        const idx = posts.value.findIndex((p) => postFeedKey(p) === postFeedKey(updated));
+        if (idx >= 0) posts.value[idx] = updated;
+        if (detailsPost.value && postFeedKey(detailsPost.value) === postFeedKey(updated)) {
+          detailsPost.value = updated;
+        }
+        if (fullscreenPost.value && postFeedKey(fullscreenPost.value) === postFeedKey(updated)) {
+          fullscreenPost.value = updated;
+        }
+        return updated;
+      }
       handleError(error);
       return post;
     }

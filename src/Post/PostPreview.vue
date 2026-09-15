@@ -71,12 +71,22 @@
         </p>
       </div>
     </template>
+    <div v-else-if="showUnavailable" class="centered clickable unavailable-media">
+      <v-icon size="64">mdi-image-off-outline</v-icon>
+      <v-chip class="mt-2" color="secondary" variant="outlined">
+        {{ unavailableLabel }}
+      </v-chip>
+      <p class="pa-3 text-center text-medium-emphasis">
+        {{ unavailableHint }}
+      </p>
+    </div>
     <img
       :loading="loading"
       v-else-if="(isImage || isVideo) && imageSrc"
       :src="imageSrc"
       class="clickable preview-media"
       @load="onPreviewLoad"
+      @error="onPreviewError"
     />
     <div v-else-if="isImage || isVideo" class="centered clickable play-button">
       <v-chip color="red" text-color="white">Global Blacklist</v-chip>
@@ -136,6 +146,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    unavailable: {
+      type: Boolean,
+      default: false,
+    },
     localPath: {
       type: String,
       default: "",
@@ -148,6 +162,7 @@ export default defineComponent({
     const remuxing = ref(false);
     const remuxError = ref("");
     const naturalRatio = ref<number | null>(null);
+    const mediaFailed = ref(false);
     const isSwf = computed(() => props.file.ext === "swf");
     const isVideo = computed(() => VIDEO_EXTS.has(props.file.ext));
     const fileUrlExt = computed(() => {
@@ -209,13 +224,18 @@ export default defineComponent({
     });
     const onPreviewLoad = (event: Event) => {
       const img = event.target as HTMLImageElement | null;
+      mediaFailed.value = false;
       if (!img?.naturalWidth || !img.naturalHeight) return;
       naturalRatio.value = img.naturalHeight / img.naturalWidth;
+    };
+    const onPreviewError = () => {
+      mediaFailed.value = true;
     };
     watch(
       () => [props.preview.url, props.file.url, props.file.width, props.file.height],
       () => {
         naturalRatio.value = null;
+        mediaFailed.value = false;
       },
     );
     let visibilityObserver: IntersectionObserver | null = null;
@@ -268,7 +288,7 @@ export default defineComponent({
       if (canPlayInline.value || props.unplayable) {
         return;
       }
-      if (imageSrc.value || isDocument.value) {
+      if (imageSrc.value || isDocument.value || showUnavailable.value) {
         context.emit("open-post");
       } else {
         router.push({ name: "AccountSettings" });
@@ -356,6 +376,19 @@ export default defineComponent({
       return posts.lazyLoad ? "lazy" : "eager";
     });
 
+    const showUnavailable = computed(
+      () => props.unavailable || mediaFailed.value,
+    );
+    // Prefer explicit unavailable from enrich; img @error uses the softer copy.
+    const unavailableLabel = computed(() =>
+      props.unavailable ? "Submission unavailable" : "Couldn't load media",
+    );
+    const unavailableHint = computed(() =>
+      props.unavailable
+        ? "This post is no longer on FurAffinity."
+        : "The preview failed to load.",
+    );
+
     return {
       isSwf,
       isVideo,
@@ -371,6 +404,10 @@ export default defineComponent({
       imageSrc,
       displayRatio,
       onPreviewLoad,
+      onPreviewError,
+      showUnavailable,
+      unavailableLabel,
+      unavailableHint,
       handleClick,
       loading,
       remuxing,
@@ -422,6 +459,12 @@ export default defineComponent({
 	 position: absolute;
 	 inset: 0;
 	 background: rgba(0, 0, 0, 0.55);
+}
+ .unavailable-media {
+	 background: #000;
+	 color: rgba(255, 255, 255, 0.85);
+	 padding: 1rem;
+	 box-sizing: border-box;
 }
  .document-card {
 	 position: relative;

@@ -24,6 +24,7 @@
         :description="post.description || ''"
         :document-kind="documentKind"
         :unplayable="isUnplayable"
+        :unavailable="isUnavailable"
         :local-path="post.__meta?.localPath || ''"
         @open-post="setClicked"
         @remuxed="$emit('remuxed')"
@@ -135,7 +136,11 @@ export default defineComponent({
     const isUnplayable = computed(
       () => siteMode.isLocal && props.post.__meta?.localPlayable === false,
     );
+    const isUnavailable = computed(
+      () => Boolean(props.post.__meta?.furaffinity?.unavailable),
+    );
     const documentKind = computed<"journal" | "story" | "">(() => {
+      if (isUnavailable.value) return "";
       if (props.post.__meta?.furaffinity?.kind === "journal") return "journal";
       if (props.post.__meta?.inkbunny?.typeId === INKBUNNY_SUBMISSION_TYPE_WRITING) return "story";
       const ext = props.post.file?.ext || "";
@@ -169,6 +174,7 @@ export default defineComponent({
       setClicked,
       buttons,
       isUnplayable,
+      isUnavailable,
       documentKind,
       autoNext,
       showAutoNextProgress,

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { adaptPartial, isOwnFavoritesListing, mapSearchTags } from "./api";
+import {
+  adaptPartial,
+  faUnavailableMeta,
+  isFaNotFoundError,
+  isOwnFavoritesListing,
+  mapSearchTags,
+} from "./api";
 import type { FaPartial } from "./api";
 
 const listingHit = (overrides: Partial<FaPartial> = {}): FaPartial => ({
@@ -10,6 +16,36 @@ const listingHit = (overrides: Partial<FaPartial> = {}): FaPartial => ({
   type: "image",
   thumbnail_url: "https://t.furaffinity.net/123@200-1.jpg",
   ...overrides,
+});
+
+describe("isFaNotFoundError", () => {
+  it("detects faapi NotFound messages", () => {
+    expect(isFaNotFoundError(new Error("NotFound: "))).toBe(true);
+    expect(isFaNotFoundError("NotFound: submission")).toBe(true);
+  });
+
+  it("detects FA database-missing copy", () => {
+    expect(isFaNotFoundError(new Error("The submission you are trying to find is not in our database."))).toBe(
+      true,
+    );
+  });
+
+  it("ignores unrelated errors", () => {
+    expect(isFaNotFoundError(new Error("timeout"))).toBe(false);
+    expect(isFaNotFoundError(null)).toBe(false);
+  });
+});
+
+describe("faUnavailableMeta", () => {
+  it("marks details loaded and unavailable", () => {
+    expect(faUnavailableMeta({ title: "x", kind: "submission", detailsLoaded: false, faType: "image" })).toEqual({
+      title: "x",
+      kind: "submission",
+      detailsLoaded: true,
+      faType: "image",
+      unavailable: true,
+    });
+  });
 });
 
 describe("isOwnFavoritesListing", () => {

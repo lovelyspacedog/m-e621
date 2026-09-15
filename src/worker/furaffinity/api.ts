@@ -46,6 +46,24 @@ export interface FaMeta {
   kind: "submission" | "journal";
   detailsLoaded: boolean;
   faType: string;
+  /** Submission gone on FA (deleted / never published). */
+  unavailable?: boolean;
+}
+
+/** Proxy/faapi NotFound or FA "not in our database" HTML. */
+export function isFaNotFoundError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error ?? "");
+  return /\bNotFound\b/i.test(msg) || /not in our database/i.test(msg);
+}
+
+export function faUnavailableMeta(existing?: FaMeta | null): FaMeta {
+  return {
+    title: existing?.title || "",
+    kind: existing?.kind === "journal" ? "journal" : "submission",
+    detailsLoaded: true,
+    faType: existing?.faType || "",
+    unavailable: true,
+  };
 }
 
 export interface MappedFaSearch {

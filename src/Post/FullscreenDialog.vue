@@ -10,7 +10,20 @@
         </div>
         <!-- Document / story viewers need native scroll; ZoomPanImage hijacks wheel for zoom. -->
         <div
-          v-if="current && isDocumentPost"
+          v-if="current && isUnavailablePost"
+          class="middle bg-black document-middle"
+          :class="blacklistClasses"
+        >
+          <div class="unavailable-fullscreen">
+            <v-icon size="72" color="white">mdi-image-off-outline</v-icon>
+            <div class="text-h6 mt-4">Submission unavailable</div>
+            <p class="mt-2 text-medium-emphasis text-center">
+              This post is no longer on FurAffinity.
+            </p>
+          </div>
+        </div>
+        <div
+          v-else-if="current && isDocumentPost"
           class="middle bg-black document-middle"
           :class="blacklistClasses"
         >
@@ -108,7 +121,7 @@
       <div class="top-right" v-ripple @click.stop="exitFullscreen">
         <v-icon size="40" class="ml-2 mt-2">mdi-close</v-icon>
       </div>
-      <div class="bottom-left" v-show="!hideUi && !isDocumentPost">
+      <div class="bottom-left" v-show="!hideUi && !isDocumentPost && !isUnavailablePost">
         <v-btn icon size="large" color="white" variant="text" @click="toggleSlideshow">
           <v-icon size="36">{{ slideshowPlaying ? "mdi-pause" : "mdi-play" }}</v-icon>
         </v-btn>
@@ -217,6 +230,9 @@ const notesVisible = ref(true);
 const notesLoadedFor = ref<number | null>(null);
 const postIsBlacklisted = computed(() =>
   Boolean(props?.current?.__meta.isBlacklisted),
+);
+const isUnavailablePost = computed(() =>
+  Boolean(props.current?.__meta?.furaffinity?.unavailable),
 );
 const { classes: blacklistClasses } = useBlacklistClasses({
   mode: blacklist.mode,
@@ -803,6 +819,16 @@ useHead({
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+
+.unavailable-fullscreen {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .fullscreen .flex .document-frame {
