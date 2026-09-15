@@ -168,5 +168,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Internal working notes
+BUG-ANALYSIS.md
+
 # Screenshot working copies (pre-censor / duplicates)
 screenshots/raw/

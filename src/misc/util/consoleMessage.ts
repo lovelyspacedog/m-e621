@@ -67,7 +67,7 @@ For more information, visit http://en.wikipedia.org/wiki/Self-XSS`,
     "background: #222; color: #a86700;",
   );
   console.log(
-    `%cProject page: https://github.com/lovelyspacedog/material-e621`,
+    `%cProject page: https://github.com/lovelyspacedog/m-e621`,
     "color: #E831FD; font-size: 1.2em;"
   )
 };

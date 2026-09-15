@@ -5,7 +5,7 @@
         <settings-page-title section="info" title="Info" color="teal-darken-2" />
         <settings-page-item title="Version Info" select>
           You are running {{ appName }}, which was last changed with commit
-          <a :href="`https://github.com/lovelyspacedog/material-e621/commit/${commit.hash}`" target="_blank">{{
+          <a :href="`https://github.com/lovelyspacedog/m-e621/commit/${commit.hash}`" target="_blank">{{
             commit.hash.substring(0, 7) }}</a>
           on <b>{{ commitDate }}</b> (this was <b>{{ commitDateRelative }}</b>) from branch <b>{{ branch }}</b>.
           <v-btn color="accent" variant="text" @click="forceUpdate" block>

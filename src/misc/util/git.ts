@@ -8,7 +8,7 @@ export interface IGitCommit {
   };
 }
 
-export const FORK_GITHUB_REPO = "lovelyspacedog/material-e621";
+export const FORK_GITHUB_REPO = "lovelyspacedog/m-e621";
 export const UPSTREAM_GITHUB_REPO = "avoonix/material-e621";
 
 /** Authors treated as this fork's personal commits (vs upstream Material e621). */

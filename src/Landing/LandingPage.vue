@@ -32,7 +32,7 @@
           block
           class="mt-0"
           color="primary"
-          href="https://github.com/lovelyspacedog/material-e621/commits/master"
+          href="https://github.com/lovelyspacedog/m-e621/commits/master"
           target="_blank"
           rel="noopener"
         >

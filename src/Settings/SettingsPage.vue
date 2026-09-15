@@ -55,12 +55,12 @@
               Never show again
             </v-btn>
             <v-btn size="small" variant="outlined" color="primary" target="_blank"
-              href="https://github.com/lovelyspacedog/material-e621/issues">
+              href="https://github.com/lovelyspacedog/m-e621/issues">
               <v-icon start> mdi-open-in-new </v-icon>
               browse issues
             </v-btn>
             <v-btn size="small" variant="outlined" color="primary" target="_blank"
-              href="https://github.com/lovelyspacedog/material-e621/issues/new/choose">
+              href="https://github.com/lovelyspacedog/m-e621/issues/new/choose">
               <v-icon start> mdi-open-in-new </v-icon>
               create issue
             </v-btn>

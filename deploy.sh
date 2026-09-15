@@ -13,7 +13,7 @@ SECRET="${EXPEDITION_SECRET:-}"
 REMOTE_DIR="${M_E621_DIR:-$HOME/m-e621}"
 PORT="${M_E621_PORT:-18621}"
 DOMAIN="${M_E621_DOMAIN:-localhost}"
-REPO_URL="${M_E621_REPO:-https://github.com/lovelyspacedog/material-e621.git}"
+REPO_URL="${M_E621_REPO:-https://github.com/lovelyspacedog/m-e621.git}"
 BRANCH="${M_E621_BRANCH:-master}"
 CONFIG_DIR="${M_E621_CONFIG:-$HOME/.config/m-e621}"
 

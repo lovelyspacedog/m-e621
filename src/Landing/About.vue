@@ -15,7 +15,7 @@
                     <p class="text-center">
                         Further information can be found on this fork's
                         <a class="text-primary text-decoration-none" target="_blank"
-                            href="https://github.com/lovelyspacedog/material-e621">
+                            href="https://github.com/lovelyspacedog/m-e621">
                             <v-icon color="primary" size="1em" class="mr-1">
                                 mdi-open-in-new </v-icon><span class="text-decoration-underline">GitHub page</span></a>.
                     </p>
