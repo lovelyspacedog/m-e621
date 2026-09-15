@@ -29,6 +29,7 @@
       <template #item="{ element: group }">
         <div class="saved-search-group-block">
           <v-list-item
+            v-if="hasCustomGroups"
             class="saved-search-group"
             @click="savedSearches.setGroupCollapsed(group.id, !group.collapsed)"
           >
@@ -114,7 +115,10 @@
             </template>
           </v-list-item>
 
-          <div v-show="!group.collapsed" class="saved-search-group-body">
+          <div
+            v-show="!hasCustomGroups || !group.collapsed"
+            :class="{ 'saved-search-group-body': hasCustomGroups }"
+          >
             <draggable
               :model-value="savedSearches.entriesInGroup(group.id)"
               :item-key="entryKey"
@@ -169,20 +173,20 @@
                           </template>
                           <v-list-item-title>Move down</v-list-item-title>
                         </v-list-item>
-                        <v-list-subheader v-if="savedSearches.groups.length > 1">
-                          Move to group
-                        </v-list-subheader>
-                        <v-list-item
-                          v-for="dest in savedSearches.groups"
-                          :key="dest.id"
-                          :disabled="dest.id === element.groupId"
-                          @click="savedSearches.moveEntryToGroup(element.id, dest.id)"
-                        >
-                          <template #prepend>
-                            <v-icon>mdi-folder-move-outline</v-icon>
-                          </template>
-                          <v-list-item-title>{{ dest.name }}</v-list-item-title>
-                        </v-list-item>
+                        <template v-if="hasCustomGroups">
+                          <v-list-subheader>Move to group</v-list-subheader>
+                          <v-list-item
+                            v-for="dest in savedSearches.groups"
+                            :key="dest.id"
+                            :disabled="dest.id === element.groupId"
+                            @click="savedSearches.moveEntryToGroup(element.id, dest.id)"
+                          >
+                            <template #prepend>
+                              <v-icon>mdi-folder-move-outline</v-icon>
+                            </template>
+                            <v-list-item-title>{{ dest.name }}</v-list-item-title>
+                          </v-list-item>
+                        </template>
                         <v-list-item @click="savedSearches.deleteEntryById(element.id)">
                           <template #prepend>
                             <v-icon>mdi-delete</v-icon>
@@ -196,7 +200,7 @@
               </template>
             </draggable>
             <v-list-item
-              v-if="savedSearches.entriesInGroup(group.id).length === 0"
+              v-if="hasCustomGroups && savedSearches.entriesInGroup(group.id).length === 0"
               density="compact"
             >
               <v-list-item-title class="text-medium-emphasis text-caption">
@@ -234,6 +238,7 @@
             @keydown.enter="save"
           />
           <v-select
+            v-if="hasCustomGroups"
             v-model="formGroupId"
             :items="groupSelectItems"
             item-title="title"
@@ -270,6 +275,8 @@ const route = useRoute();
 const ungroupedId = UNGROUPED_SAVED_SEARCH_GROUP_ID;
 
 const entryKey = (entry: SavedSearchEntry) => entry.id;
+
+const hasCustomGroups = computed(() => savedSearches.groups.length > 1);
 
 const groupSelectItems = computed(() =>
   savedSearches.groups.map((g) => ({ title: g.name, value: g.id })),
