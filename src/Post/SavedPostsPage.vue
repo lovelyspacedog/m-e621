@@ -66,7 +66,7 @@ import {
   useSnackbarStore,
 } from "@/services";
 import { getApiService } from "@/worker/services";
-import { onMounted, toRaw, watch } from "vue";
+import { onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useHead } from "@unhead/vue";
 
@@ -121,20 +121,23 @@ const reload = async () => {
   clearPosts();
   loading.value = true;
   try {
-    const entries = toRaw(savedPosts.entries);
+    // Plain clones only — Pinia Proxies in entries break Comlink postMessage.
+    const entries = savedPosts.entries.map((e) => ({
+      originMode: e.originMode,
+      id: e.id,
+      savedAt: e.savedAt,
+    }));
     if (!entries.length) {
       replacePosts([]);
       return;
     }
     const service = await getApiService();
     const unified = buildUnifiedFetchArgs(main.$state, { includeDisabled: true });
-    const result = await service.getPostsByIds(
-      toRaw({
-        entries,
-        children: unified.children,
-        sharedBlacklist: unified.sharedBlacklist,
-      }),
-    );
+    const result = await service.getPostsByIds({
+      entries,
+      children: unified.children,
+      sharedBlacklist: unified.sharedBlacklist,
+    });
     for (const warning of result.warnings || []) {
       snackbar.addMessage(warning);
     }
