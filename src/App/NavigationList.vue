@@ -6,6 +6,7 @@
       </template>
       <v-list-item-title>{{ home.name }}</v-list-item-title>
     </v-list-item>
+    <site-mode-switcher />
     <saved-search-nav />
     <v-list-item
       v-for="option in trailing"
@@ -19,7 +20,6 @@
       <v-list-item-title>{{ option.name }}</v-list-item-title>
     </v-list-item>
   </v-list>
-  <site-mode-switcher />
 </template>
 
 <script setup lang="ts">
