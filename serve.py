@@ -10,6 +10,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 import threading
@@ -228,6 +229,19 @@ def _do_pull() -> None:
         else:
             _run(["npm", "ci", "--prefer-offline"], log)
         _run(["npm", "run", "build-only"], log)
+        # FurAffinity needs faapi in APP_DIR/.venv (serve.py prepends it to sys.path).
+        req = APP_DIR / "requirements.txt"
+        if req.is_file():
+            venv = APP_DIR / ".venv"
+            if not venv.is_dir():
+                if shutil.which("uv"):
+                    _run(["uv", "venv", str(venv)], log)
+                else:
+                    _run([sys.executable, "-m", "venv", str(venv)], log)
+            if shutil.which("uv"):
+                _run(["uv", "pip", "install", "-r", str(req)], log)
+            else:
+                _run([str(venv / "bin" / "pip"), "install", "-r", str(req)], log)
         _state.update(
             {
                 "running": False,
@@ -238,14 +252,15 @@ def _do_pull() -> None:
                 "log_tail": "\n".join(log[-40:]),
             }
         )
-        # Bounce the HTTP process so new serve.py routes (e.g. Tailspace proxy) load.
+        # Bounce the HTTP process so new serve.py routes (e.g. FurAffinity) load.
         # Delay so this status write and the API response can finish first.
+        # FORCE_RESTART bypasses start's "already running" short-circuit.
         restart_cmd = (
             f"sleep 2; "
             f"pkill -f '{APP_DIR}/serve.py' || true; "
             f"rm -f '{CONFIG_DIR}/m-e621.pid'; "
             f"sleep 1; "
-            f"'{APP_DIR}/start'"
+            f"M_E621_FORCE_RESTART=1 '{APP_DIR}/start'"
         )
         subprocess.Popen(
             ["bash", "-c", restart_cmd],

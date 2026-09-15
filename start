@@ -15,13 +15,18 @@ HOST="${M_E621_HOST:-127.0.0.1}"
 
 mkdir -p "$CONFIG_DIR"
 
-if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+# Cron keep-alive: if already healthy, do nothing — unless a pull/sync asks
+# for a hard bounce so new serve.py routes (e.g. FurAffinity) actually load.
+if [[ "${M_E621_FORCE_RESTART:-0}" != "1" ]] \
+  && [[ -f "$PIDFILE" ]] \
+  && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
   exit 0
 fi
 
 # Clear stale listeners / orphaned servers for this app.
 if pgrep -f "$APP_DIR/serve.py" >/dev/null 2>&1; then
   pkill -f "$APP_DIR/serve.py" 2>/dev/null || true
+  rm -f "$PIDFILE"
   sleep 1
 fi
 
