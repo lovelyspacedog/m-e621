@@ -28,22 +28,26 @@
     </v-btn>
   </div>
   <v-autocomplete
-    v-else
+    v-else-if="variant === 'inline'"
     :model-value="siteMode.activeMode"
     :items="selectItems"
     item-title="title"
     item-value="value"
-    variant="plain"
-    density="compact"
+    variant="solo"
+    flat
+    bg-color="secondary"
+    density="comfortable"
     hide-details
+    rounded="lg"
     class="site-mode-inline"
     menu-icon="mdi-chevron-down"
+    placeholder="Choose site"
     @update:model-value="onSelect($event as SiteMode)"
   >
     <template #selection="{ item }">
       <span class="d-inline-flex align-center ga-1">
-        <v-icon size="22">{{ modeIcon(item.raw.value) }}</v-icon>
-        <span class="text-decoration-underline text-decoration-thickness-2">{{ item.title }}</span>
+        <v-icon size="20">{{ modeIcon(item.raw.value) }}</v-icon>
+        <span>{{ item.title }}</span>
       </span>
     </template>
     <template #item="{ props: itemProps, item }">
@@ -150,28 +154,19 @@ const onSelect = async (mode: SiteMode) => {
 .site-mode-inline {
   display: inline-flex;
   flex: 0 1 auto;
-  min-width: 9.5rem;
-  max-width: min(52vw, 15rem);
+  min-width: 11rem;
+  max-width: min(70vw, 16rem);
+  vertical-align: middle;
 }
 
 .site-mode-inline :deep(.v-field) {
   font: inherit;
   letter-spacing: inherit;
-  line-height: inherit;
 }
 
 .site-mode-inline :deep(.v-field__input) {
-  min-height: auto;
+  min-height: 2.25rem;
   padding-top: 0;
   padding-bottom: 0;
-}
-
-.site-mode-inline :deep(.v-field__append-inner) {
-  padding-top: 0;
-  align-self: center;
-}
-
-.site-mode-inline :deep(.v-icon) {
-  opacity: 0.85;
 }
 </style>

@@ -120,10 +120,10 @@ const removeTag = (tag: string) => {
 .landing-tagline {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   justify-content: center;
-  column-gap: 0.35em;
-  row-gap: 0.15em;
+  column-gap: 0.5em;
+  row-gap: 0.35em;
   margin-bottom: 0.75rem;
   text-align: center;
 }
