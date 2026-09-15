@@ -17,7 +17,7 @@ import * as furbooru from "./furbooru/api";
 import * as inkbunny from "./inkbunny/api";
 import type { InkbunnyMeta } from "./inkbunny/api";
 import { isPostBlacklisted } from "./blacklist";
-import type { BlacklistMode, SiteMode } from "@/services/types";
+import { BlacklistMode, type SiteMode } from "@/services/types";
 import { createTagQuery } from "@/misc/util/createTagQuery";
 import { debug } from "@/misc/util/debug";
 

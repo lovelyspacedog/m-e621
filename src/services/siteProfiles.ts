@@ -2,6 +2,7 @@ import clone from "clone";
 import { toRaw } from "vue";
 import type { ISettingsServiceState, SiteMode, SiteProfile } from "./types";
 import { BlacklistMode, SITE_MODE_URLS, UNGROUPED_FAVORITE_GROUP_ID } from "./types";
+import { emptySavedSearchGroups, normalizeSavedSearches } from "./savedSearchNormalize";
 
 const cloneRaw = <T>(value: T, fallback: T): T => {
   if (value == null) return clone(fallback);
@@ -20,6 +21,11 @@ const emptyFavorites = () => ({
   tags: [] as SiteProfile["favorites"]["tags"],
 });
 
+const emptySearches = (): SiteProfile["searches"] => ({
+  groups: emptySavedSearchGroups(),
+  entries: [],
+});
+
 const emptyAccount = (): SiteProfile["account"] => ({
   username: null,
   apiKey: null,
@@ -35,9 +41,7 @@ export const createEmptySiteProfile = (mode: SiteMode): SiteProfile => ({
     tags: [],
     hideServerSideBlacklisted: false,
   },
-  searches: {
-    entries: [],
-  },
+  searches: emptySearches(),
   history: {
     entries: [],
     maxLength: 100,
@@ -53,7 +57,7 @@ export const profileFromMirrors = (state: ISettingsServiceState): SiteProfile =>
     tags: [],
     hideServerSideBlacklisted: false,
   }),
-  searches: cloneRaw(state.searches, { entries: [] }),
+  searches: normalizeSavedSearches(cloneRaw(state.searches, emptySearches())),
   history: cloneRaw(state.history, { entries: [], maxLength: 100 }),
 });
 
@@ -75,7 +79,7 @@ export const applyActiveProfileToMirrors = (state: ISettingsServiceState) => {
     tags: [],
     hideServerSideBlacklisted: false,
   });
-  state.searches = cloneRaw(profile.searches, { entries: [] });
+  state.searches = normalizeSavedSearches(cloneRaw(profile.searches, emptySearches()));
   state.history = cloneRaw(profile.history, { entries: [], maxLength: 100 });
   if (!state.misc) {
     state.misc = { urls: { e621: "", proxy: "" } };

@@ -1,151 +1,51 @@
 <template>
   <div>
     <portal to="toolbar">
-      <div style="display: flex; align-items: center; flex-grow: 999;">
-        <tag-search v-view-transition-name="'tagsearch'" style="flex: 1 1 auto" :tags="tags" @add-tag="addTag"
+      <div class="posts-toolbar">
+        <tag-search v-view-transition-name="'tagsearch'" class="posts-toolbar-search" :tags="tags" @add-tag="addTag"
           @remove-tag="removeTag" @confirm-search="updateQuery(), onSearchClick()" label="Tags" />
-        <v-btn
-          v-if="!siteMode.isLocal && !siteMode.isInkbunny"
-          class="text-none"
-          size="small"
-          variant="text"
-          :color="activeOrder === 'order:score' ? 'accent' : undefined"
-          @click="applyOrder('order:score')"
-        >
-          Score
-        </v-btn>
-        <v-btn
-          v-if="!siteMode.isLocal && !siteMode.isInkbunny"
-          class="text-none"
-          size="small"
-          variant="text"
-          :color="activeOrder === 'order:favcount' ? 'accent' : undefined"
-          @click="applyOrder('order:favcount')"
-        >
-          Favs
-        </v-btn>
-        <v-btn
-          v-if="siteMode.isInkbunny"
-          class="text-none"
-          size="small"
-          variant="text"
-          title="Inkbunny sorts by view count"
-          :color="activeOrder === 'order:score' || activeOrder === 'order:favcount' ? 'accent' : undefined"
-          @click="applyOrder('order:score')"
-        >
-          Views
-        </v-btn>
-        <v-btn
-          v-if="siteMode.isInkbunny"
-          class="text-none"
-          size="small"
-          variant="text"
-          :color="activeOrder === 'order:newest' ? 'accent' : undefined"
-          @click="applyOrder('order:newest')"
-        >
-          Newest
-        </v-btn>
-        <v-btn
-          v-if="siteMode.isLocal"
-          class="text-none"
-          size="small"
-          variant="text"
-          :color="!activeOrder || activeOrder === 'order:newest' ? 'accent' : undefined"
-          @click="applyOrder('order:newest')"
-        >
-          Newest
-        </v-btn>
-        <v-btn
-          v-if="siteMode.isLocal"
-          class="text-none"
-          size="small"
-          variant="text"
-          :color="activeOrder === 'order:name' ? 'accent' : undefined"
-          @click="applyOrder('order:name')"
-        >
-          Name
-        </v-btn>
-        <v-btn
-          v-if="siteMode.isLocal"
-          class="text-none"
-          size="small"
-          variant="text"
-          :color="activeOrder === 'order:filesize' ? 'accent' : undefined"
-          @click="applyOrder('order:filesize')"
-        >
-          Size
-        </v-btn>
-        <v-btn
-          v-if="siteMode.isLocal"
-          class="text-none"
-          size="small"
-          variant="text"
-          :color="hasTypeTag('type:video') ? 'accent' : undefined"
-          @click="toggleTypeTag('type:video')"
-        >
-          Video
-        </v-btn>
-        <v-btn
-          v-if="siteMode.isLocal"
-          class="text-none"
-          size="small"
-          variant="text"
-          :color="hasTypeTag('type:still') ? 'accent' : undefined"
-          @click="toggleTypeTag('type:still')"
-        >
-          Stills
-        </v-btn>
-        <v-btn
-          v-if="siteMode.isLocal"
-          class="text-none"
-          size="small"
-          variant="text"
-          :color="activeOrder === 'order:duration' ? 'accent' : undefined"
-          @click="applyOrder('order:duration')"
-        >
-          Duration
-        </v-btn>
-        <v-btn
-          v-if="siteMode.isLocal"
-          class="text-none"
-          size="small"
-          variant="text"
-          :color="hasTypeTag('type:favorited') ? 'accent' : undefined"
-          @click="toggleTypeTag('type:favorited')"
-        >
-          Favs
-        </v-btn>
-        <v-btn
-          class="text-none"
-          size="small"
-          variant="text"
-          :color="activeOrder === 'order:random' ? 'accent' : undefined"
-          @click="applyOrder('order:random')"
-        >
-          Random
-        </v-btn>
-        <v-btn
-          v-if="!siteMode.isLocal"
-          class="text-none"
-          size="small"
-          variant="text"
-          :loading="bulkSaving"
-          :disabled="!posts.length || bulkSaving || searchSaving"
-          @click="bulkSaveVisible"
-        >
-          Save visible
-        </v-btn>
-        <v-btn
-          v-if="!siteMode.isLocal"
-          class="text-none"
-          size="small"
-          variant="text"
-          :color="searchSaving ? 'error' : undefined"
-          :disabled="bulkSaving"
-          @click="toggleSaveSearch"
-        >
-          {{ searchSaving ? "Cancel save" : "Save search" }}
-        </v-btn>
+
+        <!-- Wide: inline action buttons -->
+        <template v-if="!compactToolbarActions">
+          <v-btn
+            v-for="action in toolbarActions"
+            :key="action.key"
+            class="text-none"
+            size="small"
+            variant="text"
+            :color="action.active ? (action.error ? 'error' : 'accent') : undefined"
+            :loading="action.loading"
+            :disabled="action.disabled"
+            :title="action.title"
+            @click="action.run"
+          >
+            {{ action.label }}
+          </v-btn>
+        </template>
+
+        <!-- Narrow: collapse actions into a menu -->
+        <v-menu v-else location="bottom end" offset-y transition="slide-y-transition">
+          <template #activator="{ props: menuProps }">
+            <v-btn v-bind="menuProps" icon size="small" title="Actions">
+              <v-icon>mdi-dots-vertical</v-icon>
+            </v-btn>
+          </template>
+          <v-list density="compact" min-width="180">
+            <v-list-item
+              v-for="action in toolbarActions"
+              :key="action.key"
+              :active="action.active"
+              :disabled="action.disabled"
+              :title="action.label"
+              @click="action.run"
+            >
+              <template v-if="action.loading" #append>
+                <v-progress-circular indeterminate size="16" width="2" />
+              </template>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+
         <v-btn icon @click="updateQuery(), onSearchClick()" :loading="loading">
           <v-icon>mdi-magnify</v-icon>
         </v-btn>
@@ -292,7 +192,8 @@ import { savePostsLocally, saveSearchLocally } from "../misc/util/saveLocal";
 import Suggestions from "./Suggestions.vue";
 import { useDisplay } from "vuetify";
 
-const { mdAndUp } = useDisplay();
+const { mdAndUp, mdAndDown } = useDisplay();
+const compactToolbarActions = computed(() => mdAndDown.value);
 
 const account = useAccountStore();
 const blacklist = useBlacklistStore();
@@ -601,6 +502,132 @@ const toggleTypeTag = (typeTag: string) => {
   updateQuery();
 };
 
+type ToolbarAction = {
+  key: string;
+  label: string;
+  active?: boolean;
+  error?: boolean;
+  loading?: boolean;
+  disabled?: boolean;
+  title?: string;
+  run: () => void;
+};
+
+const toolbarActions = computed((): ToolbarAction[] => {
+  const actions: ToolbarAction[] = [];
+  if (!siteMode.isLocal && !siteMode.isInkbunny) {
+    actions.push(
+      {
+        key: "score",
+        label: "Score",
+        active: activeOrder.value === "order:score",
+        run: () => applyOrder("order:score"),
+      },
+      {
+        key: "favs",
+        label: "Favs",
+        active: activeOrder.value === "order:favcount",
+        run: () => applyOrder("order:favcount"),
+      },
+    );
+  }
+  if (siteMode.isInkbunny) {
+    actions.push(
+      {
+        key: "views",
+        label: "Views",
+        title: "Inkbunny sorts by view count",
+        active:
+          activeOrder.value === "order:score" ||
+          activeOrder.value === "order:favcount",
+        run: () => applyOrder("order:score"),
+      },
+      {
+        key: "newest",
+        label: "Newest",
+        active: activeOrder.value === "order:newest",
+        run: () => applyOrder("order:newest"),
+      },
+    );
+  }
+  if (siteMode.isLocal) {
+    actions.push(
+      {
+        key: "newest",
+        label: "Newest",
+        active: !activeOrder.value || activeOrder.value === "order:newest",
+        run: () => applyOrder("order:newest"),
+      },
+      {
+        key: "name",
+        label: "Name",
+        active: activeOrder.value === "order:name",
+        run: () => applyOrder("order:name"),
+      },
+      {
+        key: "size",
+        label: "Size",
+        active: activeOrder.value === "order:filesize",
+        run: () => applyOrder("order:filesize"),
+      },
+      {
+        key: "video",
+        label: "Video",
+        active: hasTypeTag("type:video"),
+        run: () => toggleTypeTag("type:video"),
+      },
+      {
+        key: "stills",
+        label: "Stills",
+        active: hasTypeTag("type:still"),
+        run: () => toggleTypeTag("type:still"),
+      },
+      {
+        key: "duration",
+        label: "Duration",
+        active: activeOrder.value === "order:duration",
+        run: () => applyOrder("order:duration"),
+      },
+      {
+        key: "local-favs",
+        label: "Favs",
+        active: hasTypeTag("type:favorited"),
+        run: () => toggleTypeTag("type:favorited"),
+      },
+    );
+  }
+  actions.push({
+    key: "random",
+    label: "Random",
+    active: activeOrder.value === "order:random",
+    run: () => applyOrder("order:random"),
+  });
+  if (!siteMode.isLocal) {
+    actions.push(
+      {
+        key: "save-visible",
+        label: "Save visible",
+        loading: bulkSaving.value,
+        disabled: !posts.value.length || bulkSaving.value || searchSaving.value,
+        run: () => {
+          void bulkSaveVisible();
+        },
+      },
+      {
+        key: "save-search",
+        label: searchSaving.value ? "Cancel save" : "Save search",
+        active: searchSaving.value,
+        error: searchSaving.value,
+        disabled: bulkSaving.value,
+        run: () => {
+          void toggleSaveSearch();
+        },
+      },
+    );
+  }
+  return actions;
+});
+
 const onHistoryEntryClick = (entry: string[]) => {
   setTags(entry);
   updateQuery();
@@ -616,3 +643,17 @@ watch(
 );
 
 </script>
+
+<style scoped>
+.posts-toolbar {
+  display: flex;
+  align-items: center;
+  flex-grow: 999;
+  min-width: 0;
+  gap: 2px;
+}
+.posts-toolbar-search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+</style>

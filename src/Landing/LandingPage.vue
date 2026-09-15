@@ -4,10 +4,22 @@
 
       <app-logo v-view-transition-name="'applogo'" type="face" size="200" />
       <h1 class="mb-2 text-h1 text-center">m-e621</h1>
-      <div class="text-h5">A {{ adjective }} frontend for e621.net</div>
-      <div style="min-width: 50vw;">
-        <tag-search v-view-transition-name="'tagsearch'" style="flex: 1 1 auto" :tags="tags" @add-tag="addTag"
-          @remove-tag="removeTag" @confirm-search="router.push(query)" label="Search Tags ..." />
+      <div class="text-h5">A {{ adjective }} frontend for {{ siteMode.activeLabel }}</div>
+      <div class="landing-search">
+        <site-mode-switcher
+          class="mb-3"
+          variant="chips"
+          :navigate-on-change="false"
+        />
+        <tag-search
+          v-view-transition-name="'tagsearch'"
+          class="landing-search-field"
+          :tags="tags"
+          @add-tag="addTag"
+          @remove-tag="removeTag"
+          @confirm-search="router.push(query)"
+          label="Search Tags ..."
+        />
       </div>
       <div class="ma-5">
         <v-btn size="x-large" color="secondary" variant="outlined" :to="query">
@@ -60,6 +72,7 @@
 
 <script setup lang="ts">
 import AppLogo from "../App/AppLogo.vue";
+import SiteModeSwitcher from "../App/SiteModeSwitcher.vue";
 import CommitTimeline from "@/About/CommitTimeline.vue";
 import { useHead } from "@unhead/vue";
 import TagSearch from "@/Tag/TagSearch.vue";
@@ -104,3 +117,16 @@ const removeTag = (tag: string) => {
   if (i >= 0) tags.value.splice(i, 1);
 };
 </script>
+
+<style scoped>
+.landing-search {
+  width: min(90vw, 640px);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.landing-search-field {
+  flex: 1 1 auto;
+  width: 100%;
+}
+</style>

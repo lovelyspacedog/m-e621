@@ -1,5 +1,5 @@
 <template>
-  <v-list class="pa-0 mt-2 mb-1" density="compact">
+  <v-list v-if="variant === 'list'" class="pa-0 mt-2 mb-1" density="compact">
     <v-list-subheader class="text-overline">Site</v-list-subheader>
     <v-list-item
       v-for="mode in siteMode.siteModes"
@@ -13,12 +13,39 @@
       <v-list-item-title>{{ modeLabel(mode) }}</v-list-item-title>
     </v-list-item>
   </v-list>
+  <div v-else class="site-mode-chips">
+    <v-btn
+      v-for="mode in siteMode.siteModes"
+      :key="mode"
+      size="small"
+      class="text-none"
+      :variant="siteMode.activeMode === mode ? 'flat' : 'outlined'"
+      :color="siteMode.activeMode === mode ? 'secondary' : undefined"
+      @click="onSelect(mode)"
+    >
+      <v-icon start size="18">{{ modeIcon(mode) }}</v-icon>
+      {{ modeLabel(mode) }}
+    </v-btn>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { useRouter } from "vue-router";
 import { useSiteModeStore } from "@/services/SiteModeStore";
 import type { SiteMode } from "@/services/types";
+
+const props = withDefaults(
+  defineProps<{
+    /** Sidebar list vs compact chips for the landing search. */
+    variant?: "list" | "chips";
+    /** When false, only switch mode (stay on the current page). */
+    navigateOnChange?: boolean;
+  }>(),
+  {
+    variant: "list",
+    navigateOnChange: true,
+  },
+);
 
 const siteMode = useSiteModeStore();
 const router = useRouter();
@@ -46,6 +73,10 @@ const modeLabel = (mode: SiteMode) => {
 
 const onSelect = async (mode: SiteMode) => {
   if (mode === siteMode.activeMode) return;
+  if (!props.navigateOnChange) {
+    siteMode.setMode(mode);
+    return;
+  }
   // Navigate off /posts before setMode when entering Tailspace so PostsPage's
   // modeChangeCount watcher cannot fire an e621-shaped getPosts (C3).
   if (mode === "tailspace") {
@@ -57,3 +88,12 @@ const onSelect = async (mode: SiteMode) => {
   await router.push({ name: "Posts", query: {} });
 };
 </script>
+
+<style scoped>
+.site-mode-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+</style>

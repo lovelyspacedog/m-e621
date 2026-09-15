@@ -36,12 +36,23 @@ export interface Shortcut {
   action: Action;
 }
 
+export interface SavedSearchGroup {
+  id: string;
+  name: string;
+  collapsed: boolean;
+  order: number;
+}
+
 export interface SavedSearchEntry {
+  id: string;
   name: string;
   tags: string[];
+  groupId: string;
+  order: number;
 }
 
 export const UNGROUPED_FAVORITE_GROUP_ID = "ungrouped";
+export const UNGROUPED_SAVED_SEARCH_GROUP_ID = "ungrouped";
 
 export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "furbooru" | "inkbunny";
 
@@ -88,6 +99,7 @@ export interface SiteProfile {
     hideServerSideBlacklisted: boolean;
   };
   searches: {
+    groups: SavedSearchGroup[];
     entries: SavedSearchEntry[];
   };
   history: {
@@ -102,7 +114,7 @@ export interface SiteProfile {
 // }
 
 export interface ISettingsServiceState {
-  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
+  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];
@@ -135,6 +147,7 @@ export interface ISettingsServiceState {
     maxLength: number;
   };
   searches: {
+    groups: SavedSearchGroup[];
     entries: SavedSearchEntry[];
   };
   snackbar: string | null;

@@ -44,6 +44,13 @@ git fetch --quiet origin "$BRANCH"
 git merge --ff-only "origin/$BRANCH"
 after="$(git rev-parse HEAD)"
 
+# Upstream Material e621 history powers the landing-page "Avoonix" column.
+UPSTREAM_URL="${M_E621_UPSTREAM_REPO:-https://github.com/avoonix/material-e621.git}"
+if ! git remote get-url upstream >/dev/null 2>&1; then
+  git remote add upstream "$UPSTREAM_URL" || true
+fi
+git fetch --quiet upstream master 2>/dev/null || git fetch --quiet upstream main 2>/dev/null || true
+
 # Re-apply executable bits on helpers if present in tree.
 chmod +x start sync serve.py deploy.sh load-m-e621-env.sh 2>/dev/null || true
 

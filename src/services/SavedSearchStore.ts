@@ -1,7 +1,17 @@
 import { defineStore } from "pinia";
 import { computed } from "vue";
 import { useMainStore } from "./state";
-import type { SavedSearchEntry } from "./types";
+import {
+  emptySavedSearchGroups,
+  normalizeSavedSearches,
+} from "./savedSearchNormalize";
+import {
+  UNGROUPED_SAVED_SEARCH_GROUP_ID,
+  type SavedSearchEntry,
+  type SavedSearchGroup,
+} from "./types";
+
+export { emptySavedSearchGroups, normalizeSavedSearches } from "./savedSearchNormalize";
 
 export const parseSavedSearchTags = (raw: string) =>
   raw
@@ -9,20 +19,97 @@ export const parseSavedSearchTags = (raw: string) =>
     .map((tag) => tag.trim())
     .filter(Boolean);
 
+const makeId = (prefix: string) =>
+  `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
 export const useSavedSearchStore = defineStore("saved-search", () => {
   const main = useMainStore();
-  const entries = computed(() => main.searches.entries);
+
+  const ensureShape = () => {
+    if (!Array.isArray(main.searches.groups)) {
+      const normalized = normalizeSavedSearches(main.searches);
+      main.searches.groups = normalized.groups;
+      main.searches.entries = normalized.entries;
+      return;
+    }
+    if (
+      !main.searches.groups.some((g) => g.id === UNGROUPED_SAVED_SEARCH_GROUP_ID)
+    ) {
+      main.searches.groups.unshift(...emptySavedSearchGroups());
+    }
+    for (let i = 0; i < main.searches.entries.length; i++) {
+      const e = main.searches.entries[i] as Partial<SavedSearchEntry>;
+      if (!e.id) e.id = makeId("search");
+      if (!e.groupId || !main.searches.groups.some((g) => g.id === e.groupId)) {
+        e.groupId = UNGROUPED_SAVED_SEARCH_GROUP_ID;
+      }
+      if (typeof e.order !== "number") e.order = i;
+      if (!Array.isArray(e.tags)) e.tags = [];
+      if (typeof e.name !== "string") e.name = e.tags.join(" ") || "Untitled";
+    }
+  };
+
+  ensureShape();
+
+  const groups = computed(() =>
+    [...(main.searches.groups || [])].sort((a, b) => a.order - b.order),
+  );
+  const entries = computed(() =>
+    [...main.searches.entries].sort((a, b) => a.order - b.order),
+  );
+
+  const entriesInGroup = computed(
+    () => (groupId: string) =>
+      main.searches.entries
+        .filter((e) => e.groupId === groupId)
+        .sort((a, b) => a.order - b.order),
+  );
+
   const deleteEntry = (index: number) => {
+    ensureShape();
     if (index < 0 || index >= main.searches.entries.length) return;
     main.searches.entries.splice(index, 1);
   };
-  const addEntry = (tags: string[], name: string) => {
-    main.searches.entries.push({ name: name.trim() || tags.join(" "), tags });
+
+  const deleteEntryById = (id: string) => {
+    ensureShape();
+    const idx = main.searches.entries.findIndex((e) => e.id === id);
+    if (idx >= 0) main.searches.entries.splice(idx, 1);
   };
+
+  const addEntry = (tags: string[], name: string, groupId?: string) => {
+    ensureShape();
+    const destId =
+      groupId && main.searches.groups.some((g) => g.id === groupId)
+        ? groupId
+        : UNGROUPED_SAVED_SEARCH_GROUP_ID;
+    const siblings = main.searches.entries.filter((e) => e.groupId === destId);
+    main.searches.entries.push({
+      id: makeId("search"),
+      name: name.trim() || tags.join(" ") || "Untitled",
+      tags: [...tags],
+      groupId: destId,
+      order: siblings.length
+        ? Math.max(...siblings.map((e) => e.order)) + 1
+        : 0,
+    });
+  };
+
+  const moveEntryToGroup = (entryId: string, groupId: string) => {
+    ensureShape();
+    if (!main.searches.groups.some((g) => g.id === groupId)) return;
+    const entry = main.searches.entries.find((e) => e.id === entryId);
+    if (!entry || entry.groupId === groupId) return;
+    const dest = main.searches.entries.filter((e) => e.groupId === groupId);
+    entry.groupId = groupId;
+    entry.order = dest.length ? Math.max(...dest.map((e) => e.order)) + 1 : 0;
+  };
+
   const updateEntry = (
     index: number,
-    patch: { name?: string; tags?: string[] },
+    patch: { name?: string; tags?: string[]; groupId?: string },
   ) => {
+    ensureShape();
     const entry = main.searches.entries[index];
     if (!entry) return;
     if (patch.name !== undefined) {
@@ -32,8 +119,23 @@ export const useSavedSearchStore = defineStore("saved-search", () => {
     if (patch.tags !== undefined) {
       entry.tags = [...patch.tags];
     }
+    if (patch.groupId !== undefined && patch.groupId !== entry.groupId) {
+      moveEntryToGroup(entry.id, patch.groupId);
+    }
   };
+
+  const updateEntryById = (
+    id: string,
+    patch: { name?: string; tags?: string[]; groupId?: string },
+  ) => {
+    ensureShape();
+    const index = main.searches.entries.findIndex((e) => e.id === id);
+    if (index < 0) return;
+    updateEntry(index, patch);
+  };
+
   const moveEntry = (from: number, to: number) => {
+    ensureShape();
     const list = main.searches.entries;
     if (from === to) return;
     if (from < 0 || to < 0 || from >= list.length || to >= list.length) return;
@@ -41,16 +143,121 @@ export const useSavedSearchStore = defineStore("saved-search", () => {
     if (!item) return;
     list.splice(to, 0, item);
   };
+
+  const replaceGroupEntries = (groupId: string, next: SavedSearchEntry[]) => {
+    ensureShape();
+    const others = main.searches.entries.filter((e) => e.groupId !== groupId);
+    const normalized = next.map((entry, i) => ({
+      id: entry.id,
+      name: entry.name,
+      tags: [...entry.tags],
+      groupId,
+      order: i,
+    }));
+    main.searches.entries.splice(
+      0,
+      main.searches.entries.length,
+      ...others,
+      ...normalized,
+    );
+  };
+
   const replaceEntries = (next: SavedSearchEntry[]) => {
-    main.searches.entries.splice(0, main.searches.entries.length, ...next);
+    ensureShape();
+    const normalized = normalizeSavedSearches({
+      groups: main.searches.groups,
+      entries: next,
+    });
+    main.searches.entries.splice(
+      0,
+      main.searches.entries.length,
+      ...normalized.entries,
+    );
+  };
+
+  const createGroup = (name: string) => {
+    ensureShape();
+    const trimmed = name.trim() || "New group";
+    const order =
+      main.searches.groups.length === 0
+        ? 0
+        : Math.max(...main.searches.groups.map((g) => g.order)) + 1;
+    const group: SavedSearchGroup = {
+      id: makeId("sgroup"),
+      name: trimmed,
+      collapsed: false,
+      order,
+    };
+    main.searches.groups.push(group);
+    return group;
+  };
+
+  const renameGroup = (groupId: string, name: string) => {
+    if (groupId === UNGROUPED_SAVED_SEARCH_GROUP_ID) return;
+    ensureShape();
+    const group = main.searches.groups.find((g) => g.id === groupId);
+    if (!group) return;
+    const trimmed = name.trim();
+    if (trimmed) group.name = trimmed;
+  };
+
+  const deleteGroup = (groupId: string) => {
+    if (groupId === UNGROUPED_SAVED_SEARCH_GROUP_ID) return;
+    ensureShape();
+    const ungrouped = main.searches.entries.filter(
+      (e) => e.groupId === UNGROUPED_SAVED_SEARCH_GROUP_ID,
+    );
+    let nextOrder = ungrouped.length
+      ? Math.max(...ungrouped.map((e) => e.order)) + 1
+      : 0;
+    for (const entry of main.searches.entries) {
+      if (entry.groupId === groupId) {
+        entry.groupId = UNGROUPED_SAVED_SEARCH_GROUP_ID;
+        entry.order = nextOrder++;
+      }
+    }
+    main.searches.groups = main.searches.groups.filter((g) => g.id !== groupId);
+  };
+
+  const setGroupCollapsed = (groupId: string, collapsed: boolean) => {
+    ensureShape();
+    const group = main.searches.groups.find((g) => g.id === groupId);
+    if (group) group.collapsed = collapsed;
+  };
+
+  const moveEntryInGroup = (entryId: string, direction: -1 | 1) => {
+    ensureShape();
+    const entry = main.searches.entries.find((e) => e.id === entryId);
+    if (!entry) return;
+    const siblings = main.searches.entries
+      .filter((e) => e.groupId === entry.groupId)
+      .sort((a, b) => a.order - b.order);
+    const idx = siblings.findIndex((e) => e.id === entryId);
+    const swapWith = siblings[idx + direction];
+    if (!swapWith) return;
+    const tmp = entry.order;
+    entry.order = swapWith.order;
+    swapWith.order = tmp;
   };
 
   return {
+    groups,
     entries,
+    entriesInGroup,
     deleteEntry,
+    deleteEntryById,
     addEntry,
     updateEntry,
+    updateEntryById,
     moveEntry,
+    moveEntryInGroup,
     replaceEntries,
+    replaceGroupEntries,
+    createGroup,
+    renameGroup,
+    deleteGroup,
+    setGroupCollapsed,
+    moveEntryToGroup,
+    UNGROUPED_SAVED_SEARCH_GROUP_ID,
   };
 });

@@ -35,7 +35,7 @@ export const fullscreenSlideshowShortcut: Shortcut = {
 };
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 24,
+  configVersion: 25,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -97,14 +97,28 @@ export const defaultSettings: ISettingsServiceState = {
     maxLength: 100,
   },
   searches: {
+    groups: [
+      {
+        id: "ungrouped",
+        name: "Ungrouped",
+        collapsed: false,
+        order: 0,
+      },
+    ],
     entries: [
       {
+        id: "default-hot",
         name: "Hot",
         tags: ["order:rank"],
+        groupId: "ungrouped",
+        order: 0,
       },
       {
+        id: "default-popular-today",
         name: "Popular Today",
         tags: ["order:favcount", "date:today"],
+        groupId: "ungrouped",
+        order: 1,
       },
     ],
   },

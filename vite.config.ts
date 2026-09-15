@@ -1190,11 +1190,35 @@ function generateSitemap(env: Record<string, string>): Plugin {
 }
 
 
-const VITE_GIT_COMMIT_INFO = execSync(
-  'git log -n 60 --pretty=format:";;;;;%H;%aI;%an;%B"',
-)
-  .toString()
-  .trim();
+function gitLogPretty(ref: string, n: number): string {
+  try {
+    return execSync(`git log -n ${n} --pretty=format:";;;;;%H;%aI;%an;%B" ${ref}`, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+/** Merge HEAD + upstream Material e621 logs so the landing page can show both columns. */
+function buildGitCommitInfo(): string {
+  const seen = new Set<string>();
+  const chunks: string[] = [];
+  for (const ref of ["HEAD", "upstream/master", "upstream/main"]) {
+    const raw = gitLogPretty(ref, 40);
+    if (!raw) continue;
+    for (const part of raw.split(";;;;;").filter(Boolean)) {
+      const hash = part.split(";", 1)[0]?.trim();
+      if (!hash || seen.has(hash)) continue;
+      seen.add(hash);
+      chunks.push(`;;;;;${part}`);
+    }
+  }
+  return chunks.join("");
+}
+
+const VITE_GIT_COMMIT_INFO = buildGitCommitInfo();
 
 const VITE_GIT_BRANCH = execSync("git branch --show-current")
   .toString()

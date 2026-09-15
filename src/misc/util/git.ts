@@ -12,8 +12,10 @@ export const FORK_GITHUB_REPO = "lovelyspacedog/m-e621";
 export const UPSTREAM_GITHUB_REPO = "avoonix/material-e621";
 
 /** Authors treated as this fork's personal commits (vs upstream Material e621). */
-export const isForkAuthor = (author: string) =>
-  /tony\s*pup/i.test(author.trim());
+export const isForkAuthor = (author: string) => {
+  const a = author.trim();
+  return /tony\s*pup/i.test(a) || /lovelyspacedog/i.test(a);
+};
 
 export const commitGithubUrl = (entry: IGitCommit) => {
   const repo = isForkAuthor(entry.author)

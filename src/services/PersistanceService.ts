@@ -27,6 +27,7 @@ import {
   profileFromMirrors,
   syncMirrorsToActiveProfile,
 } from "./siteProfiles";
+import { normalizeSavedSearches } from "./savedSearchNormalize";
 import { supportsDirectoryPicker } from "@/misc/util/saveLocal";
 
 
@@ -460,6 +461,22 @@ class PersistanceService {
         newState.profiles.inkbunny = createEmptySiteProfile("inkbunny");
       }
       newState.configVersion = 24;
+    }
+    if (newState.configVersion < 25) {
+      // Saved searches gain collapsible groups (ids + groupId + order).
+      newState.searches = reactive(
+        normalizeSavedSearches(newState.searches),
+      ) as ISettingsServiceState["searches"];
+      if (newState.profiles) {
+        for (const mode of Object.keys(newState.profiles) as Array<
+          keyof typeof newState.profiles
+        >) {
+          const profile = newState.profiles[mode];
+          if (!profile) continue;
+          profile.searches = normalizeSavedSearches(profile.searches);
+        }
+      }
+      newState.configVersion = 25;
     }
 
     // Ensure profiles exist even if a partial export skipped them.
