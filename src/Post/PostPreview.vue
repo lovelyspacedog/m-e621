@@ -311,6 +311,11 @@ export default defineComponent({
         await nextTick();
       }
       if (!el.isConnected) return;
+      const url = playableUrl.value;
+      // Belt-and-suspenders if the binding hasn't landed yet.
+      if (url && !el.getAttribute("src")) {
+        el.src = url;
+      }
       playWhenVisible(el, forcePlay);
     };
 
@@ -326,11 +331,20 @@ export default defineComponent({
     };
 
     const setVideoEl = (el: unknown) => {
+      if (!(el instanceof HTMLVideoElement)) {
+        visibilityObserver?.disconnect();
+        visibilityObserver = null;
+        boundVideo = null;
+        videoIsIntersecting = false;
+        return;
+      }
+      // Function refs re-fire on re-render with the same node. Re-init would set
+      // videoSrcLive=false again and undo attach/click — stuck on the play overlay.
+      if (boundVideo === el) return;
+
       visibilityObserver?.disconnect();
       visibilityObserver = null;
-      boundVideo = null;
       videoIsIntersecting = false;
-      if (!(el instanceof HTMLVideoElement)) return;
       boundVideo = el;
       // Fresh mount: if autoplay is on, wait for intersection before loading src.
       if (posts.autoplayFeedVideo) {
