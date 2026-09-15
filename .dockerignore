@@ -1,1 +1,11 @@
 node_modules
+.git
+.venv
+dist
+deploy.env
+*.log
+screenshots
+src-tauri/target
+e2e
+coverage
+.DS_Store

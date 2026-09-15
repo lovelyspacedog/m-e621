@@ -6,8 +6,8 @@
           <v-tab value="overview">Overview</v-tab>
           <v-tab value="tags">Tags</v-tab>
           <v-tab value="description">Description</v-tab>
-          <v-tab v-if="!isLocal && !isInkbunny && !isItaku && !isWeasyl && !isFaJournal" value="comments">Comments</v-tab>
-          <v-tab v-if="!isLocal && !isInkbunny && !isItaku && !isWeasyl && current.has_notes" value="notes">Notes</v-tab>
+          <v-tab v-if="supportsComments" value="comments">Comments</v-tab>
+          <v-tab v-if="supportsNotes" value="notes">Notes</v-tab>
           <v-tab v-if="!isLocal" value="share">Share</v-tab>
         </v-tabs>
       </v-card-title>
@@ -33,20 +33,31 @@
           <v-tabs-window-item value="description">
             <v-card text>
               <v-card-text>
-                <div class="text-body-1">
+                <div
+                  v-if="isSofurryStory"
+                  class="text-body-1 sofurry-story"
+                >
+                  <div v-if="sofurryStoryTitle" class="text-h6 mb-3">
+                    {{ sofurryStoryTitle }}
+                  </div>
+                  <pre class="sofurry-story-text">{{
+                    current.description || "No story text"
+                  }}</pre>
+                </div>
+                <div v-else class="text-body-1">
                   <d-text :text="current.description || 'No description'" />
                 </div>
               </v-card-text>
             </v-card>
           </v-tabs-window-item>
-          <v-tabs-window-item v-if="!isLocal && !isInkbunny && !isItaku && !isWeasyl && !isFaJournal" value="comments">
+          <v-tabs-window-item v-if="supportsComments" value="comments">
             <v-card text>
               <v-card-text>
                 <post-comments-panel v-if="current && tabs === 'comments'" :post="current" />
               </v-card-text>
             </v-card>
           </v-tabs-window-item>
-          <v-tabs-window-item v-if="!isLocal && !isInkbunny && !isItaku && !isWeasyl && current.has_notes" value="notes">
+          <v-tabs-window-item v-if="supportsNotes" value="notes">
             <v-card text>
               <v-card-text>
                 <div v-if="notesLoading" class="text-center py-4">
@@ -111,12 +122,21 @@ import PostInfoList from "./PostInfoList.vue";
 import LinkShare from "./LinkShare.vue";
 import PostButtons from "@/Post/PostButtons.vue";
 import PostCommentsPanel from "@/Post/PostCommentsPanel.vue";
-import type { PropType} from "vue";
+import type { PropType } from "vue";
 import { computed, defineComponent, ref, watch } from "vue";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { Note } from "@/worker/api";
 import { useMainStore, usePostsStore, useSiteModeStore } from "@/services";
-import { originAuthForPost, originModeOf, unifiedChildLabel } from "@/misc/util/postOrigin";
+import {
+  originAuthForPost,
+  originModeOf,
+  postFeedKey,
+  unifiedChildLabel,
+} from "@/misc/util/postOrigin";
+import {
+  modeSupportsNotes,
+  postSupportsComments,
+} from "@/misc/util/siteCapabilities";
 import { postStandaloneUrl } from "@/misc/util/url";
 import type { ITag } from "@/Tag/ITag";
 import { getApiService } from "@/worker/services";
@@ -145,29 +165,22 @@ export default defineComponent({
       originModeOf(props.current, siteMode.activeMode),
     );
     const isLocal = computed(() => siteMode.isLocal);
-    const isInkbunny = computed(() => originMode.value === "inkbunny");
-    const isItaku = computed(() => originMode.value === "itaku");
-    const isWeasyl = computed(() => originMode.value === "weasyl");
-    const isFaJournal = computed(
-      () =>
-        originMode.value === "furaffinity" &&
-        props.current?.__meta?.furaffinity?.kind === "journal",
+    const supportsComments = computed(() =>
+      postSupportsComments(props.current, siteMode.activeMode),
     );
-    const buttons = computed(() => {
-      let list = siteMode.filterButtons(posts.detailsButtons);
-      if (originMode.value === "inkbunny") {
-        list = list.filter((button) => button !== "favorite");
-      }
-      if (isFaJournal.value) {
-        list = list.filter((button) => button !== "favorite");
-      }
-      return list;
-    });
+    const supportsNotes = computed(
+      () =>
+        !!props.current?.has_notes &&
+        modeSupportsNotes(originMode.value),
+    );
+    const buttons = computed(() =>
+      siteMode.filterButtonsForPost(posts.detailsButtons, props.current),
+    );
     const tabs = ref("overview");
     const notes = ref<Note[]>([]);
     const notesLoading = ref(false);
     const notesError = ref<string | null>(null);
-    const notesLoadedFor = ref<number | null>(null);
+    const notesLoadedFor = ref<string | null>(null);
 
     const tags = computed(() => {
       const allTags: ITag[] = [];
@@ -198,14 +211,15 @@ export default defineComponent({
       },
     });
 
-    const loadNotes = async (postId: number) => {
-      if (notesLoadedFor.value === postId) return;
+    const loadNotes = async (feedKey: string) => {
+      if (!props.current || notesLoadedFor.value === feedKey) return;
+      const postId = props.current.id;
       notesLoading.value = true;
       notesError.value = null;
       try {
         const service = await getApiService();
         const origin = originAuthForPost(
-          props.current!,
+          props.current,
           main.$state,
           siteMode.activeMode,
         );
@@ -214,22 +228,22 @@ export default defineComponent({
           baseUrl: origin.baseUrl,
           mode: origin.mode,
         });
-        if (props.current?.id !== postId) return;
+        if (!props.current || postFeedKey(props.current) !== feedKey) return;
         notes.value = result;
-        notesLoadedFor.value = postId;
+        notesLoadedFor.value = feedKey;
       } catch (error: any) {
-        if (props.current?.id !== postId) return;
+        if (!props.current || postFeedKey(props.current) !== feedKey) return;
         notesError.value = error?.message || String(error);
         notes.value = [];
       } finally {
-        if (props.current?.id === postId) {
+        if (props.current && postFeedKey(props.current) === feedKey) {
           notesLoading.value = false;
         }
       }
     };
 
     watch(
-      () => props.current?.id,
+      () => (props.current ? postFeedKey(props.current) : null),
       () => {
         tabs.value = "overview";
         notes.value = [];
@@ -239,10 +253,10 @@ export default defineComponent({
     );
 
     watch(
-      [tabs, () => props.current?.id],
-      ([tab, postId]) => {
-        if (!postId || isLocal.value || isInkbunny.value || isItaku.value || isWeasyl.value || isFaJournal.value) return;
-        if (tab === "notes") void loadNotes(postId);
+      [tabs, () => (props.current ? postFeedKey(props.current) : null)],
+      ([tab, feedKey]) => {
+        if (!feedKey || !supportsNotes.value) return;
+        if (tab === "notes") void loadNotes(feedKey);
       },
     );
 
@@ -250,6 +264,14 @@ export default defineComponent({
       props.current ? postStandaloneUrl(props.current) : "",
     );
     const originLabel = computed(() => unifiedChildLabel(originMode.value));
+    const isSofurryStory = computed(
+      () =>
+        props.current?.__meta?.kind === "story" &&
+        !!props.current?.__meta?.sofurry,
+    );
+    const sofurryStoryTitle = computed(
+      () => props.current?.__meta?.sofurry?.title || "",
+    );
 
     return {
       buttons,
@@ -257,16 +279,26 @@ export default defineComponent({
       tags,
       dialog,
       isLocal,
-      isInkbunny,
-      isItaku,
-      isWeasyl,
-      isFaJournal,
+      supportsComments,
+      supportsNotes,
       notes,
       notesLoading,
       notesError,
       originPageUrl,
       originLabel,
+      isSofurryStory,
+      sofurryStoryTitle,
     };
   },
 });
 </script>
+
+<style scoped>
+.sofurry-story-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  margin: 0;
+  line-height: 1.55;
+}
+</style>

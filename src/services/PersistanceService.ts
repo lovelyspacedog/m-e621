@@ -29,7 +29,7 @@ import {
   syncMirrorsToActiveProfile,
 } from "./siteProfiles";
 import { normalizeSavedSearches } from "./savedSearchNormalize";
-import { supportsDirectoryPicker } from "@/misc/util/saveLocal";
+import { supportsLocalBrowse } from "@/misc/util/tauriLocalFs";
 
 
 localforage.config({
@@ -625,9 +625,8 @@ class PersistanceService {
     ) {
       newState.activeMode = "e621";
     }
-    // Local mode needs File System Access API (Chromium). Fall back quietly on
-    // restore so Firefox/Zen users are not stuck on an empty browse mode.
-    if (newState.activeMode === "local" && !supportsDirectoryPicker()) {
+    // Local mode needs FSA (Chromium) or Tauri. Fall back quietly otherwise.
+    if (newState.activeMode === "local" && !supportsLocalBrowse()) {
       newState.activeMode = "e621";
     }
     // Normalize base URLs
@@ -698,6 +697,12 @@ class PersistanceService {
     }
     if (newState.posts.autoplayFeedVideoSilent === undefined) {
       newState.posts.autoplayFeedVideoSilent = true;
+    }
+    if (
+      newState.posts.saveLocal &&
+      newState.posts.saveLocal.openInLocalAfterSave === undefined
+    ) {
+      newState.posts.saveLocal.openInLocalAfterSave = false;
     }
     applyActiveProfileToMirrors(newState);
     // Official Vercel proxy only allows avoonix origins; use same-origin /api/.

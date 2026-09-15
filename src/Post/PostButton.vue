@@ -5,9 +5,13 @@
 </template>
 
 <script lang="ts">
-import { openUrlInNewTab, postStandaloneUrl } from "@/misc/util/url";
+import { openPostOnSourceSite } from "@/misc/util/url";
 import { savePostLocally } from "@/misc/util/saveLocal";
 import { fluffleImageUrl, isFluffleStillPost } from "@/misc/util/fluffleSearch";
+import {
+  findPostOnE621ByMd5,
+  postCanMd5Lookup,
+} from "@/misc/util/md5Lookup";
 import { useSavedPostsStore, useSnackbarStore } from "@/services";
 import type { ButtonType } from "@/services/types";
 import type { EnhancedPost } from "@/worker/ApiService";
@@ -35,12 +39,19 @@ export default defineComponent({
   },
   setup(props, context) {
     const saving = ref(false);
+    const findingMd5 = ref(false);
     const snackbar = useSnackbarStore();
     const savedPosts = useSavedPostsStore();
 
     const bookmarked = computed(() => savedPosts.isSaved(props.post));
-    const fluffleEnabled = computed(
+    const fluffleImageOk = computed(
       () => !!props.post && isFluffleStillPost(props.post) && !!fluffleImageUrl(props.post),
+    );
+    const md5LookupOk = computed(
+      () => !!props.post && postCanMd5Lookup(props.post),
+    );
+    const fluffleEnabled = computed(
+      () => fluffleImageOk.value || md5LookupOk.value,
     );
 
     const buttons = computed<{ [key in ButtonType]: IButton }>(() => ({
@@ -72,12 +83,7 @@ export default defineComponent({
         color: "",
         icon: "mdi-open-in-new",
         onClick: () => {
-          const source = props.post?.sources?.find((url) => /^https?:\/\//.test(url));
-          if (source) {
-            openUrlInNewTab(source);
-          } else if (props.post) {
-            openUrlInNewTab(postStandaloneUrl(props.post));
-          }
+          if (props.post) openPostOnSourceSite(props.post);
         },
       },
       favorite: {
@@ -123,11 +129,39 @@ export default defineComponent({
       },
       fluffle: {
         color: "",
-        icon: "mdi-image-search",
+        icon: md5LookupOk.value && !fluffleImageOk.value
+          ? "mdi-fingerprint"
+          : "mdi-image-search",
+        loading: findingMd5.value,
         // No post = settings palette; keep enabled so drag-and-drop works.
-        disabled: props.post ? !fluffleEnabled.value : false,
-        onClick: () => {
+        disabled: props.post ? !fluffleEnabled.value || findingMd5.value : false,
+        onClick: async () => {
           if (!props.post || !fluffleEnabled.value) return;
+          // Local / blob → MD5. Remote stills keep Fluffle. Videos / no-image fall back to MD5.
+          const isLocalFile =
+            !!props.post.__meta?.localPath ||
+            (props.post.file?.url || "").startsWith("blob:");
+          const preferMd5 =
+            isLocalFile || (md5LookupOk.value && !fluffleImageOk.value);
+          if (preferMd5 && md5LookupOk.value) {
+            findingMd5.value = true;
+            try {
+              const md5 = await findPostOnE621ByMd5(props.post);
+              snackbar.addMessage(`Opened e621 md5:${md5}`);
+            } catch (err) {
+              const message =
+                err instanceof Error ? err.message : "MD5 lookup failed";
+              if (fluffleImageOk.value) {
+                snackbar.addMessage(`${message} — trying Fluffle`);
+                context.emit("open-fluffle-search", props.post);
+              } else {
+                snackbar.addMessage(message);
+              }
+            } finally {
+              findingMd5.value = false;
+            }
+            return;
+          }
           context.emit("open-fluffle-search", props.post);
         },
       },

@@ -72,6 +72,8 @@ export interface MappedFaSearch {
   scraps?: boolean;
   favsUser?: string;
   journals?: boolean;
+  /** Logged-in watchstream (/msg/submissions/). */
+  following?: boolean;
   orderBy?: "date" | "relevancy" | "popularity";
   random?: boolean;
   ratings: string[];
@@ -218,6 +220,10 @@ export function mapSearchTags(tags: string[]): MappedFaSearch {
     }
     if (lower === "favs:me" || lower === "fav:me") {
       mapped.favsUser = "me";
+      continue;
+    }
+    if (lower === "following:me" || lower === "watch:me") {
+      mapped.following = true;
       continue;
     }
     if (lower.startsWith("favs:") || lower.startsWith("fav:")) {
@@ -423,6 +429,8 @@ export async function searchSubmissions(args: {
   if (mapped.journals && mapped.username) {
     const user = mapped.username === "me" ? await resolveMeName(cookies, args.username) : mapped.username;
     data = await faRequest("journals", { ...extra, username: user, page });
+  } else if (mapped.following) {
+    data = await faRequest("submissions", { ...extra, page });
   } else if (mapped.favsUser) {
     const user =
       mapped.favsUser === "me" ? await resolveMeName(cookies, args.username) : mapped.favsUser;

@@ -17,6 +17,10 @@
     "allowlist": {
       "shell": {
         "open": true
+      },
+      "dialog": {
+        "all": false,
+        "open": true
       }
     },
     "bundle": {
@@ -34,7 +38,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "com.avoonix.me621",
+      "identifier": "com.lovelyspacedog.me621",
       "longDescription": "",
       "macOS": {
         "entitlements": null,

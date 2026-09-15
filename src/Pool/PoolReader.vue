@@ -117,7 +117,20 @@
         icon="mdi-chevron-left"
         @click="emit('change-chunk', chunk - 1)"
       />
-      <span class="text-caption">Chunk {{ chunk }} / {{ chunkCount }}</span>
+      <template v-for="(p, i) in chunkButtons" :key="`${p}-${i}`">
+        <v-btn
+          v-if="p !== '...'"
+          :variant="p === chunk ? 'flat' : 'text'"
+          :color="p === chunk ? 'primary' : undefined"
+          size="small"
+          min-width="36"
+          :disabled="loading"
+          @click="emit('change-chunk', Number(p))"
+        >
+          {{ p }}
+        </v-btn>
+        <span v-else class="pool-chunk-ellipsis">…</span>
+      </template>
       <v-btn
         :disabled="chunk >= chunkCount || loading"
         variant="outlined"
@@ -125,12 +138,13 @@
         icon="mdi-chevron-right"
         @click="emit('change-chunk', chunk + 1)"
       />
+      <span class="pool-chunk-range text-caption">{{ chunkRangeLabel }}</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
 
@@ -201,6 +215,30 @@ const sequenceNumber = (post: EnhancedPost, index: number) => {
   if (idx >= 0) return idx + 1;
   return index + 1;
 };
+
+const chunkRangeLabel = computed(() => {
+  const total = props.totalCount || props.postIds.length;
+  if (!total) return "";
+  if (!props.posts.length) return `— / ${total}`;
+  const first = sequenceNumber(props.posts[0]!, 0);
+  const last = sequenceNumber(props.posts[props.posts.length - 1]!, props.posts.length - 1);
+  return `${first}–${last} / ${total}`;
+});
+
+const chunkButtons = computed((): (number | "...")[] => {
+  const n = props.chunkCount;
+  const cur = props.chunk;
+  const add = (pages: (number | "...")[], p: number) => {
+    if (!pages.includes(p)) pages.push(p);
+  };
+  const pages: (number | "...")[] = [];
+  add(pages, 1);
+  if (cur > 3) pages.push("...");
+  for (let p = Math.max(2, cur - 1); p <= Math.min(n - 1, cur + 1); p++) add(pages, p);
+  if (cur < n - 2) pages.push("...");
+  if (n > 1) add(pages, n);
+  return pages;
+});
 
 const thumbUrl = (post: EnhancedPost) =>
   proxyDownloadUrl(post.preview?.url || post.sample?.url || post.file?.url);
@@ -359,9 +397,22 @@ const scrollToTop = () => {
 
 .pool-chunk-pagination {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 4px;
   padding: 1.25rem 0.75rem 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.pool-chunk-ellipsis {
+  opacity: 0.45;
+  padding: 0 2px;
+  user-select: none;
+}
+.pool-chunk-range {
+  margin-left: 8px;
+  opacity: 0.6;
+  white-space: nowrap;
 }
 </style>

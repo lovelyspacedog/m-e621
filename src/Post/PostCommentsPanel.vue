@@ -57,7 +57,7 @@ import {
   useSnackbarStore,
   useUrlStore,
 } from "@/services";
-import { originAuthForPost, originModeOf } from "@/misc/util/postOrigin";
+import { originAuthForPost, originModeOf, postFeedKey } from "@/misc/util/postOrigin";
 import { getApiService } from "@/worker/services";
 
 const props = defineProps<{
@@ -73,7 +73,7 @@ const main = useMainStore();
 const comments = ref<Comment[]>([]);
 const commentsLoading = ref(false);
 const commentsError = ref<string | null>(null);
-const commentsLoadedFor = ref<number | null>(null);
+const commentsLoadedFor = ref<string | null>(null);
 const draftComment = ref("");
 const postingComment = ref(false);
 
@@ -81,9 +81,11 @@ const originMode = computed(() =>
   originModeOf(props.post, siteMode.activeMode),
 );
 const isFurbooru = computed(() => originMode.value === "furbooru");
+const feedKey = computed(() => postFeedKey(props.post));
 
-const loadComments = async (postId: number) => {
-  if (commentsLoadedFor.value === postId) return;
+const loadComments = async (key: string) => {
+  if (commentsLoadedFor.value === key) return;
+  const postId = props.post.id;
   commentsLoading.value = true;
   commentsError.value = null;
   try {
@@ -100,15 +102,15 @@ const loadComments = async (postId: number) => {
       auth: toRaw(origin.auth),
     });
     // Ignore stale responses after the user switched posts (H6).
-    if (props.post?.id !== postId) return;
+    if (postFeedKey(props.post) !== key) return;
     comments.value = result;
-    commentsLoadedFor.value = postId;
+    commentsLoadedFor.value = key;
   } catch (error: any) {
-    if (props.post?.id !== postId) return;
+    if (postFeedKey(props.post) !== key) return;
     commentsError.value = error?.message || String(error);
     comments.value = [];
   } finally {
-    if (props.post?.id === postId) {
+    if (postFeedKey(props.post) === key) {
       commentsLoading.value = false;
     }
   }
@@ -119,11 +121,11 @@ const resetAndLoad = () => {
   commentsLoadedFor.value = null;
   commentsError.value = null;
   draftComment.value = "";
-  void loadComments(props.post.id);
+  void loadComments(feedKey.value);
 };
 
 watch(
-  () => props.post.id,
+  feedKey,
   () => {
     resetAndLoad();
   },

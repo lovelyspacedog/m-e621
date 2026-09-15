@@ -185,6 +185,8 @@
             size="x-small"
             variant="tonal"
             class="mr-1 mb-1"
+            role="button"
+            @click="$emit('search-tag', tag.name)"
           >
             {{ tag.name }}
           </v-chip>
@@ -290,6 +292,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   navigate: [post: TailspacePost];
+  "search-tag": [tagName: string];
 }>();
 
 const { isLoggedIn } = useTailspaceSession();
@@ -635,6 +638,9 @@ function formatCommentTime(ts: number) {
   display: flex;
   flex-wrap: wrap;
   margin-bottom: 2px;
+}
+.ts-info-tags :deep(.v-chip) {
+  cursor: pointer;
 }
 .ts-info-date {
   font-size: 0.72rem;

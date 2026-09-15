@@ -25,6 +25,9 @@ export const orderSupport = (
     if (mode === "local") {
       return { supported: false, reason: "Local files have no score" };
     }
+    if (mode === "sofurry") {
+      return { supported: false, reason: "SoFurry browse has no score sort" };
+    }
     if (mode === "furaffinity" && isFaFavoritesQuery(tags)) {
       return {
         supported: false,
@@ -36,8 +39,8 @@ export const orderSupport = (
   if (mode === "unified") {
     return { supported: false, reason: "Favorites sort is not comparable across sites" };
   }
-  if (mode === "inkbunny" || mode === "furaffinity") {
-    return { supported: false, reason: `${mode === "furaffinity" ? "FurAffinity" : "Inkbunny"} has no favorites sort` };
+  if (mode === "inkbunny" || mode === "furaffinity" || mode === "sofurry") {
+    return { supported: false, reason: `${mode === "furaffinity" ? "FurAffinity" : mode === "sofurry" ? "SoFurry" : "Inkbunny"} has no favorites sort` };
   }
   if (mode === "local") {
     return { supported: false, reason: "Local has no fav-count sort" };

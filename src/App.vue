@@ -57,6 +57,7 @@ import { useAppearanceStore, useMainStore, usePersistanceService, useShortcutSer
 import { useHead } from '@unhead/vue';
 import { useDisplay } from 'vuetify';
 import { useSyncedTheme } from "./misc/util/syncTheme";
+import { installOfflineSaveQueueListeners, flushOfflineSaveQueue } from "./misc/util/offlineSaveQueue";
 
 const persistance = usePersistanceService();
 const appearance = useAppearanceStore();
@@ -67,12 +68,16 @@ const navMode = computed(() => appearance.navigationType);
 const theme = computed(() => appearance.theme);
 
 useSyncedTheme();
+installOfflineSaveQueueListeners();
 
 onMounted(async () => {
   await persistance.persist();
   siteMode.ensureCompatibleActiveMode();
   // Bind immediately — $subscribe alone waits for the first mutation (M30).
   shortcutService.setUpShortcuts();
+  if (navigator.onLine) {
+    void flushOfflineSaveQueue();
+  }
 });
 
 const logoStyle = computed(() => appearance.logoStyle);

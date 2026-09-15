@@ -28,29 +28,36 @@
         <th>Uploader</th>
         <td class="post-info-value">{{ post.uploader_name }}</td>
       </tr>
-      <tr v-if="post.pools?.length">
+      <tr v-if="poolEntries.length">
         <th>Pools</th>
         <td class="post-info-value">
-          <TagWithMenu
-            small
-            v-for="pool in post.pools"
-            :key="pool"
-            :tag="{ name: `pool:${pool}`, category: 'pool' }"
-          />
+          <div
+            v-for="pool in poolEntries"
+            :key="pool.id"
+            class="post-info-pool"
+          >
+            <TagWithMenu
+              small
+              :tag="{ name: `pool:${pool.id}`, category: 'pool' }"
+            />
+            <span v-if="pool.name" class="text-caption text-medium-emphasis ml-1">
+              {{ pool.name }}
+            </span>
+          </div>
         </td>
       </tr>
       <tr v-if="!isLocal">
         <th>{{ isInkbunny || isFurAffinity ? "Views" : "Score" }}</th>
         <td class="post-info-value">
           <div class="d-flex align-center justify-end ga-1 flex-wrap">
-            <span v-if="isInkbunny || isFurAffinity">
+            <span v-if="isInkbunny || isFurAffinity || isSofurry">
               {{ post.score.total || "—" }}
             </span>
             <span v-else>
               {{ post.score.total }}
               ({{ post.score.up }} up − {{ post.score.down }} down)
             </span>
-            <template v-if="!isInkbunny && !isFurAffinity && !isWeasyl && !isItaku">
+            <template v-if="supportsVotes">
               <v-btn
                 size="x-small"
                 variant="text"
@@ -73,7 +80,7 @@
         <th>Comments</th>
         <td class="post-info-value">{{ post.comment_count }}</td>
       </tr>
-      <tr v-if="!isLocal && !isFurbooru && !isInkbunny && !isFurAffinity && !isWeasyl && !isItaku">
+      <tr v-if="supportsNotes">
         <th>Notes</th>
         <td class="post-info-value">{{ post.has_notes ? "Yes" : "No" }}</td>
       </tr>
@@ -116,9 +123,31 @@
           <span v-if="post.file.ext" class="text-medium-emphasis"> · {{ post.file.ext }}</span>
         </td>
       </tr>
-      <tr v-if="!isLocal && post.file.md5">
+      <tr v-if="showHashRow">
         <th>{{ hashLabel }}</th>
-        <td class="post-info-value post-info-hash">{{ post.file.md5 }}</td>
+        <td class="post-info-value post-info-hash">
+          <button
+            v-if="hasValidMd5"
+            type="button"
+            class="post-info-hash-btn"
+            title="Find on e621 by MD5"
+            @click="openMd5Lookup"
+          >
+            {{ post.file.md5 }}
+          </button>
+          <template v-else-if="post.file.md5">{{ post.file.md5 }}</template>
+          <template v-else>—</template>
+          <v-btn
+            v-if="canComputeMd5"
+            class="ml-1"
+            size="x-small"
+            variant="text"
+            :loading="hashing"
+            :icon="hasValidMd5 ? 'mdi-open-in-new' : 'mdi-fingerprint'"
+            :title="hasValidMd5 ? 'Find on e621' : 'Compute MD5 and find on e621'"
+            @click="openMd5Lookup"
+          />
+        </td>
       </tr>
       <tr v-if="!isLocal">
         <th>Rating</th>
@@ -149,6 +178,16 @@ import { getCreatorTags, useSiteLabels } from "@/misc/util/siteLabels";
 import { useSiteModeStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { originModeOf, unifiedChildLabel } from "@/misc/util/postOrigin";
+import {
+  modeSupportsNotes,
+  modeSupportsVotes,
+} from "@/misc/util/siteCapabilities";
+import {
+  findPostOnE621ByMd5,
+  isE621Md5Hex,
+  postCanMd5Lookup,
+} from "@/misc/util/md5Lookup";
+import { useSnackbarStore } from "@/services";
 
 const props = defineProps({
   post: {
@@ -161,6 +200,8 @@ const emit = defineEmits<{
   "set-post-vote": [{ postId: number; score: 1 | -1 | 0; originMode?: string }];
 }>();
 
+const snackbar = useSnackbarStore();
+const hashing = ref(false);
 const { creatorLabel, creatorCategory } = useSiteLabels();
 const siteMode = useSiteModeStore();
 const originMode = computed(() =>
@@ -172,6 +213,9 @@ const isInkbunny = computed(() => originMode.value === "inkbunny");
 const isFurAffinity = computed(() => originMode.value === "furaffinity");
 const isWeasyl = computed(() => originMode.value === "weasyl");
 const isItaku = computed(() => originMode.value === "itaku");
+const isSofurry = computed(() => originMode.value === "sofurry");
+const supportsVotes = computed(() => modeSupportsVotes(originMode.value));
+const supportsNotes = computed(() => modeSupportsNotes(originMode.value));
 const originLabel = computed(() =>
   (props.post as EnhancedPost).__meta?.originMode
     ? unifiedChildLabel((props.post as EnhancedPost).__meta.originMode!)
@@ -184,7 +228,29 @@ const megapixel = computed(
 );
 const parentId = computed(() => props.post.relationships?.parent_id || null);
 const childIds = computed(() => props.post.relationships?.children || []);
-const hashLabel = computed(() => (isFurbooru.value ? "SHA-512" : "Hash"));
+const poolEntries = computed(() => {
+  const metaPools = (props.post as EnhancedPost).__meta?.inkbunny?.pools || [];
+  const byId = new Map(metaPools.map((p) => [p.id, p.name] as const));
+  const ids =
+    props.post.pools?.length
+      ? props.post.pools
+      : metaPools.map((p) => p.id);
+  return ids.map((id) => ({
+    id,
+    name: byId.get(id) || "",
+  }));
+});
+const hasValidMd5 = computed(() => isE621Md5Hex(props.post.file?.md5));
+const canComputeMd5 = computed(() =>
+  postCanMd5Lookup(props.post as EnhancedPost),
+);
+const showHashRow = computed(
+  () =>
+    isLocal.value ||
+    !!props.post.file?.md5 ||
+    canComputeMd5.value,
+);
+const hashLabel = computed(() => (isFurbooru.value ? "SHA-512" : "MD5"));
 const ratingLabel = computed(() => {
   switch (props.post.rating) {
     case "s":
@@ -207,6 +273,21 @@ watch(
     voteScore.value = 0;
   },
 );
+
+const openMd5Lookup = async () => {
+  if (hashing.value || !canComputeMd5.value) return;
+  hashing.value = true;
+  try {
+    const md5 = await findPostOnE621ByMd5(props.post as EnhancedPost);
+    snackbar.addMessage(`Opened e621 md5:${md5}`);
+  } catch (err) {
+    snackbar.addMessage(
+      err instanceof Error ? err.message : "MD5 lookup failed",
+    );
+  } finally {
+    hashing.value = false;
+  }
+};
 
 const castVote = (score: 1 | -1 | 0) => {
   const prevScore = voteScore.value;
@@ -251,7 +332,21 @@ const castVote = (score: 1 | -1 | 0) => {
   font-size: 0.7rem;
   line-height: 1.35;
 }
+.post-info-hash-btn {
+  all: unset;
+  cursor: pointer;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+.post-info-hash-btn:hover {
+  opacity: 0.85;
+}
 .post-info-source + .post-info-source {
+  margin-top: 4px;
+}
+.post-info-pool + .post-info-pool {
   margin-top: 4px;
 }
 .post-info-source a {

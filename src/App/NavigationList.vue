@@ -6,7 +6,7 @@
       </template>
       <v-list-item-title>{{ home.name }}</v-list-item-title>
     </v-list-item>
-    <saved-search-nav v-if="!siteMode.isTailspace" />
+    <saved-search-nav />
     <v-list-item
       v-for="option in trailing"
       :key="option.resolved"
@@ -24,11 +24,9 @@
 
 <script setup lang="ts">
 import { useHomeNavigationItem, useTrailingNavigationItems } from "../App/navigation";
-import { useSiteModeStore } from "@/services/SiteModeStore";
 import SavedSearchNav from "./SavedSearchNav.vue";
 import SiteModeSwitcher from "./SiteModeSwitcher.vue";
 
 const home = useHomeNavigationItem();
 const trailing = useTrailingNavigationItems();
-const siteMode = useSiteModeStore();
 </script>

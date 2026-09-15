@@ -14,6 +14,7 @@ import { useFavoritesStore } from "@/services/FavoriteStore";
 import { computed, defineComponent } from "vue";
 import { openUrlInNewTab } from "@/misc/util/url";
 import { isCreatorCategory, useSiteLabels } from "@/misc/util/siteLabels";
+import { isE621FamilyMode } from "@/misc/util/siteCapabilities";
 import { useRouter } from "vue-router";
 
 export default defineComponent({
@@ -41,9 +42,7 @@ export default defineComponent({
         const isFavorited = computed(() => favorites.isFavorited(props.name, props.category));
         const router = useRouter();
         const { creatorLabel } = useSiteLabels();
-        const isE621Family = computed(
-          () => !siteMode.isFurbooru && !siteMode.isInkbunny && !siteMode.isFurAffinity && !siteMode.isWeasyl && !siteMode.isItaku && !siteMode.isLocal && !siteMode.isTailspace && !siteMode.isUnified,
-        );
+        const isE621Family = computed(() => isE621FamilyMode(siteMode.activeMode));
         const pool = computed(() => {
             if(props.category === "pool") {
                 const match = /pool:(\d+)/.exec(props.name);
@@ -150,6 +149,12 @@ export default defineComponent({
                   ? "Search on Furbooru"
                   : siteMode.isFurAffinity
                     ? "Search on FurAffinity"
+                  : siteMode.isWeasyl
+                    ? "Search on Weasyl"
+                  : siteMode.isItaku
+                    ? "Search on Itaku"
+                  : siteMode.isSofurry
+                    ? "Search on SoFurry"
                   : `Search on ${siteMode.activeLabel}`,
                 action: () => {
                     openUrlInNewTab(
@@ -157,10 +162,22 @@ export default defineComponent({
                         ? furbooruSearchUrl.value
                         : siteMode.isFurAffinity
                           ? `https://www.furaffinity.net/search/?q=${encodeURIComponent(props.name)}`
+                        : siteMode.isWeasyl
+                          ? `https://www.weasyl.com/search?q=${encodeURIComponent(props.name)}`
+                        : siteMode.isItaku
+                          ? `https://itaku.ee/home/gallerymature?tags=${encodeURIComponent(props.name)}`
+                        : siteMode.isSofurry
+                          ? `https://www.sofurry.com/browse?q=${encodeURIComponent(props.name)}`
                           : e621Url.value,
                     );
                 },
-                visible: isE621Family.value || siteMode.isFurbooru || siteMode.isFurAffinity,
+                visible:
+                  isE621Family.value ||
+                  siteMode.isFurbooru ||
+                  siteMode.isFurAffinity ||
+                  siteMode.isWeasyl ||
+                  siteMode.isItaku ||
+                  siteMode.isSofurry,
             },
             {
                 text: `View in ${creatorLabel.value} Dashboard`,

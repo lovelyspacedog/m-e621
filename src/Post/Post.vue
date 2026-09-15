@@ -122,16 +122,9 @@ export default defineComponent({
       });
     };
 
-    const buttons = computed(() => {
-      let list = siteMode.filterButtons(posts.buttons);
-      if (props.post.__meta?.originMode === "inkbunny") {
-        list = list.filter((button) => button !== "favorite");
-      }
-      if (props.post.__meta?.furaffinity?.kind === "journal") {
-        list = list.filter((button) => button !== "favorite");
-      }
-      return list;
-    });
+    const buttons = computed(() =>
+      siteMode.filterButtonsForPost(posts.buttons, props.post),
+    );
     const originMode = computed(() => props.post.__meta?.originMode || "");
     const originLabel = computed(() =>
       originMode.value ? unifiedChildLabel(originMode.value) : "",

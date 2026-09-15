@@ -188,7 +188,10 @@ type SoftSubmission = {
   authorAvatar?: string | null;
   user?: { name?: string; avatar?: string | null; id?: string | number } | null;
   tags?: unknown;
+  /** Soft uses `likes` as a count on submission pages; list packs may use `likeCount`. */
   likes?: number | null;
+  likeCount?: number | null;
+  isLiked?: boolean | null;
   favorite_count?: number | null;
   views?: number | null;
   isNsfw?: boolean | null;
@@ -200,9 +203,39 @@ export type SofurryMeta = {
   id: string;
   type: string;
   author: string;
+  title?: string;
   contentUrl?: string | null;
+  /** Short HTML/text blurb when full story body was hydrated into `description`. */
+  blurb?: string | null;
+  wordCount?: number | null;
   detailsLoaded?: boolean;
 };
+
+function likeCountOf(raw: SoftSubmission): number {
+  if (typeof raw.likeCount === "number" && Number.isFinite(raw.likeCount)) {
+    return Math.max(0, raw.likeCount);
+  }
+  if (typeof raw.likes === "number" && Number.isFinite(raw.likes)) {
+    return Math.max(0, raw.likes);
+  }
+  if (typeof raw.favorite_count === "number" && Number.isFinite(raw.favorite_count)) {
+    return Math.max(0, raw.favorite_count);
+  }
+  return 0;
+}
+
+function stripHtmlBlurb(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .trim();
+}
 
 function authorNameOf(raw: SoftSubmission): string {
   if (typeof raw.author === "string" && raw.author.trim()) return raw.author.trim();
@@ -264,17 +297,33 @@ function adaptSubmission(raw: SoftSubmission, detailsLoaded = false): Post | nul
 
   if (story || ext === "txt") {
     ext = "txt";
-    if (!fileUrl) fileUrl = thumb;
+    // Prefer the signed story .txt URL; never fall back to the cover thumb as "file".
+    const storyUrl = rewriteMediaUrl(contentDisplay || raw.contentUrl || null);
+    fileUrl = storyUrl || fileUrl || null;
   }
 
   const tags = asStringArray(raw.tags);
   const created = toEpoch(raw.publishedAt || raw.created_at);
-  const score = Number(raw.likes ?? raw.favorite_count ?? 0) || 0;
-  const favCount = Number(raw.favorite_count ?? raw.likes ?? 0) || 0;
+  const score = likeCountOf(raw);
+  const favCount = score;
+  const title = String(raw.title || "").trim();
+  const wordCount =
+    Number(item?.meta?.wordCount) ||
+    (typeof raw === "object" && raw && "wordCount" in raw
+      ? Number((raw as { wordCount?: number }).wordCount) || 0
+      : 0) ||
+    null;
   const nsfw =
     !!raw.isNsfw ||
     (typeof raw.rating === "number" && raw.rating > 0) ||
     (typeof raw.rating === "string" && /^(e|explicit|nsfw|[1-9])/i.test(raw.rating));
+
+  const blurbRaw = String(
+    raw.description ||
+      (typeof raw.content === "string" ? raw.content : "") ||
+      raw.body ||
+      "",
+  );
 
   const post = {
     id: hashidToNumericId(softId),
@@ -328,14 +377,9 @@ function adaptSubmission(raw: SoftSubmission, detailsLoaded = false): Post | nul
     },
     approver_id: undefined,
     uploader_id: 0,
-    description: String(
-      raw.description ||
-        (typeof raw.content === "string" ? raw.content : "") ||
-        raw.body ||
-        "",
-    ),
+    description: blurbRaw,
     comment_count: 0,
-    is_favorited: false,
+    is_favorited: !!raw.isLiked,
     has_notes: false,
     __meta: {
       kind: story || ext === "txt" ? "story" : undefined,
@@ -343,7 +387,10 @@ function adaptSubmission(raw: SoftSubmission, detailsLoaded = false): Post | nul
         id: softId,
         type: t,
         author,
+        title: title || undefined,
         contentUrl: contentDisplay || raw.contentUrl || null,
+        blurb: blurbRaw ? stripHtmlBlurb(blurbRaw).slice(0, 2000) : null,
+        wordCount: wordCount || null,
         detailsLoaded,
       } satisfies SofurryMeta,
     },
@@ -638,12 +685,12 @@ export async function fetchSubmission(args: {
   const post = adaptSubmission(sub, true);
   if (!post) return null;
 
-  // Stories: hydrate description from content .txt when needed.
+  // Stories: always hydrate full body from the signed content URL.
   const meta = (post as Post & { __meta?: { kind?: string; sofurry?: SofurryMeta } })
     .__meta;
   if (meta?.kind === "story") {
     const contentUrl = meta.sofurry?.contentUrl || post.file?.url;
-    if (contentUrl && String(post.description || "").length < 40) {
+    if (contentUrl) {
       try {
         const textUrl = contentUrl.startsWith("http")
           ? `${proxyBase()}/media-url?url=${encodeURIComponent(contentUrl)}`
@@ -652,8 +699,24 @@ export async function fetchSubmission(args: {
           headers: activeCookies ? { "X-Sofurry-Cookies": activeCookies } : {},
         });
         if (tr.ok) {
-          const text = await tr.text();
-          if (text) post.description = text.slice(0, 500_000);
+          const text = (await tr.text()).replace(/^\uFEFF/, "");
+          if (text && !looksLikeBinarySoft(text)) {
+            // Keep blurb on meta; put full story text in description for readers.
+            if (!meta.sofurry?.blurb && post.description) {
+              meta.sofurry = {
+                ...(meta.sofurry as SofurryMeta),
+                blurb: stripHtmlBlurb(post.description).slice(0, 2000),
+              };
+            }
+            post.description = text.slice(0, 500_000);
+            // Point file at the text URL so fullscreen doesn't try the thumb.
+            if (post.file) {
+              post.file.url = contentUrl.startsWith("/api/sofurry")
+                ? contentUrl
+                : rewriteMediaUrl(contentUrl) || post.file.url;
+              post.file.ext = "txt";
+            }
+          }
         }
       } catch {
         /* best-effort */
@@ -661,6 +724,18 @@ export async function fetchSubmission(args: {
     }
   }
   return post;
+}
+
+function looksLikeBinarySoft(text: string): boolean {
+  if (!text) return true;
+  const sample = text.slice(0, 4000);
+  let weird = 0;
+  for (let i = 0; i < sample.length; i++) {
+    const code = sample.charCodeAt(i);
+    if (code === 0) return true;
+    if (code < 8 || (code >= 14 && code < 32 && code !== 27)) weird++;
+  }
+  return weird / sample.length > 0.05;
 }
 
 function digSubmission(unpacked: Record<string, unknown>): SoftSubmission | null {
@@ -765,51 +840,50 @@ export async function fetchFeed(args?: { page?: number; limit?: number }): Promi
 }
 
 /**
- * Toggle like/favorite. Endpoint discovered at runtime via common patterns;
- * returns false if the write API is unavailable.
+ * Toggle like. Soft only exposes POST /api/submission-like/:id (toggle).
+ * Returns true when the server ends in the requested state.
  */
 export async function favoriteSubmission(args: {
   id: string;
   like?: boolean;
 }): Promise<boolean> {
-  const softId = args.id;
-  const like = args.like !== false;
-  // Try JSON toggle endpoints used by similar Laravel apps; proxy forwards cookies.
-  const attempts: Array<{ path: string; method: string; body?: Record<string, unknown> }> = [
-    {
-      path: `/api/submissions/${encodeURIComponent(softId)}/like`,
-      method: like ? "POST" : "DELETE",
-    },
-    {
-      path: `/api/like`,
-      method: "POST",
-      body: { id: softId, like },
-    },
-    {
-      path: `/s/${encodeURIComponent(softId)}/like`,
-      method: like ? "POST" : "DELETE",
-    },
-  ];
-  for (const attempt of attempts) {
+  const softId = String(args.id || "").trim();
+  if (!softId) return false;
+  const want = args.like !== false;
+
+  const toggleOnce = async (): Promise<{ liked: boolean; likes?: number } | null> => {
     try {
-      const response = await sofurryFetch(attempt.path, {
-        method: attempt.method,
-        headers: attempt.body
-          ? { "Content-Type": "application/json" }
-          : undefined,
-        body: attempt.body ? JSON.stringify(attempt.body) : undefined,
-      });
-      if (response.ok || response.status === 204) return true;
-      if (response.status === 404 || response.status === 405) continue;
+      const response = await sofurryFetch(
+        `/api/submission-like/${encodeURIComponent(softId)}`,
+        { method: "POST" },
+      );
       if (response.status === 401 || response.status === 403) {
         notifySessionCleared();
-        return false;
+        return null;
       }
+      if (!response.ok) return null;
+      const data = (await response.json().catch(() => ({}))) as {
+        liked?: boolean;
+        likes?: number;
+      };
+      if (typeof data.liked !== "boolean") {
+        // Some responses may omit body; treat 2xx as success toward `want`.
+        return { liked: want, likes: data.likes };
+      }
+      return { liked: data.liked, likes: data.likes };
     } catch {
-      /* try next */
+      return null;
     }
+  };
+
+  let result = await toggleOnce();
+  if (!result) return false;
+  // Soft is toggle-only — if we landed on the wrong side, flip once more.
+  if (result.liked !== want) {
+    result = await toggleOnce();
+    if (!result) return false;
   }
-  return false;
+  return result.liked === want;
 }
 
 export async function listFollowing(): Promise<

@@ -143,6 +143,8 @@ ITAKU_STARS_PATH = re.compile(r"^/api/itaku/stars$")
 ITAKU_TAGS_PATH = re.compile(r"^/api/itaku/tags$")
 ITAKU_IMAGES_PATH = re.compile(r"^/api/itaku/images$")
 ITAKU_IMAGE_PATH = re.compile(r"^/api/itaku/images/(\d+)$")
+ITAKU_COMMENTS_PATH = re.compile(r"^/api/itaku/images/(\d+)/comments$")
+ITAKU_COMMENT_PATH = re.compile(r"^/api/itaku/images/(\d+)/comment$")
 ITAKU_LIKE_PATH = re.compile(r"^/api/itaku/images/(\d+)/like$")
 ITAKU_USER_PATH = re.compile(r"^/api/itaku/users/([^/]+)$")
 ITAKU_POST_PATH = re.compile(r"^/api/itaku/posts/(\d+)$")
@@ -2086,6 +2088,19 @@ class SpaHandler(SimpleHTTPRequestHandler):
         )
         self._itaku_respond(resp_body, status, ct)
 
+    def _proxy_itaku_comment_create(
+        self, image_id: str, parsed, body: bytes = b""
+    ) -> None:
+        api_key = self._itaku_api_key(parsed)
+        if not api_key:
+            self._json(401, {"detail": "Authentication credentials were not provided."})
+            return
+        url = f"{ITAKU_API_BASE}/galleries/images/{image_id}/comment/"
+        resp_body, status, ct = self._itaku_request(
+            url, method="POST", api_key=api_key, body=body
+        )
+        self._itaku_respond(resp_body, status, ct)
+
     # ------------------------------------------------------------------
     # SoFurry proxy helpers
     # ------------------------------------------------------------------
@@ -2738,6 +2753,12 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if ITAKU_IMAGES_PATH.match(path):
             self._proxy_itaku_get("galleries/images/", parsed)
             return
+        itaku_comments = ITAKU_COMMENTS_PATH.match(path)
+        if itaku_comments:
+            self._proxy_itaku_get(
+                f"galleries/images/{itaku_comments.group(1)}/comments/", parsed
+            )
+            return
         itaku_image = ITAKU_IMAGE_PATH.match(path)
         if itaku_image:
             self._proxy_itaku_get(f"galleries/images/{itaku_image.group(1)}/", parsed)
@@ -2836,6 +2857,11 @@ class SpaHandler(SimpleHTTPRequestHandler):
         itaku_like = ITAKU_LIKE_PATH.match(path)
         if itaku_like:
             self._proxy_itaku_like("POST", itaku_like.group(1), parsed, body)
+            return
+
+        itaku_comment = ITAKU_COMMENT_PATH.match(path)
+        if itaku_comment:
+            self._proxy_itaku_comment_create(itaku_comment.group(1), parsed, body)
             return
 
         if path in SOFURRY_AUTH_POSTS:

@@ -208,11 +208,14 @@ import {
 } from "../misc/util/postOrigin";
 import { UNIFIED_CHILD_MODES } from "@/services/types";
 import {
+  findLocalPathTarget,
   findLocalResumeTarget,
   getLocalPostsPage,
   invalidateLocalMediaIndex,
   localStatusMessage,
+  remuxUnplayableLocal,
   revokeLocalBlobUrls,
+  takePendingLocalFocusPath,
 } from "../misc/util/localMedia";
 import HistoryList from "../Tag/HistoryList.vue";
 import TagSearch from "../Tag/TagSearch.vue";
@@ -239,7 +242,9 @@ const restorePath = ref<string | null>(null);
 const restoreVideoTime = ref<number | undefined>(undefined);
 const bulkSaving = ref(false);
 const searchSaving = ref(false);
+const bulkRemuxing = ref(false);
 let searchSaveAbort: AbortController | null = null;
+let remuxAbort: AbortController | null = null;
 const { tags, addTag, removeTag, updateQuery, query, setTags } =
   useRouterTagManager();
 const urlStore = useUrlStore();
@@ -367,6 +372,47 @@ const bulkSaveVisible = async () => {
   }
 };
 
+const toggleBulkRemux = async () => {
+  if (!siteMode.isLocal) return;
+  if (bulkRemuxing.value) {
+    remuxAbort?.abort();
+    return;
+  }
+  bulkRemuxing.value = true;
+  remuxAbort = new AbortController();
+  let lastLabel = "";
+  try {
+    const result = await remuxUnplayableLocal({
+      tags: toRaw(tags.value),
+      signal: remuxAbort.signal,
+      onProgress: (p) => {
+        const name = p.path.split("/").pop() || p.path;
+        const label = `Remux ${p.index + 1}/${p.total}: ${name}`;
+        if (label !== lastLabel) {
+          lastLabel = label;
+          snackbar.addMessage(label);
+        }
+      },
+    });
+    if (!result.done && !result.failed && !result.aborted) {
+      snackbar.addMessage("No unplayable videos in this Local filter");
+    } else {
+      const parts = [`${result.done} remuxed`];
+      if (result.failed) parts.push(`${result.failed} failed`);
+      if (result.aborted) parts.push("cancelled");
+      snackbar.addMessage(parts.join(", "));
+      if (result.done) reloadLocal();
+    }
+  } catch (err) {
+    snackbar.addMessage(
+      err instanceof Error ? err.message : "Bulk remux failed",
+    );
+  } finally {
+    bulkRemuxing.value = false;
+    remuxAbort = null;
+  }
+};
+
 const toggleSaveSearch = async () => {
   if (siteMode.isLocal || bulkSaving.value) return;
   if (searchSaving.value) {
@@ -408,10 +454,17 @@ const toggleSaveSearch = async () => {
 };
 
 const loadLocalWithResume = async () => {
-  const target = await findLocalResumeTarget(
-    toRaw(tags.value),
-    toRaw(postsStore.postListFetchLimit),
-  );
+  const pendingFocus = takePendingLocalFocusPath();
+  const target = pendingFocus
+    ? await findLocalPathTarget(
+        pendingFocus,
+        toRaw(tags.value),
+        toRaw(postsStore.postListFetchLimit),
+      )
+    : await findLocalResumeTarget(
+        toRaw(tags.value),
+        toRaw(postsStore.postListFetchLimit),
+      );
   const pagesToLoad = target ? Math.max(target.page, 1) : 1;
   for (let i = 0; i < pagesToLoad; i++) {
     await loadNextPage();
@@ -427,7 +480,10 @@ const loadLocalWithResume = async () => {
     posts.value.some((post) => post.__meta?.localPath === target.path)
   ) {
     restorePath.value = target.path;
-    restoreVideoTime.value = target.videoTime;
+    restoreVideoTime.value =
+      pendingFocus || !("videoTime" in target)
+        ? undefined
+        : (target as { videoTime?: number }).videoTime;
   }
 };
 
@@ -502,6 +558,7 @@ const onSearchClick = debounce(async () => {
 onBeforeUnmount(() => {
   onSearchClick.cancel();
   searchSaveAbort?.abort();
+  remuxAbort?.abort();
   revokeLocalBlobUrls();
 });
 
@@ -537,7 +594,11 @@ watch(
     await removeRouterQuery(["page"]);
     if (siteMode.isTailspace) return;
     if (count !== siteMode.modeChangeCount) return;
-    loadNextPage();
+    if (siteMode.isLocal) {
+      await loadLocalWithResume();
+    } else {
+      loadNextPage();
+    }
   },
 );
 
@@ -569,7 +630,9 @@ const toggleTypeTag = (typeTag: string) => {
   } else {
     const withoutMedia = tags.value.filter(
       (tag) =>
-        tag.toLowerCase() !== "type:video" && tag.toLowerCase() !== "type:still",
+        tag.toLowerCase() !== "type:video" &&
+        tag.toLowerCase() !== "type:still" &&
+        tag.toLowerCase() !== "type:audio",
     );
     setTags(hasTypeTag(typeTag) ? withoutMedia : [...withoutMedia, typeTag]);
   }
@@ -650,6 +713,12 @@ const toolbarActions = computed((): ToolbarAction[] => {
         run: () => toggleTypeTag("type:still"),
       },
       {
+        key: "audio",
+        label: "Audio",
+        active: hasTypeTag("type:audio"),
+        run: () => toggleTypeTag("type:audio"),
+      },
+      {
         key: "duration",
         label: "Duration",
         active: activeOrder.value === "order:duration",
@@ -660,6 +729,17 @@ const toolbarActions = computed((): ToolbarAction[] => {
         label: "Favorited",
         active: hasTypeTag("type:favorited"),
         run: () => toggleTypeTag("type:favorited"),
+      },
+      {
+        key: "remux-unplayable",
+        label: bulkRemuxing.value ? "Cancel remux" : "Remux unplayable",
+        loading: bulkRemuxing.value,
+        active: bulkRemuxing.value,
+        error: bulkRemuxing.value,
+        title: "Remux unplayable videos in the current Local filter to MP4",
+        run: () => {
+          void toggleBulkRemux();
+        },
       },
     );
   }

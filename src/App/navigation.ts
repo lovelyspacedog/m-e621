@@ -2,6 +2,7 @@ import { useSavedSearchStore } from "@/services";
 import { useFavoritesStore } from "@/services/FavoriteStore";
 import { useSiteModeStore } from "@/services/SiteModeStore";
 import { useSiteLabels } from "@/misc/util/siteLabels";
+import { isE621FamilyMode } from "@/misc/util/siteCapabilities";
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 
@@ -141,15 +142,7 @@ export const useTrailingNavigationItems = () => {
             },
           ]
         : []),
-      ...(siteMode.isLocal ||
-      siteMode.isFurbooru ||
-      siteMode.isInkbunny ||
-      siteMode.isFurAffinity ||
-      siteMode.isWeasyl ||
-      siteMode.isItaku ||
-      siteMode.isUnified
-        ? []
-        : remoteItems),
+      ...(isE621FamilyMode(siteMode.activeMode) ? remoteItems : []),
       settings,
     ].map((item) => resolveItem(router, item));
   });
@@ -162,23 +155,26 @@ export const useNavigationItems = () => {
   const trailing = useTrailingNavigationItems();
   const navigationItems = computed(() => [
     home.value,
-    // Tailspace has its own browse UI; e621-shaped saved searches must not
-    // deep-link into Posts while Tailspace is active (C3).
-    ...(siteMode.isTailspace
-      ? []
-      : customItems.value.map((entry) =>
-          resolveItem(router, {
-            icon: "mdi-panorama-variant",
-            name: entry.name,
-            exact: true,
-            to: {
+    ...customItems.value.map((entry) =>
+      resolveItem(router, {
+        icon: "mdi-panorama-variant",
+        name: entry.name,
+        exact: true,
+        to: siteMode.isTailspace
+          ? {
+              name: "TailspacePosts",
+              query: {
+                tags: entry.tags.join(" "),
+              },
+            }
+          : {
               name: "Posts",
               query: {
                 tags: entry.tags.join(" "),
               },
             },
-          }),
-        )),
+      }),
+    ),
     ...trailing.value,
   ]);
   return navigationItems;

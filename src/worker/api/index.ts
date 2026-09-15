@@ -185,6 +185,8 @@ export interface IPostFavoriteArgs {
   proxyUrl: string;
   baseUrl: string;
   mode?: SiteMode;
+  /** Soft hashid when numeric id alone can't reverse-map. */
+  softId?: string | null;
 }
 
 export interface IPostVoteArgs extends IPostFavoriteArgs {

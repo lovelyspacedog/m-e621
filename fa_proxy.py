@@ -39,6 +39,7 @@ ACTIONS = frozenset(
         "submission",
         "journal",
         "watchlist",
+        "submissions",
         "favorite",
         "unfavorite",
         "comment",
@@ -460,6 +461,25 @@ def _browse(api: faapi.FAAPI, payload: dict[str, Any]) -> dict[str, Any]:
     return {"results": results, "next": page + 1 if has_next else None, "page": page}
 
 
+def _submissions_feed(api: faapi.FAAPI, payload: dict[str, Any]) -> dict[str, Any]:
+    """Logged-in watchstream: /msg/submissions/."""
+    page = max(1, int(payload.get("page") or 1))
+    path = "msg/submissions/" if page <= 1 else f"msg/submissions/{page}/"
+    resp = _session_get(api, path)
+    if resp.status_code in (401, 403):
+        raise FaProxyError(
+            "Log in to FurAffinity to view your following feed",
+            resp.status_code,
+        )
+    if resp.status_code >= 400:
+        raise FaProxyError(
+            f"FurAffinity submissions feed failed ({resp.status_code})",
+            resp.status_code,
+        )
+    results, has_next = _figures_from_html(resp.text)
+    return {"results": results, "next": page + 1 if has_next else None, "page": page}
+
+
 def _folder(api: faapi.FAAPI, kind: str, payload: dict[str, Any]) -> dict[str, Any]:
     username = str(payload.get("username") or "").strip()
     if not username:
@@ -547,6 +567,8 @@ def handle(action: str, payload: dict[str, Any] | None = None) -> tuple[int, dic
                 return 200, {"results": [serialize_partial(s) for s in api.frontpage()], "next": None}
             if action == "browse":
                 return 200, _browse(api, payload)
+            if action == "submissions":
+                return 200, _submissions_feed(api, payload)
             if action == "search":
                 return 200, _search(api, payload)
             if action in {"gallery", "scraps", "favorites", "journals"}:

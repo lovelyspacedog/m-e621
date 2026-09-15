@@ -241,6 +241,7 @@ export interface MappedWeasylSearch {
   favsMe: boolean;
   username: string | null;
   orderby?: string;
+  random?: boolean;
 }
 
 export function mapSearchTags(tags: string[]): MappedWeasylSearch {
@@ -262,6 +263,7 @@ export function mapSearchTags(tags: string[]): MappedWeasylSearch {
     if (lower.startsWith("order:")) {
       // Weasyl HTML search has limited sort options; map what we can
       if (lower === "order:score" || lower === "order:favcount") mapped.orderby = "popular";
+      else if (lower === "order:random") mapped.random = true;
       // default is newest; no-op for other orders
       continue;
     }
@@ -350,6 +352,8 @@ export async function searchSubmissions(args: {
   const mapped = mapSearchTags(args.tags);
   const page = Math.max(1, args.page || 1);
   const limit = Math.min(100, Math.max(1, args.limit || 30));
+  const maybeShuffle = (posts: Post[]) =>
+    mapped.random ? [...posts].sort(() => Math.random() - 0.5) : posts;
 
   // favs:me
   if (mapped.favsMe) {
@@ -363,7 +367,7 @@ export async function searchSubmissions(args: {
       nextid: prevNextid,
     });
     setCachedNextid(cacheKey, page, result.nextid);
-    return { posts: result.posts, total: result.posts.length };
+    return { posts: maybeShuffle(result.posts), total: result.posts.length };
   }
 
   // user gallery
@@ -377,7 +381,7 @@ export async function searchSubmissions(args: {
     });
     const data = await fetchJson<WeasylGalleryResponse>(url);
     setCachedNextid(cacheKey, page, data.nextid);
-    const posts = (data.submissions || []).map(adaptSubmission);
+    const posts = maybeShuffle((data.submissions || []).map(adaptSubmission));
     return { posts, total: posts.length };
   }
 
@@ -394,12 +398,14 @@ export async function searchSubmissions(args: {
     });
     const data = await fetchJson<{ submissions: WeasylSubmission[]; nextid: number | null }>(url);
     setCachedNextid(cacheKey, page, data.nextid);
-    const posts = (data.submissions || []).map(adaptSubmission);
+    const posts = maybeShuffle((data.submissions || []).map(adaptSubmission));
     return { posts, total: posts.length };
   }
 
   // No tags — frontpage
-  const posts = await fetchFrontpage({ apiKey: args.apiKey, count: limit });
+  const posts = maybeShuffle(
+    await fetchFrontpage({ apiKey: args.apiKey, count: limit }),
+  );
   return { posts, total: posts.length };
 }
 

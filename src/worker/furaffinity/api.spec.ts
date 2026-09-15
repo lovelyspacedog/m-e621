@@ -55,6 +55,11 @@ describe("isOwnFavoritesListing", () => {
     expect(isOwnFavoritesListing(mapSearchTags(["fav:me"]).favsUser)).toBe(true);
   });
 
+  it("maps following:me to the watchstream flag", () => {
+    expect(mapSearchTags(["following:me"]).following).toBe(true);
+    expect(mapSearchTags(["watch:me"]).following).toBe(true);
+  });
+
   it("treats favs:<own username> as own favorites", () => {
     expect(isOwnFavoritesListing("Hunter-husky", "hunter-husky")).toBe(true);
   });

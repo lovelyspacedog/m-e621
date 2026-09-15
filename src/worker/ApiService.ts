@@ -32,6 +32,14 @@ import {
   type UnifiedChildFetchArgs,
   type UnifiedFetchArgs,
 } from "@/misc/util/postOrigin";
+import {
+  bufferedCount,
+  initUnifiedMergeState,
+  seedUnifiedMergeAfterLegacy,
+  takeMergedFromBuffers,
+  type UnifiedMergeState,
+} from "@/misc/util/unifiedMerge";
+import { prepareUnifiedChildTags } from "@/misc/util/unifiedTags";
 
 const isFurbooruUrl = (baseUrl: string) => baseUrl.includes("furbooru.org");
 const isInkbunnyUrl = (baseUrl: string) => baseUrl.includes("inkbunny.net");
@@ -94,7 +102,7 @@ export interface EnhancedPost extends Post {
     localPath?: string;
     localExtraTags?: string[];
     localPlayable?: boolean;
-    localKind?: "image" | "video";
+    localKind?: "image" | "video" | "audio";
     inkbunny?: InkbunnyMeta;
     furaffinity?: FaMeta;
     sofurry?: sofurry.SofurryMeta;
@@ -110,20 +118,6 @@ export type GetPostsResult = {
   warnings?: string[];
 };
 
-const postCreatedAtMs = (post: EnhancedPost): number => {
-  const raw = post.created_at;
-  if (!raw) return 0;
-  const ms = Date.parse(typeof raw === "string" ? raw : String(raw));
-  return Number.isFinite(ms) ? ms : 0;
-};
-
-/** Merge federated pages newest-first by post time (not round-robin by site). */
-const mergeByCreatedAt = (groups: EnhancedPost[][], limit: number): EnhancedPost[] => {
-  const flat = groups.flat();
-  flat.sort((a, b) => postCreatedAtMs(b) - postCreatedAtMs(a) || b.id - a.id);
-  return flat.slice(0, limit);
-};
-
 const withRetry = async <T>(fn: () => Promise<T>): Promise<T> => {
   try {
     return await fn();
@@ -132,7 +126,29 @@ const withRetry = async <T>(fn: () => Promise<T>): Promise<T> => {
   }
 };
 
+const unifiedStateKey = (args: {
+  page?: number;
+  limit: number;
+  tags: string[];
+  blacklistMode: BlacklistMode;
+  unified?: UnifiedFetchArgs;
+}) =>
+  JSON.stringify({
+    tags: args.tags,
+    limit: args.limit,
+    blacklistMode: args.blacklistMode,
+    children: (args.unified?.children || []).map((c) => ({
+      mode: c.mode,
+      baseUrl: c.baseUrl,
+      auth: Boolean(c.auth?.api_key),
+      userId: c.userId ?? null,
+    })),
+  });
+
 export class ApiService {
+  /** Sticky per-child leftovers for sequential Unified pagination. */
+  private unifiedMerge: UnifiedMergeState<EnhancedPost> | null = null;
+
   async getPosts(args: {
     page: number;
     limit: number;
@@ -153,6 +169,140 @@ export class ApiService {
     return { posts };
   }
 
+  private stampUnifiedPosts(
+    posts: EnhancedPost[],
+    child: UnifiedChildFetchArgs,
+    shared: string[][],
+    pageNumber: number,
+  ): EnhancedPost[] {
+    return posts.map((post) => ({
+      ...post,
+      __meta: {
+        ...post.__meta,
+        originMode: child.mode,
+        originBaseUrl: child.baseUrl,
+        isBlacklisted:
+          post.__meta.isBlacklisted || isPostBlacklisted(post, shared),
+        pageNumber,
+      },
+    }));
+  }
+
+  private prepareUnifiedTagsByChild(
+    children: UnifiedChildFetchArgs[],
+    tags: string[],
+  ): { tagsByMode: Map<UnifiedChildMode, string[]>; warnings: string[] } {
+    const warnings: string[] = [];
+    const tagsByMode = new Map<UnifiedChildMode, string[]>();
+    for (const child of children) {
+      const prepared = prepareUnifiedChildTags(child.mode, tags);
+      tagsByMode.set(child.mode, prepared.tags);
+      if (prepared.stripped.length) {
+        const sample = prepared.stripped.slice(0, 4).join(", ");
+        const more =
+          prepared.stripped.length > 4
+            ? ` (+${prepared.stripped.length - 4})`
+            : "";
+        warnings.push(
+          `${unifiedChildLabel(child.mode)}: ignored ${sample}${more}`,
+        );
+      }
+    }
+    return { tagsByMode, warnings };
+  }
+
+  /** Legacy: same page index on every child, truncate after merge (no leftovers). */
+  private async getUnifiedPostsLegacy(args: {
+    page: number;
+    limit: number;
+    tags: string[];
+    blacklist?: string[][];
+    blacklistMode: BlacklistMode;
+    unified?: UnifiedFetchArgs;
+  }): Promise<GetPostsResult> {
+    const children = args.unified?.children || [];
+    const shared = args.unified?.sharedBlacklist || args.blacklist || [];
+    const { tagsByMode, warnings: tagWarnings } = this.prepareUnifiedTagsByChild(
+      children,
+      args.tags,
+    );
+    const warnings = [...tagWarnings];
+    const groups = await Promise.all(
+      children.map(async (child) => {
+        try {
+          const posts = await withRetry(() =>
+            this.getPostsFromBackend({
+              page: args.page,
+              limit: args.limit,
+              tags: tagsByMode.get(child.mode) || [],
+              blacklist: child.blacklist,
+              blacklistMode: args.blacklistMode,
+              auth: child.auth,
+              baseUrl: child.baseUrl,
+              mode: child.mode,
+              userId: child.userId,
+            }),
+          );
+          return this.stampUnifiedPosts(posts, child, shared, args.page);
+        } catch (error: any) {
+          warnings.push(
+            `${unifiedChildLabel(child.mode)}: ${error?.message || String(error)}`,
+          );
+          return [] as EnhancedPost[];
+        }
+      }),
+    );
+    const { taken } = takeMergedFromBuffers(groups, args.limit);
+    const hardFailures = warnings.filter((w) => !w.includes(": ignored "));
+    if (!taken.length && hardFailures.length === children.length) {
+      throw new Error(hardFailures.join(" · "));
+    }
+    return warnings.length ? { posts: taken, warnings } : { posts: taken };
+  }
+
+  private async refillUnifiedChild(
+    cursor: NonNullable<typeof this.unifiedMerge>["children"][number],
+    child: UnifiedChildFetchArgs,
+    args: {
+      limit: number;
+      tags: string[];
+      blacklistMode: BlacklistMode;
+    },
+    shared: string[][],
+    warnings: string[],
+  ) {
+    if (cursor.exhausted) return;
+    try {
+      const posts = await withRetry(() =>
+        this.getPostsFromBackend({
+          page: cursor.nextPage,
+          limit: args.limit,
+          tags: args.tags,
+          blacklist: child.blacklist,
+          blacklistMode: args.blacklistMode,
+          auth: child.auth,
+          baseUrl: child.baseUrl,
+          mode: child.mode,
+          userId: child.userId,
+        }),
+      );
+      cursor.nextPage += 1;
+      if (!posts.length) {
+        cursor.exhausted = true;
+        return;
+      }
+      // pageNumber stamped later when emitted into a Unified page
+      cursor.buffer.push(
+        ...this.stampUnifiedPosts(posts, child, shared, cursor.nextPage - 1),
+      );
+    } catch (error: any) {
+      cursor.exhausted = true;
+      warnings.push(
+        `${unifiedChildLabel(child.mode)}: ${error?.message || String(error)}`,
+      );
+    }
+  }
+
   private async getUnifiedPosts(args: {
     page: number;
     limit: number;
@@ -166,46 +316,85 @@ export class ApiService {
     if (!children.length) {
       throw new Error("No sites enabled for Unified search");
     }
-    const warnings: string[] = [];
-    const groups = await Promise.all(
-      children.map(async (child) => {
-        try {
-          const posts = await withRetry(() =>
-            this.getPostsFromBackend({
-              page: args.page,
-              limit: args.limit,
-              tags: args.tags,
-              blacklist: child.blacklist,
-              blacklistMode: args.blacklistMode,
-              auth: child.auth,
-              baseUrl: child.baseUrl,
-              mode: child.mode,
-              userId: child.userId,
-            }),
-          );
-          return posts.map((post) => ({
-            ...post,
-            __meta: {
-              ...post.__meta,
-              originMode: child.mode,
-              originBaseUrl: child.baseUrl,
-              isBlacklisted:
-                post.__meta.isBlacklisted ||
-                isPostBlacklisted(post, shared),
-              pageNumber: args.page,
-            },
-          }));
-        } catch (error: any) {
-          warnings.push(
-            `${unifiedChildLabel(child.mode)}: ${error?.message || String(error)}`,
-          );
-          return [] as EnhancedPost[];
-        }
-      }),
+
+    const key = unifiedStateKey(args);
+    const sequential =
+      this.unifiedMerge?.key === key &&
+      args.page === this.unifiedMerge.lastEmittedPage + 1;
+
+    if (args.page <= 1 || this.unifiedMerge?.key !== key) {
+      this.unifiedMerge = initUnifiedMergeState(
+        key,
+        children.map((c) => c.mode),
+      );
+    } else if (!sequential) {
+      // Jump / previous page: keep old behavior; seed cursors for later forward scroll.
+      const legacy = await this.getUnifiedPostsLegacy(args);
+      this.unifiedMerge = seedUnifiedMergeAfterLegacy(
+        key,
+        children.map((c) => c.mode),
+        args.page,
+      );
+      return legacy;
+    }
+
+    const state = this.unifiedMerge!;
+    const { tagsByMode, warnings: tagWarnings } = this.prepareUnifiedTagsByChild(
+      children,
+      args.tags,
     );
-    const posts = mergeByCreatedAt(groups, args.limit);
-    if (!posts.length && warnings.length === children.length) {
-      throw new Error(warnings.join(" · "));
+    const warnings = args.page <= 1 ? [...tagWarnings] : [];
+    const childByMode = new Map(children.map((c) => [c.mode, c]));
+
+    // Fill until we can emit `limit` posts or every child is exhausted.
+    let guard = 0;
+    while (bufferedCount(state) < args.limit && guard < 20) {
+      guard += 1;
+      const active = state.children.filter((c) => !c.exhausted);
+      if (!active.length) break;
+      const empty = active.filter((c) => c.buffer.length === 0);
+      const targets = empty.length ? empty : active;
+      await Promise.all(
+        targets.map((cursor) => {
+          const child = childByMode.get(cursor.mode);
+          if (!child) {
+            cursor.exhausted = true;
+            return Promise.resolve();
+          }
+          return this.refillUnifiedChild(
+            cursor,
+            child,
+            {
+              limit: args.limit,
+              tags: tagsByMode.get(child.mode) || [],
+              blacklistMode: args.blacklistMode,
+            },
+            shared,
+            warnings,
+          );
+        }),
+      );
+    }
+
+    const { taken, remaining } = takeMergedFromBuffers(
+      state.children.map((c) => c.buffer),
+      args.limit,
+    );
+    state.children.forEach((c, i) => {
+      c.buffer = remaining[i] || [];
+    });
+    const posts = taken.map((post) => ({
+      ...post,
+      __meta: {
+        ...post.__meta,
+        pageNumber: args.page,
+      },
+    }));
+    state.lastEmittedPage = args.page;
+
+    const hardFailures = warnings.filter((w) => !w.includes(": ignored "));
+    if (!posts.length && hardFailures.length === children.length) {
+      throw new Error(hardFailures.join(" · "));
     }
     return warnings.length ? { posts, warnings } : { posts };
   }
@@ -623,16 +812,20 @@ export class ApiService {
       }
       const tags = args.tags.filter(Boolean);
       const favIdx = tags.findIndex((t) => /^fav(s|orites)?:me$/i.test(t));
-      const followingIdx = tags.findIndex((t) => /^following:me$/i.test(t));
+      const followingIdx = tags.findIndex((t) =>
+        /^(following|watch):me$/i.test(t),
+      );
       const userTag = tags.find((t) => /^user:/i.test(t));
       const favorites = favIdx >= 0;
       const user = userTag ? userTag.replace(/^user:/i, "").trim() : undefined;
+      const wantsRandom = tags.some((t) => t.toLowerCase() === "order:random");
       const queryTags = tags
         .filter(
           (t) =>
             !/^fav(s|orites)?:me$/i.test(t) &&
-            !/^following:me$/i.test(t) &&
-            !/^user:/i.test(t),
+            !/^(following|watch):me$/i.test(t) &&
+            !/^user:/i.test(t) &&
+            !t.toLowerCase().startsWith("order:"),
         )
         .join(" ");
       if (followingIdx >= 0) {
@@ -640,7 +833,11 @@ export class ApiService {
           page: args.page,
           limit: args.limit,
         });
-        return result.posts.map((post: Post): EnhancedPost => ({
+        let feedPosts = result.posts;
+        if (wantsRandom) {
+          feedPosts = [...feedPosts].sort(() => Math.random() - 0.5);
+        }
+        return feedPosts.map((post: Post): EnhancedPost => ({
           ...post,
           __meta: {
             ...((post as EnhancedPost).__meta || {}),
@@ -656,7 +853,11 @@ export class ApiService {
         user,
         favorites,
       });
-      return result.posts.map((post: Post): EnhancedPost => ({
+      let browsePosts = result.posts;
+      if (wantsRandom) {
+        browsePosts = [...browsePosts].sort(() => Math.random() - 0.5);
+      }
+      return browsePosts.map((post: Post): EnhancedPost => ({
         ...post,
         __meta: {
           ...((post as EnhancedPost).__meta || {}),
@@ -756,8 +957,15 @@ export class ApiService {
   async getComments(args: ICommentsListArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotTailspace(args.baseUrl, "getComments", args.mode);
-    if (backend === "inkbunny" || backend === "weasyl" || backend === "itaku") {
+    if (backend === "inkbunny" || backend === "weasyl" || backend === "sofurry") {
       return [];
+    }
+    if (backend === "itaku") {
+      return itaku.getComments({
+        postId: args.postId,
+        limit: args.limit ?? 100,
+        apiKey: args.auth?.api_key ?? null,
+      });
     }
     if (backend === "furaffinity") {
       return furaffinity.getComments(args.postId, args.auth?.api_key ?? null);
@@ -795,6 +1003,7 @@ export class ApiService {
     if (backend === "sofurry") {
       if (args.auth?.api_key) sofurry.setActiveSofurryCookies(args.auth.api_key);
       const softId =
+        args.softId ||
         sofurry.softIdForNumeric(args.postId) ||
         String(args.postId);
       return sofurry.favoriteSubmission({ id: softId, like: true });
@@ -837,6 +1046,7 @@ export class ApiService {
     if (backend === "sofurry") {
       if (args.auth?.api_key) sofurry.setActiveSofurryCookies(args.auth.api_key);
       const softId =
+        args.softId ||
         sofurry.softIdForNumeric(args.postId) ||
         String(args.postId);
       return sofurry.favoriteSubmission({ id: softId, like: false });
@@ -903,7 +1113,14 @@ export class ApiService {
       throw new Error("Weasyl does not support posting comments via API");
     }
     if (backend === "itaku") {
-      throw new Error("Itaku comments are not supported yet");
+      return itaku.createComment({
+        postId: args.postId,
+        apiKey: args.auth.api_key,
+        body: args.body,
+      });
+    }
+    if (backend === "sofurry") {
+      throw new Error("SoFurry does not support posting comments via API");
     }
     if (backend === "furaffinity") {
       await furaffinity.createComment(args.postId, args.body, args.auth?.api_key ?? null);
@@ -1152,6 +1369,9 @@ export class ApiService {
       preview: adapted.preview?.url ? adapted.preview : post.preview,
       description: adapted.description || post.description,
       tags: adapted.tags,
+      fav_count: adapted.fav_count ?? post.fav_count,
+      score: adapted.score || post.score,
+      is_favorited: adapted.is_favorited,
     };
     return {
       ...merged,

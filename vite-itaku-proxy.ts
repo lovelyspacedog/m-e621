@@ -173,6 +173,40 @@ export function itakuProxy(): Plugin {
             return;
           }
 
+          // GET /api/itaku/images/:id/comments
+          const commentsMatch = /^\/api\/itaku\/images\/(\d+)\/comments$/.exec(
+            urlPath,
+          );
+          if (commentsMatch && req.method === "GET") {
+            const qs = fwdQs ? `?${fwdQs}` : "";
+            const { body, status, contentType } = await itakuRequest(
+              `${ITAKU_API_BASE}/galleries/images/${commentsMatch[1]}/comments/${qs}`,
+              { apiKey },
+            );
+            sendBuffer(res, status, body, contentType);
+            return;
+          }
+
+          // POST /api/itaku/images/:id/comment
+          const commentMatch = /^\/api\/itaku\/images\/(\d+)\/comment$/.exec(
+            urlPath,
+          );
+          if (commentMatch && req.method === "POST") {
+            if (!apiKey) {
+              sendJson(res, 401, {
+                detail: "Authentication credentials were not provided.",
+              });
+              return;
+            }
+            const bodyBuf = await readBody(req);
+            const { body, status, contentType } = await itakuRequest(
+              `${ITAKU_API_BASE}/galleries/images/${commentMatch[1]}/comment/`,
+              { method: "POST", apiKey, body: bodyBuf },
+            );
+            sendBuffer(res, status, body, contentType);
+            return;
+          }
+
           // POST/DELETE /api/itaku/images/:id/like
           const likeMatch = /^\/api\/itaku\/images\/(\d+)\/like$/.exec(urlPath);
           if (likeMatch && (req.method === "POST" || req.method === "DELETE")) {

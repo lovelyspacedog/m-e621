@@ -147,6 +147,7 @@ export default defineComponent({
       "fullscreen_add_favorite",
       "fullscreen_remove_favorite",
       "fullscreen_toggle_favorite",
+      "fullscreen_open_source",
     ];
 
     return {

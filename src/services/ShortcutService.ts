@@ -16,6 +16,7 @@ export type Events = {
   fullscreenToggleFavorite: void;
   fullscreenSlideshowToggle: void;
   fullscreenSlideshowStop: void;
+  openPostSource: void;
 };
 
 class ShortcutService {
@@ -78,6 +79,14 @@ class ShortcutService {
               return true; // let feed Space handler run
             }
             this.emitter.emit("fullscreenSlideshowToggle");
+            break;
+          }
+          case "fullscreen_open_source": {
+            const ui = useUiStore();
+            if (!ui.fullscreenOpen) {
+              return true;
+            }
+            this.emitter.emit("openPostSource");
             break;
           }
           default:

@@ -76,6 +76,20 @@
               @ratechange="onFullscreenRateChange">
               Video type not supported by your browser
             </video>
+            <div
+              v-else-if="isAudioPost && currentFileUrl"
+              class="overflow flash bg-black fullscreen-audio-wrap"
+            >
+              <v-icon size="96" class="mb-4">mdi-music</v-icon>
+              <audio
+                class="fullscreen-audio"
+                controls
+                autoplay
+                preload="metadata"
+                :src="String(currentFileUrl)"
+                @ended="onVideoEnded"
+              />
+            </div>
             <div v-else class="overflow">
               <div class="zoom-container text-center" style="position: relative">
                 <transition :enter-active-class="enterTransitionName" :leave-active-class="leaveTransitionName"
@@ -205,7 +219,12 @@ import PostCommentsPanel from "./PostCommentsPanel.vue";
 import { useBlacklistClasses } from "../misc/util/blacklist";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
 import { isDocumentPost as postIsDocument } from "@/misc/util/documentPost";
+import { openPostOnSourceSite } from "@/misc/util/url";
 import { originAuthForPost, originModeOf, postFeedKey } from "@/misc/util/postOrigin";
+import {
+  modeSupportsNotes,
+  postSupportsComments,
+} from "@/misc/util/siteCapabilities";
 import {
   computed,
   nextTick,
@@ -332,21 +351,9 @@ const isPoolsFullscreen = computed(() => route.name === "Pool");
 const commentsVisible = ref(readCommentsPref(route.name === "Pool"));
 const commentsWidthPx = ref(readCommentsWidth());
 
-const originMode = computed(() =>
-  originModeOf(props.current, siteMode.activeMode),
+const supportsComments = computed(() =>
+  postSupportsComments(props.current, siteMode.activeMode),
 );
-const supportsComments = computed(() => {
-  if (!props.current) return false;
-  if (siteMode.isLocal) return false;
-  if (originMode.value === "inkbunny") return false;
-  if (
-    originMode.value === "furaffinity" &&
-    props.current.__meta?.furaffinity?.kind === "journal"
-  ) {
-    return false;
-  }
-  return true;
-});
 
 /** Shift fixed chrome left of the comments rail (inline wins over CSS). */
 const commentsChromeOffset = computed(() =>
@@ -399,7 +406,7 @@ const videoEl = ref<HTMLVideoElement | null>(null);
 const fullImageEl = ref<HTMLImageElement | null>(null);
 const notes = ref<Note[]>([]);
 const notesVisible = ref(true);
-const notesLoadedFor = ref<number | null>(null);
+const notesLoadedFor = ref<string | null>(null);
 const postIsBlacklisted = computed(() =>
   Boolean(props?.current?.__meta.isBlacklisted),
 );
@@ -411,18 +418,14 @@ const { classes: blacklistClasses } = useBlacklistClasses({
   postIsBlacklisted,
 });
 
-const buttons = computed(() => {
-  let list = siteMode.filterButtons(posts.fullscreenButtons);
-  if (props.current?.__meta?.originMode === "inkbunny") {
-    list = list.filter((button) => button !== "favorite");
-  }
-  if (props.current?.__meta?.furaffinity?.kind === "journal") {
-    list = list.filter((button) => button !== "favorite");
-  }
-  return list;
-});
+const buttons = computed(() =>
+  siteMode.filterButtonsForPost(posts.fullscreenButtons, props.current),
+);
 const isVideoExt = (ext?: string) => ext === "webm" || ext === "mp4";
+const AUDIO_EXTS = new Set(["flac", "mp3", "m4a", "ogg", "opus", "wav"]);
+const isAudioExt = (ext?: string) => !!ext && AUDIO_EXTS.has(ext);
 const isVideoPost = computed(() => isVideoExt(props.current?.file.ext));
+const isAudioPost = computed(() => isAudioExt(props.current?.file.ext));
 const IMAGE_EXTS = new Set([
   "jpg",
   "jpeg",
@@ -454,7 +457,10 @@ const isPdfPost = computed(() => {
 });
 
 const documentTitle = computed(
-  () => props.current?.__meta?.furaffinity?.title || "",
+  () =>
+    props.current?.__meta?.sofurry?.title ||
+    props.current?.__meta?.furaffinity?.title ||
+    "",
 );
 
 const documentBody = ref("");
@@ -467,6 +473,10 @@ let documentLoadToken = 0;
 const documentBlurb = computed(() => {
   // Journals already put the full body in description — don't duplicate as a blurb.
   if (props.current?.__meta?.furaffinity?.kind === "journal") return "";
+  const softBlurb = props.current?.__meta?.sofurry?.blurb?.trim();
+  if (softBlurb && documentBody.value && softBlurb !== documentBody.value) {
+    return softBlurb;
+  }
   const desc = (props.current?.description || "").trim();
   if (!desc) return "";
   // Only show the FA description box when we successfully loaded separate file content.
@@ -521,12 +531,13 @@ const loadDocumentContent = async (post: EnhancedPost) => {
   if (isPdfPost.value) return;
 
   const isJournal = post.__meta?.furaffinity?.kind === "journal";
+  const isSoftStory = post.__meta?.kind === "story" && !!post.__meta?.sofurry;
   const url = post.file?.url || "";
   const preview = post.preview?.url || "";
   const ext = (post.file?.ext || urlExt(url)).toLowerCase();
 
-  // Journals already carry the full body in description after enrich.
-  if (isJournal || !url || url === preview || IMAGE_EXTS.has(ext)) {
+  // Journals / Soft stories carry the full body in description after enrich.
+  if (isJournal || isSoftStory || !url || url === preview || IMAGE_EXTS.has(ext)) {
     documentBody.value = post.description || "";
     return;
   }
@@ -593,37 +604,37 @@ watch(
 
 const loadNotesForCurrent = async () => {
   const post = props.current;
-  const originInkbunny =
-    siteMode.isInkbunny || post?.__meta?.originMode === "inkbunny";
-  const originFa =
-    siteMode.isFurAffinity || post?.__meta?.originMode === "furaffinity";
-  if (!post?.has_notes || isVideoExt(post.file.ext) || siteMode.isLocal || originInkbunny || originFa) {
+  if (
+    !post?.has_notes ||
+    isVideoExt(post.file.ext) ||
+    !modeSupportsNotes(originModeOf(post, siteMode.activeMode))
+  ) {
     notes.value = [];
     return;
   }
-  const postId = post.id;
-  if (notesLoadedFor.value === postId) return;
+  const feedKey = postFeedKey(post);
+  if (notesLoadedFor.value === feedKey) return;
   try {
     const origin = originAuthForPost(post, main.$state, siteMode.activeMode);
     const service = await getApiService();
     const result = await service.getNotes({
-      postId,
+      postId: post.id,
       baseUrl: origin.baseUrl,
       mode: origin.mode,
     });
     // Ignore stale responses after the user switched posts (H6).
-    if (props.current?.id !== postId) return;
+    if (!props.current || postFeedKey(props.current) !== feedKey) return;
     notes.value = result;
-    notesLoadedFor.value = postId;
+    notesLoadedFor.value = feedKey;
   } catch (error) {
-    if (props.current?.id !== postId) return;
+    if (!props.current || postFeedKey(props.current) !== feedKey) return;
     console.error(error);
     notes.value = [];
   }
 };
 
 watch(
-  () => props.current?.id,
+  () => (props.current ? postFeedKey(props.current) : null),
   () => {
     notesVisible.value = true;
     void loadNotesForCurrent();
@@ -711,8 +722,8 @@ const scheduleSlideshowAdvance = () => {
     void advanceSlideshow();
     return;
   }
-  if (isVideoExt(props.current.file.ext)) {
-    // Video advances on @ended while slideshow is playing.
+  if (isVideoExt(props.current.file.ext) || isAudioExt(props.current.file.ext)) {
+    // Video/audio advances on @ended while slideshow is playing.
     return;
   }
   slideshowTimer.value = setTimeout(() => {
@@ -814,6 +825,10 @@ const addFavorite = updateFavorite(() => true)
 const removeFavorite = updateFavorite(() => false)
 const toggleFavorite = updateFavorite((cur) => !cur)
 
+const openCurrentOnSource = () => {
+  if (props.current) openPostOnSourceSite(props.current);
+};
+
 onBeforeUnmount(() => {
   commentsResizeCleanup?.();
   ui.fullscreenOpen = false;
@@ -826,6 +841,7 @@ onBeforeUnmount(() => {
   shortcutService.emitter.off("fullscreenToggleFavorite", toggleFavorite);
   shortcutService.emitter.off("fullscreenSlideshowToggle", toggleSlideshow);
   shortcutService.emitter.off("fullscreenSlideshowStop", stopSlideshow);
+  shortcutService.emitter.off("openPostSource", openCurrentOnSource);
 });
 onMounted(() => {
   shortcutService.emitter.on("fullscreenNext", showNextImage);
@@ -836,6 +852,7 @@ onMounted(() => {
   shortcutService.emitter.on("fullscreenToggleFavorite", toggleFavorite);
   shortcutService.emitter.on("fullscreenSlideshowToggle", toggleSlideshow);
   shortcutService.emitter.on("fullscreenSlideshowStop", stopSlideshow);
+  shortcutService.emitter.on("openPostSource", openCurrentOnSource);
 });
 
 const scrollToPost = (post: { id: number; __meta?: { originMode?: string } } | number) => {
@@ -883,13 +900,16 @@ watch(
           isZoomed.value = false;
           await loadDocumentContent(val);
           loadEnd();
-        } else if (slideshowPlaying.value && isVideoExt(val.file.ext)) {
-          // Wait for video ended; ensure playback starts.
+        } else if (
+          slideshowPlaying.value &&
+          (isVideoExt(val.file.ext) || isAudioExt(val.file.ext))
+        ) {
+          // Wait for media ended; ensure playback starts.
           await nextTick();
           applyFullscreenPlaybackPrefs();
           videoEl.value?.play().catch(() => undefined);
           loadEnd();
-        } else if (isVideoExt(val.file.ext)) {
+        } else if (isVideoExt(val.file.ext) || isAudioExt(val.file.ext)) {
           await nextTick();
           applyFullscreenPlaybackPrefs();
           loadEnd();
@@ -1193,5 +1213,21 @@ useHead({
 .float-right {
   display: flex;
   align-items: center;
+}
+
+.fullscreen-audio-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: rgba(255, 255, 255, 0.9);
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+
+.fullscreen-audio {
+  width: min(100%, 28rem);
 }
 </style>

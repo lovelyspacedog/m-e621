@@ -193,13 +193,18 @@ export const usePostListManager = ({
       proxyUrl: urlStore.proxyUrl,
       baseUrl: origin.baseUrl,
       mode: origin.mode,
+      softId: post.__meta.sofurry?.id || null,
     };
     try {
       post.__meta.isFavoriteLoading = true;
-      if (args.favorited) {
-        await service.favoritePost(serviceArgs);
-      } else {
-        await service.unfavoritePost(serviceArgs);
+      const ok = args.favorited
+        ? await service.favoritePost(serviceArgs)
+        : await service.unfavoritePost(serviceArgs);
+      if (!ok) {
+        snackbar.addMessage(
+          `Couldn't update favorite on ${unifiedChildLabel(origin.mode)}`,
+        );
+        return;
       }
       post.is_favorited = args.favorited;
       post.fav_count = Math.max(0, (post.fav_count || 0) + (args.favorited ? 1 : -1));
@@ -311,8 +316,16 @@ export const usePostListManager = ({
         reachedEnd.value = true;
       } else {
         reachedEnd.value = false;
+        // newly uploaded / overlapping pages can repeat; duplicates are bad
+        const newPostsFiltered = newPosts.filter(
+          (newP) =>
+            !posts.value.find(
+              (existing) => postFeedKey(existing) === postFeedKey(newP),
+            ),
+        );
+        if (!newPostsFiltered.length) return;
         const postCountToRemove = getPostCountToRemove();
-        posts.value.push(...newPosts);
+        posts.value.push(...newPostsFiltered);
         posts.value.splice(0, postCountToRemove);
       }
     } catch (error) {

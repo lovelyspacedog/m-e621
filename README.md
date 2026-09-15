@@ -28,7 +28,7 @@ Switch sites from the sidebar or landing-page chips. Each mode keeps its **own p
 | **Inkbunny** | Hybrid site mode; Flash/SWF playback via [Ruffle](https://ruffle.rs/) |
 | **FurAffinity** | Site mode via embedded [faapi](https://github.com/FurryCoders/faapi) + `/search` scrape; host cookies (`FA_COOKIE_A`/`FA_COOKIE_B`) or username/password login |
 | **Weasyl** | Site mode with API-key auth; guest is SFW-only; `favs:me` with username |
-| **Itaku** | Gallery images + flattened multi-image posts; Token auth for stars / following / star toggle; Unified child (off by default) |
+| **Itaku** | Gallery images + flattened multi-image posts; Token auth for stars / following / star toggle / comments; Unified child (off by default) |
 | **SoFurry** | Artwork + stories; email/password or session-cookie login; My Likes / Following feed; Unified child (on by default) |
 | **Tailspace** | Posts + in-app comic reader (page chunks, scroll / full-width reading, comments); optional account login for likes, stars, comments, follow / Following feed |
 | **Local** | Browse a folder on disk (File System Access API); fuzzy search, random order, posters, resume, favorites, remux helpers |
@@ -165,7 +165,7 @@ Those cookies are `a` and `b` from a logged-in FurAffinity session. Do not log o
 
 Tailspace login is profile-only (Account settings): password or a pasted `tailspace_session` cookie. The password is not stored; the session cookie is kept in the Tailspace profile like other site credentials.
 
-Itaku login is profile-only (Account settings): paste the browser `Authorization: Token …` value. Verify stores username + user id for `stars:me` / star toggle / `following:me`.
+Itaku login is profile-only (Account settings): paste the browser `Authorization: Token …` value. Verify stores username + user id for `stars:me` / star toggle / `following:me` / comments.
 
 SoFurry login is profile-only (Account settings): email/password form login or pasted session cookies. Stores cookies for `favs:me` (likes), `following:me` (feed), and best-effort like toggle.
 
@@ -173,15 +173,25 @@ Search uses FurAffinity’s HTML `/search/` (not an official JSON API). Expect ~
 
 Optional helpers (`start`, `sync`, `deploy.sh`, `serve.py`) support a reverse-proxied self-host. Personal hostnames and secrets belong in **`~/.config/m-e621/env`** or a gitignored **`deploy.env`** — see [`deploy.env.example`](./deploy.env.example). Committed scripts default to `localhost` / public HTTPS clone URLs only.
 
-### Docker (upstream-style static host)
+### Docker (multi-site via `serve.py`)
+
+Build and run this fork’s proxy server (not upstream’s static nginx image):
 
 ```bash
-sudo docker run -d -p 8080:80 ghcr.io/avoonix/material-e621:latest
+docker compose up --build
+# → http://127.0.0.1:18621
 ```
 
-Or `docker compose up` with the included [`docker-compose.yml`](./docker-compose.yml).
+Or without Compose:
 
-> **Note:** The published GHCR image is upstream’s. It will not include this fork’s multi-site proxy layer. For Furbooru / Inkbunny / FurAffinity / Weasyl / Itaku / SoFurry / Tailspace / Local remux helpers, use a local `npm run build` + `serve.py` (or build your own image from this tree).
+```bash
+docker build -t m-e621 .
+docker run --rm -p 18621:18621 m-e621
+```
+
+Container env defaults: `M_E621_HOST=0.0.0.0`, `M_E621_PORT=18621`, `M_E621_ROOT=/app/dist`, `M_E621_CONFIG=/data/config`. Optional `FA_COOKIE_A` / `FA_COOKIE_B` for host-wide FurAffinity login.
+
+> **Note:** Upstream `ghcr.io/avoonix/material-e621` remains e621-static-only (no multi-site proxies). This repo’s Dockerfile uses **npm** + `serve.py`.
 
 ### Desktop (Tauri)
 

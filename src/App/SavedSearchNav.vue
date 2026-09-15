@@ -261,6 +261,7 @@
 
 <script setup lang="ts">
 import { parseSavedSearchTags, useSavedSearchStore } from "@/services";
+import { useSiteModeStore } from "@/services/SiteModeStore";
 import {
   UNGROUPED_SAVED_SEARCH_GROUP_ID,
   type SavedSearchEntry,
@@ -271,6 +272,7 @@ import { useRoute } from "vue-router";
 import Draggable from "vuedraggable";
 
 const savedSearches = useSavedSearchStore();
+const siteMode = useSiteModeStore();
 const route = useRoute();
 const ungroupedId = UNGROUPED_SAVED_SEARCH_GROUP_ID;
 
@@ -296,12 +298,20 @@ const currentQueryTags = () => {
   return parseSavedSearchTags(raw);
 };
 
-const toSearch = (tags: string[]) => ({
-  name: "Posts",
-  query: {
-    tags: tags.join(" "),
-  },
-});
+const toSearch = (tags: string[]) =>
+  siteMode.isTailspace
+    ? {
+        name: "TailspacePosts",
+        query: {
+          tags: tags.join(" "),
+        },
+      }
+    : {
+        name: "Posts",
+        query: {
+          tags: tags.join(" "),
+        },
+      };
 
 const onGroupReorder = (groupId: string, next: SavedSearchEntry[]) => {
   savedSearches.replaceGroupEntries(groupId, next);

@@ -14,6 +14,20 @@
             (password is not stored).
           </p>
         </settings-page-item>
+        <settings-page-item title="Copy starred tags / blacklist" select>
+          <p class="text-left text-caption text-medium-emphasis mb-3">
+            One-shot copy into the <strong>currently active</strong> site mode
+            ({{ activeModeLabel }}).
+          </p>
+          <div class="text-left mb-4">
+            <div class="text-subtitle-2 mb-1">Starred tags</div>
+            <profile-list-sync kind="favorites" />
+          </div>
+          <div class="text-left">
+            <div class="text-subtitle-2 mb-1">Blacklist</div>
+            <profile-list-sync kind="blacklist" />
+          </div>
+        </settings-page-item>
         <settings-page-item title="Unified feed" select>
           <p class="text-left">
             Unified uses each site's login when present, otherwise guest search.
@@ -183,6 +197,15 @@
                   :disabled="!inkbunnyLoggedIn"
                   color="accent"
                   variant="text"
+                  @click="toggleInkbunnyFollowingSearch"
+                >
+                  {{ inkbunnyFollowingExists ? `Remove "Following" saved search` : `Add "Following" saved search` }}
+                </v-btn>
+                <v-btn
+                  class="mt-2"
+                  :disabled="!inkbunnyLoggedIn"
+                  color="accent"
+                  variant="text"
                   @click="toggleInkbunnyUnreadSearch"
                 >
                   {{ inkbunnyUnreadExists ? `Remove "Unread" saved search` : `Add "Unread" saved search` }}
@@ -310,6 +333,15 @@
                 </div>
                 <v-btn
                   class="mt-4"
+                  :disabled="!faLoggedIn"
+                  color="accent"
+                  variant="text"
+                  @click="toggleFaFollowingSearch"
+                >
+                  {{ faFollowingExists ? `Remove "Following" saved search` : `Add "Following" saved search` }}
+                </v-btn>
+                <v-btn
+                  class="mt-2"
                   :disabled="!faLoggedIn && !fields.furaffinity.username"
                   color="accent"
                   variant="text"
@@ -645,6 +677,7 @@
 <script setup lang="ts">
 import SettingsPageTitle from "./SettingsPageTitle.vue";
 import SettingsPageItem from "./SettingsPageItem.vue";
+import ProfileListSync from "./ProfileListSync.vue";
 import { computed, reactive, ref, watch } from "vue";
 import ExternalLink from "@/App/ExternalLink.vue";
 import LocalFolderPicker from "./LocalFolderPicker.vue";
@@ -675,6 +708,7 @@ const main = useMainStore();
 const url = useUrlStore();
 const siteMode = useSiteModeStore();
 const unifiedChildren = UNIFIED_CHILD_MODES;
+const activeModeLabel = computed(() => unifiedChildLabel(siteMode.activeMode));
 
 type KeySiteMode = "e621" | "e6ai" | "furbooru";
 type AccountMode = KeySiteMode | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "tailspace";
@@ -849,15 +883,21 @@ const inkbunnyStatus = computed(() =>
 );
 
 const INKBUNNY_UNREAD_TAG = "unread:yes";
+const INKBUNNY_FOLLOWING_TAG = "following:me";
 const INKBUNNY_FAVS_TAG = "favs:me";
 const inkbunnyUnreadExists = computed(() =>
   searchesHaveTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_UNREAD_TAG),
+);
+const inkbunnyFollowingExists = computed(() =>
+  searchesHaveTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_FOLLOWING_TAG),
 );
 const inkbunnyFavsExists = computed(() =>
   searchesHaveTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_FAVS_TAG),
 );
 const toggleInkbunnyUnreadSearch = () =>
   toggleSearchTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_UNREAD_TAG, "Unread");
+const toggleInkbunnyFollowingSearch = () =>
+  toggleSearchTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_FOLLOWING_TAG, "Following");
 const toggleInkbunnyFavsSearch = () =>
   toggleSearchTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_FAVS_TAG, "My Favs");
 
@@ -882,6 +922,7 @@ const loginInkbunny = async () => {
       userId: result.userId,
     });
     inkbunnyPassword.value = "";
+    addSearchTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_FOLLOWING_TAG, "Following");
     addSearchTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_UNREAD_TAG, "Unread");
     addSearchTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_FAVS_TAG, "My Favs");
     inkbunnyAuth.value.success = true;
@@ -968,11 +1009,17 @@ const faStatus = computed(() =>
     : "Cookies, host env, or password",
 );
 const FA_FAVS_TAG = "favs:me";
+const FA_FOLLOWING_TAG = "following:me";
 const faFavsExists = computed(() =>
   searchesHaveTag(liveSearches(main.$state, "furaffinity"), FA_FAVS_TAG),
 );
+const faFollowingExists = computed(() =>
+  searchesHaveTag(liveSearches(main.$state, "furaffinity"), FA_FOLLOWING_TAG),
+);
 const toggleFaFavsSearch = () =>
   toggleSearchTag(liveSearches(main.$state, "furaffinity"), FA_FAVS_TAG, "My Favs");
+const toggleFaFollowingSearch = () =>
+  toggleSearchTag(liveSearches(main.$state, "furaffinity"), FA_FOLLOWING_TAG, "Following");
 
 const applyFaLoginResult = (result: { username: string; cookies: string }) => {
   setLiveAccount(main.$state, "furaffinity", {
@@ -983,6 +1030,7 @@ const applyFaLoginResult = (result: { username: string; cookies: string }) => {
   faPassword.value = "";
   faCookieA.value = "";
   faCookieB.value = "";
+  addSearchTag(liveSearches(main.$state, "furaffinity"), FA_FOLLOWING_TAG, "Following");
   addSearchTag(liveSearches(main.$state, "furaffinity"), FA_FAVS_TAG, "My Favs");
   faAuth.value.success = true;
   faAuth.value.message = `Logged in as ${result.username}`;
@@ -1199,6 +1247,8 @@ const applySofurryLoginResult = (result: {
   fields.sofurry.username = username;
   sofurryPassword.value = "";
   sofurryCookiePaste.value = "";
+  addSearchTag(liveSearches(main.$state, "sofurry"), SOFURRY_FOLLOWING_TAG, "Following");
+  addSearchTag(liveSearches(main.$state, "sofurry"), SOFURRY_LIKES_TAG, "My Likes");
   sofurryAuth.value.success = true;
   sofurryAuth.value.message = `Logged in as ${username}`;
 };

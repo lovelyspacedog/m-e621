@@ -1,7 +1,8 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { modeSupportsSavedPosts } from "@/misc/util/postOrigin";
-import { supportsDirectoryPicker } from "@/misc/util/saveLocal";
+import { modeSupportsSavedPosts, originModeOf } from "@/misc/util/postOrigin";
+import { supportsLocalBrowse } from "@/misc/util/tauriLocalFs";
+import { hiddenButtonsForMode } from "@/misc/util/siteCapabilities";
 import { useMainStore } from "./state";
 import { useSnackbarStore } from "./SnackbarStore";
 import type { ButtonType, SiteMode, UnifiedChildMode } from "./types";
@@ -11,17 +12,6 @@ import {
   createEmptySiteProfile,
   syncMirrorsToActiveProfile,
 } from "./siteProfiles";
-
-const LOCAL_HIDDEN_BUTTONS = new Set<ButtonType>([
-  "external",
-  "save_local",
-  "bookmark",
-  "fluffle",
-]);
-
-const INKBUNNY_HIDDEN_BUTTONS = new Set<ButtonType>([
-  "favorite",
-]);
 
 const ALL_SITE_MODES: SiteMode[] = [
   "unified",
@@ -37,9 +27,9 @@ const ALL_SITE_MODES: SiteMode[] = [
   "tailspace",
 ];
 
-/** Modes that need File System Access API (Chromium). */
+/** Local needs Chromium FSA or the Tauri desktop shell. */
 const isModeSupported = (mode: SiteMode) =>
-  mode !== "local" || supportsDirectoryPicker();
+  mode !== "local" || supportsLocalBrowse();
 
 export const useSiteModeStore = defineStore("site-mode", () => {
   const main = useMainStore();
@@ -49,7 +39,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   /** Incremented on every mode switch; pages can watch this to force-reload
    *  even when the route query doesn't change (e.g. blank /posts). */
   const modeChangeCount = ref(0);
-  const supportsLocalMode = computed(() => supportsDirectoryPicker());
+  const supportsLocalMode = computed(() => supportsLocalBrowse());
   const isLocal = computed(() => main.activeMode === "local");
   const isTailspace = computed(() => main.activeMode === "tailspace");
   const isFurbooru = computed(() => main.activeMode === "furbooru");
@@ -141,16 +131,45 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   );
 
   const filterButtons = (buttons: ButtonType[]) => {
-    let list = buttons;
-    if (isLocal.value) {
-      list = list.filter((button) => !LOCAL_HIDDEN_BUTTONS.has(button));
-    } else if (isInkbunny.value) {
-      list = list.filter((button) => !INKBUNNY_HIDDEN_BUTTONS.has(button));
-    }
+    let list = buttons.filter(
+      (button) => !hiddenButtonsForMode(main.activeMode).has(button),
+    );
     if (!supportsSavedPosts.value) {
       list = list.filter((button) => button !== "bookmark");
     }
     return list;
+  };
+
+  /** Prefer this for post cards / details / fullscreen so Unified origins gate correctly. */
+  const filterButtonsForPost = (
+    buttons: ButtonType[],
+    post?: {
+      __meta?: {
+        originMode?: string;
+        furaffinity?: { kind?: string };
+      };
+    } | null,
+  ) => {
+    const mode = originModeOf(post, main.activeMode);
+    let list = buttons.filter(
+      (button) => !hiddenButtonsForMode(mode).has(button),
+    );
+    // Ambiguous Unified post without stamped origin — don't offer remote fave.
+    if (main.activeMode === "unified" && !post?.__meta?.originMode) {
+      list = list.filter((button) => button !== "favorite");
+    }
+    if (!modeSupportsSavedPosts(mode)) {
+      list = list.filter((button) => button !== "bookmark");
+    }
+    if (post?.__meta?.furaffinity?.kind === "journal") {
+      list = list.filter((button) => button !== "favorite");
+    }
+    return list;
+  };
+
+  /** Force PostsPage to reload (e.g. Local folder swapped while already in Local). */
+  const bumpModeChange = () => {
+    modeChangeCount.value++;
   };
 
   return {
@@ -170,8 +189,10 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     setUnifiedChild,
     activeLabel,
     setMode,
+    bumpModeChange,
     ensureCompatibleActiveMode,
     filterButtons,
+    filterButtonsForPost,
     siteModes,
     modeChangeCount,
   };

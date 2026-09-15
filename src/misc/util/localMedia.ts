@@ -2,18 +2,49 @@ import {
   ensurePermission,
   supportsDirectoryPicker,
 } from "@/misc/util/saveLocal";
+import {
+  isTauriShell,
+  supportsLocalBrowse,
+  tauriListLocalMedia,
+  tauriPickLocalFolder,
+  tauriReadLocalFile,
+  tauriRootDisplayName,
+} from "@/misc/util/tauriLocalFs";
 import { usePostsStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { PostTags } from "@/worker/api";
 import localforage from "localforage";
 
 const LOCAL_DIR_HANDLE_KEY = "local_mode_dir_handle";
+const LOCAL_TAURI_ROOT_KEY = "local_mode_tauri_root";
 
 type DirectoryPickerWindow = Window & {
   showDirectoryPicker?: (options?: {
     id?: string;
     mode?: "read" | "readwrite";
   }) => Promise<FileSystemDirectoryHandle>;
+};
+
+let tauriRootPath: string | null = null;
+
+export const getTauriLocalRoot = async (): Promise<string | null> => {
+  if (tauriRootPath) return tauriRootPath;
+  try {
+    const stored = await localforage.getItem<string>(LOCAL_TAURI_ROOT_KEY);
+    tauriRootPath = stored || null;
+    return tauriRootPath;
+  } catch {
+    return null;
+  }
+};
+
+const setTauriLocalRoot = async (root: string | null) => {
+  tauriRootPath = root;
+  if (root) {
+    await localforage.setItem(LOCAL_TAURI_ROOT_KEY, root);
+  } else {
+    await localforage.removeItem(LOCAL_TAURI_ROOT_KEY);
+  }
 };
 
 export const getLocalDirectoryHandle = async (): Promise<FileSystemDirectoryHandle | null> => {
@@ -30,6 +61,8 @@ export const getLocalDirectoryHandle = async (): Promise<FileSystemDirectoryHand
 export const clearLocalDirectoryHandle = async () => {
   const previous = usePostsStore().localDirectoryName;
   await localforage.removeItem(LOCAL_DIR_HANDLE_KEY);
+  await setTauriLocalRoot(null);
+  browseRoot = null;
   usePostsStore().localDirectoryName = null;
   if (previous) {
     await clearLocalResume(previous);
@@ -40,22 +73,79 @@ export const clearLocalDirectoryHandle = async () => {
 };
 
 export const pickLocalDirectory = async () => {
-  const picker = (window as DirectoryPickerWindow).showDirectoryPicker;
-  if (!picker) {
-    throw new Error("Folder picker is not supported in this browser");
+  if (supportsDirectoryPicker()) {
+    const picker = (window as DirectoryPickerWindow).showDirectoryPicker;
+    if (!picker) {
+      throw new Error("Folder picker is not supported in this browser");
+    }
+    const handle = await picker({ id: "me621-local-browse", mode: "readwrite" });
+    await localforage.setItem(LOCAL_DIR_HANDLE_KEY, handle);
+    await setTauriLocalRoot(null);
+    usePostsStore().localDirectoryName = handle.name;
+    invalidateLocalMediaIndex();
+    return handle;
   }
-  const handle = await picker({ id: "me621-local-browse", mode: "readwrite" });
+  if (isTauriShell()) {
+    const root = await tauriPickLocalFolder();
+    if (!root) throw new Error("No folder selected");
+    await localforage.removeItem(LOCAL_DIR_HANDLE_KEY);
+    await setTauriLocalRoot(root);
+    usePostsStore().localDirectoryName = tauriRootDisplayName(root);
+    invalidateLocalMediaIndex();
+    return null;
+  }
+  throw new Error("Folder picker is not supported in this browser");
+};
+
+/** Reuse an existing directory handle as the Local browse root (e.g. Save Locally folder). */
+export const setLocalDirectoryFromHandle = async (
+  handle: FileSystemDirectoryHandle,
+) => {
   await localforage.setItem(LOCAL_DIR_HANDLE_KEY, handle);
+  await setTauriLocalRoot(null);
   usePostsStore().localDirectoryName = handle.name;
   invalidateLocalMediaIndex();
-  return handle;
+};
+
+/** One-shot path focus after switching into Local (not persisted). */
+let pendingLocalFocusPath: string | null = null;
+
+export const setPendingLocalFocusPath = (path: string | null) => {
+  pendingLocalFocusPath = path ? path.replace(/^\/+/, "") : null;
+};
+
+export const takePendingLocalFocusPath = (): string | null => {
+  const path = pendingLocalFocusPath;
+  pendingLocalFocusPath = null;
+  return path;
+};
+
+/** Locate which Local page contains `relativePath` for the current tag filter. */
+export const findLocalPathTarget = async (
+  relativePath: string,
+  tags: string[],
+  limit: number,
+): Promise<{ path: string; page: number } | null> => {
+  const path = relativePath.replace(/^\/+/, "");
+  if (!path) return null;
+  const scanned = await scanLocalMedia(false);
+  if (scanned.status !== "ok" && scanned.status !== "empty") return null;
+  const filtered = filterLocalMedia(scanned.entries, tags);
+  const ordered = orderLocalMedia(filtered, tags, false);
+  const index = ordered.findIndex((entry) => entry.relativePath === path);
+  if (index < 0) return null;
+  return {
+    path,
+    page: Math.floor(index / Math.max(1, limit)) + 1,
+  };
 };
 
 const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
 const INDEX_VIDEO_EXTS = new Set(["webm", "mp4", "mkv", "mov"]);
-const MEDIA_EXTS = new Set([...IMAGE_EXTS, ...INDEX_VIDEO_EXTS]);
+const AUDIO_EXTS = new Set(["flac", "mp3", "m4a", "ogg", "opus", "wav"]);
+const MEDIA_EXTS = new Set([...IMAGE_EXTS, ...INDEX_VIDEO_EXTS, ...AUDIO_EXTS]);
 
-export type LocalMediaKind = "image" | "video";
+export type LocalMediaKind = "image" | "video" | "audio";
 
 export interface LocalMediaEntry {
   relativePath: string;
@@ -70,7 +160,8 @@ export interface LocalMediaEntry {
   artistTags: string[];
   generalTags: string[];
   extraTags: string[];
-  handle: FileSystemFileHandle;
+  /** Chromium File System Access handle; absent in Tauri path mode. */
+  handle?: FileSystemFileHandle;
 }
 
 export type LocalMediaStatus =
@@ -244,18 +335,29 @@ const sniffMp4Playable = async (file: File) => {
   }
 };
 
+const resolvePlayableExt = (ext: string) => {
+  if (IMAGE_EXTS.has(ext) || AUDIO_EXTS.has(ext) || ext === "webm" || ext === "mp4") {
+    return true;
+  }
+  return false;
+};
+
 const resolvePlayable = async (file: File, ext: string) => {
   if (IMAGE_EXTS.has(ext)) return true;
+  if (AUDIO_EXTS.has(ext)) return true;
   if (ext === "webm") return true;
   if (ext === "mp4") return sniffMp4Playable(file);
   return false;
 };
 
+const kindTagFor = (kind: LocalMediaKind) => {
+  if (kind === "image") return "type:still";
+  if (kind === "audio") return "type:audio";
+  return "type:video";
+};
+
 const kindTagsFor = (kind: LocalMediaKind, playable: boolean) =>
-  uniqueTags([
-    kind === "image" ? "type:still" : "type:video",
-    playable ? "" : "type:unplayable",
-  ]);
+  uniqueTags([kindTagFor(kind), playable ? "" : "type:unplayable"]);
 
 const tagsForEntry = (entry: LocalMediaEntry) =>
   uniqueTags([
@@ -287,7 +389,11 @@ const walkDirectory = async (
     if (!MEDIA_EXTS.has(ext)) continue;
     const file = await fileHandle.getFile();
     const relativePath = prefix ? `${prefix}/${name}` : name;
-    const kind: LocalMediaKind = IMAGE_EXTS.has(ext) ? "image" : "video";
+    const kind: LocalMediaKind = IMAGE_EXTS.has(ext)
+      ? "image"
+      : AUDIO_EXTS.has(ext)
+        ? "audio"
+        : "video";
     const playable = await resolvePlayable(file, ext);
     const parsed = parseLocalTags(relativePath);
     const extraTags = extraTagsByPath[relativePath] || [];
@@ -387,6 +493,120 @@ const writeSidecar = async () => {
   }
 };
 
+const writeSidecarToRoot = async (
+  root: FileSystemDirectoryHandle,
+  tagsByPath: Record<string, string[]>,
+) => {
+  try {
+    const writableHandle = await root.getFileHandle(SIDECAR_NAME, {
+      create: true,
+    });
+    const writable = await writableHandle.createWritable();
+    await writable.write(`${JSON.stringify(tagsByPath, null, 2)}\n`);
+    await writable.close();
+  } catch {
+    // Folder may be read-only; localforage still has the tags.
+  }
+};
+
+/** Serialize sidecar/localforage merges (bulk Save Locally can overlap). */
+let sidecarMergeChain: Promise<void> = Promise.resolve();
+
+const withSidecarMergeLock = async <T>(fn: () => Promise<T>): Promise<T> => {
+  const prev = sidecarMergeChain;
+  let release!: () => void;
+  sidecarMergeChain = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await prev.catch(() => undefined);
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+};
+
+/**
+ * Merge searchable tags into `.me621-tags.json` (+ localforage) for a path
+ * under an arbitrary folder handle (e.g. Save Locally directory).
+ * Safe when the save folder is not the current Local browse root.
+ */
+export const mergeSidecarTagsForPath = async (
+  root: FileSystemDirectoryHandle,
+  relativePath: string,
+  tags: string[],
+): Promise<string[]> => {
+  const cleaned = uniqueTags(
+    tags
+      .map((tag) => tag.trim().toLowerCase())
+      .filter(
+        (tag) =>
+          tag &&
+          !tag.startsWith("order:") &&
+          !tag.startsWith("type:"),
+      ),
+  );
+  if (!cleaned.length || !relativePath) return [];
+
+  return withSidecarMergeLock(async () => {
+    const key = await resolveFolderKey(root);
+    const all =
+      (await localforage.getItem<ExtraTagsStore>(EXTRA_TAGS_KEY)) || {};
+    const bucket: Record<string, string[]> = {
+      ...(storeBucket(all, key, root.name) || {}),
+    };
+    const disk = await readSidecar(root);
+    if (disk) {
+      for (const [path, pathTags] of Object.entries(disk)) {
+        bucket[path] = uniqueTags([...(bucket[path] || []), ...pathTags]);
+      }
+    }
+    bucket[relativePath] = uniqueTags([
+      ...(bucket[relativePath] || []),
+      ...cleaned,
+    ]);
+    all[key] = bucket;
+    await localforage.setItem(EXTRA_TAGS_KEY, all);
+    await writeSidecarToRoot(root, bucket);
+
+    // Keep in-memory Local index in sync when this is the browse folder.
+    let sameAsBrowse = cachedFolderKey === key;
+    if (!sameAsBrowse && browseRoot) {
+      try {
+        sameAsBrowse = await browseRoot.isSameEntry(root);
+      } catch {
+        sameAsBrowse = false;
+      }
+    }
+    if (sameAsBrowse) {
+      extraTagsByPath = bucket;
+      cachedFolderKey = key;
+      for (const entry of cachedIndex || []) {
+        if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+      }
+      for (const entry of cachedOrdered || []) {
+        if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+      }
+    }
+    return bucket[relativePath] || [];
+  });
+};
+
+/** Flatten e621-shaped post tags for Local sidecar search. */
+export const flattenPostTagsForSidecar = (
+  post: { tags?: object | null } | null | undefined,
+): string[] => {
+  if (!post?.tags || typeof post.tags !== "object") return [];
+  const out: string[] = [];
+  for (const list of Object.values(post.tags as Record<string, unknown>)) {
+    if (!Array.isArray(list)) continue;
+    for (const tag of list) {
+      if (typeof tag === "string" && tag.trim()) out.push(tag);
+    }
+  }
+  return uniqueTags(out.map((t) => t.trim().toLowerCase()));
+};
+
 const persistExtraTags = async () => {
   const key = folderKey();
   if (!key) return;
@@ -419,6 +639,18 @@ const loadExtraTags = async (
         ...tags,
       ]);
     }
+  }
+};
+
+/** localforage-only tag load (Tauri path mode — no FSA sidecar yet). */
+const loadExtraTagsForKey = async (key: string, legacyName: string) => {
+  browseRoot = null;
+  try {
+    const all =
+      (await localforage.getItem<ExtraTagsStore>(EXTRA_TAGS_KEY)) || {};
+    extraTagsByPath = { ...(storeBucket(all, key, legacyName) || {}) };
+  } catch {
+    extraTagsByPath = {};
   }
 };
 
@@ -576,6 +808,18 @@ const loadFavorites = async (
   const sidecar = await readFavoritesSidecar(root);
   if (sidecar) {
     for (const path of sidecar) favoritedPaths.add(path);
+  }
+};
+
+const loadFavoritesForKey = async (key: string, legacyName: string) => {
+  favoritedPaths = new Set();
+  try {
+    const all = (await localforage.getItem<FavoritesStore>(FAVORITES_KEY)) || {};
+    for (const path of storeBucket(all, key, legacyName) || []) {
+      favoritedPaths.add(path);
+    }
+  } catch {
+    favoritedPaths = new Set();
   }
 };
 
@@ -743,6 +987,71 @@ export const removeLocalTag = async (relativePath: string, tag: string) => {
 export const scanLocalMedia = async (
   force = false,
 ): Promise<{ entries: LocalMediaEntry[]; status: LocalMediaStatus }> => {
+  if (!supportsLocalBrowse()) {
+    return { entries: [], status: "no-picker" };
+  }
+
+  const tauriRoot = await getTauriLocalRoot();
+  if (tauriRoot && isTauriShell()) {
+    const displayName = tauriRootDisplayName(tauriRoot);
+    const key = `path:${hashLocalPath(tauriRoot)}`;
+    cachedFolderKey = key;
+    browseRoot = null;
+    await loadExtraTagsForKey(key, displayName);
+    await loadPosterMeta(key, displayName);
+    await loadFavoritesForKey(key, displayName);
+    if (
+      cachedIndex &&
+      cachedRootName === displayName &&
+      cachedFolderKey === key &&
+      !force
+    ) {
+      return {
+        entries: cachedIndex,
+        status: cachedIndex.length ? "ok" : "empty",
+      };
+    }
+    const listed = await tauriListLocalMedia(tauriRoot);
+    const entries: LocalMediaEntry[] = listed.map((row) => {
+      const playable = resolvePlayableExt(row.ext);
+      const parsed = parseLocalTags(row.relativePath);
+      const extras = extraTagsByPath[row.relativePath] || [];
+      const generalTags = uniqueTags([...parsed.generalTags, ...extras]);
+      const kind = row.kind;
+      return {
+        relativePath: row.relativePath,
+        name: row.name,
+        ext: row.ext,
+        size: row.size,
+        lastModified: row.lastModified,
+        kind,
+        playable,
+        tags: uniqueTags([
+          ...parsed.artistTags,
+          ...generalTags,
+          ...kindTagsFor(kind, playable),
+          ...(favoritedPaths.has(row.relativePath) ? ["type:favorited"] : []),
+        ]),
+        artistTags: parsed.artistTags,
+        generalTags,
+        extraTags: extras,
+      };
+    });
+    for (const entry of entries) {
+      const meta = posterMetaByPath[entry.relativePath];
+      if (
+        meta?.duration &&
+        meta.lastModified === entry.lastModified &&
+        meta.size === entry.size
+      ) {
+        entry.duration = meta.duration;
+      }
+    }
+    cachedIndex = entries;
+    cachedRootName = displayName;
+    return { entries, status: entries.length ? "ok" : "empty" };
+  }
+
   if (!supportsDirectoryPicker()) {
     return { entries: [], status: "no-picker" };
   }
@@ -1083,8 +1392,22 @@ const blobUrlFor = async (entry: LocalMediaEntry) => {
   const id = idForPath(entry.relativePath);
   const existing = blobUrls.get(id);
   if (existing) return { id, url: existing };
-  const file = await entry.handle.getFile();
-  const url = URL.createObjectURL(file);
+  if (entry.handle) {
+    const file = await entry.handle.getFile();
+    const url = URL.createObjectURL(file);
+    blobUrls.set(id, url);
+    return { id, url };
+  }
+  const root = await getTauriLocalRoot();
+  if (!root) throw new Error("No Local browse folder");
+  const bytes = await tauriReadLocalFile(root, entry.relativePath);
+  const mime =
+    entry.kind === "audio"
+      ? `audio/${entry.ext === "mp3" ? "mpeg" : entry.ext}`
+      : entry.kind === "video"
+        ? `video/${entry.ext}`
+        : `image/${entry.ext === "jpg" ? "jpeg" : entry.ext}`;
+  const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
   blobUrls.set(id, url);
   return { id, url };
 };
@@ -1146,7 +1469,11 @@ export const localEntriesToPosts = async (
       let width = 3;
       let height = 4;
       let previewUrl = url;
-      if (entry.kind === "video") {
+      if (entry.kind === "audio") {
+        width = 1;
+        height = 1;
+        previewUrl = "";
+      } else if (entry.kind === "video") {
         if (entry.playable) {
           const preview = await resolveVideoPreview(entry, id, url);
           width = preview.width;
@@ -1286,7 +1613,11 @@ const migratePathKeys = async (fromPath: string, toPath: string) => {
 export const remuxLocalPath = async (
   relativePath: string,
   onProgress?: (ratio: number) => void,
+  opts?: { skipInvalidate?: boolean },
 ): Promise<{ newPath: string }> => {
+  if (await getTauriLocalRoot()) {
+    throw new Error("Remux needs Chromium Local (File System Access write)");
+  }
   const { remuxBlobToMp4 } = await import("@/misc/util/localRemux");
   const root = browseRoot || (await getLocalDirectoryHandle());
   if (!root) throw new Error("No Local browse folder");
@@ -1327,9 +1658,98 @@ export const remuxLocalPath = async (
     await persistPosterMeta();
   }
 
+  if (!opts?.skipInvalidate) {
+    invalidateLocalMediaIndex();
+    revokeLocalBlobUrls();
+  }
+  return { newPath };
+};
+
+export type BulkRemuxProgress = {
+  index: number;
+  total: number;
+  path: string;
+  fileProgress: number;
+  done: number;
+  failed: number;
+};
+
+export type BulkRemuxResult = {
+  done: number;
+  failed: number;
+  aborted: boolean;
+  errors: { path: string; message: string }[];
+};
+
+/**
+ * Sequentially remux unplayable Local videos (ffmpeg.wasm is a singleton).
+ * Honors current Local tag filter when `tags` is passed.
+ */
+export const remuxUnplayableLocal = async (opts?: {
+  tags?: string[];
+  signal?: AbortSignal;
+  onProgress?: (progress: BulkRemuxProgress) => void;
+}): Promise<BulkRemuxResult> => {
+  const scanned = await scanLocalMedia(false);
+  if (scanned.status !== "ok" && scanned.status !== "empty") {
+    throw new Error(localStatusMessage(scanned.status) || "Local folder unavailable");
+  }
+  const filtered = opts?.tags
+    ? filterLocalMedia(scanned.entries, opts.tags)
+    : scanned.entries;
+  const targets = filtered.filter(
+    (entry) => entry.kind === "video" && !entry.playable,
+  );
+  const result: BulkRemuxResult = {
+    done: 0,
+    failed: 0,
+    aborted: false,
+    errors: [],
+  };
+  if (!targets.length) return result;
+
+  for (let i = 0; i < targets.length; i++) {
+    if (opts?.signal?.aborted) {
+      result.aborted = true;
+      break;
+    }
+    const entry = targets[i]!;
+    opts?.onProgress?.({
+      index: i,
+      total: targets.length,
+      path: entry.relativePath,
+      fileProgress: 0,
+      done: result.done,
+      failed: result.failed,
+    });
+    try {
+      await remuxLocalPath(
+        entry.relativePath,
+        (fileProgress) => {
+          opts?.onProgress?.({
+            index: i,
+            total: targets.length,
+            path: entry.relativePath,
+            fileProgress,
+            done: result.done,
+            failed: result.failed,
+          });
+        },
+        { skipInvalidate: true },
+      );
+      result.done += 1;
+    } catch (err) {
+      result.failed += 1;
+      result.errors.push({
+        path: entry.relativePath,
+        message: err instanceof Error ? err.message : "Remux failed",
+      });
+    }
+  }
+
   invalidateLocalMediaIndex();
   revokeLocalBlobUrls();
-  return { newPath };
+  return result;
 };
 
 export type LocalSidecarExport = {
@@ -1381,13 +1801,13 @@ export const importLocalSidecars = async (payload: LocalSidecarExport) => {
 export const localStatusMessage = (status: LocalMediaStatus) => {
   switch (status) {
     case "no-picker":
-      return "This browser cannot open a local folder. Use Chromium to browse Local mode.";
+      return "This browser cannot open a local folder. Use Chromium, or the Tauri desktop app.";
     case "no-folder":
       return "Choose a Local browse folder in Account or Post settings.";
     case "denied":
       return "Allow access to the save folder to browse Local files.";
     case "empty":
-      return "No images or videos in the browse folder.";
+      return "No images, videos, or audio in the browse folder.";
     default:
       return "";
   }

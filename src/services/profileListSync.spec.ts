@@ -1,0 +1,153 @@
+import { describe, expect, it } from "vitest";
+import {
+  mergeBlacklistTags,
+  mergeFavoriteTags,
+  copyProfileLists,
+} from "./profileListSync";
+import { createEmptySiteProfile } from "./siteProfiles";
+import {
+  BlacklistMode,
+  SITE_MODE_URLS,
+  UNGROUPED_FAVORITE_GROUP_ID,
+  type ISettingsServiceState,
+  type SiteMode,
+} from "./types";
+
+const blankState = (active: SiteMode = "e621"): ISettingsServiceState => {
+  const profiles = Object.fromEntries(
+    (Object.keys(SITE_MODE_URLS) as SiteMode[]).map((m) => [
+      m,
+      createEmptySiteProfile(m),
+    ]),
+  ) as ISettingsServiceState["profiles"];
+  const activeProfile = profiles[active];
+  return {
+    configVersion: 31,
+    activeMode: active,
+    profiles,
+    shortcuts: [],
+    blacklist: structuredClone(activeProfile.blacklist),
+    appearance: {
+      primary: "",
+      secondary: "",
+      accent: "",
+      toolbar: "",
+      dark: true,
+      transitions: true,
+      coloredTags: true,
+      coloredFavs: true,
+      fullscreenZoomUiMode: 0 as any,
+      navigationRail: false,
+      logo: "paw",
+    },
+    misc: {
+      urls: { e621: SITE_MODE_URLS[active], proxy: "" },
+    },
+    account: structuredClone(activeProfile.account),
+    favorites: structuredClone(activeProfile.favorites),
+    searches: structuredClone(activeProfile.searches),
+    history: structuredClone(activeProfile.history),
+    posts: {
+      buttons: [],
+      fullscreenButtons: [],
+      detailsButtons: [],
+      dataSaver: 0 as any,
+      autoLoad: true,
+      pageSize: 75,
+      hideDetailsSidebar: false,
+      hideBlacklisted: false,
+    },
+    savedPosts: { entries: [] },
+  } as unknown as ISettingsServiceState;
+};
+
+describe("mergeFavoriteTags", () => {
+  it("appends missing tags into ungrouped", () => {
+    const target = createEmptySiteProfile("e621").favorites;
+    target.tags.push({
+      id: "a",
+      name: "wolf",
+      category: "species",
+      groupId: UNGROUPED_FAVORITE_GROUP_ID,
+      order: 0,
+    });
+    const source = createEmptySiteProfile("furbooru").favorites;
+    source.tags.push(
+      {
+        id: "b",
+        name: "wolf",
+        category: "species",
+        groupId: UNGROUPED_FAVORITE_GROUP_ID,
+        order: 0,
+      },
+      {
+        id: "c",
+        name: "fox",
+        category: "species",
+        groupId: UNGROUPED_FAVORITE_GROUP_ID,
+        order: 1,
+      },
+    );
+    expect(mergeFavoriteTags(target, source)).toBe(1);
+    expect(target.tags.map((t) => t.name).sort()).toEqual(["fox", "wolf"]);
+  });
+});
+
+describe("mergeBlacklistTags", () => {
+  it("unions unique lines", () => {
+    const target = {
+      mode: BlacklistMode.blur,
+      tags: [["young"], ["gore rating:e"]],
+      hideServerSideBlacklisted: false,
+    };
+    const source = {
+      mode: BlacklistMode.hide,
+      tags: [["young"], ["scat"], ["gore", "rating:e"]],
+      hideServerSideBlacklisted: true,
+    };
+    expect(mergeBlacklistTags(target, source)).toBe(1);
+    expect(target.mode).toBe(BlacklistMode.blur);
+    expect(target.tags.map((l) => l.join(" ")).sort()).toEqual([
+      "gore rating:e",
+      "scat",
+      "young",
+    ]);
+  });
+});
+
+describe("copyProfileLists", () => {
+  it("merges favorites into the active mode mirrors", () => {
+    const state = blankState("e621");
+    state.profiles.furbooru.favorites.tags.push({
+      id: "x",
+      name: "dragon",
+      category: "species",
+      groupId: UNGROUPED_FAVORITE_GROUP_ID,
+      order: 0,
+    });
+    const result = copyProfileLists(state, {
+      from: "furbooru",
+      to: "e621",
+      kind: "favorites",
+      mode: "merge",
+    });
+    expect(result.added).toBe(1);
+    expect(state.favorites.tags.some((t) => t.name === "dragon")).toBe(true);
+  });
+
+  it("replaces blacklist on a non-active profile without touching mirrors", () => {
+    const state = blankState("e621");
+    state.blacklist.tags = [["keep-me"]];
+    state.profiles.e621.blacklist.tags = [["keep-me"]];
+    state.profiles.inkbunny.blacklist.tags = [["ib-only"]];
+    const result = copyProfileLists(state, {
+      from: "inkbunny",
+      to: "furbooru",
+      kind: "blacklist",
+      mode: "replace",
+    });
+    expect(result.total).toBe(1);
+    expect(state.profiles.furbooru.blacklist.tags).toEqual([["ib-only"]]);
+    expect(state.blacklist.tags).toEqual([["keep-me"]]);
+  });
+});

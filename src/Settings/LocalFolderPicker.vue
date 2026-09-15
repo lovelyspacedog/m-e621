@@ -7,7 +7,7 @@
       <v-btn
         color="accent"
         variant="tonal"
-        :disabled="!directoryPickerSupported"
+        :disabled="!folderPickerSupported"
         @click="onChooseFolder"
       >
         {{ isSave ? "Choose save folder" : "Choose browse folder" }}
@@ -60,6 +60,7 @@ import {
   pickSaveDirectory,
   supportsDirectoryPicker,
 } from "@/misc/util/saveLocal";
+import { supportsLocalBrowse } from "@/misc/util/tauriLocalFs";
 import { downloadjs } from "@/Settings/download";
 import { usePostsStore, useSnackbarStore } from "@/services";
 import { computed, ref } from "vue";
@@ -77,8 +78,11 @@ const emit = defineEmits<{
 
 const posts = usePostsStore();
 const snackbar = useSnackbarStore();
-const directoryPickerSupported = supportsDirectoryPicker();
 const isSave = computed(() => props.purpose === "save");
+/** Save Locally still needs Chromium FSA; Local browse also works in Tauri. */
+const folderPickerSupported = computed(() =>
+  isSave.value ? supportsDirectoryPicker() : supportsLocalBrowse(),
+);
 const directoryName = computed(() =>
   isSave.value ? posts.saveLocalDirectoryName : posts.localDirectoryName,
 );
@@ -86,8 +90,10 @@ const fileInput = ref<HTMLInputElement>();
 const exporting = ref(false);
 
 const status = computed(() => {
-  if (!directoryPickerSupported) {
-    return "This browser cannot open a local folder (Firefox/Zen). Use Chromium.";
+  if (!folderPickerSupported.value) {
+    return isSave.value
+      ? "Save folders need Chromium (File System Access). Firefox downloads to Downloads."
+      : "Local browse needs Chromium or the Tauri desktop app.";
   }
   if (directoryName.value) {
     return `Using folder: ${directoryName.value}`;
@@ -99,14 +105,15 @@ const status = computed(() => {
 
 const onChooseFolder = async () => {
   try {
-    const handle = isSave.value
-      ? await pickSaveDirectory()
-      : await pickLocalDirectory();
-    snackbar.addMessage(
-      isSave.value
-        ? `Save folder set to ${handle.name}`
-        : `Local browse folder set to ${handle.name}`,
-    );
+    if (isSave.value) {
+      const handle = await pickSaveDirectory();
+      snackbar.addMessage(`Save folder set to ${handle.name}`);
+    } else {
+      await pickLocalDirectory();
+      snackbar.addMessage(
+        `Local browse folder set to ${posts.localDirectoryName || "folder"}`,
+      );
+    }
     emit("changed");
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") return;

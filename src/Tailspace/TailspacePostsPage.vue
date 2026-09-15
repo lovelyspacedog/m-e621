@@ -8,6 +8,18 @@
           <h1 class="text-h6 font-weight-bold">Posts</h1>
         </div>
         <div class="ts-header-right">
+          <v-text-field
+            v-model="searchInput"
+            label="Filter title, artist, tags"
+            prepend-inner-icon="mdi-magnify"
+            variant="outlined"
+            density="compact"
+            hide-details
+            clearable
+            class="ts-search"
+            @keydown.enter="applySearch"
+            @click:clear="clearSearch"
+          />
           <v-btn
             :href="`https://tailspace.com/browse-posts`"
             target="_blank"
@@ -19,6 +31,10 @@
             Open on Tailspace
           </v-btn>
         </div>
+      </div>
+      <div v-if="queryTerms.length" class="ts-search-hint text-caption text-medium-emphasis">
+        Client-side filter (Tailspace posts API has no tag search) · scanned {{ scannedPages }} page{{ scannedPages === 1 ? "" : "s" }}
+        <template v-if="hasNextPage"> · more available</template>
       </div>
     </div>
 
@@ -114,22 +130,35 @@
     </div>
 
     <!-- Pagination -->
-    <div v-if="posts.length > 0 || page > 1" class="ts-pagination">
-      <v-btn
-        :disabled="page <= 1 || loading"
-        variant="outlined"
-        size="small"
-        icon="mdi-chevron-left"
-        @click="changePage(page - 1)"
-      />
-      <span class="ts-page-num">Page {{ page }}</span>
-      <v-btn
-        :disabled="!hasNextPage || loading"
-        variant="outlined"
-        size="small"
-        icon="mdi-chevron-right"
-        @click="changePage(page + 1)"
-      />
+    <div v-if="posts.length > 0 || page > 1 || queryTerms.length" class="ts-pagination">
+      <template v-if="!queryTerms.length">
+        <v-btn
+          :disabled="page <= 1 || loading"
+          variant="outlined"
+          size="small"
+          icon="mdi-chevron-left"
+          @click="changePage(page - 1)"
+        />
+        <span class="ts-page-num">Page {{ page }}</span>
+        <v-btn
+          :disabled="!hasNextPage || loading"
+          variant="outlined"
+          size="small"
+          icon="mdi-chevron-right"
+          @click="changePage(page + 1)"
+        />
+      </template>
+      <template v-else>
+        <v-btn
+          :disabled="!hasNextPage || loading"
+          variant="outlined"
+          size="small"
+          :loading="loading"
+          @click="loadMoreFiltered"
+        >
+          {{ hasNextPage ? "Scan more pages" : "No more pages" }}
+        </v-btn>
+      </template>
     </div>
 
     <!-- Post fullscreen dialog -->
@@ -139,12 +168,13 @@
       :all-posts="posts"
       @close="selectedPost = null"
       @navigate="openPost"
+      @search-tag="onTagSearch"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   getPosts,
@@ -154,27 +184,57 @@ import {
 } from "@/worker/tailspace/api";
 import TailspacePostDialog from "./TailspacePostDialog.vue";
 import { useTailspaceSession } from "./useTailspaceSession";
+import {
+  parseTailspaceQueryTerms,
+  tailspacePostMatchesQuery,
+} from "@/misc/util/tailspaceSearch";
 
 useTailspaceSession();
 
 const route = useRoute();
 const router = useRouter();
 
+const TARGET_MATCHES = 24;
+const MAX_SCAN_PAGES = 20;
+
 const posts = ref<TailspacePost[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const hasNextPage = ref(false);
 const selectedPost = ref<TailspacePost | null>(null);
+const scannedPages = ref(0);
+const nextScanPage = ref(1);
 
 const page = ref(Number(route.query.page) || 1);
+const tagsQuery = computed(() => {
+  const raw = route.query.tags;
+  return typeof raw === "string" ? raw : "";
+});
+const queryTerms = computed(() => parseTailspaceQueryTerms(tagsQuery.value));
+const searchInput = ref(tagsQuery.value);
 
-async function loadPage(p: number) {
+watch(tagsQuery, (v) => {
+  if (searchInput.value !== v) searchInput.value = v;
+});
+
+function syncRoute(next: { page?: number; tags?: string }) {
+  const query: Record<string, string> = {};
+  const p = next.page ?? page.value;
+  const tags = next.tags !== undefined ? next.tags : tagsQuery.value;
+  if (p > 1 && !tags.trim()) query.page = String(p);
+  if (tags.trim()) query.tags = tags.trim();
+  router.replace({ query });
+}
+
+async function loadBrowsePage(p: number) {
   loading.value = true;
   error.value = null;
   try {
     const res = await getPosts(p);
     posts.value = res.posts;
     hasNextPage.value = res.hasNextPage;
+    scannedPages.value = 1;
+    nextScanPage.value = p + 1;
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : "Failed to load posts.";
   } finally {
@@ -182,24 +242,94 @@ async function loadPage(p: number) {
   }
 }
 
+async function loadFiltered(reset: boolean) {
+  loading.value = true;
+  error.value = null;
+  try {
+    if (reset) {
+      posts.value = [];
+      nextScanPage.value = 1;
+      scannedPages.value = 0;
+      hasNextPage.value = true;
+    }
+    const seen = new Set(posts.value.map((p) => p.id));
+    let guard = 0;
+    while (
+      posts.value.length < TARGET_MATCHES &&
+      hasNextPage.value &&
+      scannedPages.value < MAX_SCAN_PAGES &&
+      guard < MAX_SCAN_PAGES
+    ) {
+      guard += 1;
+      const res = await getPosts(nextScanPage.value);
+      scannedPages.value += 1;
+      nextScanPage.value += 1;
+      hasNextPage.value = res.hasNextPage;
+      for (const post of res.posts) {
+        if (seen.has(post.id)) continue;
+        if (!tailspacePostMatchesQuery(post, queryTerms.value)) continue;
+        seen.add(post.id);
+        posts.value.push(post);
+      }
+      if (!res.posts.length) {
+        hasNextPage.value = false;
+        break;
+      }
+    }
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : "Failed to load posts.";
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function reload() {
+  if (queryTerms.value.length) {
+    await loadFiltered(true);
+  } else {
+    await loadBrowsePage(page.value);
+  }
+}
+
 function changePage(p: number) {
   page.value = p;
-  router.replace({ query: { page: p > 1 ? String(p) : undefined } });
+  syncRoute({ page: p, tags: "" });
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function applySearch() {
+  page.value = 1;
+  syncRoute({ page: 1, tags: searchInput.value.trim() });
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function clearSearch() {
+  searchInput.value = "";
+  applySearch();
+}
+
+function loadMoreFiltered() {
+  if (!queryTerms.value.length || loading.value || !hasNextPage.value) return;
+  void loadFiltered(false);
 }
 
 function openPost(post: TailspacePost) {
   selectedPost.value = post;
 }
 
-onMounted(() => loadPage(page.value));
-watch(page, (p) => loadPage(p));
-// Drive page from the route so Back/Forward updates the feed (M24).
+function onTagSearch(tagName: string) {
+  searchInput.value = tagName;
+  applySearch();
+  selectedPost.value = null;
+}
+
 watch(
-  () => Number(route.query.page) || 1,
-  (p) => {
-    if (p !== page.value) page.value = p;
+  () => [tagsQuery.value, Number(route.query.page) || 1] as const,
+  ([tags, p]) => {
+    if (!tags && p !== page.value) page.value = p;
+    void reload();
   },
+  { immediate: true },
 );
 </script>
 
@@ -221,12 +351,32 @@ watch(
   justify-content: space-between;
   max-width: 1800px;
   margin: 0 auto;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .ts-header-left {
   display: flex;
   flex-direction: column;
   line-height: 1.2;
 }
+.ts-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.ts-search {
+  min-width: 200px;
+  max-width: 320px;
+  flex: 1 1 220px;
+}
+.ts-search-hint {
+  max-width: 1800px;
+  margin: 0.5rem auto 0;
+  padding: 0 0.25rem;
+}
+
 
 /* ── Grid ── */
 .ts-grid {

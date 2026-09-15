@@ -76,6 +76,8 @@ export const defaultSettings: ISettingsServiceState = {
     { action: "fullscreen_next_post", sequence: "j" },
     { action: "fullscreen_previous_post", sequence: "k" },
 
+    { action: "fullscreen_open_source", sequence: "o" },
+
     ...fullscreenFavoriteShortcuts,
     fullscreenSlideshowShortcut,
   ],
@@ -170,6 +172,7 @@ export const defaultSettings: ISettingsServiceState = {
     saveLocal: {
       pathTemplate: "%artist%/%tags 1-5%.%ext%",
       directoryName: null,
+      openInLocalAfterSave: false,
     },
     localDirectoryName: null,
   },

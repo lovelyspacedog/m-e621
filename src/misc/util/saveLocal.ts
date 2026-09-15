@@ -2,6 +2,12 @@ import localforage from "localforage";
 import { downloadjs } from "@/Settings/download";
 import { usePostsStore, useSnackbarStore, useSiteModeStore, useUrlStore } from "@/services";
 import { getCreatorTags } from "@/misc/util/siteLabels";
+import {
+  flattenPostTagsForSidecar,
+  mergeSidecarTagsForPath,
+  setLocalDirectoryFromHandle,
+  setPendingLocalFocusPath,
+} from "@/misc/util/localMedia";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { getApiService } from "@/worker/services";
 import type { SiteMode } from "@/services/types";
@@ -241,14 +247,52 @@ const fetchPostBytes = async (post: EnhancedPost): Promise<{ data: ArrayBuffer; 
 
 export const savePostLocally = async (
   post: EnhancedPost,
-  opts?: { quiet?: boolean },
+  opts?: { quiet?: boolean; skipOfflineQueue?: boolean },
 ) => {
   const posts = usePostsStore();
   const snackbar = useSnackbarStore();
   const template = posts.saveLocalPathTemplate || "%artist%/%tags 1-5%.%ext%";
 
+  const queueIfNeeded = async (err?: unknown) => {
+    if (opts?.skipOfflineQueue) {
+      if (err) throw err;
+      throw new Error("Offline");
+    }
+    const { enqueueOfflineSave } = await import("@/misc/util/offlineSaveQueue");
+    await enqueueOfflineSave(post);
+    if (!opts?.quiet) {
+      snackbar.addMessage("Offline — save queued; will retry when back online");
+    }
+    return {
+      relativePath: "",
+      dirHandle: null as FileSystemDirectoryHandle | null,
+      queued: true as const,
+    };
+  };
+
+  if (typeof navigator !== "undefined" && !navigator.onLine && !opts?.skipOfflineQueue) {
+    return queueIfNeeded();
+  }
+
   const relativePath = await buildSaveRelativePath(post, template);
-  const { data, mimeType } = await fetchPostBytes(post);
+
+  let data: ArrayBuffer;
+  let mimeType: string;
+  try {
+    ({ data, mimeType } = await fetchPostBytes(post));
+  } catch (err) {
+    const { isLikelyNetworkSaveError } = await import(
+      "@/misc/util/offlineSaveQueue"
+    );
+    if (
+      !opts?.skipOfflineQueue &&
+      (isLikelyNetworkSaveError(err) ||
+        (typeof navigator !== "undefined" && !navigator.onLine))
+    ) {
+      return queueIfNeeded(err);
+    }
+    throw err;
+  }
 
   let dirHandle = await getSavedDirectoryHandle();
   if (dirHandle && supportsDirectoryPicker()) {
@@ -262,10 +306,20 @@ export const savePostLocally = async (
 
   if (dirHandle) {
     await writeToDirectory(dirHandle, relativePath, data, mimeType);
-    if (!opts?.quiet) {
-      snackbar.addMessage(`Saved to ${dirHandle.name}/${relativePath}`);
+    try {
+      await mergeSidecarTagsForPath(
+        dirHandle,
+        relativePath,
+        flattenPostTagsForSidecar(post),
+      );
+    } catch (err) {
+      // File is saved; sidecar is best-effort.
+      console.warn("Failed to write Local sidecar tags", err);
     }
-    return;
+    if (!opts?.quiet) {
+      offerOpenInLocal(snackbar, posts, dirHandle, relativePath);
+    }
+    return { relativePath, dirHandle };
   }
 
   // Firefox/Zen (or no folder chosen): flatten path for Downloads.
@@ -278,6 +332,47 @@ export const savePostLocally = async (
         : `Downloaded ${flatName}`,
     );
   }
+  return { relativePath, dirHandle: null as FileSystemDirectoryHandle | null };
+};
+
+/** Switch Local browse root to the Save Locally folder and focus a path. */
+export const openSavedPathInLocal = async (
+  dirHandle: FileSystemDirectoryHandle,
+  relativePath?: string | null,
+) => {
+  const siteMode = useSiteModeStore();
+  if (!siteMode.supportsLocalMode) {
+    useSnackbarStore().addMessage(
+      "Local mode needs the File System Access API (Chromium).",
+    );
+    return;
+  }
+  await setLocalDirectoryFromHandle(dirHandle);
+  setPendingLocalFocusPath(relativePath || null);
+  if (siteMode.isLocal) {
+    siteMode.bumpModeChange();
+  } else {
+    siteMode.setMode("local");
+  }
+};
+
+const offerOpenInLocal = (
+  snackbar: ReturnType<typeof useSnackbarStore>,
+  posts: ReturnType<typeof usePostsStore>,
+  dirHandle: FileSystemDirectoryHandle,
+  relativePath: string,
+) => {
+  const openAction = {
+    label: "Open in Local",
+    onClick: () => openSavedPathInLocal(dirHandle, relativePath),
+  };
+  const message = `Saved to ${dirHandle.name}/${relativePath}`;
+  if (posts.openInLocalAfterSave) {
+    snackbar.addMessage(message);
+    void openSavedPathInLocal(dirHandle, relativePath);
+    return;
+  }
+  snackbar.addMessage(message, openAction);
 };
 
 export const savePostsLocally = async (
@@ -303,13 +398,23 @@ export const savePostsLocally = async (
   let done = 0;
   let failed = 0;
   let index = 0;
+  const lastSavedBox: Array<{
+    relativePath: string;
+    dirHandle: FileSystemDirectoryHandle;
+  }> = [];
 
   const worker = async () => {
     while (index < eligible.length) {
       if (opts?.signal?.aborted) return;
       const current = eligible[index++];
       try {
-        await savePostLocally(current, { quiet: true });
+        const result = await savePostLocally(current, { quiet: true });
+        if (result.dirHandle && result.relativePath) {
+          lastSavedBox[0] = {
+            relativePath: result.relativePath,
+            dirHandle: result.dirHandle,
+          };
+        }
       } catch (error) {
         failed += 1;
         console.error(error);
@@ -334,11 +439,25 @@ export const savePostsLocally = async (
   }
 
   if (!opts?.quietFinal) {
-    snackbar.addMessage(
-      failed
-        ? `Saved ${eligible.length - failed}/${eligible.length} locally (${failed} failed)`
-        : `Saved ${eligible.length} posts locally`,
-    );
+    const postsStore = usePostsStore();
+    const summary = failed
+      ? `Saved ${eligible.length - failed}/${eligible.length} locally (${failed} failed)`
+      : `Saved ${eligible.length} posts locally`;
+    const saved = lastSavedBox[0];
+    if (saved) {
+      if (postsStore.openInLocalAfterSave) {
+        snackbar.addMessage(summary);
+        void openSavedPathInLocal(saved.dirHandle, saved.relativePath);
+      } else {
+        snackbar.addMessage(summary, {
+          label: "Open in Local",
+          onClick: () =>
+            openSavedPathInLocal(saved.dirHandle, saved.relativePath),
+        });
+      }
+    } else {
+      snackbar.addMessage(summary);
+    }
   }
 
   return {

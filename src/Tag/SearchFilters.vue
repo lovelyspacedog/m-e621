@@ -98,6 +98,27 @@ const furaffinitySortTags = [
   { tag: "order:random", name: "Random" },
 ];
 
+/** Subset mapped by weasyl.mapSearchTags (+ client random) */
+const weasylSortTags = [
+  { tag: null, name: "Date (newest first) - Default" },
+  { tag: "order:score", name: "Popular" },
+  { tag: "order:random", name: "Random" },
+];
+
+/** Subset mapped by itaku.mapSearchTags */
+const itakuSortTags = [
+  { tag: null, name: "Date (newest first) - Default" },
+  { tag: "order:score", name: "Hot" },
+  { tag: "order:favcount", name: "Likes (most first)" },
+  { tag: "order:random", name: "Random" },
+];
+
+/** SoFurry browse has no sort API; random is client-side shuffle */
+const sofurrySortTags = [
+  { tag: null, name: "Default" },
+  { tag: "order:random", name: "Random" },
+];
+
 const localSortTags = [
   { tag: null, name: "Date (newest first) - Default" },
   { tag: "order:random", name: "Random" },
@@ -157,6 +178,12 @@ const sortTagItems = computed(() => {
       ? inkbunnySortTags
       : siteMode.isFurAffinity
         ? furaffinitySortTags
+      : siteMode.isWeasyl
+        ? weasylSortTags
+      : siteMode.isItaku
+        ? itakuSortTags
+      : siteMode.isSofurry
+        ? sofurrySortTags
       : siteMode.isLocal
         ? localSortTags
         : siteMode.isUnified
@@ -176,7 +203,14 @@ const sortTagItems = computed(() => {
   );
 });
 
-const showRatingFilter = computed(() => !siteMode.isInkbunny && !siteMode.isLocal);
+const showRatingFilter = computed(
+  () =>
+    !siteMode.isInkbunny &&
+    !siteMode.isLocal &&
+    !siteMode.isWeasyl &&
+    !siteMode.isItaku &&
+    !siteMode.isSofurry,
+);
 const ratingTagItems = computed(() =>
   siteMode.isFurbooru
     ? furbooruRatingTags

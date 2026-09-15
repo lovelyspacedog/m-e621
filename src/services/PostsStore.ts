@@ -213,6 +213,14 @@ export const usePostsStore = defineStore("posts", () => {
       main.posts.saveLocal.directoryName = value;
     },
   });
+  const openInLocalAfterSave = computed({
+    get() {
+      return !!main.posts.saveLocal.openInLocalAfterSave;
+    },
+    set(value) {
+      main.posts.saveLocal.openInLocalAfterSave = value;
+    },
+  });
   const localDirectoryName = computed({
     get() {
       return main.posts.localDirectoryName;
@@ -258,6 +266,7 @@ export const usePostsStore = defineStore("posts", () => {
     autoplayFeedVideoSilent,
     saveLocalPathTemplate,
     saveLocalDirectoryName,
+    openInLocalAfterSave,
     localDirectoryName,
     allButtonTypes,
   };

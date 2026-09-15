@@ -139,6 +139,14 @@
             persistent-hint
           />
           <local-folder-picker v-if="supportsLocalMode" purpose="save" />
+          <v-switch
+            v-if="supportsLocalMode"
+            class="mt-2"
+            hide-details
+            color="accent"
+            label="Open in Local after save"
+            v-model="posts.openInLocalAfterSave"
+          />
         </settings-page-item>
         <settings-page-item
           v-if="supportsLocalMode"

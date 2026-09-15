@@ -423,6 +423,24 @@ async function handleAction(action: string, payload: Record<string, unknown>) {
     };
   }
 
+  // Logged-in watchstream (new submissions from watched artists).
+  if (action === "submissions") {
+    const page = Math.max(1, Number(payload.page) || 1);
+    const path = page <= 1 ? "msg/submissions/" : `msg/submissions/${page}/`;
+    const html = await (await faFetch(path, cookies)).text();
+    if (/just a moment/i.test(html) || /cf-browser-verification/i.test(html)) {
+      return { status: 503, body: { ok: false, message: "FurAffinity Cloudflare challenge" } };
+    }
+    if (/log\s*in/i.test(html) && !parseLoggedIn(html)) {
+      return { status: 401, body: { ok: false, message: "Log in to FurAffinity to view your following feed" } };
+    }
+    const parsed = parseFigures(html);
+    return {
+      status: 200,
+      body: { results: parsed.results, next: parsed.hasNext ? page + 1 : null, page },
+    };
+  }
+
   if (action === "search") {
     const page = Math.max(1, Number(payload.page) || 1);
     const form = new URLSearchParams();

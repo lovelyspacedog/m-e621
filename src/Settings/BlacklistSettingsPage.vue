@@ -3,6 +3,9 @@
     <v-row align-center>
       <v-col class="text-center" cols="12" sm="10" offset-sm="1" lg="6" offset-lg="3">
         <settings-page-title section="blacklist" title="Blacklist" color="red-darken-1" />
+        <settings-page-item title="Copy from another site" select>
+          <profile-list-sync kind="blacklist" />
+        </settings-page-item>
         <settings-page-item title="Mode" select>
           <v-select :items="modeItems" variant="outlined" hide-details v-model="mode" />
         </settings-page-item>
@@ -40,7 +43,8 @@
 import SettingsPageTitle from "./SettingsPageTitle.vue";
 import SettingsPageItem from "./SettingsPageItem.vue";
 import BlacklistSuggestions from "./BlacklistSuggestions.vue";
-import { computed, defineComponent, ref } from "vue";
+import ProfileListSync from "./ProfileListSync.vue";
+import { computed, ref } from "vue";
 import blacklistSuggestions from "@/misc/data/blacklistSuggestions.json";
 import TagSearch from "../Tag/TagSearch.vue";
 import { BlacklistMode } from "@/services/types";

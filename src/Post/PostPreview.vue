@@ -23,6 +23,27 @@
       {{ documentExcerpt }}
     </p>
   </div>
+  <div
+    v-else-if="isAudio"
+    class="audio-card"
+    @click.stop
+  >
+    <v-icon size="48" class="audio-card-icon">mdi-music</v-icon>
+    <div class="audio-card-name text-caption text-medium-emphasis">
+      .{{ file.ext }}
+    </div>
+    <audio
+      v-if="file.url"
+      class="audio-card-player"
+      controls
+      preload="metadata"
+      :src="file.url"
+      @click.stop
+    />
+    <v-chip v-else class="mt-2" color="warning" variant="flat" size="small">
+      No playable URL
+    </v-chip>
+  </div>
   <fixed-aspect-ratio-box
     v-else
     @click="handleClick"
@@ -138,6 +159,7 @@ import FixedAspectRatioBox from "./FixedAspectRatioBox.vue";
 import { useRouter } from "vue-router";
 
 const VIDEO_EXTS = new Set(["webm", "mp4", "mkv", "mov"]);
+const AUDIO_EXTS = new Set(["flac", "mp3", "m4a", "ogg", "opus", "wav"]);
 
 export default defineComponent({
   components: { FixedAspectRatioBox },
@@ -186,6 +208,7 @@ export default defineComponent({
     const videoLoadFailed = ref(false);
     const isSwf = computed(() => props.file.ext === "swf");
     const isVideo = computed(() => VIDEO_EXTS.has(props.file.ext));
+    const isAudio = computed(() => AUDIO_EXTS.has(props.file.ext));
     // e621-style preview/sample URLs are static frames; only the full file animates.
     const isAnimatedImage = computed(() => props.file.ext === "gif");
     const fileUrlExt = computed(() => {
@@ -208,7 +231,9 @@ export default defineComponent({
         props.documentKind === "story"
       );
     });
-    const isImage = computed(() => !isSwf.value && !isVideo.value && !isDocument.value);
+    const isImage = computed(
+      () => !isSwf.value && !isVideo.value && !isAudio.value && !isDocument.value,
+    );
     const documentLabel = computed(() => {
       if (props.documentKind === "journal") return "Journal";
       const ext = props.file.ext === "pdf" || fileUrlExt.value === "pdf"
@@ -546,6 +571,7 @@ export default defineComponent({
     return {
       isSwf,
       isVideo,
+      isAudio,
       isDocument,
       isImage,
       documentLabel,
@@ -627,6 +653,25 @@ export default defineComponent({
 	 padding: 1rem;
 	 box-sizing: border-box;
 }
+ .audio-card {
+	 display: flex;
+	 flex-direction: column;
+	 align-items: center;
+	 justify-content: center;
+	 gap: 0.5rem;
+	 width: 100%;
+	 min-height: 10rem;
+	 aspect-ratio: 4 / 3;
+	 padding: 1rem;
+	 box-sizing: border-box;
+	 background: #0d1117;
+}
+ .audio-card-icon {
+	 opacity: 0.85;
+}
+ .audio-card-player {
+	 width: min(100%, 18rem);
+ }
  .document-card {
 	 position: relative;
 	 width: 100%;

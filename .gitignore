@@ -175,3 +175,5 @@ BUG-ANALYSIS.md
 
 # Screenshot working copies (pre-censor / duplicates)
 screenshots/raw/
+# Tauri / Rust
+src-tauri/target/

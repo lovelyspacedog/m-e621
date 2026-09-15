@@ -5,7 +5,7 @@
  * Auth: Authorization: Token <token> (pasted from browser DevTools).
  */
 
-import type { Post, PostTags, Tag } from "@/worker/api/returnTypes";
+import type { Comment, Post, PostTags, Tag } from "@/worker/api/returnTypes";
 
 // ---------------------------------------------------------------------------
 // Wire types
@@ -90,6 +90,20 @@ export interface ItakuFeedItem {
   date_added?: string;
   owner_username?: string;
   owner_displayname?: string;
+}
+
+export interface ItakuComment {
+  id: number;
+  content?: string | null;
+  date_added?: string | null;
+  date_edited?: string | null;
+  owner?: number | null;
+  owner_username?: string | null;
+  owner_displayname?: string | null;
+  num_likes?: number | null;
+  children?: ItakuComment[] | null;
+  parent?: number | null;
+  replying_to?: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -671,6 +685,78 @@ export async function unfavoriteImage(args: {
   await fetchJson(buildUrl(`images/${args.postId}/like`, { key: token }), {
     method: "DELETE",
   });
+}
+
+/** Map Itaku comment wire → e621-shaped Comment. */
+export function adaptComment(c: ItakuComment, postId: number): Comment {
+  const name = c.owner_displayname || c.owner_username || "";
+  return {
+    id: c.id,
+    created_at: c.date_added || "",
+    post_id: postId,
+    creator_id: c.owner || 0,
+    body: c.content || "",
+    score: c.num_likes ?? 0,
+    updated_at: c.date_edited || c.date_added || "",
+    updater_id: c.owner || 0,
+    do_not_bump_post: false,
+    is_hidden: false,
+    is_sticky: false,
+    creator_name: name,
+    updater_name: name,
+  };
+}
+
+/** Flatten top-level + one level of children (Itaku nests replies). */
+export function flattenItakuComments(
+  results: ItakuComment[] | null | undefined,
+  postId: number,
+): Comment[] {
+  const out: Comment[] = [];
+  for (const c of results || []) {
+    out.push(adaptComment(c, postId));
+    for (const child of c.children || []) {
+      out.push(adaptComment(child, postId));
+    }
+  }
+  return out;
+}
+
+export async function getComments(args: {
+  postId: number;
+  apiKey?: string | null;
+  limit?: number;
+}): Promise<Comment[]> {
+  const pageSize = Math.min(Math.max(args.limit ?? 100, 1), 100);
+  const data = await fetchJson<ItakuPage<ItakuComment>>(
+    buildUrl(`images/${args.postId}/comments`, {
+      page: 1,
+      page_size: pageSize,
+      child_page_size: pageSize,
+      key: normalizeToken(args.apiKey) || undefined,
+    }),
+  );
+  return flattenItakuComments(data.results, args.postId);
+}
+
+export async function createComment(args: {
+  postId: number;
+  apiKey: string;
+  body: string;
+}): Promise<Comment> {
+  const token = normalizeToken(args.apiKey);
+  if (!token) throw new Error("Log in to Itaku to post comments.");
+  const content = (args.body || "").trim();
+  if (!content) throw new Error("Comment is empty");
+  const created = await fetchJson<ItakuComment>(
+    buildUrl(`images/${args.postId}/comment`, { key: token }),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, mentions: [] }),
+    },
+  );
+  return adaptComment(created, args.postId);
 }
 
 export async function searchTags(args: {

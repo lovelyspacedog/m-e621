@@ -432,6 +432,8 @@ export interface InkbunnyMeta {
   detailsLoaded: boolean;
   writing: string;
   files: InkbunnyFile[];
+  /** Pool membership from `show_pools=yes` (ids + names when available). */
+  pools?: Array<{ id: number; name: string }>;
 }
 
 export function inkbunnyMetaFromHit(
@@ -448,6 +450,12 @@ export function inkbunnyMetaFromHit(
     thumbnail_url_large: proxyMediaUrl(f.thumbnail_url_large, sid) || undefined,
     thumbnail_url_huge: proxyMediaUrl(f.thumbnail_url_huge, sid) || undefined,
   }));
+  const pools = ((hit as InkbunnySubmission).pools || [])
+    .map((p) => ({
+      id: num(p.pool_id),
+      name: String(p.name || "").trim(),
+    }))
+    .filter((p) => p.id > 0);
   return {
     title: hit.title || "",
     pagecount: Math.max(1, num(hit.pagecount, files.length || 1)),
@@ -456,6 +464,7 @@ export function inkbunnyMetaFromHit(
     detailsLoaded,
     writing: stripBbcode((hit as InkbunnySubmission).writing || ""),
     files,
+    pools: pools.length ? pools : undefined,
   };
 }
 
@@ -479,6 +488,7 @@ export function mapSearchTags(tags: string[]): MappedInkbunnySearch {
       if (lower === "order:random") mapped.random = true;
       else if (lower === "order:score") mapped.orderby = "views";
       else if (lower === "order:newest" || lower === "order:id_desc") mapped.orderby = "create_datetime";
+      else if (lower === "order:pool" || lower === "order:pool_order") mapped.orderby = "pool_order";
       continue;
     }
     if (lower.startsWith("user:") || lower.startsWith("artist:")) {
@@ -486,6 +496,11 @@ export function mapSearchTags(tags: string[]): MappedInkbunnySearch {
       continue;
     }
     if (lower === "unread:yes" || lower === "unread") {
+      mapped.unread = true;
+      continue;
+    }
+    // Live watchstream ≡ unread submissions list for the logged-in user.
+    if (lower === "following:me" || lower === "watch:me") {
       mapped.unread = true;
       continue;
     }
@@ -501,6 +516,10 @@ export function mapSearchTags(tags: string[]): MappedInkbunnySearch {
     text.push(tag.replace(/_/g, " "));
   }
   mapped.text = text.join(" ");
+  // Pool browse should follow curator order unless the user picked another sort.
+  if (mapped.poolId && !mapped.orderby && !mapped.random) {
+    mapped.orderby = "pool_order";
+  }
   return mapped;
 }
 

@@ -9,6 +9,11 @@
             </v-btn>
           </div>
 
+          <v-card variant="outlined" class="mb-4 pa-3">
+            <div class="text-subtitle-2 mb-1">Copy from another site</div>
+            <ProfileListSync kind="favorites" />
+          </v-card>
+
           <v-expansion-panels multiple v-model="openPanels">
             <v-expansion-panel
               v-for="group in favorites.groups"
@@ -98,6 +103,7 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
 import TagLabel from "@/Tag/TagLabel.vue";
+import ProfileListSync from "@/Settings/ProfileListSync.vue";
 import { useFavoritesStore } from "@/services/FavoriteStore";
 import { UNGROUPED_FAVORITE_GROUP_ID } from "@/services/types";
 import { useRouter } from "vue-router";

@@ -164,13 +164,20 @@
           </v-chip>
         </div>
 
-        <div v-if="current.pools?.length" class="ib-info-tags">
-          <TagWithMenu
-            v-for="pool in current.pools"
-            :key="pool"
-            small
-            :tag="{ name: `pool:${pool}`, category: 'pool' }"
-          />
+        <div v-if="poolEntries.length" class="ib-info-tags">
+          <div
+            v-for="pool in poolEntries"
+            :key="pool.id"
+            class="ib-pool-row"
+          >
+            <TagWithMenu
+              small
+              :tag="{ name: `pool:${pool.id}`, category: 'pool' }"
+            />
+            <span v-if="pool.name" class="text-caption text-medium-emphasis ml-1">
+              {{ pool.name }}
+            </span>
+          </div>
         </div>
 
         <div class="ib-info-date text-caption text-medium-emphasis mt-1">
@@ -204,6 +211,7 @@ import {
 import TagWithMenu from "@/Tag/TagWithMenu.vue";
 import RufflePlayer from "@/Post/RufflePlayer.vue";
 import { useShortcutService, useUiStore } from "@/services";
+import { openPostOnSourceSite } from "@/misc/util/url";
 
 const KEYWORD_LIMIT = 6;
 
@@ -243,6 +251,9 @@ const previousPost = () => {
   if (props.hasPrevious) emit("previous-post");
 };
 const exit = () => emit("close");
+const openCurrentOnSource = () => {
+  if (props.current) openPostOnSourceSite(props.current);
+};
 const nextFile = () => {
   if (fileIndex.value < files.value.length - 1) fileIndex.value += 1;
   else nextPost();
@@ -267,6 +278,7 @@ onMounted(() => {
   shortcutService.emitter.on("fullscreenNext", nextPost);
   shortcutService.emitter.on("fullscreenPrevious", previousPost);
   shortcutService.emitter.on("fullscreenExit", exit);
+  shortcutService.emitter.on("openPostSource", openCurrentOnSource);
   window.addEventListener("keydown", onKeydown);
 });
 onBeforeUnmount(() => {
@@ -274,10 +286,20 @@ onBeforeUnmount(() => {
   shortcutService.emitter.off("fullscreenNext", nextPost);
   shortcutService.emitter.off("fullscreenPrevious", previousPost);
   shortcutService.emitter.off("fullscreenExit", exit);
+  shortcutService.emitter.off("openPostSource", openCurrentOnSource);
   window.removeEventListener("keydown", onKeydown);
 });
 
 const meta = computed(() => props.current?.__meta.inkbunny);
+const poolEntries = computed(() => {
+  const named = meta.value?.pools || [];
+  const byId = new Map(named.map((p) => [p.id, p.name] as const));
+  const ids =
+    props.current?.pools?.length
+      ? props.current.pools
+      : named.map((p) => p.id);
+  return ids.map((id) => ({ id, name: byId.get(id) || "" }));
+});
 const files = computed<InkbunnyFile[]>(() => {
   const list = meta.value?.files || [];
   if (list.length) return list;
@@ -498,6 +520,7 @@ watch(
 }
 .ib-info-stats span { display: flex; align-items: center; gap: 3px; }
 .ib-info-tags { display: flex; flex-wrap: wrap; margin-bottom: 2px; }
+.ib-pool-row { display: flex; align-items: center; flex-wrap: wrap; margin-bottom: 2px; width: 100%; }
 .ib-info-date { font-size: 0.72rem; }
 .ib-section { margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08); }
 .ib-section-title { font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; }

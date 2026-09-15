@@ -34,6 +34,7 @@ export type Action =
   | "fullscreen_previous_post"
   | "fullscreen_exit"
   | "fullscreen_slideshow_toggle"
+  | "fullscreen_open_source"
   | "go_to_posts"
   | "go_to_settings"
   | "navigate_back"
@@ -232,6 +233,8 @@ export interface ISettingsServiceState {
     saveLocal: {
       pathTemplate: string;
       directoryName: string | null;
+      /** After a folder save, jump to Local mode on that file. */
+      openInLocalAfterSave: boolean;
     };
     localDirectoryName: string | null;
   };

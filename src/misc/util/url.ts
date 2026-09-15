@@ -42,6 +42,12 @@ export const openUrlInNewTab = (url: string) => {
     }
 }
 
+/** Open the post on its origin site (source URL, else constructed standalone page). */
+export const openPostOnSourceSite = (post: EnhancedPost) => {
+  const source = post.sources?.find((url) => /^https?:\/\//.test(url));
+  openUrlInNewTab(source || postStandaloneUrl(post));
+};
+
 export const openE6PostInStandaloneWindow = (id: number) =>
   openUrlInNewTab(getE6PostUrl(id));
 
