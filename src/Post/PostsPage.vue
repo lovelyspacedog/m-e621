@@ -297,6 +297,8 @@ const {
       !siteMode.isFurbooru &&
       !siteMode.isInkbunny &&
       !siteMode.isFurAffinity &&
+      !siteMode.isWeasyl &&
+      !siteMode.isItaku &&
       !siteMode.isTailspace &&
       !siteMode.isUnified
     ) {

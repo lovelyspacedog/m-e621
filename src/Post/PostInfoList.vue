@@ -50,7 +50,7 @@
               {{ post.score.total }}
               ({{ post.score.up }} up − {{ post.score.down }} down)
             </span>
-            <template v-if="!isInkbunny && !isFurAffinity">
+            <template v-if="!isInkbunny && !isFurAffinity && !isWeasyl && !isItaku">
               <v-btn
                 size="x-small"
                 variant="text"
@@ -73,7 +73,7 @@
         <th>Comments</th>
         <td class="post-info-value">{{ post.comment_count }}</td>
       </tr>
-      <tr v-if="!isLocal && !isFurbooru && !isInkbunny && !isFurAffinity">
+      <tr v-if="!isLocal && !isFurbooru && !isInkbunny && !isFurAffinity && !isWeasyl && !isItaku">
         <th>Notes</th>
         <td class="post-info-value">{{ post.has_notes ? "Yes" : "No" }}</td>
       </tr>
@@ -170,6 +170,8 @@ const isLocal = computed(() => siteMode.isLocal);
 const isFurbooru = computed(() => originMode.value === "furbooru");
 const isInkbunny = computed(() => originMode.value === "inkbunny");
 const isFurAffinity = computed(() => originMode.value === "furaffinity");
+const isWeasyl = computed(() => originMode.value === "weasyl");
+const isItaku = computed(() => originMode.value === "itaku");
 const originLabel = computed(() =>
   (props.post as EnhancedPost).__meta?.originMode
     ? unifiedChildLabel((props.post as EnhancedPost).__meta.originMode!)

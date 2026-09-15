@@ -27,9 +27,11 @@ Switch sites from the sidebar or landing-page chips. Each mode keeps its **own p
 | **Furbooru** | Site mode with API-key auth, tags, comments, faves/votes |
 | **Inkbunny** | Hybrid site mode; Flash/SWF playback via [Ruffle](https://ruffle.rs/) |
 | **FurAffinity** | Site mode via embedded [faapi](https://github.com/FurryCoders/faapi) + `/search` scrape; host cookies (`FA_COOKIE_A`/`FA_COOKIE_B`) or username/password login |
+| **Weasyl** | Site mode with API-key auth; guest is SFW-only; `favs:me` with username |
+| **Itaku** | Gallery images + flattened multi-image posts; Token auth for stars / following / star toggle; Unified child (off by default) |
 | **Tailspace** | Posts + in-app comic reader (page chunks, scroll / full-width reading, comments); optional account login for likes, stars, comments, follow / Following feed |
 | **Local** | Browse a folder on disk (File System Access API); fuzzy search, random order, posters, resume, favorites, remux helpers |
-| **Unified** | Federated Posts feed across e621 + e6ai + Furbooru + Inkbunny + FurAffinity (toggle children in Account settings; origin badges; merge by created time) |
+| **Unified** | Federated Posts feed across e621 + e6ai + Furbooru + Inkbunny + FurAffinity + Weasyl + Itaku (toggle children in Account settings; origin badges; merge by created time) |
 
 Tailspace and Local are **not** included in Unified.
 
@@ -59,7 +61,7 @@ Upstream’s static Docker image is still fine for e621-only hosting. This fork 
 
 - Serves the built `dist/`
 - Proxies favorites / votes / comments / media downloads (avoids origin-locked Vercel workarounds; helps Firefox / Zen playback)
-- Proxies Tailspace, Furbooru, Inkbunny, and FurAffinity APIs for the multi-site modes
+- Proxies Tailspace, Furbooru, Inkbunny, FurAffinity, Weasyl, and Itaku APIs for the multi-site modes
 - Optional git-pull control for a managed self-hosted instance
 
 Companion scripts: `start` (launcher), `sync` (pull + build + restart), `deploy.sh` + `deploy.env.example` for remote deploy. Config belongs in `~/.config/m-e621/env` or a gitignored `deploy.env`.
@@ -101,7 +103,7 @@ Fresh captures from this fork (site switcher, m-e621 branding). Content in posts
 
 - **AI-first development.** Large chunks of code, refactors, and bugfix passes were written by AI agents. The human owner directs intent, tests what they use, and merges — this is not “hand-crafted artisan frontend.”
 - **Personal scope.** Features exist because the maintainer wanted them (Unified federation, Tailspace comics, Local folder, Inkbunny SWF, etc.). Unsupported site quirks may stay broken until they matter to that workflow.
-- **Not affiliated** with e621, e6ai, Furbooru, Inkbunny, Tailspace, or the upstream Material e621 maintainers beyond being an AGPL fork.
+- **Not affiliated** with e621, e6ai, Furbooru, Inkbunny, Tailspace, Weasyl, Itaku, or the upstream Material e621 maintainers beyond being an AGPL fork.
 - **Content warning.** This client talks to adult imageboards. You are responsible for following each site’s rules, age requirements, and API terms.
 
 ---
@@ -162,6 +164,8 @@ Those cookies are `a` and `b` from a logged-in FurAffinity session. Do not log o
 
 Tailspace login is profile-only (Account settings): password or a pasted `tailspace_session` cookie. The password is not stored; the session cookie is kept in the Tailspace profile like other site credentials.
 
+Itaku login is profile-only (Account settings): paste the browser `Authorization: Token …` value. Verify stores username + user id for `stars:me` / star toggle / `following:me`.
+
 Search uses FurAffinity’s HTML `/search/` (not an official JSON API). Expect ~1s crawl delay between FA requests.
 
 Optional helpers (`start`, `sync`, `deploy.sh`, `serve.py`) support a reverse-proxied self-host. Personal hostnames and secrets belong in **`~/.config/m-e621/env`** or a gitignored **`deploy.env`** — see [`deploy.env.example`](./deploy.env.example). Committed scripts default to `localhost` / public HTTPS clone URLs only.
@@ -174,7 +178,7 @@ sudo docker run -d -p 8080:80 ghcr.io/avoonix/material-e621:latest
 
 Or `docker compose up` with the included [`docker-compose.yml`](./docker-compose.yml).
 
-> **Note:** The published GHCR image is upstream’s. It will not include this fork’s multi-site proxy layer. For Furbooru / Inkbunny / FurAffinity / Tailspace / Local remux helpers, use a local `npm run build` + `serve.py` (or build your own image from this tree).
+> **Note:** The published GHCR image is upstream’s. It will not include this fork’s multi-site proxy layer. For Furbooru / Inkbunny / FurAffinity / Weasyl / Itaku / Tailspace / Local remux helpers, use a local `npm run build` + `serve.py` (or build your own image from this tree).
 
 ### Desktop (Tauri)
 

@@ -98,6 +98,7 @@ const modeIcon = (mode: SiteMode) => {
     case "inkbunny": return "mdi-rabbit";
     case "furaffinity": return "$fox";
     case "weasyl": return "$weasyl";
+    case "itaku": return "$itaku";
     case "unified": return "mdi-earth";
     default: return "mdi-paw";
   }
@@ -111,6 +112,7 @@ const modeLabel = (mode: SiteMode) => {
     case "inkbunny": return "Inkbunny";
     case "furaffinity": return "FurAffinity";
     case "weasyl": return "Weasyl";
+    case "itaku": return "Itaku";
     case "unified": return "Unified";
     default: return mode;
   }

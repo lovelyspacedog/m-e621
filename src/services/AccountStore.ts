@@ -28,8 +28,8 @@ export const useAccountStore = defineStore("account", () => {
       main.account.userId = value;
     },
   });
-  // Mode-aware: Furbooru is API-key-only (no username). FurAffinity may use
-  // host env cookies with no profile key. e621/e6ai/Inkbunny need both.
+  // Mode-aware: Furbooru/Weasyl/Itaku are API-key/token-only (username optional).
+  // FurAffinity may use host env cookies with no profile key. e621/e6ai/Inkbunny need both.
   const auth = computed(() => {
     const api_key = main.account.apiKey;
     if (main.activeMode === "furaffinity") {
@@ -39,7 +39,11 @@ export const useAccountStore = defineStore("account", () => {
       };
     }
     if (!api_key) return undefined;
-    if (main.activeMode === "furbooru") {
+    if (
+      main.activeMode === "furbooru" ||
+      main.activeMode === "weasyl" ||
+      main.activeMode === "itaku"
+    ) {
       return {
         login: main.account.username || "",
         api_key,

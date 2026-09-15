@@ -135,6 +135,18 @@ WEASYL_FAVORITES_PATH = re.compile(r"^/api/weasyl/favorites/([^/]+)$")
 WEASYL_USER_PATH = re.compile(r"^/api/weasyl/user/([^/]+)$")
 WEASYL_WHOAMI_PATH = re.compile(r"^/api/weasyl/whoami$")
 
+ITAKU_API_BASE = "https://itaku.ee/api"
+ITAKU_MEDIA_HOSTS = frozenset({"itaku.ee", "www.itaku.ee"})
+ITAKU_AUTH_PATH = re.compile(r"^/api/itaku/auth/user$")
+ITAKU_FEED_PATH = re.compile(r"^/api/itaku/feed$")
+ITAKU_STARS_PATH = re.compile(r"^/api/itaku/stars$")
+ITAKU_TAGS_PATH = re.compile(r"^/api/itaku/tags$")
+ITAKU_IMAGES_PATH = re.compile(r"^/api/itaku/images$")
+ITAKU_IMAGE_PATH = re.compile(r"^/api/itaku/images/(\d+)$")
+ITAKU_LIKE_PATH = re.compile(r"^/api/itaku/images/(\d+)/like$")
+ITAKU_USER_PATH = re.compile(r"^/api/itaku/users/([^/]+)$")
+ITAKU_POST_PATH = re.compile(r"^/api/itaku/posts/(\d+)$")
+
 FLUFFLE_API = "https://api.fluffle.xyz/exact-search-by-file"
 FLUFFLE_UA = "m-e621/1.0 (by lovelyspacedog on GitHub)"
 FLUFFLE_PATH = "/api/fluffle/exact-search"
@@ -1087,6 +1099,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return parsed.geturl()
         if host in WEASYL_MEDIA_HOSTS:
             return parsed.geturl()
+        if host in ITAKU_MEDIA_HOSTS or host.endswith(".itaku.ee"):
+            return parsed.geturl()
         return None
 
     def _allowed_fluffle_source_url(self, raw: str) -> str | None:
@@ -1295,6 +1309,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
                     fa_cookies = "; ".join(parts)
                 if fa_cookies:
                     req.add_header("Cookie", fa_cookies.replace(";", "; "))
+            if host in WEASYL_MEDIA_HOSTS:
+                req.add_header("Referer", "https://www.weasyl.com")
+            if host in ITAKU_MEDIA_HOSTS or host.endswith(".itaku.ee"):
+                req.add_header("Referer", "https://itaku.ee")
             try:
                 with urllib.request.urlopen(req, timeout=120) as resp:
                     final = resp.geturl() if hasattr(resp, "geturl") else current
@@ -1964,6 +1982,91 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self._weasyl_respond(result, 200, "application/json")
 
     # ------------------------------------------------------------------
+    # Itaku proxy helpers
+    # ------------------------------------------------------------------
+
+    def _itaku_api_key(self, parsed) -> str | None:
+        params = parse_qs(parsed.query)
+        key = (params.get("key") or [""])[0].strip()
+        if key.lower().startswith("token "):
+            key = key[6:].strip()
+        return key or None
+
+    def _itaku_forward_query(self, parsed) -> str:
+        params = parse_qs(parsed.query, keep_blank_values=True)
+        parts: list[str] = []
+        for key, values in params.items():
+            if key == "key":
+                continue
+            for val in values:
+                parts.append(f"{quote(key)}={quote(val)}")
+        return "&".join(parts)
+
+    def _itaku_request(
+        self,
+        url: str,
+        *,
+        method: str = "GET",
+        api_key: str | None = None,
+        body: bytes = b"",
+        timeout: int = 30,
+    ) -> tuple[bytes, int, str]:
+        req = urllib.request.Request(url, method=method)
+        req.add_header("Accept", "application/json")
+        req.add_header(
+            "User-Agent",
+            f"me621-itaku-proxy/1.0 (https://{DOMAIN}; browser proxy)",
+        )
+        if api_key:
+            req.add_header("Authorization", f"Token {api_key}")
+        if body:
+            req.add_header("Content-Type", "application/json")
+            req.data = body
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = resp.read()
+                status = getattr(resp, "status", 200)
+                ct = resp.headers.get("Content-Type", "application/json")
+            return data, status, ct
+        except urllib.error.HTTPError as exc:
+            return exc.read(), exc.code, "application/json"
+        except Exception as exc:  # noqa: BLE001
+            return (
+                json.dumps({"detail": str(exc)}).encode(),
+                502,
+                "application/json",
+            )
+
+    def _itaku_respond(self, body: bytes, status: int, content_type: str) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", content_type or "application/json")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _proxy_itaku_get(self, upstream_path: str, parsed) -> None:
+        api_key = self._itaku_api_key(parsed)
+        qs = self._itaku_forward_query(parsed)
+        url = f"{ITAKU_API_BASE}/{upstream_path.lstrip('/')}"
+        if qs:
+            url = f"{url}?{qs}"
+        body, status, ct = self._itaku_request(url, api_key=api_key)
+        self._itaku_respond(body, status, ct)
+
+    def _proxy_itaku_like(self, method: str, image_id: str, parsed, body: bytes = b"") -> None:
+        api_key = self._itaku_api_key(parsed)
+        if not api_key:
+            self._json(401, {"detail": "Authentication credentials were not provided."})
+            return
+        url = f"{ITAKU_API_BASE}/galleries/images/{image_id}/like/"
+        resp_body, status, ct = self._itaku_request(
+            url, method=method, api_key=api_key, body=body
+        )
+        self._itaku_respond(resp_body, status, ct)
+
+    # ------------------------------------------------------------------
     # Furbooru proxy helpers
     # ------------------------------------------------------------------
 
@@ -2273,6 +2376,35 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if WEASYL_WHOAMI_PATH.match(path):
             self._proxy_weasyl_whoami(parsed)
             return
+        if ITAKU_AUTH_PATH.match(path):
+            self._proxy_itaku_get("auth/user/", parsed)
+            return
+        if ITAKU_FEED_PATH.match(path):
+            self._proxy_itaku_get("feed/", parsed)
+            return
+        if ITAKU_STARS_PATH.match(path):
+            self._proxy_itaku_get("galleries/images/user_starred_imgs/", parsed)
+            return
+        if ITAKU_TAGS_PATH.match(path):
+            self._proxy_itaku_get("tags/", parsed)
+            return
+        if ITAKU_IMAGES_PATH.match(path):
+            self._proxy_itaku_get("galleries/images/", parsed)
+            return
+        itaku_image = ITAKU_IMAGE_PATH.match(path)
+        if itaku_image:
+            self._proxy_itaku_get(f"galleries/images/{itaku_image.group(1)}/", parsed)
+            return
+        itaku_user = ITAKU_USER_PATH.match(path)
+        if itaku_user:
+            self._proxy_itaku_get(
+                f"user_profiles/{quote(itaku_user.group(1))}/", parsed
+            )
+            return
+        itaku_post = ITAKU_POST_PATH.match(path)
+        if itaku_post:
+            self._proxy_itaku_get(f"posts/{itaku_post.group(1)}/", parsed)
+            return
         if path.startswith("/api/"):
             self._json(404, {"ok": False, "message": "not found"})
             return
@@ -2305,6 +2437,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
         vote_match = FURBOORU_VOTES_PATH.match(path)
         if vote_match:
             self._proxy_furbooru_votes(vote_match.group(1), parsed, method="DELETE")
+            return
+        itaku_like = ITAKU_LIKE_PATH.match(path)
+        if itaku_like:
+            self._proxy_itaku_like("DELETE", itaku_like.group(1), parsed)
             return
         self.send_error(404)
 
@@ -2342,6 +2478,11 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
         if FURBOORU_COMMENTS_POST_PATH.match(path):
             self._proxy_furbooru_comments_post(parsed, body)
+            return
+
+        itaku_like = ITAKU_LIKE_PATH.match(path)
+        if itaku_like:
+            self._proxy_itaku_like("POST", itaku_like.group(1), parsed, body)
             return
 
         php = INKBUNNY_POST_ROUTES.get(path)

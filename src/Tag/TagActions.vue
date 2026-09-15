@@ -42,7 +42,7 @@ export default defineComponent({
         const router = useRouter();
         const { creatorLabel } = useSiteLabels();
         const isE621Family = computed(
-          () => !siteMode.isFurbooru && !siteMode.isInkbunny && !siteMode.isFurAffinity && !siteMode.isLocal && !siteMode.isTailspace,
+          () => !siteMode.isFurbooru && !siteMode.isInkbunny && !siteMode.isFurAffinity && !siteMode.isWeasyl && !siteMode.isItaku && !siteMode.isLocal && !siteMode.isTailspace && !siteMode.isUnified,
         );
         const pool = computed(() => {
             if(props.category === "pool") {

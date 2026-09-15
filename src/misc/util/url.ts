@@ -15,6 +15,12 @@ export const getE6PostUrl = (id: number) => {
   if (siteMode.isFurAffinity) {
     return `${base}view/${id}`;
   }
+  if (siteMode.isWeasyl) {
+    return `${base}submission/${id}`;
+  }
+  if (siteMode.isItaku) {
+    return `${base}images/${id}`;
+  }
   return `${base}posts/${id}`;
 };
 

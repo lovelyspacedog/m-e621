@@ -12,13 +12,15 @@ import path from 'path';
 import { furaffinityProxy } from './vite-furaffinity-proxy'
 import { tailspaceProxy } from './vite-tailspace-proxy'
 import { weasylProxy } from './vite-weasyl-proxy'
+import { itakuProxy } from './vite-itaku-proxy'
 
 const MEDIA_HOST_OK = (host: string) =>
   ['.e621.net', '.e926.net', '.e6ai.net', '.furaffinity.net', '.facdn.net'].some((s) => host.endsWith(s)) ||
   ['e621.net', 'e926.net', 'e6ai.net', 'inkbunny.net', 'furaffinity.net', 'www.furaffinity.net', 'facdn.net'].includes(host) ||
   host === 'ib.metapix.net' ||
   host.endsWith('.metapix.net') ||
-  isWeasylMediaHost(host);
+  isWeasylMediaHost(host) ||
+  isItakuMediaHost(host);
 
 const isInkbunnyMediaHost = (host: string) =>
   host === 'inkbunny.net' || host === 'ib.metapix.net' || host.endsWith('.metapix.net');
@@ -29,6 +31,9 @@ const isFurAffinityMediaHost = (host: string) =>
 
 const isWeasylMediaHost = (host: string) =>
   host === 'www.weasyl.com' || host === 'weasyl.com' || host === 'cdn.weasyl.com' || host === 'static.weasyl.com';
+
+const isItakuMediaHost = (host: string) =>
+  host === 'itaku.ee' || host === 'www.itaku.ee' || host.endsWith('.itaku.ee');
 
 const isFluffleSourceHost = (host: string) =>
   MEDIA_HOST_OK(host) ||
@@ -1033,6 +1038,7 @@ export default defineConfig(({ mode }) => {
       inkbunnyProxy(),
       furaffinityProxy(),
       weasylProxy(),
+      itakuProxy(),
       fluffleProxy(),
       rufflePlugin(),
       generateSitemap(env),

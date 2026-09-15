@@ -7,6 +7,7 @@ import { md3 } from 'vuetify/blueprints'
 import { FoxIcon } from "@/misc/icons/FoxIcon";
 import { TanukiAiIcon } from "@/misc/icons/TanukiAiIcon";
 import { WeasylIcon } from "@/misc/icons/WeasylIcon";
+import { ItakuIcon } from "@/misc/icons/ItakuIcon";
 
 export const vuetify = createVuetify({
   blueprint: md3,
@@ -38,6 +39,8 @@ export const vuetify = createVuetify({
       tanukiAi: TanukiAiIcon,
       // Iconify cib:weasyl (CC0 1.0); used for Weasyl site mode
       weasyl: WeasylIcon,
+      // Simple mark for Itaku site mode
+      itaku: ItakuIcon,
     },
   },
   defaults: {

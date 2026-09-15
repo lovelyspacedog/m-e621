@@ -146,6 +146,7 @@ export const useTrailingNavigationItems = () => {
       siteMode.isInkbunny ||
       siteMode.isFurAffinity ||
       siteMode.isWeasyl ||
+      siteMode.isItaku ||
       siteMode.isUnified
         ? []
         : remoteItems),

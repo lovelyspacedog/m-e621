@@ -31,6 +31,7 @@ const ALL_SITE_MODES: SiteMode[] = [
   "inkbunny",
   "furaffinity",
   "weasyl",
+  "itaku",
   "local",
   "tailspace",
 ];
@@ -54,6 +55,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const isInkbunny = computed(() => main.activeMode === "inkbunny");
   const isFurAffinity = computed(() => main.activeMode === "furaffinity");
   const isWeasyl = computed(() => main.activeMode === "weasyl");
+  const isItaku = computed(() => main.activeMode === "itaku");
   const isUnified = computed(() => main.activeMode === "unified");
   const siteModes = computed(() =>
     ALL_SITE_MODES.filter((mode) => isModeSupported(mode)),
@@ -67,6 +69,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       case "inkbunny": return "Inkbunny";
       case "furaffinity": return "FurAffinity";
       case "weasyl": return "Weasyl";
+      case "itaku": return "Itaku";
       case "unified": return "Unified";
       default: return "e621";
     }
@@ -157,6 +160,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     isInkbunny,
     isFurAffinity,
     isWeasyl,
+    isItaku,
     isUnified,
     unifiedSites,
     setUnifiedChild,

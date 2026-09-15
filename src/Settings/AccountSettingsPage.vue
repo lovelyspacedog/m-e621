@@ -382,6 +382,71 @@
               </v-expansion-panel-text>
             </v-expansion-panel>
 
+            <v-expansion-panel value="itaku">
+              <v-expansion-panel-title>
+                <div class="text-left">
+                  <div>Itaku</div>
+                  <div class="text-caption text-medium-emphasis">{{ itakuStatus }}</div>
+                </div>
+              </v-expansion-panel-title>
+              <v-expansion-panel-text>
+                <v-text-field
+                  variant="filled"
+                  label="Itaku username (from verify)"
+                  type="text"
+                  v-model="fields.itaku.username"
+                  autocomplete="username"
+                  readonly
+                />
+                <v-text-field
+                  variant="filled"
+                  :append-icon="showSecret.itaku ? 'mdi-eye-off' : 'mdi-eye'"
+                  :type="showSecret.itaku ? 'text' : 'password'"
+                  label="Itaku auth token"
+                  v-model="fields.itaku.apiKey"
+                  @click:append="showSecret.itaku = !showSecret.itaku"
+                  autocomplete="off"
+                />
+                <p class="text-left">
+                  In a logged-in Itaku browser tab, open DevTools → Network → any
+                  <code>/api/</code> request → copy the
+                  <code>Authorization: Token …</code> value (with or without the
+                  <code>Token</code> prefix). Guest browse works without a token;
+                  login unlocks stars and following.
+                </p>
+                <div>
+                  <v-btn
+                    :disabled="!fields.itaku.apiKey"
+                    :loading="itakuAuth.loading"
+                    :color="itakuAuth.success ? 'success' : itakuAuth.message ? 'error' : 'accent'"
+                    variant="text"
+                    @click="verifyItaku"
+                  >
+                    Verify token
+                  </v-btn>
+                  <p v-if="itakuAuth.message">{{ itakuAuth.message }}</p>
+                </div>
+                <v-btn
+                  class="mt-4"
+                  :disabled="!fields.itaku.apiKey"
+                  color="accent"
+                  variant="text"
+                  @click="toggleItakuStarsSearch"
+                >
+                  {{ itakuStarsExists ? `Remove "My Stars" saved search` : `Add "My Stars" saved search` }}
+                </v-btn>
+                <v-btn
+                  class="mt-2"
+                  :disabled="!fields.itaku.apiKey"
+                  color="accent"
+                  variant="text"
+                  @click="toggleItakuFollowingSearch"
+                >
+                  {{ itakuFollowingExists ? `Remove "Following" saved search` : `Add "Following" saved search` }}
+                </v-btn>
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+
             <v-expansion-panel value="tailspace">
               <v-expansion-panel-title>
                 <div class="text-left">
@@ -513,7 +578,7 @@ const siteMode = useSiteModeStore();
 const unifiedChildren = UNIFIED_CHILD_MODES;
 
 type KeySiteMode = "e621" | "e6ai" | "furbooru";
-type AccountMode = KeySiteMode | "inkbunny" | "furaffinity" | "weasyl" | "tailspace";
+type AccountMode = KeySiteMode | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "tailspace";
 
 type KeySite = {
   mode: KeySiteMode;
@@ -575,11 +640,12 @@ const fields = {
   inkbunny: accountFields("inkbunny"),
   furaffinity: accountFields("furaffinity"),
   weasyl: accountFields("weasyl"),
+  itaku: accountFields("itaku"),
   tailspace: accountFields("tailspace"),
 };
 
 const signedInModes = (): AccountMode[] => {
-  const modes: AccountMode[] = ["e621", "e6ai", "furbooru", "inkbunny", "furaffinity", "weasyl", "tailspace"];
+  const modes: AccountMode[] = ["e621", "e6ai", "furbooru", "inkbunny", "furaffinity", "weasyl", "itaku", "tailspace"];
   return modes.filter((mode) => {
     const account = liveAccount(main.$state, mode);
     return !!(account.username || account.apiKey);
@@ -594,6 +660,7 @@ const showSecret = reactive<Record<AccountMode, boolean>>({
   inkbunny: false,
   furaffinity: false,
   weasyl: false,
+  itaku: false,
   tailspace: false,
 });
 
@@ -922,6 +989,68 @@ watch(
   () => {
     weasylAuth.value.message = "";
     weasylAuth.value.success = false;
+  },
+);
+
+// Itaku auth
+const itakuAuth = ref(emptyAuth());
+const itakuStatus = computed(() =>
+  fields.itaku.apiKey
+    ? fields.itaku.username
+      ? `Signed in as ${fields.itaku.username}`
+      : "Token saved"
+    : "Not signed in",
+);
+const ITAKU_STARS_TAG = "stars:me";
+const ITAKU_FOLLOWING_TAG = "following:me";
+const itakuStarsExists = computed(() =>
+  searchesHaveTag(liveSearches(main.$state, "itaku"), ITAKU_STARS_TAG),
+);
+const itakuFollowingExists = computed(() =>
+  searchesHaveTag(liveSearches(main.$state, "itaku"), ITAKU_FOLLOWING_TAG),
+);
+const toggleItakuStarsSearch = () =>
+  toggleSearchTag(liveSearches(main.$state, "itaku"), ITAKU_STARS_TAG, "My Stars");
+const toggleItakuFollowingSearch = () =>
+  toggleSearchTag(liveSearches(main.$state, "itaku"), ITAKU_FOLLOWING_TAG, "Following");
+
+const verifyItaku = async () => {
+  if (!fields.itaku.apiKey) return;
+  itakuAuth.value.loading = true;
+  itakuAuth.value.message = "";
+  try {
+    const service = await getApiService();
+    const result = await service.verifyAccount({
+      username: fields.itaku.username || "",
+      apiKey: fields.itaku.apiKey,
+      baseUrl: "https://itaku.ee/",
+      mode: "itaku",
+    });
+    if (result && typeof result === "object") {
+      setLiveAccount(main.$state, "itaku", {
+        username: result.username,
+        apiKey: fields.itaku.apiKey,
+        userId: result.userId,
+      });
+      fields.itaku.username = result.username;
+      itakuAuth.value.message = `Signed in as ${result.username}`;
+    } else {
+      itakuAuth.value.message = "Token is valid";
+    }
+    itakuAuth.value.success = true;
+  } catch (e: any) {
+    itakuAuth.value.success = false;
+    itakuAuth.value.message = e?.message || String(e);
+  } finally {
+    itakuAuth.value.loading = false;
+  }
+};
+
+watch(
+  () => [fields.itaku.username, fields.itaku.apiKey],
+  () => {
+    itakuAuth.value.message = "";
+    itakuAuth.value.success = false;
   },
 );
 
