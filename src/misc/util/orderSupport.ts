@@ -19,6 +19,9 @@ export const orderSupport = (
     }
     return { supported: true };
   }
+  if (mode === "unified") {
+    return { supported: false, reason: "Favorites sort is not comparable across sites" };
+  }
   if (mode === "inkbunny") {
     return { supported: false, reason: "Inkbunny has no favorites sort" };
   }

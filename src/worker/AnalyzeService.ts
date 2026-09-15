@@ -124,7 +124,7 @@ export class AnalyzeService {
     } else {
       const pageLimit = 320;
       while (posts.length < postLimit) {
-        const newPosts: Post[] = await service.getPosts({
+        const { posts: newPosts } = await service.getPosts({
           blacklistMode: BlacklistMode.blur,
           limit: pageLimit,
           tags,
@@ -259,7 +259,7 @@ export class AnalyzeService {
         progress: Math.min(1, posts.length / toFetch),
         message: `got ${posts.length} of ${toFetch} posts`,
       });
-      const newPosts = await service.getPosts({
+      const { posts: newPosts } = await service.getPosts({
         blacklistMode,
         blacklist,
         limit: 320,

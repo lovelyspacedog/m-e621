@@ -372,6 +372,7 @@ class PersistanceService {
         tailspace: createEmptySiteProfile("tailspace"),
         furbooru: createEmptySiteProfile("furbooru"),
         inkbunny: createEmptySiteProfile("inkbunny"),
+        unified: createEmptySiteProfile("unified"),
       };
       // Current flat fields become the active mode's profile (usually e621).
       newState.profiles[mode] = profileFromMirrors({
@@ -397,6 +398,7 @@ class PersistanceService {
           tailspace: createEmptySiteProfile("tailspace"),
           furbooru: createEmptySiteProfile("furbooru"),
           inkbunny: createEmptySiteProfile("inkbunny"),
+          unified: createEmptySiteProfile("unified"),
         };
       } else {
         newState.profiles.local =
@@ -478,6 +480,12 @@ class PersistanceService {
       }
       newState.configVersion = 25;
     }
+    if (newState.configVersion < 26) {
+      if (newState.profiles && !newState.profiles.unified) {
+        newState.profiles.unified = createEmptySiteProfile("unified");
+      }
+      newState.configVersion = 26;
+    }
 
     // Ensure profiles exist even if a partial export skipped them.
     if (!newState.profiles) {
@@ -488,6 +496,7 @@ class PersistanceService {
         tailspace: createEmptySiteProfile("tailspace"),
         furbooru: createEmptySiteProfile("furbooru"),
         inkbunny: createEmptySiteProfile("inkbunny"),
+        unified: createEmptySiteProfile("unified"),
       };
     }
     newState.profiles.e621 =
@@ -502,6 +511,16 @@ class PersistanceService {
       newState.profiles.furbooru || createEmptySiteProfile("furbooru");
     newState.profiles.inkbunny =
       newState.profiles.inkbunny || createEmptySiteProfile("inkbunny");
+    newState.profiles.unified =
+      newState.profiles.unified || createEmptySiteProfile("unified");
+    if (!newState.profiles.unified.unifiedSites) {
+      newState.profiles.unified.unifiedSites = {
+        e621: true,
+        e6ai: true,
+        furbooru: true,
+        inkbunny: true,
+      };
+    }
     if (!newState.profiles.e621.account) {
       // Do NOT copy active-mode mirrors here: account/blacklist/etc. may
       // reflect a different site (e.g. e6ai at export time).  Merge any
@@ -517,7 +536,8 @@ class PersistanceService {
       newState.activeMode !== "local" &&
       newState.activeMode !== "tailspace" &&
       newState.activeMode !== "furbooru" &&
-      newState.activeMode !== "inkbunny"
+      newState.activeMode !== "inkbunny" &&
+      newState.activeMode !== "unified"
     ) {
       newState.activeMode = "e621";
     }

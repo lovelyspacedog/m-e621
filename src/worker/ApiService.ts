@@ -18,8 +18,13 @@ import * as inkbunny from "./inkbunny/api";
 import type { InkbunnyMeta } from "./inkbunny/api";
 import { isPostBlacklisted } from "./blacklist";
 import { BlacklistMode, type SiteMode } from "@/services/types";
+import type { UnifiedChildMode } from "@/services/types";
 import { createTagQuery } from "@/misc/util/createTagQuery";
 import { debug } from "@/misc/util/debug";
+import {
+  unifiedChildLabel,
+  type UnifiedFetchArgs,
+} from "@/misc/util/postOrigin";
 
 const isFurbooruUrl = (baseUrl: string) => baseUrl.includes("furbooru.org");
 const isInkbunnyUrl = (baseUrl: string) => baseUrl.includes("inkbunny.net");
@@ -68,8 +73,36 @@ export interface EnhancedPost extends Post {
     localPlayable?: boolean;
     localKind?: "image" | "video";
     inkbunny?: InkbunnyMeta;
+    originMode?: UnifiedChildMode;
+    originBaseUrl?: string;
   };
 }
+
+export type GetPostsResult = {
+  posts: EnhancedPost[];
+  warnings?: string[];
+};
+
+const roundRobinTake = (groups: EnhancedPost[][], limit: number): EnhancedPost[] => {
+  const out: EnhancedPost[] = [];
+  const max = Math.max(0, ...groups.map((g) => g.length));
+  for (let i = 0; i < max && out.length < limit; i++) {
+    for (const group of groups) {
+      const post = group[i];
+      if (post) out.push(post);
+      if (out.length >= limit) break;
+    }
+  }
+  return out;
+};
+
+const withRetry = async <T>(fn: () => Promise<T>): Promise<T> => {
+  try {
+    return await fn();
+  } catch {
+    return await fn();
+  }
+};
 
 export class ApiService {
   async getPosts(args: {
@@ -82,8 +115,84 @@ export class ApiService {
     baseUrl: string;
     mode?: SiteMode;
     userId?: number | null;
-  }) {
+    unified?: UnifiedFetchArgs;
+  }): Promise<GetPostsResult> {
     log(args);
+    if (args.mode === "unified") {
+      return this.getUnifiedPosts(args);
+    }
+    const posts = await this.getPostsFromBackend(args);
+    return { posts };
+  }
+
+  private async getUnifiedPosts(args: {
+    page: number;
+    limit: number;
+    tags: string[];
+    blacklist?: string[][];
+    blacklistMode: BlacklistMode;
+    unified?: UnifiedFetchArgs;
+  }): Promise<GetPostsResult> {
+    const children = args.unified?.children || [];
+    const shared = args.unified?.sharedBlacklist || args.blacklist || [];
+    if (!children.length) {
+      throw new Error("No sites enabled for Unified search");
+    }
+    const warnings: string[] = [];
+    const groups = await Promise.all(
+      children.map(async (child) => {
+        try {
+          const posts = await withRetry(() =>
+            this.getPostsFromBackend({
+              page: args.page,
+              limit: args.limit,
+              tags: args.tags,
+              blacklist: child.blacklist,
+              blacklistMode: args.blacklistMode,
+              auth: child.auth,
+              baseUrl: child.baseUrl,
+              mode: child.mode,
+              userId: child.userId,
+            }),
+          );
+          return posts.map((post) => ({
+            ...post,
+            __meta: {
+              ...post.__meta,
+              originMode: child.mode,
+              originBaseUrl: child.baseUrl,
+              isBlacklisted:
+                post.__meta.isBlacklisted ||
+                isPostBlacklisted(post, shared),
+              pageNumber: args.page,
+            },
+          }));
+        } catch (error: any) {
+          warnings.push(
+            `${unifiedChildLabel(child.mode)}: ${error?.message || String(error)}`,
+          );
+          return [] as EnhancedPost[];
+        }
+      }),
+    );
+    const posts = roundRobinTake(groups, args.limit);
+    if (!posts.length && warnings.length === children.length) {
+      throw new Error(warnings.join(" · "));
+    }
+    return warnings.length ? { posts, warnings } : { posts };
+  }
+
+  private async getPostsFromBackend(args: {
+    page: number;
+    limit: number;
+    tags: string[];
+    blacklist?: string[][];
+    blacklistMode: BlacklistMode;
+    auth?: IPostsListArgs["auth"];
+    baseUrl: string;
+    mode?: SiteMode;
+    userId?: number | null;
+  }): Promise<EnhancedPost[]> {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotTailspace(args.baseUrl, "getPosts", args.mode);
 

@@ -91,6 +91,7 @@ import { prettyBytes } from "@/misc/util/prettyBytes";
 import { getTagColorFromCategory } from "@/misc/util/utilities";
 import { addLocalTags, parseLocalTags, removeLocalTag } from "@/misc/util/localMedia";
 import { getCreatorTags, useSiteLabels } from "@/misc/util/siteLabels";
+import { originModeOf } from "@/misc/util/postOrigin";
 import { useSiteModeStore } from "@/services";
 import TagWithMenu from "@/Tag/TagWithMenu.vue";
 import type { ScoredPost } from "@/worker/AnalyzeService";
@@ -115,8 +116,11 @@ export default defineComponent({
   },
   setup(props, context) {
     const { creatorCategory } = useSiteLabels();
-    const isLocal = computed(() => useSiteModeStore().isLocal);
-    const isInkbunny = computed(() => useSiteModeStore().isInkbunny);
+    const siteMode = useSiteModeStore();
+    const isLocal = computed(() => siteMode.isLocal);
+    const isInkbunny = computed(
+      () => originModeOf(props.post as EnhancedPost, siteMode.activeMode) === "inkbunny",
+    );
     const creatorTags = computed(() => getCreatorTags(props.post.tags));
     const creatorsExpanded = ref(false);
     watch(

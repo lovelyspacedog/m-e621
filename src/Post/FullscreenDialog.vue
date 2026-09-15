@@ -93,12 +93,13 @@
 
 <script setup lang="ts">
 import AppLogo from "../App/AppLogo.vue";
-import { useAppearanceStore, useBlacklistStore, usePostsStore, useShortcutService, useSiteModeStore, useUiStore, useUrlStore } from "@/services";
+import { useAppearanceStore, useBlacklistStore, useMainStore, usePostsStore, useShortcutService, useSiteModeStore, useUiStore, useUrlStore } from "@/services";
 import RufflePlayer from "./RufflePlayer.vue";
 import ZoomPanImage from "./ZoomPanImage.vue";
 import NotesOverlay from "./NotesOverlay.vue";
 import { useBlacklistClasses } from "../misc/util/blacklist";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
+import { originAuthForPost, postFeedKey } from "@/misc/util/postOrigin";
 import {
   computed,
   nextTick,
@@ -153,6 +154,7 @@ const blacklist = useBlacklistStore();
 const posts = usePostsStore();
 const siteMode = useSiteModeStore();
 const urlStore = useUrlStore();
+const main = useMainStore();
 const ui = useUiStore();
 const shortcutService = useShortcutService();
 
@@ -173,7 +175,13 @@ const { classes: blacklistClasses } = useBlacklistClasses({
   postIsBlacklisted,
 });
 
-const buttons = computed(() => siteMode.filterButtons(posts.fullscreenButtons));
+const buttons = computed(() => {
+  let list = siteMode.filterButtons(posts.fullscreenButtons);
+  if (props.current?.__meta?.originMode === "inkbunny") {
+    list = list.filter((button) => button !== "favorite");
+  }
+  return list;
+});
 const isVideoExt = (ext?: string) => ext === "webm" || ext === "mp4";
 const isVideoPost = computed(() => isVideoExt(props.current?.file.ext));
 const open = computed(() => !!props.current);
@@ -192,18 +200,21 @@ watch(
 
 const loadNotesForCurrent = async () => {
   const post = props.current;
-  if (!post?.has_notes || isVideoExt(post.file.ext) || siteMode.isLocal || siteMode.isInkbunny) {
+  const originInkbunny =
+    siteMode.isInkbunny || post?.__meta?.originMode === "inkbunny";
+  if (!post?.has_notes || isVideoExt(post.file.ext) || siteMode.isLocal || originInkbunny) {
     notes.value = [];
     return;
   }
   const postId = post.id;
   if (notesLoadedFor.value === postId) return;
   try {
+    const origin = originAuthForPost(post, main.$state, siteMode.activeMode);
     const service = await getApiService();
     const result = await service.getNotes({
       postId,
-      baseUrl: urlStore.e621Url,
-      mode: siteMode.activeMode,
+      baseUrl: origin.baseUrl,
+      mode: origin.mode,
     });
     // Ignore stale responses after the user switched posts (H6).
     if (props.current?.id !== postId) return;
@@ -278,7 +289,7 @@ const exitFullscreen = () => {
   const postId = props.current?.id;
   if (postId) {
     setTimeout(() => {
-      scrollToPost(postId); // with vuetify 2 dialogs you could scroll the main content while the dialog was open; doesn't seem to work with vuetify 3; TODO: find more robust solution
+      scrollToPost(props.current!);
     }, 200);
   }
 
@@ -388,6 +399,7 @@ const updateFavorite = (favorited: (current: boolean) => boolean) => () =>
   props.current && !props.current?.__meta.isFavoriteLoading && props.current.is_favorited !== favorited(props.current.is_favorited) && emit("set-post-favorite", {
     postId: props.current.id,
     favorited: favorited(props.current.is_favorited),
+    originMode: props.current.__meta?.originMode,
   } as Parameters<ReturnType<typeof usePostListManager>["setPostFavorite"]>["0"]);
 
 const addFavorite = updateFavorite(() => true)
@@ -415,9 +427,13 @@ onMounted(() => {
   shortcutService.emitter.on("fullscreenSlideshowToggle", toggleSlideshow);
 });
 
-const scrollToPost = (postId: number) => {
-  const post = document.getElementById(`post_${postId}`);
-  post?.scrollIntoView({ behavior: "smooth", block: "center" });
+const scrollToPost = (post: { id: number; __meta?: { originMode?: string } } | number) => {
+  const id =
+    typeof post === "number"
+      ? `post_${post}`
+      : `post_${postFeedKey(post).replace(":", "-")}`;
+  const el = document.getElementById(id);
+  el?.scrollIntoView({ behavior: "smooth", block: "center" });
 };
 
 const switched = ref(false);
@@ -441,7 +457,7 @@ watch(
     if (val) lastFullscreenId.value = val.id;
     if (val && (!prev || val.id != prev.id)) {
       clearSlideshowTimer();
-      scrollToPost(props.current!.id);
+      scrollToPost(props.current!);
       switched.value = true;
       await nextTick();
       switched.value = false;

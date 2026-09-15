@@ -252,7 +252,7 @@ export class DashboardService {
     const pageLimit = 320;
     log("start fetch");
     while (posts.length < DashboardService.POST_LIMIT) {
-      const newPosts: EnhancedPost[] = await service.getPosts({
+      const { posts: newPosts } = await service.getPosts({
         blacklistMode: BlacklistMode.blur,
         limit: pageLimit,
         tags,

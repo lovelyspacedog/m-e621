@@ -1,13 +1,22 @@
 <template>
   <v-card
-    :id="'post_' + post.id"
+    :id="'post_' + feedKey"
     color="secondary"
     class="post-card"
     :class="{ compact: compactCards, expanded: forceExpanded }"
     tabindex="0"
     @click="onCardActivate"
   >
-    <div :class="[blacklistClasses]">
+    <div :class="[blacklistClasses]" class="post-preview-wrap">
+      <v-chip
+        v-if="originLabel"
+        class="origin-badge"
+        size="x-small"
+        color="secondary"
+        variant="flat"
+      >
+        {{ originLabel }}
+      </v-chip>
       <post-preview
         :file="post.file"
         :preview="post.preview"
@@ -46,6 +55,7 @@
 
 <script lang="ts">
 import { useBlacklistClasses } from "@/misc/util/blacklist";
+import { postFeedKey, unifiedChildLabel } from "@/misc/util/postOrigin";
 import { useBlacklistStore, usePostsStore, useSiteModeStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { PropType, Ref } from "vue";
@@ -99,10 +109,27 @@ export default defineComponent({
     const { stripeColor } = useStripeColor(props);
 
     const setClicked = () => {
-      context.emit("open-post", props.post.id);
+      context.emit("open-post", {
+        postId: props.post.id,
+        originMode: props.post.__meta?.originMode,
+      });
     };
 
-    const buttons = computed(() => siteMode.filterButtons(posts.buttons));
+    const buttons = computed(() => {
+      let list = siteMode.filterButtons(posts.buttons);
+      if (props.post.__meta?.originMode === "inkbunny") {
+        list = list.filter((button) => button !== "favorite");
+      }
+      return list;
+    });
+    const originLabel = computed(() =>
+      props.post.__meta?.originMode
+        ? unifiedChildLabel(props.post.__meta.originMode)
+        : "",
+    );
+    const feedKey = computed(() =>
+      postFeedKey(props.post).replace(":", "-"),
+    );
     const isUnplayable = computed(
       () => siteMode.isLocal && props.post.__meta?.localPlayable === false,
     );
@@ -140,6 +167,8 @@ export default defineComponent({
       compactCards,
       forceExpanded,
       onCardActivate,
+      originLabel,
+      feedKey,
     };
   },
 });
@@ -168,5 +197,14 @@ export default defineComponent({
 }
 .post-card.compact:not(:hover):not(:focus-within):not(.expanded) .post-card-chrome {
   display: none;
+}
+.post-preview-wrap {
+  position: relative;
+}
+.origin-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
 }
 </style>

@@ -3,8 +3,8 @@ import { computed, ref } from "vue";
 import { supportsDirectoryPicker } from "@/misc/util/saveLocal";
 import { useMainStore } from "./state";
 import { useSnackbarStore } from "./SnackbarStore";
-import type { ButtonType, SiteMode } from "./types";
-import { SITE_MODE_URLS } from "./types";
+import type { ButtonType, SiteMode, UnifiedChildMode } from "./types";
+import { SITE_MODE_URLS, defaultUnifiedSites } from "./types";
 import {
   applyActiveProfileToMirrors,
   createEmptySiteProfile,
@@ -21,12 +21,13 @@ const INKBUNNY_HIDDEN_BUTTONS = new Set<ButtonType>([
 ]);
 
 const ALL_SITE_MODES: SiteMode[] = [
+  "unified",
   "e621",
   "e6ai",
-  "local",
-  "tailspace",
   "furbooru",
   "inkbunny",
+  "local",
+  "tailspace",
 ];
 
 /** Modes that need File System Access API (Chromium). */
@@ -46,6 +47,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const isTailspace = computed(() => main.activeMode === "tailspace");
   const isFurbooru = computed(() => main.activeMode === "furbooru");
   const isInkbunny = computed(() => main.activeMode === "inkbunny");
+  const isUnified = computed(() => main.activeMode === "unified");
   const siteModes = computed(() =>
     ALL_SITE_MODES.filter((mode) => isModeSupported(mode)),
   );
@@ -56,9 +58,33 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       case "tailspace": return "tailspace";
       case "furbooru": return "Furbooru";
       case "inkbunny": return "Inkbunny";
+      case "unified": return "Unified";
       default: return "e621";
     }
   });
+  const unifiedSites = computed(() => ({
+    ...defaultUnifiedSites(),
+    ...(main.profiles.unified?.unifiedSites || {}),
+  }));
+
+  const setUnifiedChild = (child: UnifiedChildMode, enabled: boolean) => {
+    if (!main.profiles.unified) {
+      main.profiles.unified = createEmptySiteProfile("unified");
+    }
+    const next = {
+      ...defaultUnifiedSites(),
+      ...main.profiles.unified.unifiedSites,
+      [child]: enabled,
+    };
+    if (!Object.values(next).some(Boolean)) {
+      snackbar.addMessage("Keep at least one site enabled");
+      return;
+    }
+    main.profiles.unified.unifiedSites = next;
+    if (main.activeMode === "unified") {
+      modeChangeCount.value++;
+    }
+  };
 
   const setMode = (mode: SiteMode) => {
     if (mode === main.activeMode) return;
@@ -73,7 +99,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       main.profiles[mode] = createEmptySiteProfile(mode);
     }
     main.activeMode = mode;
-    if (mode !== "local" && main.profiles[mode] && !main.profiles[mode].baseUrl) {
+    if (mode !== "local" && mode !== "unified" && main.profiles[mode] && !main.profiles[mode].baseUrl) {
       main.profiles[mode].baseUrl = SITE_MODE_URLS[mode];
     }
     applyActiveProfileToMirrors(main.$state);
@@ -108,6 +134,9 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     isTailspace,
     isFurbooru,
     isInkbunny,
+    isUnified,
+    unifiedSites,
+    setUnifiedChild,
     activeLabel,
     setMode,
     ensureCompatibleActiveMode,

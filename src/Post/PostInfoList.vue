@@ -1,6 +1,10 @@
 <template>
   <v-table class="text-caption post-info-table" density="compact">
     <tbody>
+      <tr v-if="originLabel">
+        <th>Site</th>
+        <td class="post-info-value">{{ originLabel }}</td>
+      </tr>
       <tr v-if="isLocal">
         <th>Path</th>
         <td class="post-info-value">{{ post.sources[0] || "—" }}</td>
@@ -143,6 +147,8 @@ import TagWithMenu from "@/Tag/TagWithMenu.vue";
 import { prettyBytes } from "@/misc/util/prettyBytes";
 import { getCreatorTags, useSiteLabels } from "@/misc/util/siteLabels";
 import { useSiteModeStore } from "@/services";
+import type { EnhancedPost } from "@/worker/ApiService";
+import { originModeOf, unifiedChildLabel } from "@/misc/util/postOrigin";
 
 const props = defineProps({
   post: {
@@ -152,14 +158,22 @@ const props = defineProps({
 });
 
 const emit = defineEmits<{
-  "set-post-vote": [{ postId: number; score: 1 | -1 | 0 }];
+  "set-post-vote": [{ postId: number; score: 1 | -1 | 0; originMode?: string }];
 }>();
 
 const { creatorLabel, creatorCategory } = useSiteLabels();
 const siteMode = useSiteModeStore();
+const originMode = computed(() =>
+  originModeOf(props.post as EnhancedPost, siteMode.activeMode),
+);
 const isLocal = computed(() => siteMode.isLocal);
-const isFurbooru = computed(() => siteMode.isFurbooru);
-const isInkbunny = computed(() => siteMode.isInkbunny);
+const isFurbooru = computed(() => originMode.value === "furbooru");
+const isInkbunny = computed(() => originMode.value === "inkbunny");
+const originLabel = computed(() =>
+  (props.post as EnhancedPost).__meta?.originMode
+    ? unifiedChildLabel((props.post as EnhancedPost).__meta.originMode!)
+    : "",
+);
 const creatorTags = computed(() => getCreatorTags(props.post.tags));
 const fileSize = computed(() => prettyBytes(props.post.file.size));
 const megapixel = computed(
@@ -195,7 +209,11 @@ const castVote = (score: 1 | -1 | 0) => {
   const prevScore = voteScore.value;
   const prevTotal = props.post.score.total;
   voteScore.value = score;
-  emit("set-post-vote", { postId: props.post.id, score });
+  emit("set-post-vote", {
+    postId: props.post.id,
+    score,
+    originMode: (props.post as EnhancedPost).__meta?.originMode,
+  });
   // Roll back the optimistic highlight if the server did not change the score
   // within 5 seconds (network failure, deduplication, etc.).
   setTimeout(() => {

@@ -169,7 +169,7 @@ import { useHistory } from "@/Post/historyManager";
 import { usePostListManager } from "@/Post/postListManager";
 import Posts from "@/Post/Posts.vue";
 import { useRouterTagManager } from "@/Post/routerTagManager";
-import { useAccountStore, useBlacklistStore, usePostsStore, useSiteModeStore, useSnackbarStore, useUrlStore } from "@/services";
+import { useAccountStore, useBlacklistStore, useMainStore, usePostsStore, useSiteModeStore, useSnackbarStore, useUrlStore } from "@/services";
 import type { ITag } from "@/Tag/ITag";
 import { debounce, isEqual } from "lodash";
 import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from "vue";
@@ -179,6 +179,7 @@ import {
   tagQueryTruncationMessage,
 } from "../misc/util/createTagQuery";
 import { orderSupport, type UnifiedOrderKind } from "../misc/util/orderSupport";
+import { buildUnifiedFetchArgs } from "../misc/util/postOrigin";
 import {
   findLocalResumeTarget,
   getLocalPostsPage,
@@ -202,6 +203,7 @@ const blacklist = useBlacklistStore();
 const postsStore = usePostsStore();
 const siteMode = useSiteModeStore();
 const snackbar = useSnackbarStore();
+const main = useMainStore();
 const localEmptyMessage = ref(localStatusMessage("no-folder"));
 const restorePath = ref<string | null>(null);
 const restoreVideoTime = ref<number | undefined>(undefined);
@@ -264,7 +266,8 @@ const {
       page <= 1 &&
       !siteMode.isFurbooru &&
       !siteMode.isInkbunny &&
-      !siteMode.isTailspace
+      !siteMode.isTailspace &&
+      !siteMode.isUnified
     ) {
       const built = buildTagQuery(
         toRaw(blacklist.mode),
@@ -276,7 +279,7 @@ const {
       }
     }
     const service = await getApiService();
-    const posts = await service.getPosts(toRaw({
+    const result = await service.getPosts(toRaw({
       limit: toRaw(postsStore.postListFetchLimit),
       page,
       tags: toRaw(tags.value),
@@ -286,8 +289,14 @@ const {
       userId: toRaw(account.userId),
       baseUrl: toRaw(urlStore.e621Url),
       mode: toRaw(siteMode.activeMode),
+      unified: siteMode.isUnified
+        ? buildUnifiedFetchArgs(main.$state)
+        : undefined,
     }));
-    return posts;
+    for (const warning of result.warnings || []) {
+      snackbar.addMessage(warning);
+    }
+    return result.posts;
   },
 });
 
@@ -329,7 +338,7 @@ const toggleSaveSearch = async () => {
     await saveSearchLocally(
       async (page) => {
         const service = await getApiService();
-        return service.getPosts(
+        const { posts } = await service.getPosts(
           toRaw({
             limit: toRaw(postsStore.postListFetchLimit),
             page,
@@ -340,8 +349,12 @@ const toggleSaveSearch = async () => {
             userId: toRaw(account.userId),
             baseUrl: toRaw(urlStore.e621Url),
             mode: toRaw(siteMode.activeMode),
+            unified: siteMode.isUnified
+              ? buildUnifiedFetchArgs(main.$state)
+              : undefined,
           }),
         );
+        return posts;
       },
       { concurrency: 2, signal },
     );

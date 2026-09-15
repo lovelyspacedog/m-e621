@@ -126,7 +126,8 @@ const props = defineProps({
 const siteMode = useSiteModeStore();
 const useInkbunnyViewer = computed(
   () =>
-    siteMode.isInkbunny &&
+    (siteMode.isInkbunny ||
+      props.fullscreenPost?.__meta?.originMode === "inkbunny") &&
     shouldUseInkbunnyViewer(props.fullscreenPost?.__meta?.inkbunny),
 );
 

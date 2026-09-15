@@ -121,6 +121,8 @@
                   v-if="current.file.url"
                   :post-id="current.id"
                   :raw-file-url="current.file.url"
+                  :origin-url="originPageUrl"
+                  :origin-label="originLabel"
                 />
                 <div v-else>
                   Post can't be shared at this time.
@@ -155,7 +157,9 @@ import type { PropType} from "vue";
 import { computed, defineComponent, ref, watch } from "vue";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { Comment, Note } from "@/worker/api";
-import { useAccountStore, usePostsStore, useSiteModeStore, useSnackbarStore, useUrlStore } from "@/services";
+import { useAccountStore, useMainStore, usePostsStore, useSiteModeStore, useSnackbarStore, useUrlStore } from "@/services";
+import { originAuthForPost, originModeOf, unifiedChildLabel } from "@/misc/util/postOrigin";
+import { postStandaloneUrl } from "@/misc/util/url";
 import type { ITag } from "@/Tag/ITag";
 import { getApiService } from "@/worker/services";
 import { useRouter } from "vue-router";
@@ -182,10 +186,20 @@ export default defineComponent({
     const account = useAccountStore();
     const snackbar = useSnackbarStore();
     const router = useRouter();
+    const main = useMainStore();
+    const originMode = computed(() =>
+      originModeOf(props.current, siteMode.activeMode),
+    );
     const isLocal = computed(() => siteMode.isLocal);
-    const isFurbooru = computed(() => siteMode.isFurbooru);
-    const isInkbunny = computed(() => siteMode.isInkbunny);
-    const buttons = computed(() => siteMode.filterButtons(posts.detailsButtons));
+    const isFurbooru = computed(() => originMode.value === "furbooru");
+    const isInkbunny = computed(() => originMode.value === "inkbunny");
+    const buttons = computed(() => {
+      let list = siteMode.filterButtons(posts.detailsButtons);
+      if (originMode.value === "inkbunny") {
+        list = list.filter((button) => button !== "favorite");
+      }
+      return list;
+    });
     const tabs = ref("overview");
     const comments = ref<Comment[]>([]);
     const notes = ref<Note[]>([]);
@@ -233,11 +247,16 @@ export default defineComponent({
       commentsError.value = null;
       try {
         const service = await getApiService();
+        const origin = originAuthForPost(
+          props.current!,
+          main.$state,
+          siteMode.activeMode,
+        );
         const result = await service.getComments({
           postId,
-          baseUrl: urlStore.e621Url,
-          mode: siteMode.activeMode,
-          auth: account.auth,
+          baseUrl: origin.baseUrl,
+          mode: origin.mode,
+          auth: origin.auth,
         });
         // Ignore stale responses after the user switched posts (H6).
         if (props.current?.id !== postId) return;
@@ -260,10 +279,15 @@ export default defineComponent({
       notesError.value = null;
       try {
         const service = await getApiService();
+        const origin = originAuthForPost(
+          props.current!,
+          main.$state,
+          siteMode.activeMode,
+        );
         const result = await service.getNotes({
           postId,
-          baseUrl: urlStore.e621Url,
-          mode: siteMode.activeMode,
+          baseUrl: origin.baseUrl,
+          mode: origin.mode,
         });
         if (props.current?.id !== postId) return;
         notes.value = result;
@@ -306,8 +330,9 @@ export default defineComponent({
       const post = props.current;
       const body = draftComment.value.trim();
       if (!post || !body || postingComment.value) return;
-      if (!account.auth) {
-        snackbar.addMessage("Not logged in");
+      const origin = originAuthForPost(post, main.$state, siteMode.activeMode);
+      if (!origin.auth) {
+        snackbar.addMessage(`Not logged in to ${origin.mode}`);
         router.push({ name: "AccountSettings" });
         return;
       }
@@ -317,10 +342,10 @@ export default defineComponent({
         const created = await service.createComment({
           postId: post.id,
           body,
-          auth: account.auth,
+          auth: origin.auth,
           proxyUrl: urlStore.proxyUrl,
-          baseUrl: urlStore.e621Url,
-          mode: siteMode.activeMode,
+          baseUrl: origin.baseUrl,
+          mode: origin.mode,
         });
         comments.value = [...comments.value, created];
         post.comment_count = (post.comment_count || 0) + 1;
@@ -332,6 +357,11 @@ export default defineComponent({
         postingComment.value = false;
       }
     };
+
+    const originPageUrl = computed(() =>
+      props.current ? postStandaloneUrl(props.current) : "",
+    );
+    const originLabel = computed(() => unifiedChildLabel(originMode.value));
 
     return {
       buttons,
@@ -350,6 +380,8 @@ export default defineComponent({
       draftComment,
       postingComment,
       submitComment,
+      originPageUrl,
+      originLabel,
     };
   },
 });

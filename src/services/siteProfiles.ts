@@ -1,7 +1,7 @@
 import clone from "clone";
 import { toRaw } from "vue";
 import type { ISettingsServiceState, SiteMode, SiteProfile } from "./types";
-import { BlacklistMode, SITE_MODE_URLS, UNGROUPED_FAVORITE_GROUP_ID } from "./types";
+import { BlacklistMode, SITE_MODE_URLS, UNGROUPED_FAVORITE_GROUP_ID, defaultUnifiedSites } from "./types";
 import { emptySavedSearchGroups, normalizeSavedSearches } from "./savedSearchNormalize";
 
 const cloneRaw = <T>(value: T, fallback: T): T => {
@@ -46,20 +46,27 @@ export const createEmptySiteProfile = (mode: SiteMode): SiteProfile => ({
     entries: [],
     maxLength: 100,
   },
+  ...(mode === "unified" ? { unifiedSites: defaultUnifiedSites() } : {}),
 });
 
-export const profileFromMirrors = (state: ISettingsServiceState): SiteProfile => ({
-  baseUrl: state.misc?.urls?.e621 || SITE_MODE_URLS[state.activeMode || "e621"],
-  account: cloneRaw(state.account, emptyAccount()),
-  favorites: cloneRaw(state.favorites, emptyFavorites()),
-  blacklist: cloneRaw(state.blacklist, {
-    mode: BlacklistMode.blur,
-    tags: [],
-    hideServerSideBlacklisted: false,
-  }),
-  searches: normalizeSavedSearches(cloneRaw(state.searches, emptySearches())),
-  history: cloneRaw(state.history, { entries: [], maxLength: 100 }),
-});
+export const profileFromMirrors = (state: ISettingsServiceState): SiteProfile => {
+  const existing = state.profiles?.[state.activeMode];
+  return {
+    baseUrl: state.misc?.urls?.e621 || SITE_MODE_URLS[state.activeMode || "e621"],
+    account: cloneRaw(state.account, emptyAccount()),
+    favorites: cloneRaw(state.favorites, emptyFavorites()),
+    blacklist: cloneRaw(state.blacklist, {
+      mode: BlacklistMode.blur,
+      tags: [],
+      hideServerSideBlacklisted: false,
+    }),
+    searches: normalizeSavedSearches(cloneRaw(state.searches, emptySearches())),
+    history: cloneRaw(state.history, { entries: [], maxLength: 100 }),
+    unifiedSites:
+      existing?.unifiedSites ||
+      (state.activeMode === "unified" ? defaultUnifiedSites() : undefined),
+  };
+};
 
 /** Copy active mirrors into profiles[activeMode]. */
 export const syncMirrorsToActiveProfile = (state: ISettingsServiceState) => {
@@ -87,5 +94,9 @@ export const applyActiveProfileToMirrors = (state: ISettingsServiceState) => {
   if (!state.misc.urls) {
     state.misc.urls = { e621: "", proxy: "" };
   }
-  state.misc.urls.e621 = profile.baseUrl || SITE_MODE_URLS[state.activeMode];
+  // Unified has no single host; keep e621's URL for tag autocomplete.
+  state.misc.urls.e621 =
+    state.activeMode === "unified"
+      ? state.profiles.e621?.baseUrl || SITE_MODE_URLS.e621
+      : profile.baseUrl || SITE_MODE_URLS[state.activeMode];
 };

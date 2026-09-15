@@ -109,7 +109,7 @@ const {
       }
     }
     const service = await getApiService();
-    return service.getPosts(
+    const { posts } = await service.getPosts(
       toRaw({
         limit: toRaw(postsStore.postListFetchLimit),
         page,
@@ -121,6 +121,7 @@ const {
         mode: toRaw(siteMode.activeMode),
       }),
     );
+    return posts;
   },
 });
 

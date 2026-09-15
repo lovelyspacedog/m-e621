@@ -1,4 +1,6 @@
 import { useSiteModeStore, useUrlStore } from "@/services";
+import { postPageUrl } from "@/misc/util/postOrigin";
+import type { EnhancedPost } from "@/worker/ApiService";
 
 export const getE6PostUrl = (id: number) => {
   const url = useUrlStore();
@@ -11,6 +13,12 @@ export const getE6PostUrl = (id: number) => {
     return `${base}s/${id}`;
   }
   return `${base}posts/${id}`;
+};
+
+export const postStandaloneUrl = (post: EnhancedPost) => {
+  const url = useUrlStore();
+  const siteMode = useSiteModeStore();
+  return postPageUrl(post, siteMode.activeMode, url.e621Url);
 };
 
 export const openUrlInNewTab = (url: string) => {

@@ -2,10 +2,21 @@ import type { EnhancedPost } from "@/worker/ApiService";
 import { getApiService } from "@/worker/services";
 import { isPostBlacklisted } from "@/worker/blacklist";
 import { computed, ref, toRaw, watch } from "vue";
-import { useAccountStore, useSnackbarStore, useUrlStore, useBlacklistStore, usePostsStore, useSiteModeStore, useUiStore } from "@/services";
+import { useSnackbarStore, useUrlStore, useBlacklistStore, usePostsStore, useSiteModeStore, useUiStore, useMainStore } from "@/services";
 import { BlacklistMode } from "@/services/types";
 import { useRouter } from "vue-router";
 import { setLocalFavorite } from "@/misc/util/localMedia";
+import {
+  findPostIndex,
+  originAuthForPost,
+  postFeedKey,
+  unifiedChildLabel,
+} from "@/misc/util/postOrigin";
+
+type PostPointer = number | { postId: number; originMode?: string };
+
+const pointerOf = (target: PostPointer): { postId: number; originMode?: string } =>
+  typeof target === "number" ? { postId: target } : target;
 
 interface IUsePostListManagerArgs {
   loadPosts(page: number, direction: "next" | "previous"): Promise<EnhancedPost[]>;
@@ -37,6 +48,7 @@ export const usePostListManager = ({
   const blacklistStore = useBlacklistStore();
   const postsStore = usePostsStore();
   const siteMode = useSiteModeStore();
+  const main = useMainStore();
   const router = useRouter()
 
   const handleError = (error: any) => {
@@ -45,20 +57,29 @@ export const usePostListManager = ({
     console.log(error);
   };
 
+  const indexOfPost = (target: PostPointer) =>
+    findPostIndex(posts.value, pointerOf(target));
+
   const enrichInkbunny = async (post: EnhancedPost) => {
-    if (!siteMode.isInkbunny) return post;
+    const originInkbunny =
+      post.__meta.originMode === "inkbunny" || siteMode.isInkbunny;
+    if (!originInkbunny) return post;
     if (post.__meta.inkbunny?.detailsLoaded) return post;
     try {
-      const account = useAccountStore();
+      const origin = originAuthForPost(post, main.$state, siteMode.activeMode);
       const service = await getApiService();
       const updated = await service.enrichInkbunnyPost(toRaw(post), {
-        sid: account.apiKey,
-        blacklist: toRaw(blacklistStore.tags),
+        sid: origin.auth?.api_key ?? null,
+        blacklist: toRaw(origin.blacklist),
       });
-      const idx = posts.value.findIndex((p) => p.id === post.id);
+      const idx = posts.value.findIndex((p) => postFeedKey(p) === postFeedKey(updated));
       if (idx >= 0) posts.value[idx] = updated;
-      if (detailsPost.value?.id === updated.id) detailsPost.value = updated;
-      if (fullscreenPost.value?.id === updated.id) fullscreenPost.value = updated;
+      if (detailsPost.value && postFeedKey(detailsPost.value) === postFeedKey(updated)) {
+        detailsPost.value = updated;
+      }
+      if (fullscreenPost.value && postFeedKey(fullscreenPost.value) === postFeedKey(updated)) {
+        fullscreenPost.value = updated;
+      }
       return updated;
     } catch (error) {
       handleError(error);
@@ -69,9 +90,10 @@ export const usePostListManager = ({
   const setPostFavorite = async (args: {
     postId: number;
     favorited: boolean;
+    originMode?: string;
   }) => {
-    const account = useAccountStore();
-    const post = posts.value.find((p) => p.id === args.postId);
+    const idx = indexOfPost({ postId: args.postId, originMode: args.originMode });
+    const post = idx >= 0 ? posts.value[idx] : undefined;
     if (!post) {
       return;
     }
@@ -100,18 +122,19 @@ export const usePostListManager = ({
       return;
     }
 
-    if (!account.auth) {
-      snackbar.addMessage("Not logged in");
+    const origin = originAuthForPost(post, main.$state, siteMode.activeMode);
+    if (!origin.auth) {
+      snackbar.addMessage(`Not logged in to ${unifiedChildLabel(origin.mode)}`);
       router.push({ name: "AccountSettings" });
       return;
     }
     const service = await getApiService();
     const serviceArgs = {
       postId: post.id,
-      auth: account.auth,
+      auth: origin.auth,
       proxyUrl: urlStore.proxyUrl,
-      baseUrl: urlStore.e621Url,
-      mode: siteMode.activeMode,
+      baseUrl: origin.baseUrl,
+      mode: origin.mode,
     };
     try {
       post.__meta.isFavoriteLoading = true;
@@ -132,13 +155,15 @@ export const usePostListManager = ({
   const setPostVote = async (args: {
     postId: number;
     score: 1 | -1 | 0;
+    originMode?: string;
   }) => {
     if (siteMode.isLocal) return;
-    const account = useAccountStore();
-    const post = posts.value.find((p) => p.id === args.postId);
+    const idx = indexOfPost({ postId: args.postId, originMode: args.originMode });
+    const post = idx >= 0 ? posts.value[idx] : undefined;
     if (!post) return;
-    if (!account.auth) {
-      snackbar.addMessage("Not logged in");
+    const origin = originAuthForPost(post, main.$state, siteMode.activeMode);
+    if (!origin.auth) {
+      snackbar.addMessage(`Not logged in to ${unifiedChildLabel(origin.mode)}`);
       router.push({ name: "AccountSettings" });
       return;
     }
@@ -148,10 +173,10 @@ export const usePostListManager = ({
       const result = await service.votePost({
         postId: post.id,
         score: args.score,
-        auth: account.auth,
+        auth: origin.auth,
         proxyUrl: urlStore.proxyUrl,
-        baseUrl: urlStore.e621Url,
-        mode: siteMode.activeMode,
+        baseUrl: origin.baseUrl,
+        mode: origin.mode,
       });
       if (result && typeof result.score === "number") {
         post.score.total = result.score;
@@ -191,7 +216,10 @@ export const usePostListManager = ({
       if (thisGen !== generation.value) return;
       // newly uploaded posts cause old posts to shift pages, and duplicates are bad
       const newPostsFiltered = newPosts.filter(
-        (newP) => !posts.value.find((existing) => existing.id === newP.id),
+        (newP) =>
+          !posts.value.find(
+            (existing) => postFeedKey(existing) === postFeedKey(newP),
+          ),
       );
       if (!newPostsFiltered.length) return;
       const postCountToRemove = getPostCountToRemove();
@@ -249,15 +277,23 @@ export const usePostListManager = ({
   watch(
     () => JSON.stringify(blacklistStore.tags),
     () => {
-      const lines = toRaw(blacklistStore.tags);
       for (const post of posts.value) {
-        post.__meta.isBlacklisted = isPostBlacklisted(post, lines);
+        if (siteMode.isUnified) {
+          const origin = originAuthForPost(post, main.$state, siteMode.activeMode);
+          post.__meta.isBlacklisted = isPostBlacklisted(post, origin.blacklist);
+        } else {
+          post.__meta.isBlacklisted = isPostBlacklisted(
+            post,
+            toRaw(blacklistStore.tags),
+          );
+        }
       }
     },
   );
 
-  const openPostDetails = async (postId: number) => {
-    const found = posts.value.find((p) => p.id === postId) || null;
+  const openPostDetails = async (target: PostPointer) => {
+    const idx = indexOfPost(target);
+    const found = idx >= 0 ? posts.value[idx] : null;
     detailsPost.value = found ? await enrichInkbunny(found) : null;
   };
   const isValidNextPost = (post: EnhancedPost) => {
@@ -265,9 +301,9 @@ export const usePostListManager = ({
   };
   const _openFullscreenPost =
     (offset: number) =>
-      async (postId: number, depth: number): Promise<boolean> => {
+      async (target: PostPointer, depth: number): Promise<boolean> => {
         // returns whether post has been opened successfully
-        const idx = posts.value.findIndex((p) => p.id === postId);
+        const idx = indexOfPost(target);
         let nextPostIdx = idx;
         do {
           nextPostIdx += offset;
@@ -292,7 +328,7 @@ export const usePostListManager = ({
             await loadPreviousPage();
           }
           if (depth <= 0) {
-            const success = await _openFullscreenPost(offset)(postId, depth + 1);
+            const success = await _openFullscreenPost(offset)(target, depth + 1);
             // Keep current fullscreen post on failed advance (end of results) (H5).
             return success;
           } else {
@@ -301,20 +337,30 @@ export const usePostListManager = ({
         }
       };
 
-  const openFullscreenPost = _openFullscreenPost(0);
-  const openNextFullscreenPost = () =>
-    fullscreenPost.value?.id &&
-    _openFullscreenPost(1)(fullscreenPost.value.id, 0);
-  const openPreviousFullscreenPost = () =>
-    fullscreenPost.value?.id &&
-    _openFullscreenPost(-1)(fullscreenPost.value.id, 0);
+  const openFullscreenPost = (target: PostPointer) =>
+    _openFullscreenPost(0)(target, 0);
+  const fullscreenPointer = (): PostPointer | null =>
+    fullscreenPost.value
+      ? {
+          postId: fullscreenPost.value.id,
+          originMode: fullscreenPost.value.__meta.originMode,
+        }
+      : null;
+  const openNextFullscreenPost = () => {
+    const pointer = fullscreenPointer();
+    if (pointer) void _openFullscreenPost(1)(pointer, 0);
+  };
+  const openPreviousFullscreenPost = () => {
+    const pointer = fullscreenPointer();
+    if (pointer) void _openFullscreenPost(-1)(pointer, 0);
+  };
 
   flushPendingFullscreenAdvance = () => {
     if (!pendingFullscreenAdvance) return;
     const dir = pendingFullscreenAdvance;
     pendingFullscreenAdvance = null;
-    const id = fullscreenPost.value?.id;
-    if (id) void _openFullscreenPost(dir)(id, 0);
+    const pointer = fullscreenPointer();
+    if (pointer) void _openFullscreenPost(dir)(pointer, 0);
   };
 
   const visiblePosts = computed(() => {
@@ -353,7 +399,7 @@ export const usePostListManager = ({
   const hasPreviousFullscreenPost = computed(() => {
     const current = fullscreenPost.value;
     if (!current) return false;
-    const idx = posts.value.findIndex((p) => p.id === current.id);
+    const idx = posts.value.findIndex((p) => postFeedKey(p) === postFeedKey(current));
     if (idx < 0) return false;
     return hasValidPostBefore(idx) || hasPrevious.value;
   });
@@ -361,7 +407,7 @@ export const usePostListManager = ({
   const hasNextFullscreenPost = computed(() => {
     const current = fullscreenPost.value;
     if (!current) return false;
-    const idx = posts.value.findIndex((p) => p.id === current.id);
+    const idx = posts.value.findIndex((p) => postFeedKey(p) === postFeedKey(current));
     if (idx < 0) return false;
     if (hasValidPostAfter(idx)) return true;
     return !reachedEnd.value;

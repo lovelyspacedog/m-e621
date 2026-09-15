@@ -62,6 +62,14 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    originUrl: {
+      type: String,
+      default: "",
+    },
+    originLabel: {
+      type: String,
+      default: "",
+    },
   },
   setup(props) {
     const snackbar = useSnackbarStore();
@@ -72,7 +80,7 @@ export default defineComponent({
         case UrlTypes.materialE621:
           return `${getBaseUrl()}/#/posts?tags=id:${props.postId}`;
         case UrlTypes.e621:
-          return getE6PostUrl(props.postId);
+          return props.originUrl || getE6PostUrl(props.postId);
         case UrlTypes.image:
         default:
           return props.rawFileUrl;
@@ -86,7 +94,7 @@ export default defineComponent({
       },
       {
         type: UrlTypes.e621,
-        display: `Share link to the ${siteMode.activeLabel} page`,
+        display: `Share link to the ${props.originLabel || siteMode.activeLabel} page`,
       },
       {
         type: UrlTypes.image,

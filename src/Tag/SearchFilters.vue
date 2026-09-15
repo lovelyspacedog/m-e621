@@ -132,7 +132,13 @@ const sortTagItems = computed(() => {
       ? inkbunnySortTags
       : siteMode.isLocal
         ? localSortTags
-        : e621SortTags;
+        : siteMode.isUnified
+          ? e621SortTags.filter(
+              (item) =>
+                item.tag !== "order:favcount" &&
+                item.tag !== "order:favcount_asc",
+            )
+          : e621SortTags;
   return base.map((item) =>
     item.name.startsWith("Artist Tags")
       ? { ...item, name: item.name.replace("Artist", creatorLabel.value) }

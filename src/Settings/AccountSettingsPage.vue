@@ -12,6 +12,7 @@
             class="mb-2"
             @update:model-value="onModeChange"
           >
+            <v-btn value="unified">Unified</v-btn>
             <v-btn value="e621">e621</v-btn>
             <v-btn value="e6ai">e6ai</v-btn>
             <v-btn v-if="siteMode.supportsLocalMode" value="local">local</v-btn>
@@ -21,11 +22,45 @@
           </v-btn-toggle>
           <p class="text-left">
             Each site keeps its own username, API key, starred tags, blacklist, saved searches, and history.
+            Unified searches e621, e6ai, Furbooru, and Inkbunny in one feed.
             <template v-if="siteMode.supportsLocalMode">
               Local mode reads a browse folder you pick (not the Save Locally folder).
             </template>
             Switching clears the current post search.
           </p>
+        </settings-page-item>
+        <settings-page-item title="Unified sites" select v-if="siteMode.isUnified">
+          <p class="text-left">
+            Sign in on each site below (switch site, then come back). Unified uses those logins when present, otherwise guest search.
+          </p>
+          <v-switch
+            :model-value="siteMode.unifiedSites.e621"
+            color="accent"
+            hide-details
+            label="e621"
+            @update:model-value="siteMode.setUnifiedChild('e621', !!$event)"
+          />
+          <v-switch
+            :model-value="siteMode.unifiedSites.e6ai"
+            color="accent"
+            hide-details
+            label="e6ai"
+            @update:model-value="siteMode.setUnifiedChild('e6ai', !!$event)"
+          />
+          <v-switch
+            :model-value="siteMode.unifiedSites.furbooru"
+            color="accent"
+            hide-details
+            label="Furbooru"
+            @update:model-value="siteMode.setUnifiedChild('furbooru', !!$event)"
+          />
+          <v-switch
+            :model-value="siteMode.unifiedSites.inkbunny"
+            color="accent"
+            hide-details
+            label="Inkbunny"
+            @update:model-value="siteMode.setUnifiedChild('inkbunny', !!$event)"
+          />
         </settings-page-item>
         <settings-page-item title="Local folder" select v-if="siteMode.isLocal && siteMode.supportsLocalMode">
           <p class="text-left">
@@ -33,7 +68,7 @@
           </p>
           <local-folder-picker purpose="local" />
         </settings-page-item>
-        <settings-page-item title="Credentials" select v-if="!siteMode.isLocal && !siteMode.isInkbunny && !siteMode.isTailspace">
+        <settings-page-item title="Credentials" select v-if="!siteMode.isLocal && !siteMode.isInkbunny && !siteMode.isTailspace && !siteMode.isUnified">
           <!-- Username: hidden for Furbooru (API key only) -->
           <v-text-field
             v-if="!siteMode.isFurbooru"
@@ -166,7 +201,7 @@
             Add watchlist artists as saved searches
           </v-btn>
         </settings-page-item>
-        <settings-page-item title="API" select v-if="!siteMode.isLocal && !siteMode.isFurbooru && !siteMode.isInkbunny">
+        <settings-page-item title="API" select v-if="!siteMode.isLocal && !siteMode.isFurbooru && !siteMode.isInkbunny && !siteMode.isUnified && !siteMode.isTailspace">
           <v-select variant="filled" :label="`${siteLabel} API`" type="text" v-model="e621Url"
             :items="apiUrlItems" />
           <v-text-field variant="filled" :label="`Custom ${siteLabel} URL`" type="text" v-model="e621Url" autocomplete="url"

@@ -2,7 +2,7 @@
   <v-row v-if="isGrid" dense>
     <v-col
       v-for="(post, idx) in visiblePosts"
-      :key="post.id"
+    :key="postFeedKey(post)"
       cols="6"
       sm="6"
       md="4"
@@ -23,7 +23,7 @@
     :offset-md="fullWidthFeed ? 0 : 2"
     wrap=""
   >
-    <v-col :key="post.id" cols="12" class="mb-5" v-for="(post, idx) in visiblePosts" :ref="(ref) => addElement(idx, ref as any)">
+    <v-col :key="postFeedKey(post)" cols="12" class="mb-5" v-for="(post, idx) in visiblePosts" :ref="(ref) => addElement(idx, ref as any)">
         <slot name="post" :post="post" />
     </v-col>
   </v-col>
@@ -32,6 +32,7 @@
 <script lang="ts">
 import { usePostsStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
+import { postFeedKey } from "@/misc/util/postOrigin";
 import { saveLocalResume } from "@/misc/util/localMedia";
 import type { ComponentPublicInstance, PropType} from "vue";
 import { computed, defineComponent, nextTick, onBeforeUnmount, onBeforeUpdate, onMounted, provide, ref, watch } from "vue";
@@ -722,6 +723,7 @@ export default defineComponent({
       addElement,
       triggerLoad,
       shouldHaveIntersectionObserver,
+      postFeedKey,
     };
   },
 });

@@ -123,7 +123,7 @@ export const useTrailingNavigationItems = () => {
         : []),
     ];
     return [
-      ...(siteMode.isLocal || siteMode.isFurbooru || siteMode.isInkbunny
+      ...(siteMode.isLocal || siteMode.isFurbooru || siteMode.isInkbunny || siteMode.isUnified
         ? []
         : remoteItems),
       settings,

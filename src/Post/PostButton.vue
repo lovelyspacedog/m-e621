@@ -5,7 +5,7 @@
 </template>
 
 <script lang="ts">
-import { openE6PostInStandaloneWindow, openUrlInNewTab } from "@/misc/util/url";
+import { openUrlInNewTab, postStandaloneUrl } from "@/misc/util/url";
 import { savePostLocally } from "@/misc/util/saveLocal";
 import { useSnackbarStore } from "@/services";
 import type { ButtonType } from "@/services/types";
@@ -41,14 +41,24 @@ export default defineComponent({
         color: "",
         icon: "mdi-information",
         onClick: () => {
-          if (props.post) context.emit("open-post-details", props.post.id);
+          if (props.post) {
+            context.emit("open-post-details", {
+              postId: props.post.id,
+              originMode: props.post.__meta?.originMode,
+            });
+          }
         },
       },
       fullscreen: {
         color: "",
         icon: "mdi-fullscreen",
         onClick: () => {
-          if (props.post) context.emit("open-post-fullscreen", props.post.id);
+          if (props.post) {
+            context.emit("open-post-fullscreen", {
+              postId: props.post.id,
+              originMode: props.post.__meta?.originMode,
+            });
+          }
         },
       },
       external: {
@@ -59,7 +69,7 @@ export default defineComponent({
           if (source) {
             openUrlInNewTab(source);
           } else if (props.post) {
-            openE6PostInStandaloneWindow(props.post.id);
+            openUrlInNewTab(postStandaloneUrl(props.post));
           }
         },
       },
@@ -72,6 +82,7 @@ export default defineComponent({
           context.emit("set-post-favorite", {
             postId: props.post.id,
             favorited: !props.post.is_favorited,
+            originMode: props.post.__meta?.originMode,
           } as Parameters<ReturnType<typeof usePostListManager>["setPostFavorite"]>["0"]);
         },
       },
