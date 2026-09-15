@@ -4,13 +4,11 @@
 
       <app-logo v-view-transition-name="'applogo'" type="face" size="200" />
       <h1 class="mb-2 text-h1 text-center">m-e621</h1>
-      <div class="text-h5">A {{ adjective }} frontend for {{ siteMode.activeLabel }}</div>
+      <div class="text-h5 landing-tagline">
+        <span>A {{ adjective }} frontend for</span>
+        <site-mode-switcher variant="inline" :navigate-on-change="false" />
+      </div>
       <div class="landing-search">
-        <site-mode-switcher
-          class="mb-3"
-          variant="chips"
-          :navigate-on-change="false"
-        />
         <tag-search
           v-view-transition-name="'tagsearch'"
           class="landing-search-field"
@@ -119,6 +117,17 @@ const removeTag = (tag: string) => {
 </script>
 
 <style scoped>
+.landing-tagline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  column-gap: 0.35em;
+  row-gap: 0.15em;
+  margin-bottom: 0.75rem;
+  text-align: center;
+}
+
 .landing-search {
   width: min(90vw, 640px);
   display: flex;

@@ -13,7 +13,7 @@
       <v-list-item-title>{{ modeLabel(mode) }}</v-list-item-title>
     </v-list-item>
   </v-list>
-  <div v-else class="site-mode-chips">
+  <div v-else-if="variant === 'chips'" class="site-mode-chips">
     <v-btn
       v-for="mode in siteMode.siteModes"
       :key="mode"
@@ -27,17 +27,45 @@
       {{ modeLabel(mode) }}
     </v-btn>
   </div>
+  <v-autocomplete
+    v-else
+    :model-value="siteMode.activeMode"
+    :items="selectItems"
+    item-title="title"
+    item-value="value"
+    variant="plain"
+    density="compact"
+    hide-details
+    class="site-mode-inline"
+    menu-icon="mdi-chevron-down"
+    @update:model-value="onSelect($event as SiteMode)"
+  >
+    <template #selection="{ item }">
+      <span class="d-inline-flex align-center ga-1">
+        <v-icon size="22">{{ modeIcon(item.raw.value) }}</v-icon>
+        <span class="text-decoration-underline text-decoration-thickness-2">{{ item.title }}</span>
+      </span>
+    </template>
+    <template #item="{ props: itemProps, item }">
+      <v-list-item
+        v-bind="itemProps"
+        :prepend-icon="modeIcon(item.raw.value)"
+        :title="item.title"
+      />
+    </template>
+  </v-autocomplete>
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { useSiteModeStore } from "@/services/SiteModeStore";
 import type { SiteMode } from "@/services/types";
 
 const props = withDefaults(
   defineProps<{
-    /** Sidebar list vs compact chips for the landing search. */
-    variant?: "list" | "chips";
+    /** Sidebar list, landing chips, or inline headline select. */
+    variant?: "list" | "chips" | "inline";
     /** When false, only switch mode (stay on the current page). */
     navigateOnChange?: boolean;
   }>(),
@@ -49,6 +77,13 @@ const props = withDefaults(
 
 const siteMode = useSiteModeStore();
 const router = useRouter();
+
+const selectItems = computed(() =>
+  siteMode.siteModes.map((mode) => ({
+    value: mode,
+    title: modeLabel(mode),
+  })),
+);
 
 const modeIcon = (mode: SiteMode) => {
   switch (mode) {
@@ -110,5 +145,33 @@ const onSelect = async (mode: SiteMode) => {
   flex-wrap: wrap;
   justify-content: center;
   gap: 6px;
+}
+
+.site-mode-inline {
+  display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 9.5rem;
+  max-width: min(52vw, 15rem);
+}
+
+.site-mode-inline :deep(.v-field) {
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+}
+
+.site-mode-inline :deep(.v-field__input) {
+  min-height: auto;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.site-mode-inline :deep(.v-field__append-inner) {
+  padding-top: 0;
+  align-self: center;
+}
+
+.site-mode-inline :deep(.v-icon) {
+  opacity: 0.85;
 }
 </style>
