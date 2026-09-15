@@ -222,7 +222,7 @@ import { savePostsLocally, saveSearchLocally } from "../misc/util/saveLocal";
 import Suggestions from "./Suggestions.vue";
 import { useDisplay } from "vuetify";
 
-const { mdAndDown } = useDisplay();
+const { mdAndDown, mdAndUp } = useDisplay();
 
 const account = useAccountStore();
 const blacklist = useBlacklistStore();
@@ -299,6 +299,7 @@ const {
       !siteMode.isFurAffinity &&
       !siteMode.isWeasyl &&
       !siteMode.isItaku &&
+      !siteMode.isSofurry &&
       !siteMode.isTailspace &&
       !siteMode.isUnified
     ) {

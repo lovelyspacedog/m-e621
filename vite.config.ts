@@ -13,6 +13,7 @@ import { furaffinityProxy } from './vite-furaffinity-proxy'
 import { tailspaceProxy } from './vite-tailspace-proxy'
 import { weasylProxy } from './vite-weasyl-proxy'
 import { itakuProxy } from './vite-itaku-proxy'
+import { sofurryProxy } from './vite-sofurry-proxy'
 
 const MEDIA_HOST_OK = (host: string) =>
   ['.e621.net', '.e926.net', '.e6ai.net', '.furaffinity.net', '.facdn.net'].some((s) => host.endsWith(s)) ||
@@ -20,7 +21,8 @@ const MEDIA_HOST_OK = (host: string) =>
   host === 'ib.metapix.net' ||
   host.endsWith('.metapix.net') ||
   isWeasylMediaHost(host) ||
-  isItakuMediaHost(host);
+  isItakuMediaHost(host) ||
+  isSofurryMediaHost(host);
 
 const isInkbunnyMediaHost = (host: string) =>
   host === 'inkbunny.net' || host === 'ib.metapix.net' || host.endsWith('.metapix.net');
@@ -34,6 +36,13 @@ const isWeasylMediaHost = (host: string) =>
 
 const isItakuMediaHost = (host: string) =>
   host === 'itaku.ee' || host === 'www.itaku.ee' || host.endsWith('.itaku.ee');
+
+const isSofurryMediaHost = (host: string) =>
+  host === 'sofurry.com' ||
+  host === 'www.sofurry.com' ||
+  host === 'cdn.sofurryfiles.com' ||
+  host === 's3.sofurryfiles.com' ||
+  host.endsWith('.sofurryfiles.com');
 
 const isFluffleSourceHost = (host: string) =>
   MEDIA_HOST_OK(host) ||
@@ -1039,6 +1048,7 @@ export default defineConfig(({ mode }) => {
       furaffinityProxy(),
       weasylProxy(),
       itakuProxy(),
+      sofurryProxy(),
       fluffleProxy(),
       rufflePlugin(),
       generateSitemap(env),

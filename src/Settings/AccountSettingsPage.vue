@@ -447,6 +447,105 @@
               </v-expansion-panel-text>
             </v-expansion-panel>
 
+            <v-expansion-panel value="sofurry">
+              <v-expansion-panel-title>
+                <div class="text-left">
+                  <div>SoFurry</div>
+                  <div class="text-caption text-medium-emphasis">{{ sofurryStatus }}</div>
+                </div>
+              </v-expansion-panel-title>
+              <v-expansion-panel-text>
+                <v-text-field
+                  variant="filled"
+                  label="SoFurry email"
+                  type="email"
+                  v-model="sofurryEmail"
+                  autocomplete="email"
+                  :disabled="sofurryLoggedIn"
+                />
+                <v-text-field
+                  variant="filled"
+                  label="SoFurry username (from login)"
+                  type="text"
+                  v-model="fields.sofurry.username"
+                  autocomplete="username"
+                  :disabled="sofurryLoggedIn"
+                />
+                <v-text-field
+                  v-if="!sofurryLoggedIn"
+                  variant="filled"
+                  :append-icon="showSecret.sofurry ? 'mdi-eye-off' : 'mdi-eye'"
+                  :type="showSecret.sofurry ? 'text' : 'password'"
+                  label="SoFurry password"
+                  v-model="sofurryPassword"
+                  @click:append="showSecret.sofurry = !showSecret.sofurry"
+                  autocomplete="current-password"
+                />
+                <v-text-field
+                  v-if="!sofurryLoggedIn"
+                  variant="filled"
+                  :append-icon="showSofurryCookies ? 'mdi-eye-off' : 'mdi-eye'"
+                  :type="showSofurryCookies ? 'text' : 'password'"
+                  label="Session cookies"
+                  v-model="sofurryCookiePaste"
+                  @click:append="showSofurryCookies = !showSofurryCookies"
+                  autocomplete="off"
+                />
+                <p class="text-left">
+                  Sign in with email/password, or paste the SoFurry cookie header
+                  (<code>laravel_session</code> + <code>XSRF-TOKEN</code>). Cookies are stored in
+                  settings and included in Backup JSON. The password is not saved.
+                </p>
+                <p class="text-left mt-2">
+                  <strong>Chrome / Firefox:</strong>
+                  log in on
+                  <external-link href="https://sofurry.com/login">sofurry.com</external-link>
+                  → F12 → Application/Storage → Cookies →
+                  <code>https://sofurry.com</code> → copy session cookies.
+                </p>
+                <div>
+                  <v-btn
+                    v-if="!sofurryLoggedIn"
+                    :disabled="!canSofurryPasswordLogin && !canSofurryCookieLogin"
+                    :loading="sofurryAuth.loading"
+                    :color="sofurryAuth.success ? 'success' : sofurryAuth.message ? 'error' : 'accent'"
+                    variant="text"
+                    @click="canSofurryCookieLogin ? loginSofurryCookies() : loginSofurry()"
+                  >
+                    {{ canSofurryCookieLogin ? "Log in with cookies" : "Log in" }}
+                  </v-btn>
+                  <v-btn
+                    v-else
+                    :loading="sofurryAuth.loading"
+                    color="accent"
+                    variant="text"
+                    @click="logoutSofurry"
+                  >
+                    Log out
+                  </v-btn>
+                  <p v-if="sofurryAuth.message">{{ sofurryAuth.message }}</p>
+                </div>
+                <v-btn
+                  class="mt-2"
+                  :disabled="!sofurryLoggedIn"
+                  color="accent"
+                  variant="text"
+                  @click="toggleSofurryLikesSearch"
+                >
+                  {{ sofurryLikesExists ? `Remove "My Likes" saved search` : `Add "My Likes" saved search` }}
+                </v-btn>
+                <v-btn
+                  class="mt-2"
+                  :disabled="!sofurryLoggedIn"
+                  color="accent"
+                  variant="text"
+                  @click="toggleSofurryFollowingSearch"
+                >
+                  {{ sofurryFollowingExists ? `Remove "Following" saved search` : `Add "Following" saved search` }}
+                </v-btn>
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+
             <v-expansion-panel value="tailspace">
               <v-expansion-panel-title>
                 <div class="text-left">
@@ -578,7 +677,7 @@ const siteMode = useSiteModeStore();
 const unifiedChildren = UNIFIED_CHILD_MODES;
 
 type KeySiteMode = "e621" | "e6ai" | "furbooru";
-type AccountMode = KeySiteMode | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "tailspace";
+type AccountMode = KeySiteMode | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "tailspace";
 
 type KeySite = {
   mode: KeySiteMode;
@@ -641,11 +740,12 @@ const fields = {
   furaffinity: accountFields("furaffinity"),
   weasyl: accountFields("weasyl"),
   itaku: accountFields("itaku"),
+  sofurry: accountFields("sofurry"),
   tailspace: accountFields("tailspace"),
 };
 
 const signedInModes = (): AccountMode[] => {
-  const modes: AccountMode[] = ["e621", "e6ai", "furbooru", "inkbunny", "furaffinity", "weasyl", "itaku", "tailspace"];
+  const modes: AccountMode[] = ["e621", "e6ai", "furbooru", "inkbunny", "furaffinity", "weasyl", "itaku", "sofurry", "tailspace"];
   return modes.filter((mode) => {
     const account = liveAccount(main.$state, mode);
     return !!(account.username || account.apiKey);
@@ -661,6 +761,7 @@ const showSecret = reactive<Record<AccountMode, boolean>>({
   furaffinity: false,
   weasyl: false,
   itaku: false,
+  sofurry: false,
   tailspace: false,
 });
 
@@ -1053,6 +1154,118 @@ watch(
     itakuAuth.value.success = false;
   },
 );
+
+const SOFURRY_LIKES_TAG = "favs:me";
+const SOFURRY_FOLLOWING_TAG = "following:me";
+const sofurryEmail = ref(fields.sofurry.username || "");
+const sofurryPassword = ref("");
+const sofurryCookiePaste = ref("");
+const showSofurryCookies = ref(false);
+const sofurryAuth = ref(emptyAuth());
+const sofurryLoggedIn = computed(
+  () => !!fields.sofurry.apiKey && !!fields.sofurry.username,
+);
+const canSofurryPasswordLogin = computed(
+  () => !!(sofurryEmail.value.trim() && sofurryPassword.value),
+);
+const canSofurryCookieLogin = computed(() => !!sofurryCookiePaste.value.trim());
+const sofurryStatus = computed(() =>
+  sofurryLoggedIn.value
+    ? `Signed in as ${fields.sofurry.username}`
+    : "Email/password or cookies",
+);
+const sofurryLikesExists = computed(() =>
+  searchesHaveTag(liveSearches(main.$state, "sofurry"), SOFURRY_LIKES_TAG),
+);
+const sofurryFollowingExists = computed(() =>
+  searchesHaveTag(liveSearches(main.$state, "sofurry"), SOFURRY_FOLLOWING_TAG),
+);
+const toggleSofurryLikesSearch = () =>
+  toggleSearchTag(liveSearches(main.$state, "sofurry"), SOFURRY_LIKES_TAG, "My Likes");
+const toggleSofurryFollowingSearch = () =>
+  toggleSearchTag(liveSearches(main.$state, "sofurry"), SOFURRY_FOLLOWING_TAG, "Following");
+
+const applySofurryLoginResult = (result: {
+  username?: string;
+  cookies?: string;
+}) => {
+  const username = result.username || fields.sofurry.username || sofurryEmail.value;
+  const cookies = result.cookies || "";
+  setLiveAccount(main.$state, "sofurry", {
+    username,
+    apiKey: cookies,
+    userId: null,
+  });
+  fields.sofurry.username = username;
+  sofurryPassword.value = "";
+  sofurryCookiePaste.value = "";
+  sofurryAuth.value.success = true;
+  sofurryAuth.value.message = `Logged in as ${username}`;
+};
+
+const loginSofurry = async () => {
+  if (!canSofurryPasswordLogin.value) return;
+  sofurryAuth.value.loading = true;
+  sofurryAuth.value.message = "";
+  try {
+    const service = await getApiService();
+    const result = await service.loginSofurry({
+      email: sofurryEmail.value.trim(),
+      password: sofurryPassword.value,
+    });
+    if (!result.ok || !result.cookies) {
+      throw new Error(result.error || "Login failed");
+    }
+    applySofurryLoginResult(result);
+  } catch (e: any) {
+    sofurryAuth.value.success = false;
+    sofurryAuth.value.message = e?.message || String(e);
+  } finally {
+    sofurryAuth.value.loading = false;
+  }
+};
+
+const loginSofurryCookies = async () => {
+  if (!canSofurryCookieLogin.value) return;
+  sofurryAuth.value.loading = true;
+  sofurryAuth.value.message = "";
+  try {
+    const service = await getApiService();
+    const result = await service.loginSofurryCookies({
+      cookies: sofurryCookiePaste.value.trim(),
+    });
+    if (!result.ok || !result.cookies) {
+      throw new Error(("error" in result && result.error) || "Cookies rejected");
+    }
+    applySofurryLoginResult(result);
+  } catch (e: any) {
+    sofurryAuth.value.success = false;
+    sofurryAuth.value.message = e?.message || String(e);
+  } finally {
+    sofurryAuth.value.loading = false;
+  }
+};
+
+const logoutSofurry = async () => {
+  sofurryAuth.value.loading = true;
+  try {
+    const service = await getApiService();
+    await service.logoutSofurry();
+  } catch {
+    /* ignore */
+  } finally {
+    setLiveAccount(main.$state, "sofurry", {
+      username: null,
+      apiKey: null,
+      userId: null,
+    });
+    sofurryPassword.value = "";
+    sofurryCookiePaste.value = "";
+    sofurryAuth.value.loading = false;
+    sofurryAuth.value.success = false;
+    sofurryAuth.value.message = "Logged out";
+  }
+};
 
 const tsPassword = ref("");
 const tsCookie = ref("");

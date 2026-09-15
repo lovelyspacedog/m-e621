@@ -36,6 +36,8 @@ export const unifiedChildLabel = (mode: SiteMode | UnifiedChildMode): string => 
       return "Weasyl";
     case "itaku":
       return "Itaku";
+    case "sofurry":
+      return "SoFurry";
     case "unified":
       return "Unified";
     case "local":
@@ -61,6 +63,8 @@ export const unifiedChildIcon = (mode: SiteMode | UnifiedChildMode): string => {
       return "$weasyl";
     case "itaku":
       return "$itaku";
+    case "sofurry":
+      return "$sofurry";
     case "unified":
       return "mdi-earth";
     case "local":
@@ -107,8 +111,8 @@ export const authFromAccount = (
     return { login: account.username || "", api_key: account.apiKey || "" };
   }
   if (!account.apiKey) return undefined;
-  if (mode === "furbooru" || mode === "weasyl" || mode === "itaku") {
-    // Furbooru / Weasyl / Itaku use API key (or token) only; username is optional metadata
+  if (mode === "furbooru" || mode === "weasyl" || mode === "itaku" || mode === "sofurry") {
+    // Furbooru / Weasyl / Itaku / SoFurry use API key/token/cookies; username optional metadata
     return { login: account.username || "", api_key: account.apiKey };
   }
   if (!account.username) return undefined;
@@ -126,7 +130,13 @@ export const originModeOf = (
 export const postPageUrl = (
   post: {
     id: number;
-    __meta?: { originMode?: UnifiedChildMode; originBaseUrl?: string; furaffinity?: { kind?: string } };
+    file?: { md5?: string };
+    __meta?: {
+      originMode?: UnifiedChildMode;
+      originBaseUrl?: string;
+      furaffinity?: { kind?: string };
+      sofurry?: { id?: string };
+    };
   },
   fallbackMode: SiteMode,
   fallbackBaseUrl: string,
@@ -146,6 +156,11 @@ export const postPageUrl = (
   }
   if (mode === "weasyl") return `${base}submission/${post.id}`;
   if (mode === "itaku") return `${base}images/${post.id}`;
+  if (mode === "sofurry") {
+    const softId = post.__meta?.sofurry?.id || post.file?.md5;
+    if (softId && /[A-Za-z]/.test(softId)) return `${base}s/${softId}`;
+    return `${base}s/${post.id}`;
+  }
   return `${base}posts/${post.id}`;
 };
 

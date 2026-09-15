@@ -270,6 +270,7 @@ router.beforeEach((to) => {
         mode === "furaffinity" ||
         mode === "weasyl" ||
         mode === "itaku" ||
+        mode === "sofurry" ||
         mode === "local" ||
         mode === "unified") &&
       ["Pools", "Pool", "Suggester", "SuggesterResult", "FavoritesAnalyzer", "Dashboard", "DashboardResult"].includes(

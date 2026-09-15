@@ -147,6 +147,21 @@ ITAKU_LIKE_PATH = re.compile(r"^/api/itaku/images/(\d+)/like$")
 ITAKU_USER_PATH = re.compile(r"^/api/itaku/users/([^/]+)$")
 ITAKU_POST_PATH = re.compile(r"^/api/itaku/posts/(\d+)$")
 
+SOFURRY_BASE = "https://sofurry.com"
+SOFURRY_MEDIA_HOSTS = frozenset({
+    "sofurry.com",
+    "www.sofurry.com",
+    "cdn.sofurryfiles.com",
+    "s3.sofurryfiles.com",
+    "sofurryfiles.com",
+})
+SOFURRY_COOKIE_HEADER = "X-Sofurry-Cookies"
+SOFURRY_PATH = re.compile(r"^/api/sofurry(?:/.*)?$")
+SOFURRY_AUTH_POSTS = {
+    "/api/sofurry/login",
+    "/api/sofurry/login-cookies",
+}
+
 FLUFFLE_API = "https://api.fluffle.xyz/exact-search-by-file"
 FLUFFLE_UA = "m-e621/1.0 (by lovelyspacedog on GitHub)"
 FLUFFLE_PATH = "/api/fluffle/exact-search"
@@ -1079,7 +1094,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header(
                 "Access-Control-Allow-Headers",
-                "Authorization, Content-Type, X-Pull-Token, X-Site-Base, Range",
+                "Authorization, Content-Type, X-Pull-Token, X-Site-Base, Range, "
+                "X-Tailspace-Session, X-Sofurry-Cookies",
             )
             self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
             self.end_headers()
@@ -1100,6 +1116,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if host in WEASYL_MEDIA_HOSTS:
             return parsed.geturl()
         if host in ITAKU_MEDIA_HOSTS or host.endswith(".itaku.ee"):
+            return parsed.geturl()
+        if host in SOFURRY_MEDIA_HOSTS or host.endswith(".sofurryfiles.com"):
             return parsed.geturl()
         return None
 
@@ -1313,6 +1331,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 req.add_header("Referer", "https://www.weasyl.com")
             if host in ITAKU_MEDIA_HOSTS or host.endswith(".itaku.ee"):
                 req.add_header("Referer", "https://itaku.ee")
+            if host in SOFURRY_MEDIA_HOSTS or host.endswith(".sofurryfiles.com"):
+                req.add_header("Referer", "https://sofurry.com")
             try:
                 with urllib.request.urlopen(req, timeout=120) as resp:
                     final = resp.geturl() if hasattr(resp, "geturl") else current
@@ -2067,6 +2087,311 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self._itaku_respond(resp_body, status, ct)
 
     # ------------------------------------------------------------------
+    # SoFurry proxy helpers
+    # ------------------------------------------------------------------
+
+    def _sofurry_cookies(self) -> str:
+        return (self.headers.get(SOFURRY_COOKIE_HEADER) or "").strip()
+
+    @staticmethod
+    def _sofurry_merge_cookies(existing: str, resp_headers) -> str:
+        jar: dict[str, str] = {}
+        for part in existing.split(";"):
+            part = part.strip()
+            if not part or "=" not in part:
+                continue
+            k, v = part.split("=", 1)
+            jar[k.strip()] = v.strip()
+        raw_list = []
+        if hasattr(resp_headers, "get_all"):
+            raw_list = resp_headers.get_all("Set-Cookie") or []
+        elif resp_headers.get("Set-Cookie"):
+            raw_list = [resp_headers.get("Set-Cookie")]
+        for line in raw_list:
+            first = (line or "").split(";", 1)[0].strip()
+            if "=" not in first:
+                continue
+            k, v = first.split("=", 1)
+            jar[k.strip()] = v.strip()
+        return "; ".join(f"{k}={v}" for k, v in jar.items())
+
+    @staticmethod
+    def _sofurry_xsrf(cookie: str) -> str:
+        for part in cookie.split(";"):
+            part = part.strip()
+            if part.lower().startswith("xsrf-token="):
+                val = part.split("=", 1)[1]
+                try:
+                    from urllib.parse import unquote
+
+                    return unquote(val)
+                except Exception:  # noqa: BLE001
+                    return val
+        return ""
+
+    def _sofurry_request(
+        self,
+        url: str,
+        *,
+        method: str = "GET",
+        cookie: str = "",
+        body: bytes = b"",
+        content_type: str | None = None,
+        accept: str = "application/json, text/html;q=0.9,*/*;q=0.8",
+        extra_headers: dict | None = None,
+        timeout: int = 45,
+        redirects: int = 3,
+    ) -> tuple[bytes, int, str, str]:
+        """Returns (body, status, content_type, merged_cookie)."""
+        current_cookie = cookie
+        current_url = url
+        for _ in range(max(1, redirects + 1)):
+            req = urllib.request.Request(current_url, method=method)
+            req.add_header("Accept", accept)
+            req.add_header(
+                "User-Agent",
+                f"me621-sofurry-proxy/1.0 (https://{DOMAIN}; browser proxy)",
+            )
+            req.add_header("Referer", f"{SOFURRY_BASE}/")
+            req.add_header("Origin", SOFURRY_BASE)
+            if current_cookie:
+                req.add_header("Cookie", current_cookie)
+            xsrf = self._sofurry_xsrf(current_cookie)
+            if xsrf:
+                req.add_header("X-XSRF-TOKEN", xsrf)
+                req.add_header("X-CSRF-TOKEN", xsrf)
+            if extra_headers:
+                for k, v in extra_headers.items():
+                    req.add_header(k, v)
+            if body:
+                req.add_header(
+                    "Content-Type",
+                    content_type or "application/x-www-form-urlencoded",
+                )
+                req.data = body
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    data = resp.read()
+                    status = getattr(resp, "status", 200)
+                    ct = resp.headers.get("Content-Type", "application/octet-stream")
+                    current_cookie = self._sofurry_merge_cookies(current_cookie, resp.headers)
+                    return data, status, ct, current_cookie
+            except urllib.error.HTTPError as exc:
+                current_cookie = self._sofurry_merge_cookies(current_cookie, exc.headers)
+                if exc.code in (301, 302, 303, 307, 308):
+                    loc = exc.headers.get("Location")
+                    if loc:
+                        current_url = urljoin(current_url, loc)
+                        if exc.code == 303:
+                            method = "GET"
+                            body = b""
+                        continue
+                return (
+                    exc.read() if hasattr(exc, "read") else b"",
+                    exc.code,
+                    exc.headers.get("Content-Type", "application/json")
+                    if exc.headers
+                    else "application/json",
+                    current_cookie,
+                )
+            except Exception as exc:  # noqa: BLE001
+                return (
+                    json.dumps({"detail": str(exc)}).encode(),
+                    502,
+                    "application/json",
+                    current_cookie,
+                )
+        return (
+            json.dumps({"detail": "too many redirects"}).encode(),
+            502,
+            "application/json",
+            current_cookie,
+        )
+
+    def _sofurry_respond(
+        self,
+        body: bytes,
+        status: int,
+        content_type: str,
+        *,
+        session_rejected: bool = False,
+    ) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", content_type or "application/octet-stream")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        if session_rejected:
+            self.send_header("X-Sofurry-Session-Rejected", "1")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _proxy_sofurry_login(self, body: bytes) -> None:
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}")
+        except Exception:  # noqa: BLE001
+            self._json(400, {"ok": False, "error": "Invalid JSON body"})
+            return
+        email = str(payload.get("email") or "").strip()
+        password = str(payload.get("password") or "")
+        if not email or not password:
+            self._json(400, {"ok": False, "error": "email and password required"})
+            return
+
+        page_body, page_status, _, cookie = self._sofurry_request(
+            f"{SOFURRY_BASE}/login",
+            accept="text/html",
+        )
+        if page_status >= 400 and not cookie:
+            self._json(502, {"ok": False, "error": f"login page failed ({page_status})"})
+            return
+        html = page_body.decode("utf-8", errors="ignore")
+        token_match = re.search(r'name="_token"\s+value="([^"]+)"', html) or re.search(
+            r'name="csrf-token"\s+content="([^"]+)"', html
+        )
+        token = (token_match.group(1) if token_match else "") or self._sofurry_xsrf(cookie)
+        if not token:
+            self._json(502, {"ok": False, "error": "Could not obtain CSRF token"})
+            return
+        form = urlencode(
+            {
+                "_token": token,
+                "email": email,
+                "password": password,
+                "remember": "on",
+            }
+        ).encode()
+        post_body, post_status, _, cookie = self._sofurry_request(
+            f"{SOFURRY_BASE}/login",
+            method="POST",
+            cookie=cookie,
+            body=form,
+            content_type="application/x-www-form-urlencoded",
+            accept="text/html, application/xhtml+xml",
+            extra_headers={"X-CSRF-TOKEN": token},
+        )
+        has_session = bool(
+            re.search(r"(?:^|;\s*)(?:laravel_session|sofurry_session)=", cookie, re.I)
+        )
+        if not has_session and post_status == 200 and 'name="password"' in post_body.decode(
+            "utf-8", errors="ignore"
+        ):
+            self._json(401, {"ok": False, "error": "Login failed — check email/password"})
+            return
+        profile_body, profile_status, _, cookie = self._sofurry_request(
+            f"{SOFURRY_BASE}/api/profile",
+            cookie=cookie,
+            accept="application/json",
+        )
+        if profile_status in (401, 403):
+            self._json(401, {"ok": False, "error": "Login did not establish a usable session"})
+            return
+        username = None
+        try:
+            data = json.loads(profile_body.decode("utf-8") or "{}")
+            username = (data.get("user") or {}).get("name")
+        except Exception:  # noqa: BLE001
+            pass
+        self._json(200, {"ok": True, "cookies": cookie, "username": username})
+
+    def _proxy_sofurry_login_cookies(self, body: bytes) -> None:
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}")
+        except Exception:  # noqa: BLE001
+            self._json(400, {"ok": False, "error": "Invalid JSON body"})
+            return
+        cookies = str(payload.get("cookies") or "").strip()
+        if not cookies:
+            self._json(400, {"ok": False, "error": "cookies required"})
+            return
+        profile_body, profile_status, _, cookie = self._sofurry_request(
+            f"{SOFURRY_BASE}/api/profile",
+            cookie=cookies,
+            accept="application/json",
+        )
+        if profile_status in (401, 403):
+            self._json(401, {"ok": False, "error": "Cookies rejected by SoFurry"})
+            return
+        username = None
+        try:
+            data = json.loads(profile_body.decode("utf-8") or "{}")
+            username = (data.get("user") or {}).get("name")
+        except Exception:  # noqa: BLE001
+            pass
+        self._json(200, {"ok": True, "cookies": cookie, "username": username})
+
+    def _proxy_sofurry(self, path: str, parsed, method: str = "GET", body: bytes = b"") -> None:
+        cookie = self._sofurry_cookies()
+
+        # Media by absolute URL
+        if path == "/api/sofurry/media-url" and method == "GET":
+            params = parse_qs(parsed.query)
+            target = (params.get("url") or [""])[0]
+            host = (urlparse(target).hostname or "").lower()
+            if host not in SOFURRY_MEDIA_HOSTS and not host.endswith(
+                ".sofurryfiles.com"
+            ):
+                self._json(400, {"ok": False, "error": "URL host not allowed"})
+                return
+            resp_body, status, ct, _ = self._sofurry_request(
+                target, cookie=cookie, accept="*/*"
+            )
+            self._sofurry_respond(resp_body, status, ct)
+            return
+
+        # Media by CDN path
+        if path.startswith("/api/sofurry/media/") and method == "GET":
+            rel = path[len("/api/sofurry/media") :]
+            candidates = [
+                f"https://cdn.sofurryfiles.com{rel}",
+                f"https://s3.sofurryfiles.com{rel}",
+                f"{SOFURRY_BASE}{rel}",
+            ]
+            last = (b"not found", 404, "text/plain")
+            for target in candidates:
+                resp_body, status, ct, _ = self._sofurry_request(
+                    target, cookie=cookie, accept="*/*"
+                )
+                if 200 <= status < 300:
+                    self._sofurry_respond(resp_body, status, ct)
+                    return
+                last = (resp_body, status, ct)
+            self._sofurry_respond(*last)
+            return
+
+        upstream_path = path[len("/api/sofurry") :] or "/"
+        if not upstream_path.startswith("/") or "://" in upstream_path or ".." in upstream_path:
+            self._json(400, {"ok": False, "message": "bad path"})
+            return
+        qs = parsed.query
+        url = f"{SOFURRY_BASE}{upstream_path}"
+        if qs:
+            url = f"{url}?{qs}"
+        accept = (
+            "application/json, text/x-script, */*"
+            if ".data" in upstream_path
+            else "application/json, text/html;q=0.8,*/*;q=0.5"
+        )
+        extra = {}
+        if ".data" in upstream_path:
+            extra = {
+                "X-Inertia": "true",
+                "X-Requested-With": "XMLHttpRequest",
+            }
+        ct_in = self.headers.get("Content-Type")
+        resp_body, status, ct, _ = self._sofurry_request(
+            url,
+            method=method,
+            cookie=cookie,
+            body=body if method not in ("GET", "HEAD") else b"",
+            content_type=ct_in,
+            accept=accept,
+            extra_headers=extra or None,
+        )
+        rejected = bool(cookie) and status in (401, 403)
+        self._sofurry_respond(resp_body, status, ct, session_rejected=rejected)
+
+    # ------------------------------------------------------------------
     # Furbooru proxy helpers
     # ------------------------------------------------------------------
 
@@ -2405,6 +2730,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if itaku_post:
             self._proxy_itaku_get(f"posts/{itaku_post.group(1)}/", parsed)
             return
+        if SOFURRY_PATH.match(path):
+            self._proxy_sofurry(path, parsed, method="GET")
+            return
         if path.startswith("/api/"):
             self._json(404, {"ok": False, "message": "not found"})
             return
@@ -2441,6 +2769,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
         itaku_like = ITAKU_LIKE_PATH.match(path)
         if itaku_like:
             self._proxy_itaku_like("DELETE", itaku_like.group(1), parsed)
+            return
+        if SOFURRY_PATH.match(path):
+            self._proxy_sofurry(path, parsed, method="DELETE")
             return
         self.send_error(404)
 
@@ -2483,6 +2814,17 @@ class SpaHandler(SimpleHTTPRequestHandler):
         itaku_like = ITAKU_LIKE_PATH.match(path)
         if itaku_like:
             self._proxy_itaku_like("POST", itaku_like.group(1), parsed, body)
+            return
+
+        if path in SOFURRY_AUTH_POSTS:
+            if path == "/api/sofurry/login":
+                self._proxy_sofurry_login(body)
+            else:
+                self._proxy_sofurry_login_cookies(body)
+            return
+
+        if SOFURRY_PATH.match(path):
+            self._proxy_sofurry(path, parsed, method="POST", body=body)
             return
 
         php = INKBUNNY_POST_ROUTES.get(path)

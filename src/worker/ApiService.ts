@@ -20,6 +20,7 @@ import * as furaffinity from "./furaffinity/api";
 import type { FaMeta } from "./furaffinity/api";
 import * as weasyl from "./weasyl/api";
 import * as itaku from "./itaku/api";
+import * as sofurry from "./sofurry/api";
 import * as tailspace from "./tailspace/api";
 import { isPostBlacklisted } from "./blacklist";
 import { BlacklistMode, type SiteMode, type SavedPostEntry } from "@/services/types";
@@ -42,9 +43,11 @@ const isWeasylUrl = (baseUrl: string) =>
   /(?:^|\.)weasyl\.com(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
 const isItakuUrl = (baseUrl: string) =>
   /(?:^|\.)itaku\.ee(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
+const isSofurryUrl = (baseUrl: string) =>
+  /(?:^|\.)sofurry\.com(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
 
 /** Prefer explicit mode; fall back to hostname only when mode omitted (M17). */
-type ApiBackend = "e621" | "furbooru" | "inkbunny" | "tailspace" | "furaffinity" | "weasyl" | "itaku";
+type ApiBackend = "e621" | "furbooru" | "inkbunny" | "tailspace" | "furaffinity" | "weasyl" | "itaku" | "sofurry";
 
 const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
   if (mode === "furbooru") return "furbooru";
@@ -53,6 +56,7 @@ const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
   if (mode === "tailspace") return "tailspace";
   if (mode === "weasyl") return "weasyl";
   if (mode === "itaku") return "itaku";
+  if (mode === "sofurry") return "sofurry";
   if (mode === "e621" || mode === "e6ai" || mode === "local") return "e621";
   if (isFurbooruUrl(baseUrl)) return "furbooru";
   if (isInkbunnyUrl(baseUrl)) return "inkbunny";
@@ -60,6 +64,7 @@ const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
   if (isTailspaceUrl(baseUrl)) return "tailspace";
   if (isWeasylUrl(baseUrl)) return "weasyl";
   if (isItakuUrl(baseUrl)) return "itaku";
+  if (isSofurryUrl(baseUrl)) return "sofurry";
   return "e621";
 };
 
@@ -408,6 +413,33 @@ export class ApiService {
       return results.filter((p): p is EnhancedPost => !!p);
     }
 
+    if (child.mode === "sofurry") {
+      if (child.auth?.api_key) {
+        sofurry.setActiveSofurryCookies(child.auth.api_key);
+      }
+      const results = await Promise.all(
+        uniqueIds.map(async (id) => {
+          try {
+            const softId = sofurry.softIdForNumeric(id);
+            if (!softId) return null;
+            const post = await sofurry.fetchSubmission({ id: softId });
+            if (!post) return null;
+            return stamp({
+              ...post,
+              __meta: {
+                ...((post as EnhancedPost).__meta || {}),
+                isBlacklisted: isPostBlacklisted(post, child.blacklist),
+                pageNumber: 1,
+              },
+            });
+          } catch {
+            return null;
+          }
+        }),
+      );
+      return results.filter((p): p is EnhancedPost => !!p);
+    }
+
     // e621 / e6ai
     const results = await Promise.all(
       uniqueIds.map(async (id) => {
@@ -580,6 +612,55 @@ export class ApiService {
       }));
     }
 
+    if (backend === "sofurry") {
+      if (args.auth?.api_key) {
+        sofurry.setActiveSofurryCookies(args.auth.api_key);
+      }
+      const tags = args.tags.filter(Boolean);
+      const favIdx = tags.findIndex((t) => /^fav(s|orites)?:me$/i.test(t));
+      const followingIdx = tags.findIndex((t) => /^following:me$/i.test(t));
+      const userTag = tags.find((t) => /^user:/i.test(t));
+      const favorites = favIdx >= 0;
+      const user = userTag ? userTag.replace(/^user:/i, "").trim() : undefined;
+      const queryTags = tags
+        .filter(
+          (t) =>
+            !/^fav(s|orites)?:me$/i.test(t) &&
+            !/^following:me$/i.test(t) &&
+            !/^user:/i.test(t),
+        )
+        .join(" ");
+      if (followingIdx >= 0) {
+        const result = await sofurry.fetchFeed({
+          page: args.page,
+          limit: args.limit,
+        });
+        return result.posts.map((post: Post): EnhancedPost => ({
+          ...post,
+          __meta: {
+            ...((post as EnhancedPost).__meta || {}),
+            isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
+            pageNumber: args.page,
+          },
+        }));
+      }
+      const result = await sofurry.searchBrowse({
+        tags: queryTags,
+        page: args.page,
+        limit: args.limit,
+        user,
+        favorites,
+      });
+      return result.posts.map((post: Post): EnhancedPost => ({
+        ...post,
+        __meta: {
+          ...((post as EnhancedPost).__meta || {}),
+          isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
+          pageNumber: args.page,
+        },
+      }));
+    }
+
     const posts = (
       await e621.posts.list({
         ...args,
@@ -635,6 +716,12 @@ export class ApiService {
         apiKey: args.auth?.api_key ?? null,
       });
     }
+    if (backend === "sofurry") {
+      return sofurry.searchTags({
+        query: args.query ?? args.name ?? "",
+        limit: args.limit,
+      });
+    }
     const data = await e621.tags.list(args);
     if (Array.isArray(data)) {
       return data;
@@ -646,7 +733,7 @@ export class ApiService {
   async getPools(args: IPoolsArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotTailspace(args.baseUrl, "getPools", args.mode);
-    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku") {
+    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
       return [];
     }
     return (await e621.pools.list(args));
@@ -655,7 +742,7 @@ export class ApiService {
   async getPool(args: IGetPoolArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotTailspace(args.baseUrl, "getPool", args.mode);
-    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku") {
+    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
       throw new Error("Pools are not supported on this site");
     }
     return (await e621.pools.get(args));
@@ -682,7 +769,7 @@ export class ApiService {
 
   async getNotes(args: INotesListArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku") {
+    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
       return [];
     }
     return e621.notes.list(args);
@@ -699,6 +786,13 @@ export class ApiService {
         apiKey: args.auth.api_key,
       });
       return true;
+    }
+    if (backend === "sofurry") {
+      if (args.auth?.api_key) sofurry.setActiveSofurryCookies(args.auth.api_key);
+      const softId =
+        sofurry.softIdForNumeric(args.postId) ||
+        String(args.postId);
+      return sofurry.favoriteSubmission({ id: softId, like: true });
     }
     if (backend === "furaffinity") {
       await furaffinity.favoriteSubmission(args.postId, args.auth?.api_key ?? null);
@@ -735,6 +829,13 @@ export class ApiService {
       });
       return true;
     }
+    if (backend === "sofurry") {
+      if (args.auth?.api_key) sofurry.setActiveSofurryCookies(args.auth.api_key);
+      const softId =
+        sofurry.softIdForNumeric(args.postId) ||
+        String(args.postId);
+      return sofurry.favoriteSubmission({ id: softId, like: false });
+    }
     if (backend === "furaffinity") {
       await furaffinity.unfavoriteSubmission(args.postId, args.auth?.api_key ?? null);
       return true;
@@ -760,7 +861,7 @@ export class ApiService {
 
   async votePost(args: IPostVoteArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    if (backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku") {
+    if (backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
       return { score: 0, up: 0, down: 0 };
     }
     if (backend === "furbooru") {
@@ -874,6 +975,20 @@ export class ApiService {
     if (backend === "itaku") {
       return itaku.whoami(args.apiKey);
     }
+    if (backend === "sofurry") {
+      sofurry.setActiveSofurryCookies(args.apiKey);
+      const me = await sofurry.whoami(args.apiKey);
+      if (!me?.name) throw new Error("SoFurry session invalid");
+      if (
+        args.username &&
+        me.name.toLowerCase() !== args.username.toLowerCase()
+      ) {
+        throw new Error(
+          `SoFurry session belongs to '${me.name}', not '${args.username}'`,
+        );
+      }
+      return true;
+    }
     const auth = { login: args.username, api_key: args.apiKey };
     const user = await e621.users.get({
       baseUrl: args.baseUrl,
@@ -927,6 +1042,25 @@ export class ApiService {
 
   async logoutTailspace(args?: { cookies?: string | null }) {
     await tailspace.logoutLocal(args?.cookies);
+  }
+
+  async loginSofurry(args: { email: string; password: string }) {
+    return sofurry.loginSofurry(args);
+  }
+
+  async loginSofurryCookies(args: { cookies: string }) {
+    sofurry.setActiveSofurryCookies(args.cookies);
+    const me = await sofurry.whoami(args.cookies);
+    if (!me?.name) return { ok: false as const, error: "Cookies rejected" };
+    return { ok: true as const, cookies: args.cookies, username: me.name };
+  }
+
+  async logoutSofurry() {
+    sofurry.setActiveSofurryCookies(null);
+  }
+
+  async getSofurryFollowing() {
+    return sofurry.listFollowing();
   }
 
   async getFurAffinityWatchlist(args: { cookies?: string | null; username?: string | null }) {

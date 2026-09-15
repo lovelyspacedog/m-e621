@@ -139,7 +139,8 @@ function hasMigratableState(state: ISettingsServiceState): boolean {
     if (state.account?.apiKey || state.account?.username) return true;
     if (state.blacklist?.tags?.length > 0) return true;
     if (state.searches?.entries?.length > 0) return true;
-    if (state.favorites?.posts?.length > 0) return true;
+    if ((state as { favorites?: { posts?: unknown[] } }).favorites?.posts?.length) return true;
+    if (state.savedPosts?.entries?.length > 0) return true;
     const profiles = state.profiles;
     if (profiles) {
         for (const profile of Object.values(profiles)) {
@@ -148,7 +149,7 @@ function hasMigratableState(state: ISettingsServiceState): boolean {
             if (profile.blacklist?.tags?.length > 0) return true;
             if (profile.searches?.entries?.length > 0) return true;
             if (profile.history?.entries?.length > 0) return true;
-            if (profile.favorites?.posts?.length > 0) return true;
+            if ((profile as { favorites?: { posts?: unknown[] } }).favorites?.posts?.length) return true;
         }
     }
     return false;

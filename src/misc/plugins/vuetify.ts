@@ -8,6 +8,7 @@ import { FoxIcon } from "@/misc/icons/FoxIcon";
 import { TanukiAiIcon } from "@/misc/icons/TanukiAiIcon";
 import { WeasylIcon } from "@/misc/icons/WeasylIcon";
 import { ItakuIcon } from "@/misc/icons/ItakuIcon";
+import { SofurryIcon } from "@/misc/icons/SofurryIcon";
 
 export const vuetify = createVuetify({
   blueprint: md3,
@@ -41,6 +42,8 @@ export const vuetify = createVuetify({
       weasyl: WeasylIcon,
       // Iconify pinhead:bird-flying; used for Itaku site mode
       itaku: ItakuIcon,
+      // Iconify game-icons:fluffy-flame; used for SoFurry site mode
+      sofurry: SofurryIcon,
     },
   },
   defaults: {

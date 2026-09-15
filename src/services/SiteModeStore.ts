@@ -32,6 +32,7 @@ const ALL_SITE_MODES: SiteMode[] = [
   "furaffinity",
   "weasyl",
   "itaku",
+  "sofurry",
   "local",
   "tailspace",
 ];
@@ -56,6 +57,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const isFurAffinity = computed(() => main.activeMode === "furaffinity");
   const isWeasyl = computed(() => main.activeMode === "weasyl");
   const isItaku = computed(() => main.activeMode === "itaku");
+  const isSofurry = computed(() => main.activeMode === "sofurry");
   const isUnified = computed(() => main.activeMode === "unified");
   const siteModes = computed(() =>
     ALL_SITE_MODES.filter((mode) => isModeSupported(mode)),
@@ -70,6 +72,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       case "furaffinity": return "FurAffinity";
       case "weasyl": return "Weasyl";
       case "itaku": return "Itaku";
+      case "sofurry": return "SoFurry";
       case "unified": return "Unified";
       default: return "e621";
     }
@@ -161,6 +164,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     isFurAffinity,
     isWeasyl,
     isItaku,
+    isSofurry,
     isUnified,
     unifiedSites,
     setUnifiedChild,

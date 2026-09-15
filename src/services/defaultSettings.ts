@@ -52,6 +52,7 @@ export const defaultSettings: ISettingsServiceState = {
     furaffinity: createEmptySiteProfile("furaffinity"),
     weasyl: createEmptySiteProfile("weasyl"),
     itaku: createEmptySiteProfile("itaku"),
+    sofurry: createEmptySiteProfile("sofurry"),
     unified: createEmptySiteProfile("unified"),
   },
   shortcuts: [

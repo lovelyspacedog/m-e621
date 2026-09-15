@@ -377,6 +377,7 @@ class PersistanceService {
         furaffinity: createEmptySiteProfile("furaffinity"),
         weasyl: createEmptySiteProfile("weasyl"),
         itaku: createEmptySiteProfile("itaku"),
+        sofurry: createEmptySiteProfile("sofurry"),
         unified: createEmptySiteProfile("unified"),
       };
       // Current flat fields become the active mode's profile (usually e621).
@@ -406,6 +407,7 @@ class PersistanceService {
           furaffinity: createEmptySiteProfile("furaffinity"),
           weasyl: createEmptySiteProfile("weasyl"),
           itaku: createEmptySiteProfile("itaku"),
+          sofurry: createEmptySiteProfile("sofurry"),
           unified: createEmptySiteProfile("unified"),
         };
       } else {
@@ -550,6 +552,7 @@ class PersistanceService {
         furaffinity: createEmptySiteProfile("furaffinity"),
         weasyl: createEmptySiteProfile("weasyl"),
         itaku: createEmptySiteProfile("itaku"),
+        sofurry: createEmptySiteProfile("sofurry"),
         unified: createEmptySiteProfile("unified"),
       };
     }
@@ -571,6 +574,8 @@ class PersistanceService {
       newState.profiles.weasyl || createEmptySiteProfile("weasyl");
     newState.profiles.itaku =
       newState.profiles.itaku || createEmptySiteProfile("itaku");
+    newState.profiles.sofurry =
+      newState.profiles.sofurry || createEmptySiteProfile("sofurry");
     newState.profiles.unified =
       newState.profiles.unified || createEmptySiteProfile("unified");
     if (!newState.profiles.unified.unifiedSites) {
@@ -582,6 +587,7 @@ class PersistanceService {
         furaffinity: true,
         weasyl: false,
         itaku: false,
+        sofurry: true,
       };
     } else if (newState.profiles.unified.unifiedSites.furaffinity === undefined) {
       newState.profiles.unified.unifiedSites.furaffinity = true;
@@ -591,6 +597,9 @@ class PersistanceService {
     }
     if (newState.profiles.unified.unifiedSites.itaku === undefined) {
       newState.profiles.unified.unifiedSites.itaku = false;
+    }
+    if (newState.profiles.unified.unifiedSites.sofurry === undefined) {
+      newState.profiles.unified.unifiedSites.sofurry = true;
     }
     if (!newState.profiles.e621.account) {
       // Do NOT copy active-mode mirrors here: account/blacklist/etc. may
@@ -611,6 +620,7 @@ class PersistanceService {
       newState.activeMode !== "furaffinity" &&
       newState.activeMode !== "weasyl" &&
       newState.activeMode !== "itaku" &&
+      newState.activeMode !== "sofurry" &&
       newState.activeMode !== "unified"
     ) {
       newState.activeMode = "e621";
@@ -641,6 +651,11 @@ class PersistanceService {
     }
     newState.profiles.itaku.baseUrl =
       newState.profiles.itaku.baseUrl || SITE_MODE_URLS.itaku;
+    if (!newState.profiles.sofurry) {
+      newState.profiles.sofurry = createEmptySiteProfile("sofurry");
+    }
+    newState.profiles.sofurry.baseUrl =
+      newState.profiles.sofurry.baseUrl || SITE_MODE_URLS.sofurry;
     if (!newState.profiles.tailspace) {
       newState.profiles.tailspace = createEmptySiteProfile("tailspace");
     }

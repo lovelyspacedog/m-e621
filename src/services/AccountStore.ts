@@ -42,7 +42,9 @@ export const useAccountStore = defineStore("account", () => {
     if (
       main.activeMode === "furbooru" ||
       main.activeMode === "weasyl" ||
-      main.activeMode === "itaku"
+      main.activeMode === "itaku" ||
+      main.activeMode === "sofurry" ||
+      main.activeMode === "tailspace"
     ) {
       return {
         login: main.account.username || "",

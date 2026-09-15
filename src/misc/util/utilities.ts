@@ -65,7 +65,7 @@ export const useRouterQueryHelpers = () => {
     >,
   ) => {
     const run = async () => {
-      const next = build({ ...router.currentRoute.value.query });
+      const next = build({ ...(router.currentRoute.value.query as Record<string, string | string[] | null | undefined>) });
       // Drop undefined so Vue Router clears those keys.
       const cleaned = Object.fromEntries(
         Object.entries(next).filter(([, v]) => v !== undefined),
