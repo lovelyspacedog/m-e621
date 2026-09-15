@@ -14,11 +14,15 @@ import {
 const LOCAL_HIDDEN_BUTTONS = new Set<ButtonType>([
   "external",
   "save_local",
+  "bookmark",
 ]);
 
 const INKBUNNY_HIDDEN_BUTTONS = new Set<ButtonType>([
   "favorite",
+  "bookmark",
 ]);
+
+const NON_UNIFIED_HIDDEN_BUTTONS = new Set<ButtonType>(["bookmark"]);
 
 const ALL_SITE_MODES: SiteMode[] = [
   "unified",
@@ -127,6 +131,9 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const filterButtons = (buttons: ButtonType[]) => {
     if (isLocal.value) return buttons.filter((button) => !LOCAL_HIDDEN_BUTTONS.has(button));
     if (isInkbunny.value) return buttons.filter((button) => !INKBUNNY_HIDDEN_BUTTONS.has(button));
+    if (!isUnified.value) {
+      return buttons.filter((button) => !NON_UNIFIED_HIDDEN_BUTTONS.has(button));
+    }
     return buttons;
   };
 

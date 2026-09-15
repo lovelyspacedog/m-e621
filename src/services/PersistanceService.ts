@@ -500,6 +500,20 @@ class PersistanceService {
       }
       newState.configVersion = 27;
     }
+    if (newState.configVersion < 28) {
+      if (!newState.savedPosts) {
+        newState.savedPosts = { entries: [] };
+      } else if (!Array.isArray(newState.savedPosts.entries)) {
+        newState.savedPosts.entries = [];
+      }
+      const ensureBookmark = (list: typeof newState.posts.buttons) => {
+        if (!list.includes("bookmark")) list.push("bookmark");
+      };
+      ensureBookmark(newState.posts.buttons);
+      ensureBookmark(newState.posts.fullscreenButtons);
+      ensureBookmark(newState.posts.detailsButtons);
+      newState.configVersion = 28;
+    }
 
     // Ensure profiles exist even if a partial export skipped them.
     if (!newState.profiles) {

@@ -115,6 +115,7 @@ export const postPageUrl = (
 
 export const buildUnifiedFetchArgs = (
   state: ISettingsServiceState,
+  options?: { includeDisabled?: boolean },
 ): UnifiedFetchArgs => {
   const sites = {
     ...defaultUnifiedSites(),
@@ -122,7 +123,7 @@ export const buildUnifiedFetchArgs = (
   };
   const children: UnifiedChildFetchArgs[] = [];
   for (const mode of UNIFIED_CHILD_MODES) {
-    if (!sites[mode]) continue;
+    if (!options?.includeDisabled && !sites[mode]) continue;
     const profile = toRaw(state.profiles[mode]) || createEmptySiteProfile(mode);
     const account = toRaw(profile.account) || {
       username: null,

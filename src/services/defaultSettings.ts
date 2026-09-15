@@ -35,7 +35,7 @@ export const fullscreenSlideshowShortcut: Shortcut = {
 };
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 27,
+  configVersion: 28,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -130,10 +130,13 @@ export const defaultSettings: ISettingsServiceState = {
     username: null,
     userId: null,
   },
+  savedPosts: {
+    entries: [],
+  },
   posts: {
-    buttons: ["info", "fullscreen", "external", "favorite", "save_local"],
-    fullscreenButtons: ["external", "info", "favorite", "save_local"],
-    detailsButtons: ["external", "favorite", "save_local"],
+    buttons: ["info", "fullscreen", "external", "favorite", "bookmark", "save_local"],
+    fullscreenButtons: ["external", "info", "favorite", "bookmark", "save_local"],
+    detailsButtons: ["external", "favorite", "bookmark", "save_local"],
     fullscreenZoomUiMode: FullscreenZoomUiMode.hideWhileZoomed,
     postListFetchLimit: 30,
     sidebarSuggestionLimit: 40,

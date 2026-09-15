@@ -194,6 +194,7 @@ export const usePostsStore = defineStore("posts", () => {
     "fullscreen",
     "external",
     "favorite",
+    "bookmark",
     "save_local",
   ]);
 

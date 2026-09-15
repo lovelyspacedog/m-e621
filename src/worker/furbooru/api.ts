@@ -382,6 +382,20 @@ export async function searchImages(args: FurbooruSearchArgs): Promise<{ posts: P
   };
 }
 
+export async function getImage(args: {
+  id: number;
+  apiKey?: string | null;
+}): Promise<Post | null> {
+  // Proxy only exposes search `/images`, not GET `/images/:id`.
+  const result = await searchImages({
+    query: `id:${args.id}`,
+    page: 1,
+    limit: 1,
+    apiKey: args.apiKey,
+  });
+  return result.posts.find((p) => p.id === args.id) || result.posts[0] || null;
+}
+
 export interface FurbooruTagsArgs {
   query?: string;
   limit?: number;

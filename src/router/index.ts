@@ -199,6 +199,12 @@ const router = createRouter({
         import(/* webpackChunkName: "favorites" */ "@/Favorites/FavoritesPage.vue"),
     },
     {
+      path: "/saved",
+      name: "SavedPosts",
+      component: () =>
+        import(/* webpackChunkName: "saved" */ "@/Post/SavedPostsPage.vue"),
+    },
+    {
       path: "/tailspace/posts",
       name: "TailspacePosts",
       component: () =>
@@ -256,6 +262,9 @@ router.beforeEach((to) => {
         String(to.name),
       )
     ) {
+      return { name: "Posts" };
+    }
+    if (to.name === "SavedPosts" && mode !== "unified") {
       return { name: "Posts" };
     }
   } catch {

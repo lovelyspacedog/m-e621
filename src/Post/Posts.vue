@@ -1,6 +1,6 @@
 <template>
   <v-container fluid grid-list-md>
-    <div v-if="hasPrevious" class="text-center">
+    <div v-if="showPagination && hasPrevious" class="text-center">
       <v-btn @click="loadPrevious" :loading="loading" color="accent" variant="text">
         previous page
       </v-btn>
@@ -22,7 +22,7 @@
       </template>
     </post-list>
     <app-logo v-if="loading" type="loader" />
-    <div class="text-center">
+    <div v-if="showPagination" class="text-center">
       <v-btn @click="loadNext" :loading="loading" color="accent" variant="text">
         next page
       </v-btn>
@@ -106,8 +106,6 @@ import { useSiteModeStore } from "@/services";
 import { shouldUseInkbunnyViewer } from "@/worker/inkbunny/api";
 import { useHead } from "@unhead/vue";
 
-useHead({ title: "Posts", });
-
 const emit = defineEmits(["load-next", "load-previous", "open-post", "open-post-details", "exit-fullscreen", "set-post-favorite", "set-post-vote", "close-details", "next-fullscreen-post", "previous-fullscreen-post", "restored", "remuxed"]);
 
 const props = defineProps({
@@ -121,7 +119,11 @@ const props = defineProps({
   resumeEnabled: { type: Boolean, default: false },
   restorePath: { type: String, default: undefined },
   restoreVideoTime: { type: Number, default: undefined },
+  showPagination: { type: Boolean, default: true },
+  pageTitle: { type: String, default: "Posts" },
 });
+
+useHead({ title: () => props.pageTitle });
 
 const siteMode = useSiteModeStore();
 const useInkbunnyViewer = computed(

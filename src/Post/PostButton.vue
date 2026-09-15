@@ -7,7 +7,7 @@
 <script lang="ts">
 import { openUrlInNewTab, postStandaloneUrl } from "@/misc/util/url";
 import { savePostLocally } from "@/misc/util/saveLocal";
-import { useSnackbarStore } from "@/services";
+import { useSavedPostsStore, useSnackbarStore } from "@/services";
 import type { ButtonType } from "@/services/types";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { PropType } from "vue";
@@ -35,6 +35,9 @@ export default defineComponent({
   setup(props, context) {
     const saving = ref(false);
     const snackbar = useSnackbarStore();
+    const savedPosts = useSavedPostsStore();
+
+    const bookmarked = computed(() => savedPosts.isSaved(props.post));
 
     const buttons = computed<{ [key in ButtonType]: IButton }>(() => ({
       info: {
@@ -84,6 +87,14 @@ export default defineComponent({
             favorited: !props.post.is_favorited,
             originMode: props.post.__meta?.originMode,
           } as Parameters<ReturnType<typeof usePostListManager>["setPostFavorite"]>["0"]);
+        },
+      },
+      bookmark: {
+        color: bookmarked.value ? "amber" : "",
+        icon: bookmarked.value ? "mdi-bookmark" : "mdi-bookmark-outline",
+        onClick: () => {
+          if (!props.post) return;
+          savedPosts.toggle(props.post);
         },
       },
       save_local: {

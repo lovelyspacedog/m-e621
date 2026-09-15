@@ -123,6 +123,18 @@ export const useTrailingNavigationItems = () => {
         : []),
     ];
     return [
+      ...(siteMode.isUnified
+        ? [
+            {
+              icon: "mdi-bookmark",
+              name: "Saved",
+              exact: true,
+              to: {
+                name: "SavedPosts",
+              },
+            },
+          ]
+        : []),
       ...(siteMode.isLocal || siteMode.isFurbooru || siteMode.isInkbunny || siteMode.isFurAffinity || siteMode.isUnified
         ? []
         : remoteItems),

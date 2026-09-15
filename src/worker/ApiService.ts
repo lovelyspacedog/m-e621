@@ -19,12 +19,13 @@ import type { InkbunnyMeta } from "./inkbunny/api";
 import * as furaffinity from "./furaffinity/api";
 import type { FaMeta } from "./furaffinity/api";
 import { isPostBlacklisted } from "./blacklist";
-import { BlacklistMode, type SiteMode } from "@/services/types";
+import { BlacklistMode, type SiteMode, type SavedPostEntry } from "@/services/types";
 import type { UnifiedChildMode } from "@/services/types";
 import { createTagQuery } from "@/misc/util/createTagQuery";
 import { debug } from "@/misc/util/debug";
 import {
   unifiedChildLabel,
+  type UnifiedChildFetchArgs,
   type UnifiedFetchArgs,
 } from "@/misc/util/postOrigin";
 
@@ -188,6 +189,198 @@ export class ApiService {
       throw new Error(warnings.join(" · "));
     }
     return warnings.length ? { posts, warnings } : { posts };
+  }
+
+  /**
+   * Live-fetch saved bookmarks by origin+id. Soft-fails per id;
+   * order follows `entries` (caller should pass savedAt-desc).
+   */
+  async getPostsByIds(args: {
+    entries: SavedPostEntry[];
+    children: UnifiedChildFetchArgs[];
+    sharedBlacklist?: string[][];
+  }): Promise<GetPostsResult> {
+    const childrenByMode = new Map(
+      args.children.map((c) => [c.mode, c] as const),
+    );
+    const shared = args.sharedBlacklist || [];
+    const warnings: string[] = [];
+    const byKey = new Map<string, EnhancedPost>();
+
+    const groups = new Map<UnifiedChildMode, number[]>();
+    for (const entry of args.entries) {
+      const list = groups.get(entry.originMode) || [];
+      list.push(entry.id);
+      groups.set(entry.originMode, list);
+    }
+
+    await Promise.all(
+      [...groups.entries()].map(async ([mode, ids]) => {
+        const child = childrenByMode.get(mode);
+        if (!child) {
+          warnings.push(
+            `${unifiedChildLabel(mode)}: site not available (enable in Account settings)`,
+          );
+          return;
+        }
+        try {
+          const fetched = await this.fetchPostsByIdsForChild(child, ids, shared);
+          for (const post of fetched) {
+            byKey.set(`${mode}:${post.id}`, post);
+          }
+        } catch (error: any) {
+          warnings.push(
+            `${unifiedChildLabel(mode)}: ${error?.message || String(error)}`,
+          );
+        }
+      }),
+    );
+
+    const posts: EnhancedPost[] = [];
+    const missing: string[] = [];
+    for (const entry of args.entries) {
+      const post = byKey.get(`${entry.originMode}:${entry.id}`);
+      if (post) posts.push(post);
+      else missing.push(`${unifiedChildLabel(entry.originMode)} #${entry.id}`);
+    }
+    if (missing.length && missing.length <= 5) {
+      warnings.push(`Could not load: ${missing.join(", ")}`);
+    } else if (missing.length > 5) {
+      warnings.push(`Could not load ${missing.length} saved posts`);
+    }
+    return warnings.length ? { posts, warnings } : { posts };
+  }
+
+  private async fetchPostsByIdsForChild(
+    child: UnifiedChildFetchArgs,
+    ids: number[],
+    sharedBlacklist: string[][],
+  ): Promise<EnhancedPost[]> {
+    const uniqueIds = [...new Set(ids)];
+    const stamp = (post: EnhancedPost): EnhancedPost => ({
+      ...post,
+      __meta: {
+        ...post.__meta,
+        originMode: child.mode,
+        originBaseUrl: child.baseUrl,
+        isBlacklisted:
+          post.__meta.isBlacklisted ||
+          isPostBlacklisted(post, sharedBlacklist),
+      },
+    });
+
+    if (child.mode === "inkbunny") {
+      const subs = await inkbunny.getSubmissions({
+        ids: uniqueIds,
+        sid: child.auth?.api_key ?? null,
+      });
+      return subs.map((sub) => {
+        const adapted = inkbunny.adaptDetails(sub, child.auth?.api_key ?? null);
+        return stamp({
+          ...adapted,
+          score: {
+            ...adapted.score,
+            down: Math.abs(adapted.score.down),
+          },
+          __meta: {
+            isBlacklisted: isPostBlacklisted(adapted, child.blacklist),
+            pageNumber: 1,
+            inkbunny: inkbunny.inkbunnyMetaFromHit(
+              sub,
+              child.auth?.api_key ?? null,
+              true,
+            ),
+          },
+        });
+      });
+    }
+
+    if (child.mode === "furaffinity") {
+      const results = await Promise.all(
+        uniqueIds.map(async (id) => {
+          try {
+            const sub = await furaffinity.getSubmission(
+              id,
+              child.auth?.api_key ?? null,
+            );
+            const adapted = furaffinity.adaptPartial(
+              sub,
+              child.auth?.api_key ?? null,
+            );
+            return stamp({
+              ...adapted,
+              score: {
+                ...adapted.score,
+                down: Math.abs(adapted.score.down),
+              },
+              __meta: {
+                isBlacklisted: isPostBlacklisted(adapted, child.blacklist),
+                pageNumber: 1,
+                furaffinity: furaffinity.faMetaFrom(sub, true),
+              },
+            });
+          } catch {
+            return null;
+          }
+        }),
+      );
+      return results.filter((p): p is EnhancedPost => !!p);
+    }
+
+    if (child.mode === "furbooru") {
+      const results = await Promise.all(
+        uniqueIds.map(async (id) => {
+          const post = await furbooru.getImage({
+            id,
+            apiKey: child.auth?.api_key ?? null,
+          });
+          if (!post) return null;
+          return stamp({
+            ...post,
+            score: {
+              ...post.score,
+              down: Math.abs(post.score.down),
+            },
+            __meta: {
+              isBlacklisted: isPostBlacklisted(post, child.blacklist),
+              pageNumber: 1,
+            },
+          });
+        }),
+      );
+      return results.filter((p): p is EnhancedPost => !!p);
+    }
+
+    // e621 / e6ai
+    const results = await Promise.all(
+      uniqueIds.map(async (id) => {
+        try {
+          const data = await e621.posts.list({
+            page: 1,
+            limit: 1,
+            tags: `id:${id}`,
+            auth: child.auth,
+            baseUrl: child.baseUrl,
+          });
+          const post = data.posts?.[0];
+          if (!post) return null;
+          return stamp({
+            ...post,
+            score: {
+              ...post.score,
+              down: Math.abs(post.score.down),
+            },
+            __meta: {
+              isBlacklisted: isPostBlacklisted(post, child.blacklist),
+              pageNumber: 1,
+            },
+          });
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return results.filter((p): p is EnhancedPost => !!p);
   }
 
   private async getPostsFromBackend(args: {

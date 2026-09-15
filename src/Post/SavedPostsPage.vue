@@ -1,0 +1,184 @@
+<template>
+  <div>
+    <portal to="toolbar">
+      <div class="saved-toolbar">
+        <div class="text-subtitle-1 font-weight-medium">Saved posts</div>
+        <v-spacer />
+        <v-btn
+          size="small"
+          variant="text"
+          :loading="loading"
+          :disabled="loading"
+          title="Refresh"
+          @click="reload"
+        >
+          <v-icon start>mdi-refresh</v-icon>
+          Refresh
+        </v-btn>
+      </div>
+    </portal>
+
+    <v-container v-if="!loading && !posts.length" class="text-center py-12">
+      <v-icon size="64" class="mb-4" color="medium-emphasis">mdi-bookmark-outline</v-icon>
+      <div class="text-h6 mb-2">No saved posts</div>
+      <div class="text-body-2 text-medium-emphasis mb-4">
+        Bookmark posts from the Unified feed to see them here.
+      </div>
+      <v-btn color="accent" variant="tonal" :to="{ name: 'Posts' }">Go to Posts</v-btn>
+    </v-container>
+
+    <posts
+      v-else
+      :posts="posts"
+      :loading="loading"
+      :fullscreen-post="fullscreenPost || undefined"
+      :details-post="detailsPost || undefined"
+      :has-previous="false"
+      :has-previous-fullscreen-post="hasPreviousFullscreenPost"
+      :has-next-fullscreen-post="hasNextFullscreenPost"
+      :show-pagination="false"
+      page-title="Saved posts"
+      @load-next="noop"
+      @load-previous="noop"
+      @open-post="openFullscreenPost"
+      @open-post-details="openPostDetails"
+      @exit-fullscreen="exitFullscreen"
+      @close-details="closeDetails"
+      @next-fullscreen-post="openNextFullscreenPost"
+      @previous-fullscreen-post="openPreviousFullscreenPost"
+      @set-post-favorite="setPostFavorite"
+      @set-post-vote="setPostVote"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import Posts from "@/Post/Posts.vue";
+import { usePostListManager } from "@/Post/postListManager";
+import { buildUnifiedFetchArgs } from "@/misc/util/postOrigin";
+import {
+  useMainStore,
+  useSavedPostsStore,
+  useSiteModeStore,
+  useSnackbarStore,
+} from "@/services";
+import { getApiService } from "@/worker/services";
+import { onMounted, toRaw, watch } from "vue";
+import { useRouter } from "vue-router";
+import { useHead } from "@unhead/vue";
+
+useHead({ title: "Saved posts" });
+
+const router = useRouter();
+const siteMode = useSiteModeStore();
+const savedPosts = useSavedPostsStore();
+const snackbar = useSnackbarStore();
+const main = useMainStore();
+
+const noop = () => {
+  /* Saved list is not paginated */
+};
+
+const {
+  visiblePosts: posts,
+  clearPosts,
+  replacePosts,
+  fullscreenPost,
+  detailsPost,
+  loading,
+  openPostDetails,
+  openFullscreenPost,
+  openNextFullscreenPost,
+  openPreviousFullscreenPost,
+  setPostFavorite,
+  setPostVote,
+  hasPreviousFullscreenPost,
+  hasNextFullscreenPost,
+} = usePostListManager({
+  getSavedPageNumber() {
+    return 0;
+  },
+  savePageNumber() {
+    /* no page query for saved */
+  },
+  async loadPosts() {
+    return [];
+  },
+});
+
+const exitFullscreen = () => {
+  fullscreenPost.value = null;
+};
+const closeDetails = () => {
+  detailsPost.value = null;
+};
+
+const reload = async () => {
+  if (!siteMode.isUnified) return;
+  clearPosts();
+  loading.value = true;
+  try {
+    const entries = toRaw(savedPosts.entries);
+    if (!entries.length) {
+      replacePosts([]);
+      return;
+    }
+    const service = await getApiService();
+    const unified = buildUnifiedFetchArgs(main.$state, { includeDisabled: true });
+    const result = await service.getPostsByIds(
+      toRaw({
+        entries,
+        children: unified.children,
+        sharedBlacklist: unified.sharedBlacklist,
+      }),
+    );
+    for (const warning of result.warnings || []) {
+      snackbar.addMessage(warning);
+    }
+    replacePosts(result.posts);
+  } catch (error: any) {
+    snackbar.addMessage(error?.message || String(error));
+    replacePosts([]);
+  } finally {
+    loading.value = false;
+  }
+};
+
+const ensureUnified = () => {
+  if (!siteMode.isUnified) {
+    router.replace({ name: "Posts" });
+    return false;
+  }
+  return true;
+};
+
+onMounted(() => {
+  if (!ensureUnified()) return;
+  reload();
+});
+
+watch(
+  () => siteMode.activeMode,
+  () => {
+    if (!ensureUnified()) return;
+  },
+);
+
+watch(
+  () => savedPosts.count,
+  () => {
+    if (!siteMode.isUnified) return;
+    void reload();
+  },
+);
+</script>
+
+<style scoped>
+.saved-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+</style>

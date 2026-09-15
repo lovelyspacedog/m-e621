@@ -405,6 +405,20 @@ export const usePostListManager = ({
     detailsPost.value = null;
     useUiStore().fullscreenOpen = false;
   };
+
+  /** Replace the in-memory list without page-window trimming (Saved posts). */
+  const replacePosts = (next: EnhancedPost[]) => {
+    generation.value += 1;
+    posts.value = next;
+    reachedEnd.value = true;
+    loading.value = false;
+    pendingFullscreenAdvance = null;
+    pendingFullscreenAdvanceOpts = null;
+    fullscreenPost.value = null;
+    detailsPost.value = null;
+    useUiStore().fullscreenOpen = false;
+  };
+
   const hasPrevious = computed(() => posts.value.length !== 0 && posts.value[0].__meta.pageNumber > 1);
 
   const hasValidPostBefore = (index: number) => {
@@ -453,6 +467,7 @@ export const usePostListManager = ({
     setPostFavorite,
     setPostVote,
     clearPosts,
+    replacePosts,
     hasPrevious,
     hasPreviousFullscreenPost,
     hasNextFullscreenPost,
