@@ -424,7 +424,7 @@ export function mapSearchTags(tags: string[]): MappedInkbunnySearch {
     const lower = tag.toLowerCase();
     if (lower.startsWith("order:")) {
       if (lower === "order:random") mapped.random = true;
-      else if (lower === "order:score" || lower === "order:favcount") mapped.orderby = "views";
+      else if (lower === "order:score") mapped.orderby = "views";
       else if (lower === "order:newest" || lower === "order:id_desc") mapped.orderby = "create_datetime";
       continue;
     }

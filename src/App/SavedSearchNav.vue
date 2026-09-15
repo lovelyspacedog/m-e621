@@ -19,157 +19,194 @@
       </template>
     </v-list-item>
 
-    <template v-for="group in savedSearches.groups" :key="group.id">
-      <v-list-item
-        class="saved-search-group"
-        @click="savedSearches.setGroupCollapsed(group.id, !group.collapsed)"
-      >
-        <template #prepend>
-          <v-icon size="small">
-            {{ group.collapsed ? "mdi-chevron-right" : "mdi-chevron-down" }}
-          </v-icon>
-        </template>
-        <v-list-item-title class="text-body-2 font-weight-medium">
-          {{ group.name }}
-        </v-list-item-title>
-        <template #append>
-          <span class="text-caption text-medium-emphasis mr-1">
-            {{ savedSearches.entriesInGroup(group.id).length }}
-          </span>
-          <v-menu location="bottom end">
-            <template #activator="{ props: menuProps }">
-              <v-btn
-                icon
-                size="x-small"
-                variant="text"
-                aria-label="Group actions"
-                v-bind="menuProps"
-                @click.prevent.stop
-              >
-                <v-icon size="small">mdi-dots-vertical</v-icon>
-              </v-btn>
-            </template>
-            <v-list density="compact">
-              <v-list-item @click="openAdd(group.id)">
-                <template #prepend>
-                  <v-icon>mdi-plus</v-icon>
-                </template>
-                <v-list-item-title>Add search here</v-list-item-title>
-              </v-list-item>
-              <v-list-item
-                v-if="group.id !== ungroupedId"
-                @click="promptRenameGroup(group.id, group.name)"
-              >
-                <template #prepend>
-                  <v-icon>mdi-pencil</v-icon>
-                </template>
-                <v-list-item-title>Rename group</v-list-item-title>
-              </v-list-item>
-              <v-list-item
-                v-if="group.id !== ungroupedId"
-                @click="savedSearches.deleteGroup(group.id)"
-              >
-                <template #prepend>
-                  <v-icon>mdi-delete</v-icon>
-                </template>
-                <v-list-item-title>Delete group</v-list-item-title>
-              </v-list-item>
-            </v-list>
-          </v-menu>
-        </template>
-      </v-list-item>
-
-      <div v-show="!group.collapsed" class="saved-search-group-body">
-        <draggable
-          :model-value="savedSearches.entriesInGroup(group.id)"
-          :item-key="entryKey"
-          handle=".drag-handle"
-          :animation="150"
-          @update:model-value="(next) => onGroupReorder(group.id, next)"
-        >
-          <template #item="{ element }">
-            <v-list-item :to="toSearch(element.tags)" exact density="compact">
-              <template #prepend>
-                <v-icon class="drag-handle" size="small" @click.prevent.stop>
+    <draggable
+      :model-value="savedSearches.groups"
+      item-key="id"
+      handle=".group-drag-handle"
+      :animation="150"
+      @update:model-value="onGroupsReorder"
+    >
+      <template #item="{ element: group }">
+        <div class="saved-search-group-block">
+          <v-list-item
+            class="saved-search-group"
+            @click="savedSearches.setGroupCollapsed(group.id, !group.collapsed)"
+          >
+            <template #prepend>
+              <div class="d-flex align-center ga-1">
+                <v-icon
+                  class="group-drag-handle"
+                  size="small"
+                  @click.prevent.stop
+                >
                   mdi-drag-vertical
                 </v-icon>
-              </template>
-              <v-list-item-title>{{ element.name }}</v-list-item-title>
-              <template #append>
-                <v-menu location="bottom end">
-                  <template #activator="{ props: menuProps }">
-                    <v-btn
-                      icon
-                      size="x-small"
-                      variant="text"
-                      aria-label="Saved search actions"
-                      v-bind="menuProps"
-                      @click.prevent.stop
-                    >
-                      <v-icon size="small">mdi-dots-vertical</v-icon>
-                    </v-btn>
+                <v-icon size="small">
+                  {{ group.collapsed ? "mdi-chevron-right" : "mdi-chevron-down" }}
+                </v-icon>
+              </div>
+            </template>
+            <v-list-item-title class="text-body-2 font-weight-medium">
+              {{ group.name }}
+            </v-list-item-title>
+            <template #append>
+              <span class="text-caption text-medium-emphasis mr-1">
+                {{ savedSearches.entriesInGroup(group.id).length }}
+              </span>
+              <v-menu location="bottom end">
+                <template #activator="{ props: menuProps }">
+                  <v-btn
+                    icon
+                    size="x-small"
+                    variant="text"
+                    aria-label="Group actions"
+                    v-bind="menuProps"
+                    @click.prevent.stop
+                  >
+                    <v-icon size="small">mdi-dots-vertical</v-icon>
+                  </v-btn>
+                </template>
+                <v-list density="compact">
+                  <v-list-item @click="openAdd(group.id)">
+                    <template #prepend>
+                      <v-icon>mdi-plus</v-icon>
+                    </template>
+                    <v-list-item-title>Add search here</v-list-item-title>
+                  </v-list-item>
+                  <v-list-item
+                    :disabled="!canMoveGroup(group.id, -1)"
+                    @click="savedSearches.moveGroup(group.id, -1)"
+                  >
+                    <template #prepend>
+                      <v-icon>mdi-arrow-up</v-icon>
+                    </template>
+                    <v-list-item-title>Move up</v-list-item-title>
+                  </v-list-item>
+                  <v-list-item
+                    :disabled="!canMoveGroup(group.id, 1)"
+                    @click="savedSearches.moveGroup(group.id, 1)"
+                  >
+                    <template #prepend>
+                      <v-icon>mdi-arrow-down</v-icon>
+                    </template>
+                    <v-list-item-title>Move down</v-list-item-title>
+                  </v-list-item>
+                  <v-list-item
+                    v-if="group.id !== ungroupedId"
+                    @click="promptRenameGroup(group.id, group.name)"
+                  >
+                    <template #prepend>
+                      <v-icon>mdi-pencil</v-icon>
+                    </template>
+                    <v-list-item-title>Rename group</v-list-item-title>
+                  </v-list-item>
+                  <v-list-item
+                    v-if="group.id !== ungroupedId"
+                    @click="savedSearches.deleteGroup(group.id)"
+                  >
+                    <template #prepend>
+                      <v-icon>mdi-delete</v-icon>
+                    </template>
+                    <v-list-item-title>Delete group</v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-menu>
+            </template>
+          </v-list-item>
+
+          <div v-show="!group.collapsed" class="saved-search-group-body">
+            <draggable
+              :model-value="savedSearches.entriesInGroup(group.id)"
+              :item-key="entryKey"
+              handle=".drag-handle"
+              :animation="150"
+              @update:model-value="(next) => onGroupReorder(group.id, next)"
+            >
+              <template #item="{ element }">
+                <v-list-item :to="toSearch(element.tags)" exact density="compact">
+                  <template #prepend>
+                    <v-icon class="drag-handle" size="small" @click.prevent.stop>
+                      mdi-drag-vertical
+                    </v-icon>
                   </template>
-                  <v-list density="compact">
-                    <v-list-item @click="openEdit(element.id)">
-                      <template #prepend>
-                        <v-icon>mdi-pencil</v-icon>
+                  <v-list-item-title>{{ element.name }}</v-list-item-title>
+                  <template #append>
+                    <v-menu location="bottom end">
+                      <template #activator="{ props: menuProps }">
+                        <v-btn
+                          icon
+                          size="x-small"
+                          variant="text"
+                          aria-label="Saved search actions"
+                          v-bind="menuProps"
+                          @click.prevent.stop
+                        >
+                          <v-icon size="small">mdi-dots-vertical</v-icon>
+                        </v-btn>
                       </template>
-                      <v-list-item-title>Edit</v-list-item-title>
-                    </v-list-item>
-                    <v-list-item
-                      :disabled="!canMoveInGroup(element.id, -1)"
-                      @click="savedSearches.moveEntryInGroup(element.id, -1)"
-                    >
-                      <template #prepend>
-                        <v-icon>mdi-arrow-up</v-icon>
-                      </template>
-                      <v-list-item-title>Move up</v-list-item-title>
-                    </v-list-item>
-                    <v-list-item
-                      :disabled="!canMoveInGroup(element.id, 1)"
-                      @click="savedSearches.moveEntryInGroup(element.id, 1)"
-                    >
-                      <template #prepend>
-                        <v-icon>mdi-arrow-down</v-icon>
-                      </template>
-                      <v-list-item-title>Move down</v-list-item-title>
-                    </v-list-item>
-                    <v-list-subheader v-if="savedSearches.groups.length > 1">
-                      Move to group
-                    </v-list-subheader>
-                    <v-list-item
-                      v-for="dest in savedSearches.groups"
-                      :key="dest.id"
-                      :disabled="dest.id === element.groupId"
-                      @click="savedSearches.moveEntryToGroup(element.id, dest.id)"
-                    >
-                      <template #prepend>
-                        <v-icon>mdi-folder-move-outline</v-icon>
-                      </template>
-                      <v-list-item-title>{{ dest.name }}</v-list-item-title>
-                    </v-list-item>
-                    <v-list-item @click="savedSearches.deleteEntryById(element.id)">
-                      <template #prepend>
-                        <v-icon>mdi-delete</v-icon>
-                      </template>
-                      <v-list-item-title>Remove</v-list-item-title>
-                    </v-list-item>
-                  </v-list>
-                </v-menu>
+                      <v-list density="compact">
+                        <v-list-item @click="openEdit(element.id)">
+                          <template #prepend>
+                            <v-icon>mdi-pencil</v-icon>
+                          </template>
+                          <v-list-item-title>Edit</v-list-item-title>
+                        </v-list-item>
+                        <v-list-item
+                          :disabled="!canMoveInGroup(element.id, -1)"
+                          @click="savedSearches.moveEntryInGroup(element.id, -1)"
+                        >
+                          <template #prepend>
+                            <v-icon>mdi-arrow-up</v-icon>
+                          </template>
+                          <v-list-item-title>Move up</v-list-item-title>
+                        </v-list-item>
+                        <v-list-item
+                          :disabled="!canMoveInGroup(element.id, 1)"
+                          @click="savedSearches.moveEntryInGroup(element.id, 1)"
+                        >
+                          <template #prepend>
+                            <v-icon>mdi-arrow-down</v-icon>
+                          </template>
+                          <v-list-item-title>Move down</v-list-item-title>
+                        </v-list-item>
+                        <v-list-subheader v-if="savedSearches.groups.length > 1">
+                          Move to group
+                        </v-list-subheader>
+                        <v-list-item
+                          v-for="dest in savedSearches.groups"
+                          :key="dest.id"
+                          :disabled="dest.id === element.groupId"
+                          @click="savedSearches.moveEntryToGroup(element.id, dest.id)"
+                        >
+                          <template #prepend>
+                            <v-icon>mdi-folder-move-outline</v-icon>
+                          </template>
+                          <v-list-item-title>{{ dest.name }}</v-list-item-title>
+                        </v-list-item>
+                        <v-list-item @click="savedSearches.deleteEntryById(element.id)">
+                          <template #prepend>
+                            <v-icon>mdi-delete</v-icon>
+                          </template>
+                          <v-list-item-title>Remove</v-list-item-title>
+                        </v-list-item>
+                      </v-list>
+                    </v-menu>
+                  </template>
+                </v-list-item>
               </template>
+            </draggable>
+            <v-list-item
+              v-if="savedSearches.entriesInGroup(group.id).length === 0"
+              density="compact"
+            >
+              <v-list-item-title class="text-medium-emphasis text-caption">
+                No searches in this group
+              </v-list-item-title>
             </v-list-item>
-          </template>
-        </draggable>
-        <v-list-item
-          v-if="savedSearches.entriesInGroup(group.id).length === 0"
-          density="compact"
-        >
-          <v-list-item-title class="text-medium-emphasis text-caption">
-            No searches in this group
-          </v-list-item-title>
-        </v-list-item>
-      </div>
-    </template>
+          </div>
+        </div>
+      </template>
+    </draggable>
 
     <v-list-item v-if="savedSearches.entries.length === 0">
       <v-list-item-title class="text-medium-emphasis">
@@ -222,6 +259,7 @@ import { parseSavedSearchTags, useSavedSearchStore } from "@/services";
 import {
   UNGROUPED_SAVED_SEARCH_GROUP_ID,
   type SavedSearchEntry,
+  type SavedSearchGroup,
 } from "@/services/types";
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
@@ -260,6 +298,15 @@ const toSearch = (tags: string[]) => ({
 
 const onGroupReorder = (groupId: string, next: SavedSearchEntry[]) => {
   savedSearches.replaceGroupEntries(groupId, next);
+};
+
+const onGroupsReorder = (next: SavedSearchGroup[]) => {
+  savedSearches.replaceGroups(next);
+};
+
+const canMoveGroup = (groupId: string, direction: -1 | 1) => {
+  const idx = savedSearches.groups.findIndex((g) => g.id === groupId);
+  return idx + direction >= 0 && idx + direction < savedSearches.groups.length;
 };
 
 const canMoveInGroup = (entryId: string, direction: -1 | 1) => {
@@ -316,10 +363,12 @@ const save = () => {
 </script>
 
 <style scoped>
-.drag-handle {
+.drag-handle,
+.group-drag-handle {
   cursor: grab;
 }
-.drag-handle:active {
+.drag-handle:active,
+.group-drag-handle:active {
   cursor: grabbing;
 }
 .saved-search-group {

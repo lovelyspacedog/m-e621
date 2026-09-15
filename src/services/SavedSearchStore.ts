@@ -225,6 +225,36 @@ export const useSavedSearchStore = defineStore("saved-search", () => {
     if (group) group.collapsed = collapsed;
   };
 
+  const replaceGroups = (next: SavedSearchGroup[]) => {
+    ensureShape();
+    const byId = new Map(main.searches.groups.map((g) => [g.id, g]));
+    const normalized: SavedSearchGroup[] = [];
+    for (let i = 0; i < next.length; i++) {
+      const src = byId.get(next[i].id);
+      if (!src) continue;
+      src.order = i;
+      normalized.push(src);
+      byId.delete(src.id);
+    }
+    // Keep any groups missing from `next` (shouldn't happen) at the end.
+    for (const leftover of byId.values()) {
+      leftover.order = normalized.length;
+      normalized.push(leftover);
+    }
+    main.searches.groups.splice(0, main.searches.groups.length, ...normalized);
+  };
+
+  const moveGroup = (groupId: string, direction: -1 | 1) => {
+    ensureShape();
+    const sorted = [...main.searches.groups].sort((a, b) => a.order - b.order);
+    const idx = sorted.findIndex((g) => g.id === groupId);
+    const swapWith = sorted[idx + direction];
+    if (idx < 0 || !swapWith) return;
+    const tmp = sorted[idx].order;
+    sorted[idx].order = swapWith.order;
+    swapWith.order = tmp;
+  };
+
   const moveEntryInGroup = (entryId: string, direction: -1 | 1) => {
     ensureShape();
     const entry = main.searches.entries.find((e) => e.id === entryId);
@@ -257,6 +287,8 @@ export const useSavedSearchStore = defineStore("saved-search", () => {
     renameGroup,
     deleteGroup,
     setGroupCollapsed,
+    replaceGroups,
+    moveGroup,
     moveEntryToGroup,
     UNGROUPED_SAVED_SEARCH_GROUP_ID,
   };

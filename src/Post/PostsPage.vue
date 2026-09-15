@@ -37,6 +37,7 @@
               :active="action.active"
               :disabled="action.disabled"
               :title="action.label"
+              :subtitle="action.disabled ? action.title : undefined"
               @click="action.run"
             >
               <template v-if="action.loading" #append>
@@ -177,6 +178,7 @@ import {
   buildTagQuery,
   tagQueryTruncationMessage,
 } from "../misc/util/createTagQuery";
+import { orderSupport, type UnifiedOrderKind } from "../misc/util/orderSupport";
 import {
   findLocalResumeTarget,
   getLocalPostsPage,
@@ -514,41 +516,34 @@ type ToolbarAction = {
 };
 
 const toolbarActions = computed((): ToolbarAction[] => {
-  const actions: ToolbarAction[] = [];
-  if (!siteMode.isLocal && !siteMode.isInkbunny) {
-    actions.push(
-      {
-        key: "score",
-        label: "Score",
-        active: activeOrder.value === "order:score",
-        run: () => applyOrder("order:score"),
-      },
-      {
-        key: "favs",
-        label: "Favs",
-        active: activeOrder.value === "order:favcount",
-        run: () => applyOrder("order:favcount"),
-      },
-    );
-  }
+  const unified = (
+    kind: UnifiedOrderKind,
+    orderTag: string,
+    label: string,
+  ): ToolbarAction => {
+    const support = orderSupport(siteMode.activeMode, kind);
+    return {
+      key: kind,
+      label,
+      active: support.supported && activeOrder.value === orderTag,
+      disabled: !support.supported,
+      title: support.reason,
+      run: support.supported ? () => applyOrder(orderTag) : () => {},
+    };
+  };
+
+  const actions: ToolbarAction[] = [
+    unified("score", "order:score", "Score"),
+    unified("favs", "order:favcount", "Favs"),
+    unified("random", "order:random", "Random"),
+  ];
   if (siteMode.isInkbunny) {
-    actions.push(
-      {
-        key: "views",
-        label: "Views",
-        title: "Inkbunny sorts by view count",
-        active:
-          activeOrder.value === "order:score" ||
-          activeOrder.value === "order:favcount",
-        run: () => applyOrder("order:score"),
-      },
-      {
-        key: "newest",
-        label: "Newest",
-        active: activeOrder.value === "order:newest",
-        run: () => applyOrder("order:newest"),
-      },
-    );
+    actions.push({
+      key: "newest",
+      label: "Newest",
+      active: activeOrder.value === "order:newest",
+      run: () => applyOrder("order:newest"),
+    });
   }
   if (siteMode.isLocal) {
     actions.push(
@@ -590,18 +585,12 @@ const toolbarActions = computed((): ToolbarAction[] => {
       },
       {
         key: "local-favs",
-        label: "Favs",
+        label: "Favorited",
         active: hasTypeTag("type:favorited"),
         run: () => toggleTypeTag("type:favorited"),
       },
     );
   }
-  actions.push({
-    key: "random",
-    label: "Random",
-    active: activeOrder.value === "order:random",
-    run: () => applyOrder("order:random"),
-  });
   if (!siteMode.isLocal) {
     actions.push(
       {

@@ -88,8 +88,17 @@ const furbooruSortTags = [
 const inkbunnySortTags = [
   { tag: null, name: "Default" },
   { tag: "order:newest", name: "Newest first" },
-  { tag: "order:score", name: "Views (most first)" },
+  { tag: "order:score", name: "Score (highest first)" },
   { tag: "order:random", name: "Random" },
+];
+
+const localSortTags = [
+  { tag: null, name: "Date (newest first) - Default" },
+  { tag: "order:random", name: "Random" },
+  { tag: "order:id", name: "Date (oldest first)" },
+  { tag: "order:name", name: "Name" },
+  { tag: "order:filesize", name: "Filesize (largest first)" },
+  { tag: "order:duration", name: "Duration (longest first)" },
 ];
 
 const e621RatingTags = [
@@ -121,7 +130,9 @@ const sortTagItems = computed(() => {
     ? furbooruSortTags
     : siteMode.isInkbunny
       ? inkbunnySortTags
-      : e621SortTags;
+      : siteMode.isLocal
+        ? localSortTags
+        : e621SortTags;
   return base.map((item) =>
     item.name.startsWith("Artist Tags")
       ? { ...item, name: item.name.replace("Artist", creatorLabel.value) }
