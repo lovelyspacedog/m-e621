@@ -83,17 +83,18 @@ export type GetPostsResult = {
   warnings?: string[];
 };
 
-const roundRobinTake = (groups: EnhancedPost[][], limit: number): EnhancedPost[] => {
-  const out: EnhancedPost[] = [];
-  const max = Math.max(0, ...groups.map((g) => g.length));
-  for (let i = 0; i < max && out.length < limit; i++) {
-    for (const group of groups) {
-      const post = group[i];
-      if (post) out.push(post);
-      if (out.length >= limit) break;
-    }
-  }
-  return out;
+const postCreatedAtMs = (post: EnhancedPost): number => {
+  const raw = post.created_at;
+  if (!raw) return 0;
+  const ms = Date.parse(typeof raw === "string" ? raw : String(raw));
+  return Number.isFinite(ms) ? ms : 0;
+};
+
+/** Merge federated pages newest-first by post time (not round-robin by site). */
+const mergeByCreatedAt = (groups: EnhancedPost[][], limit: number): EnhancedPost[] => {
+  const flat = groups.flat();
+  flat.sort((a, b) => postCreatedAtMs(b) - postCreatedAtMs(a) || b.id - a.id);
+  return flat.slice(0, limit);
 };
 
 const withRetry = async <T>(fn: () => Promise<T>): Promise<T> => {
@@ -175,7 +176,7 @@ export class ApiService {
         }
       }),
     );
-    const posts = roundRobinTake(groups, args.limit);
+    const posts = mergeByCreatedAt(groups, args.limit);
     if (!posts.length && warnings.length === children.length) {
       throw new Error(warnings.join(" · "));
     }
