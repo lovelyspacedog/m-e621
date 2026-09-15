@@ -1,7 +1,7 @@
 <template>
   <v-dialog dark :model-value="open" fullscreen :scrim="false" transition="dialog-bottom-transition" scrollable
     persistent>
-    <div class="fullscreen bg-grey-darken-4">
+    <div class="fullscreen bg-grey-darken-4" :class="{ 'fullscreen--comments': commentsVisible && supportsComments }">
       <div class="flex">
         <div v-show="!hideUi" class="float-left" v-ripple="hasPreviousFullscreenPost" @click="showPreviousImage">
           <v-icon size="50" v-if="hasPreviousFullscreenPost">
@@ -135,12 +135,38 @@
         >
           <v-icon size="36">{{ notesVisible ? "mdi-note-text" : "mdi-note-text-outline" }}</v-icon>
         </v-btn>
+        <v-btn
+          v-if="supportsComments"
+          icon
+          size="large"
+          color="white"
+          variant="text"
+          :title="commentsVisible ? 'Hide comments' : 'Show comments'"
+          @click="toggleComments"
+        >
+          <v-icon size="36">{{ commentsVisible ? "mdi-comment" : "mdi-comment-outline" }}</v-icon>
+        </v-btn>
       </div>
       <div class="bottom-right" v-show="!hideUi">
         <post-buttons v-if="current" :key="current.id" :buttons="buttons" :post="current"
           @open-post-details="$emit('open-post-details', $event)" @open-post-fullscreen="exitFullscreen()"
           @set-post-favorite="$emit('set-post-favorite', $event)" />
       </div>
+      <aside
+        v-if="commentsVisible && supportsComments && current"
+        class="fullscreen-comments"
+        @click.stop
+      >
+        <div class="fullscreen-comments-header text-subtitle-2">
+          Comments
+          <span v-if="current.comment_count" class="text-medium-emphasis">
+            ({{ current.comment_count }})
+          </span>
+        </div>
+        <div class="fullscreen-comments-body">
+          <post-comments-panel :post="current" />
+        </div>
+      </aside>
     </div>
   </v-dialog>
 </template>
@@ -151,10 +177,11 @@ import { useAppearanceStore, useBlacklistStore, useMainStore, usePostsStore, use
 import RufflePlayer from "./RufflePlayer.vue";
 import ZoomPanImage from "./ZoomPanImage.vue";
 import NotesOverlay from "./NotesOverlay.vue";
+import PostCommentsPanel from "./PostCommentsPanel.vue";
 import { useBlacklistClasses } from "../misc/util/blacklist";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
 import { isDocumentPost as postIsDocument } from "@/misc/util/documentPost";
-import { originAuthForPost, postFeedKey } from "@/misc/util/postOrigin";
+import { originAuthForPost, originModeOf, postFeedKey } from "@/misc/util/postOrigin";
 import {
   computed,
   nextTick,
@@ -165,6 +192,7 @@ import {
   ref,
   watch,
 } from "vue";
+import { useRoute } from "vue-router";
 import PostButtons from "@/Post/PostButtons.vue";
 import { useDirectionalTransitions } from "@/misc/util/directionalTransitions";
 import type { EnhancedPost } from "@/worker/ApiService";
@@ -218,6 +246,60 @@ const urlStore = useUrlStore();
 const main = useMainStore();
 const ui = useUiStore();
 const shortcutService = useShortcutService();
+const route = useRoute();
+
+const COMMENTS_POOL_KEY = "fullscreen-comments-pools";
+const COMMENTS_FEED_KEY = "fullscreen-comments-feed";
+const COMMENTS_RAIL_WIDTH = "360px";
+
+const readCommentsPref = (pools: boolean): boolean => {
+  try {
+    const raw = localStorage.getItem(pools ? COMMENTS_POOL_KEY : COMMENTS_FEED_KEY);
+    if (raw === null) return pools; // pools default on; feed default off
+    return raw === "1";
+  } catch {
+    return pools;
+  }
+};
+
+const writeCommentsPref = (pools: boolean, value: boolean) => {
+  try {
+    localStorage.setItem(
+      pools ? COMMENTS_POOL_KEY : COMMENTS_FEED_KEY,
+      value ? "1" : "0",
+    );
+  } catch {
+    /* ignore */
+  }
+};
+
+const isPoolsFullscreen = computed(() => route.name === "Pool");
+const commentsVisible = ref(readCommentsPref(route.name === "Pool"));
+
+const originMode = computed(() =>
+  originModeOf(props.current, siteMode.activeMode),
+);
+const supportsComments = computed(() => {
+  if (!props.current) return false;
+  if (siteMode.isLocal) return false;
+  if (originMode.value === "inkbunny") return false;
+  if (
+    originMode.value === "furaffinity" &&
+    props.current.__meta?.furaffinity?.kind === "journal"
+  ) {
+    return false;
+  }
+  return true;
+});
+
+const toggleComments = () => {
+  commentsVisible.value = !commentsVisible.value;
+  writeCommentsPref(isPoolsFullscreen.value, commentsVisible.value);
+};
+
+watch(isPoolsFullscreen, (pools) => {
+  commentsVisible.value = readCommentsPref(pools);
+});
 
 const lastFullscreenId = ref<number | null>();
 const isZoomed = ref(false);
@@ -791,6 +873,46 @@ useHead({
   left: 0;
   margin: 0;
   padding: 0;
+}
+
+.fullscreen--comments .flex {
+  padding-right: v-bind(COMMENTS_RAIL_WIDTH);
+}
+
+.fullscreen--comments .top-right,
+.fullscreen--comments .bottom-right {
+  right: v-bind(COMMENTS_RAIL_WIDTH);
+}
+
+.fullscreen--comments .float-right {
+  margin-right: 0;
+}
+
+.fullscreen-comments {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: v-bind(COMMENTS_RAIL_WIDTH);
+  z-index: 1010;
+  display: flex;
+  flex-direction: column;
+  background: rgba(18, 18, 22, 0.92);
+  backdrop-filter: blur(8px);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  pointer-events: auto;
+}
+
+.fullscreen-comments-header {
+  flex: 0 0 auto;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.fullscreen-comments-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 12px 16px 24px;
 }
 
 .fullscreen .flex {

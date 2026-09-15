@@ -42,51 +42,7 @@
           <v-tabs-window-item v-if="!isLocal && !isInkbunny && !isFaJournal" value="comments">
             <v-card text>
               <v-card-text>
-                <div v-if="!isFurbooru" class="mb-4">
-                  <v-textarea
-                    v-model="draftComment"
-                    label="Write a comment"
-                    variant="outlined"
-                    rows="3"
-                    auto-grow
-                    hide-details="auto"
-                    :disabled="postingComment"
-                  />
-                  <div class="d-flex justify-end mt-2">
-                    <v-btn
-                      color="accent"
-                      variant="flat"
-                      size="small"
-                      :loading="postingComment"
-                      :disabled="!draftComment.trim() || postingComment"
-                      @click="submitComment"
-                    >
-                      Post
-                    </v-btn>
-                  </div>
-                </div>
-                <div v-if="commentsLoading" class="text-center py-4">
-                  <v-progress-circular indeterminate color="accent" size="32" />
-                </div>
-                <div v-else-if="commentsError" class="text-medium-emphasis">
-                  {{ commentsError }}
-                </div>
-                <div v-else-if="!comments.length" class="text-medium-emphasis">
-                  No comments
-                </div>
-                <div v-else>
-                  <div
-                    v-for="comment in comments"
-                    :key="comment.id"
-                    class="mb-4"
-                  >
-                    <div class="text-caption mb-1">
-                      {{ comment.creator_name }}
-                      · score {{ comment.score }}
-                    </div>
-                    <d-text :text="comment.body" />
-                  </div>
-                </div>
+                <post-comments-panel v-if="current && tabs === 'comments'" :post="current" />
               </v-card-text>
             </v-card>
           </v-tabs-window-item>
@@ -153,16 +109,16 @@ import DText from "../Parser/DText.vue";
 import PostInfoList from "./PostInfoList.vue";
 import LinkShare from "./LinkShare.vue";
 import PostButtons from "@/Post/PostButtons.vue";
+import PostCommentsPanel from "@/Post/PostCommentsPanel.vue";
 import type { PropType} from "vue";
 import { computed, defineComponent, ref, watch } from "vue";
 import type { EnhancedPost } from "@/worker/ApiService";
-import type { Comment, Note } from "@/worker/api";
-import { useAccountStore, useMainStore, usePostsStore, useSiteModeStore, useSnackbarStore, useUrlStore } from "@/services";
+import type { Note } from "@/worker/api";
+import { useMainStore, usePostsStore, useSiteModeStore } from "@/services";
 import { originAuthForPost, originModeOf, unifiedChildLabel } from "@/misc/util/postOrigin";
 import { postStandaloneUrl } from "@/misc/util/url";
 import type { ITag } from "@/Tag/ITag";
 import { getApiService } from "@/worker/services";
-import { useRouter } from "vue-router";
 
 export default defineComponent({
   components: {
@@ -171,6 +127,7 @@ export default defineComponent({
     PostInfoList,
     LinkShare,
     PostButtons,
+    PostCommentsPanel,
   },
   props: {
     current: {
@@ -182,16 +139,11 @@ export default defineComponent({
   setup(props, context) {
     const posts = usePostsStore();
     const siteMode = useSiteModeStore();
-    const urlStore = useUrlStore();
-    const account = useAccountStore();
-    const snackbar = useSnackbarStore();
-    const router = useRouter();
     const main = useMainStore();
     const originMode = computed(() =>
       originModeOf(props.current, siteMode.activeMode),
     );
     const isLocal = computed(() => siteMode.isLocal);
-    const isFurbooru = computed(() => originMode.value === "furbooru");
     const isInkbunny = computed(() => originMode.value === "inkbunny");
     const isFaJournal = computed(
       () =>
@@ -209,16 +161,10 @@ export default defineComponent({
       return list;
     });
     const tabs = ref("overview");
-    const comments = ref<Comment[]>([]);
     const notes = ref<Note[]>([]);
-    const commentsLoading = ref(false);
     const notesLoading = ref(false);
-    const commentsError = ref<string | null>(null);
     const notesError = ref<string | null>(null);
-    const commentsLoadedFor = ref<number | null>(null);
     const notesLoadedFor = ref<number | null>(null);
-    const draftComment = ref("");
-    const postingComment = ref(false);
 
     const tags = computed(() => {
       const allTags: ITag[] = [];
@@ -248,38 +194,6 @@ export default defineComponent({
         }
       },
     });
-
-    const loadComments = async (postId: number) => {
-      if (commentsLoadedFor.value === postId) return;
-      commentsLoading.value = true;
-      commentsError.value = null;
-      try {
-        const service = await getApiService();
-        const origin = originAuthForPost(
-          props.current!,
-          main.$state,
-          siteMode.activeMode,
-        );
-        const result = await service.getComments({
-          postId,
-          baseUrl: origin.baseUrl,
-          mode: origin.mode,
-          auth: origin.auth,
-        });
-        // Ignore stale responses after the user switched posts (H6).
-        if (props.current?.id !== postId) return;
-        comments.value = result;
-        commentsLoadedFor.value = postId;
-      } catch (error: any) {
-        if (props.current?.id !== postId) return;
-        commentsError.value = error?.message || String(error);
-        comments.value = [];
-      } finally {
-        if (props.current?.id === postId) {
-          commentsLoading.value = false;
-        }
-      }
-    };
 
     const loadNotes = async (postId: number) => {
       if (notesLoadedFor.value === postId) return;
@@ -315,13 +229,9 @@ export default defineComponent({
       () => props.current?.id,
       () => {
         tabs.value = "overview";
-        comments.value = [];
         notes.value = [];
-        commentsLoadedFor.value = null;
         notesLoadedFor.value = null;
-        commentsError.value = null;
         notesError.value = null;
-        draftComment.value = "";
       },
     );
 
@@ -329,42 +239,9 @@ export default defineComponent({
       [tabs, () => props.current?.id],
       ([tab, postId]) => {
         if (!postId || isLocal.value || isInkbunny.value || isFaJournal.value) return;
-        if (tab === "comments") void loadComments(postId);
         if (tab === "notes") void loadNotes(postId);
       },
     );
-
-    const submitComment = async () => {
-      const post = props.current;
-      const body = draftComment.value.trim();
-      if (!post || !body || postingComment.value) return;
-      const origin = originAuthForPost(post, main.$state, siteMode.activeMode);
-      if (!origin.auth) {
-        snackbar.addMessage(`Not logged in to ${origin.mode}`);
-        router.push({ name: "AccountSettings" });
-        return;
-      }
-      postingComment.value = true;
-      try {
-        const service = await getApiService();
-        const created = await service.createComment({
-          postId: post.id,
-          body,
-          auth: origin.auth,
-          proxyUrl: urlStore.proxyUrl,
-          baseUrl: origin.baseUrl,
-          mode: origin.mode,
-        });
-        comments.value = [...comments.value, created];
-        post.comment_count = (post.comment_count || 0) + 1;
-        draftComment.value = "";
-        snackbar.addMessage("Comment posted");
-      } catch (error: any) {
-        snackbar.addMessage(error?.message || String(error));
-      } finally {
-        postingComment.value = false;
-      }
-    };
 
     const originPageUrl = computed(() =>
       props.current ? postStandaloneUrl(props.current) : "",
@@ -377,18 +254,11 @@ export default defineComponent({
       tags,
       dialog,
       isLocal,
-      isFurbooru,
       isInkbunny,
       isFaJournal,
-      comments,
       notes,
-      commentsLoading,
       notesLoading,
-      commentsError,
       notesError,
-      draftComment,
-      postingComment,
-      submitComment,
       originPageUrl,
       originLabel,
     };
