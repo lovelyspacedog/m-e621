@@ -1192,6 +1192,8 @@ export default defineConfig(({ mode }) => {
         workbox: {
           // Ruffle WASM files are large and loaded on-demand — exclude from precache
           globIgnores: ['ruffle/**'],
+          // Main bundle exceeds Workbox's 2 MiB default after multi-site growth
+          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         },
         manifest: {
           id: "/#/posts",
