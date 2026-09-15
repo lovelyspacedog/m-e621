@@ -19,6 +19,7 @@
       <v-icon size="40">{{ documentIcon }}</v-icon>
       <span class="document-label">{{ documentLabel }}</span>
     </div>
+    <p v-if="title" class="document-title">{{ title }}</p>
     <p v-if="!documentThumbSrc && documentExcerpt" class="document-excerpt">
       {{ documentExcerpt }}
     </p>
@@ -177,6 +178,10 @@ export default defineComponent({
       required: true,
     },
     description: {
+      type: String,
+      default: "",
+    },
+    title: {
       type: String,
       default: "",
     },
@@ -731,6 +736,24 @@ export default defineComponent({
 	 text-transform: uppercase;
 	 line-height: 1;
 }
+ .document-title {
+	 position: absolute;
+	 left: 1rem;
+	 right: 1rem;
+	 bottom: 1rem;
+	 z-index: 1;
+	 margin: 0;
+	 font-size: 0.9rem;
+	 font-weight: 600;
+	 line-height: 1.3;
+	 color: rgba(255, 255, 255, 0.92);
+	 text-align: center;
+	 display: -webkit-box;
+	 -webkit-line-clamp: 2;
+	 -webkit-box-orient: vertical;
+	 overflow: hidden;
+	 pointer-events: none;
+}
  .document-excerpt {
 	 position: absolute;
 	 left: 1rem;
@@ -746,6 +769,11 @@ export default defineComponent({
 	 -webkit-box-orient: vertical;
 	 overflow: hidden;
 	 pointer-events: none;
+}
+ /* Title takes the bottom slot; nudge excerpt above it when both show. */
+ .document-title + .document-excerpt {
+	 bottom: 3.5rem;
+	 -webkit-line-clamp: 2;
 }
  
 </style>

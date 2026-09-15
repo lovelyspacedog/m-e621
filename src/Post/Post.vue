@@ -25,6 +25,7 @@
         :sample="post.sample"
         :description="post.description || ''"
         :document-kind="documentKind"
+        :title="documentTitle"
         :unplayable="isUnplayable"
         :unavailable="isUnavailable"
         :local-path="post.__meta?.localPath || ''"
@@ -145,10 +146,18 @@ export default defineComponent({
       if (isUnavailable.value) return "";
       if (props.post.__meta?.furaffinity?.kind === "journal") return "journal";
       if (props.post.__meta?.inkbunny?.typeId === INKBUNNY_SUBMISSION_TYPE_WRITING) return "story";
+      if (props.post.__meta?.kind === "story") return "story";
       const ext = props.post.file?.ext || "";
       if (ext === "txt") return "story";
       return "";
     });
+    const documentTitle = computed(
+      () =>
+        props.post.__meta?.sofurry?.title ||
+        props.post.__meta?.furaffinity?.title ||
+        props.post.__meta?.inkbunny?.title ||
+        "",
+    );
     const compactCards = computed(() => posts.compactCards);
 
     const onCardActivate = (event: MouseEvent) => {
@@ -178,6 +187,7 @@ export default defineComponent({
       isUnplayable,
       isUnavailable,
       documentKind,
+      documentTitle,
       autoNext,
       showAutoNextProgress,
       compactCards,
