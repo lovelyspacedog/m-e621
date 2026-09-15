@@ -218,12 +218,14 @@ import { savePostsLocally, saveSearchLocally } from "../misc/util/saveLocal";
 import Suggestions from "./Suggestions.vue";
 import { useDisplay } from "vuetify";
 
-const { mdAndUp, mdAndDown } = useDisplay();
-const compactToolbarActions = computed(() => mdAndDown.value);
+const { mdAndDown } = useDisplay();
 
 const account = useAccountStore();
 const blacklist = useBlacklistStore();
 const postsStore = usePostsStore();
+const compactToolbarActions = computed(
+  () => postsStore.alwaysCollapseToolbar || mdAndDown.value,
+);
 const siteMode = useSiteModeStore();
 const snackbar = useSnackbarStore();
 const main = useMainStore();

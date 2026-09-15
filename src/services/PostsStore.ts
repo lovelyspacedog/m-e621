@@ -133,6 +133,14 @@ export const usePostsStore = defineStore("posts", () => {
       main.posts.compactCards = value;
     },
   });
+  const alwaysCollapseToolbar = computed({
+    get() {
+      return main.posts.alwaysCollapseToolbar;
+    },
+    set(value) {
+      main.posts.alwaysCollapseToolbar = value;
+    },
+  });
   const feedLayout = computed({
     get() {
       return main.posts.feedLayout;
@@ -215,6 +223,7 @@ export const usePostsStore = defineStore("posts", () => {
     cardAutoNext,
     cardAutoNextIntervalMs,
     compactCards,
+    alwaysCollapseToolbar,
     feedLayout,
     videoVolume,
     videoMuted,

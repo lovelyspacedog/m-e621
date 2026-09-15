@@ -151,7 +151,7 @@ export interface SiteProfile {
 // }
 
 export interface ISettingsServiceState {
-  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28;
+  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];
@@ -206,6 +206,8 @@ export interface ISettingsServiceState {
     cardAutoNext: boolean;
     cardAutoNextIntervalMs: number;
     compactCards: boolean;
+    /** Collapse posts toolbar actions into a ⋮ menu on all widths (not only mdAndDown). */
+    alwaysCollapseToolbar: boolean;
     videoVolume: number;
     videoMuted: boolean;
     videoPlaybackRate: number;

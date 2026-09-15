@@ -29,6 +29,10 @@
           description="Hide tags and buttons until you hover the card (tap to expand on touch). When off, chrome stays visible in list and grid.">
           <v-switch v-model="posts.compactCards" />
         </settings-page-item>
+        <settings-page-item title="Always collapse toolbar actions" switch
+          description="Put Score / Favs / Random (and other posts toolbar actions) behind a ⋮ menu on all screen sizes. When off, they only collapse on narrow screens.">
+          <v-switch v-model="posts.alwaysCollapseToolbar" />
+        </settings-page-item>
         <settings-page-item title="Video volume" select
           description="Remembered for feed cards and fullscreen. Default muted helps autoplay.">
           <v-switch v-model="posts.videoMuted" label="Muted" class="mb-2" />

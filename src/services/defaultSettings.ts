@@ -35,7 +35,7 @@ export const fullscreenSlideshowShortcut: Shortcut = {
 };
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 28,
+  configVersion: 29,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -151,6 +151,7 @@ export const defaultSettings: ISettingsServiceState = {
     cardAutoNext: false,
     cardAutoNextIntervalMs: 15000,
     compactCards: false,
+    alwaysCollapseToolbar: false,
     videoVolume: 1,
     videoMuted: true,
     videoPlaybackRate: 1,

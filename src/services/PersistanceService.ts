@@ -514,6 +514,10 @@ class PersistanceService {
       ensureBookmark(newState.posts.detailsButtons);
       newState.configVersion = 28;
     }
+    if (newState.configVersion < 29) {
+      newState.posts.alwaysCollapseToolbar = false;
+      newState.configVersion = 29;
+    }
 
     // Ensure profiles exist even if a partial export skipped them.
     if (!newState.profiles) {
@@ -610,6 +614,9 @@ class PersistanceService {
     }
     if (newState.posts.compactCards === undefined) {
       newState.posts.compactCards = false;
+    }
+    if (newState.posts.alwaysCollapseToolbar === undefined) {
+      newState.posts.alwaysCollapseToolbar = false;
     }
     if (newState.posts.feedLayout !== "list" && newState.posts.feedLayout !== "grid") {
       newState.posts.feedLayout = "list";
