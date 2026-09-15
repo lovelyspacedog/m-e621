@@ -151,7 +151,12 @@
           </div>
         </aside>
       </div>
-      <div class="top-right" v-ripple @click.stop="exitFullscreen">
+      <div
+        class="top-right"
+        :style="commentsChromeOffset"
+        v-ripple
+        @click.stop="exitFullscreen"
+      >
         <v-icon size="40" class="ml-2 mt-2">mdi-close</v-icon>
       </div>
       <div class="bottom-left" v-show="!hideUi && !isDocumentPost && !isUnavailablePost">
@@ -180,7 +185,7 @@
           <v-icon size="36">{{ commentsVisible ? "mdi-comment" : "mdi-comment-outline" }}</v-icon>
         </v-btn>
       </div>
-      <div class="bottom-right" v-show="!hideUi">
+      <div class="bottom-right" v-show="!hideUi" :style="commentsChromeOffset">
         <post-buttons v-if="current" :key="current.id" :buttons="buttons" :post="current"
           @open-post-details="$emit('open-post-details', $event)" @open-post-fullscreen="exitFullscreen()"
           @set-post-favorite="$emit('set-post-favorite', $event)" />
@@ -324,12 +329,6 @@ const writeCommentsPref = (pools: boolean, value: boolean) => {
 const isPoolsFullscreen = computed(() => route.name === "Pool");
 const commentsVisible = ref(readCommentsPref(route.name === "Pool"));
 const commentsWidthPx = ref(readCommentsWidth());
-/** Used by CSS v-bind so chrome clears the rail. */
-const commentsRailCss = computed(() =>
-  commentsVisible.value && supportsComments.value
-    ? `${commentsWidthPx.value}px`
-    : "0px",
-);
 
 const originMode = computed(() =>
   originModeOf(props.current, siteMode.activeMode),
@@ -347,6 +346,12 @@ const supportsComments = computed(() => {
   return true;
 });
 
+/** Shift fixed chrome left of the comments rail (inline wins over CSS). */
+const commentsChromeOffset = computed(() =>
+  commentsVisible.value && supportsComments.value
+    ? { right: `${commentsWidthPx.value}px` }
+    : undefined,
+);
 const toggleComments = () => {
   commentsVisible.value = !commentsVisible.value;
   writeCommentsPref(isPoolsFullscreen.value, commentsVisible.value);
@@ -961,7 +966,7 @@ useHead({
 
 .fullscreen--comments .top-right,
 .fullscreen--comments .bottom-right {
-  right: v-bind(commentsRailCss);
+  z-index: 1012;
 }
 
 .fullscreen-comments {
