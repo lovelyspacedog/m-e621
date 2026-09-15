@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from 'node:url'
 import type { ServerResponse } from 'node:http'
-import { defineConfig, Plugin, loadEnv } from 'vite'
+import type { Plugin} from 'vite';
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import vuetify from 'vite-plugin-vuetify'

@@ -321,7 +321,7 @@ export function startViewTransition(callback?: () => Promise<void>): ViewTransit
       viewTransition.ready =
       viewTransition.finished =
       callbackPromise
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
+     
     viewTransition.skipTransition = () => { }
     // Unsupported browsers (Firefox etc.): silent fallback (L8).
   }
