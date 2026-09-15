@@ -228,7 +228,15 @@ function fileLooksDisplayable(mimetype?: string, fileName?: string): boolean {
   if (/\.(jpe?g|png|gif|webp|bmp|swf|mp4|webm|mov|mkv|wav|mp3|ogg|flac)$/i.test(name)) {
     return true;
   }
-  if (mime.startsWith("text/") || name.endsWith(".txt") || name.endsWith(".rtf")) return false;
+  if (
+    mime.startsWith("text/") ||
+    name.endsWith(".txt") ||
+    name.endsWith(".rtf") ||
+    name.endsWith(".doc") ||
+    name.endsWith(".docx")
+  ) {
+    return false;
+  }
   return false;
 }
 

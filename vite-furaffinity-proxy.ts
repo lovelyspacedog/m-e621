@@ -265,7 +265,13 @@ const parseSubmission = (html: string, id: number) => {
   })();
   const typeFromFile = (() => {
     const path = (absUrl(download || file) || "").split("?")[0].toLowerCase();
-    if (path.endsWith(".pdf") || path.endsWith(".txt") || path.endsWith(".doc") || path.endsWith(".rtf")) {
+    if (
+      path.endsWith(".pdf") ||
+      path.endsWith(".txt") ||
+      path.endsWith(".doc") ||
+      path.endsWith(".docx") ||
+      path.endsWith(".rtf")
+    ) {
       return "story";
     }
     if (/\.(mp3|wav|flac|ogg)$/.test(path)) return "music";

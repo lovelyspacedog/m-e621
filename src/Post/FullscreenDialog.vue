@@ -219,6 +219,7 @@ import PostCommentsPanel from "./PostCommentsPanel.vue";
 import { useBlacklistClasses } from "../misc/util/blacklist";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
 import { isDocumentPost as postIsDocument } from "@/misc/util/documentPost";
+import { docxToText, isDocx } from "@/misc/util/docxToText";
 import { isRtf, rtfToText } from "@/misc/util/rtfToText";
 import { openPostOnSourceSite } from "@/misc/util/url";
 import { originAuthForPost, originModeOf, postFeedKey } from "@/misc/util/postOrigin";
@@ -543,7 +544,7 @@ const loadDocumentContent = async (post: EnhancedPost) => {
     return;
   }
 
-  // Legacy .doc (OLE) isn't readable as text; RTF is handled below.
+  // Legacy .doc (OLE) isn't readable as text; RTF/DOCX handled below.
   if (ext === "doc") {
     documentBody.value = post.description || "";
     documentLoadError.value =
@@ -567,12 +568,42 @@ const loadDocumentContent = async (post: EnhancedPost) => {
       documentBody.value = post.description || "";
       return;
     }
+
+    const isDocxType =
+      ext === "docx" ||
+      contentType.includes("wordprocessingml") ||
+      contentType.includes("application/vnd.openxmlformats-officedocument");
+
+    if (isDocxType) {
+      const buf = await res.arrayBuffer();
+      if (token !== documentLoadToken) return;
+      if (!isDocx(buf)) {
+        documentBody.value = post.description || "";
+        documentLoadError.value =
+          "Couldn't read this Word file — use Download or open externally.";
+        return;
+      }
+      documentBody.value = await docxToText(buf);
+      return;
+    }
+
     let text = (await res.text()).replace(/^\uFEFF/, "");
     if (token !== documentLoadToken) return;
     if (ext === "rtf" || contentType.includes("rtf") || isRtf(text)) {
       text = rtfToText(text);
     }
     if (looksLikeBinaryGarbage(text)) {
+      // Mislabelled DOCX sometimes arrives as octet-stream / wrong ext.
+      const retry = await fetch(fetchUrl);
+      if (token !== documentLoadToken) return;
+      if (retry.ok) {
+        const buf = await retry.arrayBuffer();
+        if (token !== documentLoadToken) return;
+        if (isDocx(buf)) {
+          documentBody.value = await docxToText(buf);
+          return;
+        }
+      }
       documentBody.value = post.description || "";
       documentLoadError.value =
         "Couldn't read this file as text — use Download or open externally.";

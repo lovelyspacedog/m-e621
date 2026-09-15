@@ -3,7 +3,7 @@
  * in slideshow or feed card auto-next (readers need to scroll manually).
  */
 
-const DOCUMENT_EXTS = new Set(["txt", "pdf", "html", "doc", "rtf"]);
+const DOCUMENT_EXTS = new Set(["txt", "pdf", "html", "doc", "docx", "rtf"]);
 
 type DocumentLikePost = {
   file?: { ext?: string; url?: string | null } | null;
@@ -24,7 +24,7 @@ function urlExt(url?: string | null): string {
   }
 }
 
-/** True for txt/pdf/html/doc/rtf, FA journals, story/poetry types, and __meta.kind documents. */
+/** True for txt/pdf/html/doc/docx/rtf, FA journals, story/poetry types, and __meta.kind documents. */
 export function isDocumentPost(post: DocumentLikePost | null | undefined): boolean {
   if (!post) return false;
   const ext = post.file?.ext || "";

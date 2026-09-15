@@ -230,8 +230,8 @@ export default defineComponent({
       const ext = props.file.ext;
       const fromUrl = fileUrlExt.value;
       return (
-        ["txt", "pdf", "html", "doc", "rtf"].includes(ext) ||
-        ["txt", "pdf", "html", "doc", "rtf"].includes(fromUrl) ||
+        ["txt", "pdf", "html", "doc", "docx", "rtf"].includes(ext) ||
+        ["txt", "pdf", "html", "doc", "docx", "rtf"].includes(fromUrl) ||
         props.documentKind === "journal" ||
         props.documentKind === "story"
       );

@@ -41,6 +41,7 @@
     "hammerjs": "^2.0.8",
     "localforage": "^1.10.0",
     "lodash": "^4.17.21",
+    "mammoth": "^1.12.3",
     "mousetrap": "^1.6.5",
     "pinia": "^3.0.1",
     "portal-vue": "^3.0.0",

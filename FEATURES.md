@@ -27,7 +27,7 @@ Personal fork priorities. Prefer “works for me” over general polish. Check i
 - [x] Sidecar tags / more formats (audio, archives) if that library use case matters
   - [x] **Save Locally → `.me621-tags.json`** — folder saves merge post tags into the sidecar (+ localforage) for Local search
   - [x] **Local audio** — index `flac/mp3/m4a/ogg/opus/wav` as `type:audio`; card + fullscreen players; toolbar Audio filter
-  - [x] **RTF story preview** — fullscreen fetches `.rtf`, strips markup to plain text (same reader as `.txt`); `.doc` still blocked
+  - [x] **RTF / DOCX story preview** — fullscreen fetches `.rtf` / `.docx` (mammoth) to plain text; legacy `.doc` still blocked
   - [ ] Archives in the Local index (zip/rar still skipped)
 
 ## Unified feed
@@ -179,3 +179,9 @@ Personal fork priorities. Prefer “works for me” over general polish. Check i
 - Fullscreen document loader fetches `.rtf` (and rtf-magic / `content-type: rtf`) via existing proxy path.
 - `rtfToText` strips control words / destination groups to plain text for the story `<pre>` reader.
 - `.doc` remains blocked with the previous unsupported-format message.
+
+### 2026-09-15 — DOCX story preview
+
+- `docxToText` + mammoth (`extractRawText`) for fullscreen `.docx` / OOXML content-types.
+- Document classification includes `docx` (cards + FA scrape `typeFromFile`); legacy `.doc` still blocked.
+- Mislabelled binary payloads re-fetched and sniffed via ZIP/`word/` magic before giving up.
