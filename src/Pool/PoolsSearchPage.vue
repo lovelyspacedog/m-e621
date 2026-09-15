@@ -184,7 +184,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { onMounted, ref, toRaw, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useHead } from "@unhead/vue";
 import { debounce } from "lodash";
@@ -356,9 +356,9 @@ const fetchCovers = async (list: Pool[]) => {
       tags: [`id:${ids.join(",")}`],
       blacklist: [],
       blacklistMode: BlacklistMode.hide,
-      auth: account.auth,
-      baseUrl: urlStore.e621Url,
-      mode: siteMode.activeMode,
+      auth: toRaw(account.auth),
+      baseUrl: toRaw(urlStore.e621Url),
+      mode: toRaw(siteMode.activeMode),
     });
     const next = { ...covers.value };
     for (const post of posts) {
@@ -398,8 +398,8 @@ const hydratePools = async (ids: number[]): Promise<Pool[]> => {
     try {
       return await service.getPool({
         id,
-        baseUrl: urlStore.e621Url,
-        mode: siteMode.activeMode,
+        baseUrl: toRaw(urlStore.e621Url),
+        mode: toRaw(siteMode.activeMode),
       });
     } catch {
       return null;
@@ -419,8 +419,8 @@ const fetchPoolsByName = async (pageNumber: number, append: boolean) => {
       page: pageNumber,
       order: order.value,
       category: category.value === "all" ? undefined : category.value,
-      baseUrl: urlStore.e621Url,
-      mode: siteMode.activeMode,
+      baseUrl: toRaw(urlStore.e621Url),
+      mode: toRaw(siteMode.activeMode),
     } as const;
 
     let list: Pool[];
@@ -498,12 +498,12 @@ const fetchPoolsByTags = async (reset: boolean) => {
       const { posts } = await service.getPosts({
         page: postsPage,
         limit: postPageSize,
-        tags: [...tags.value, "pool:>0"],
-        blacklist: blacklist.tags,
-        blacklistMode: blacklist.mode,
-        auth: account.auth,
-        baseUrl: urlStore.e621Url,
-        mode: siteMode.activeMode,
+        tags: [...toRaw(tags.value), "pool:>0"],
+        blacklist: toRaw(blacklist.tags),
+        blacklistMode: toRaw(blacklist.mode),
+        auth: toRaw(account.auth),
+        baseUrl: toRaw(urlStore.e621Url),
+        mode: toRaw(siteMode.activeMode),
       });
       if (!posts.length) {
         postsExhausted = true;

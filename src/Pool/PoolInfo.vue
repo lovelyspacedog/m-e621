@@ -2,19 +2,13 @@
   <v-fade-transition mode="out-in">
     <div v-if="pool" key="content">
       <v-card color="transparent" elevation="0" style="max-width: 50vw">
-        <v-card-title class="flex-column align-baseline">
-          <span style="line-height: initial">{{ displayName }}</span>
-          <small class="text-caption" style="line-height: initial">
+        <v-card-title class="pool-info-title">
+          <div class="pool-info-name">{{ displayName }}</div>
+          <div class="pool-info-meta text-caption">
             {{ pool.post_count }} Posts &bull; created by {{ pool.creator_name }}
             <span v-if="pool.category"> &bull; {{ pool.category }}</span>
-          </small>
-          <small
-            v-if="datesCaption"
-            class="text-caption text-medium-emphasis"
-            style="line-height: initial"
-          >
-            {{ datesCaption }}
-          </small>
+            <span v-if="datesCaption"> &bull; {{ datesCaption }}</span>
+          </div>
         </v-card-title>
         <v-card-text style="max-height: 20vh; overflow-y: auto">
           <DText :text="pool.description || 'No description'" />
@@ -150,3 +144,23 @@ export default defineComponent({
   components: { DText, AppLogo },
 });
 </script>
+
+<style scoped>
+.pool-info-title {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 4px;
+  white-space: normal;
+}
+.pool-info-name {
+  line-height: 1.25;
+  font-weight: 600;
+}
+.pool-info-meta {
+  line-height: 1.35;
+  opacity: 0.7;
+  font-weight: 400;
+  white-space: normal;
+}
+</style>
