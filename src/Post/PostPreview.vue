@@ -51,7 +51,7 @@
         @load="onPreviewLoad"
       />
       <div class="document-overlay" :class="{ 'document-overlay--plain': !documentThumbSrc }">
-        <v-icon size="72">{{ documentIcon }}</v-icon>
+        <v-icon size="56">{{ documentIcon }}</v-icon>
         <div class="document-label">{{ documentLabel }}</div>
         <p v-if="!documentThumbSrc && documentExcerpt" class="document-excerpt">
           {{ documentExcerpt }}
@@ -137,18 +137,39 @@ export default defineComponent({
     const naturalRatio = ref<number | null>(null);
     const isSwf = computed(() => props.file.ext === "swf");
     const isVideo = computed(() => VIDEO_EXTS.has(props.file.ext));
-    const isDocument = computed(() =>
-      ["txt", "pdf", "html", "doc", "rtf"].includes(props.file.ext),
-    );
+    const fileUrlExt = computed(() => {
+      const url = props.file.url || "";
+      try {
+        const path = new URL(url, "https://local.invalid").pathname.toLowerCase();
+        const ext = path.split(".").pop() || "";
+        return /^[a-z0-9]{1,5}$/.test(ext) ? ext : "";
+      } catch {
+        return "";
+      }
+    });
+    const isDocument = computed(() => {
+      const ext = props.file.ext;
+      const fromUrl = fileUrlExt.value;
+      return (
+        ["txt", "pdf", "html", "doc", "rtf"].includes(ext) ||
+        ["txt", "pdf", "html", "doc", "rtf"].includes(fromUrl) ||
+        props.documentKind === "journal" ||
+        props.documentKind === "story"
+      );
+    });
     const isImage = computed(() => !isSwf.value && !isVideo.value && !isDocument.value);
     const documentLabel = computed(() => {
       if (props.documentKind === "journal") return "Journal";
-      if (props.documentKind === "story" || props.file.ext === "txt") return "Story";
-      if (props.file.ext === "html") return "HTML";
-      return props.file.ext.toUpperCase();
+      const ext = props.file.ext === "pdf" || fileUrlExt.value === "pdf"
+        ? "pdf"
+        : props.file.ext || fileUrlExt.value;
+      if (ext === "pdf") return "PDF";
+      if (props.documentKind === "story" || ext === "txt") return "Story";
+      if (ext === "html") return "HTML";
+      return (ext || "DOC").toUpperCase();
     });
     const documentIcon = computed(() => {
-      if (props.file.ext === "pdf") return "mdi-file-pdf-box";
+      if (props.file.ext === "pdf" || fileUrlExt.value === "pdf") return "mdi-file-pdf-box";
       if (props.documentKind === "journal") return "mdi-notebook-outline";
       return "mdi-text-box-outline";
     });
@@ -167,12 +188,20 @@ export default defineComponent({
         : null,
     );
     const displayRatio = computed(() => {
-      if (naturalRatio.value && naturalRatio.value > 0) return naturalRatio.value;
-      if (isDocument.value && !documentThumbSrc.value) return 1.25;
-      const width = props.file.width;
-      const height = props.file.height;
-      if (width > 0 && height > 0) return height / width;
-      return 1;
+      // Documents need enough height for the overlay icon+label; landscape
+      // cover thumbs otherwise clip the badge at the card bottom.
+      const minDocRatio = 1;
+      let ratio = 1;
+      if (naturalRatio.value && naturalRatio.value > 0) {
+        ratio = naturalRatio.value;
+      } else {
+        const width = props.file.width;
+        const height = props.file.height;
+        if (width > 0 && height > 0) ratio = height / width;
+        else if (isDocument.value) ratio = 1.25;
+      }
+      if (isDocument.value) return Math.max(ratio, minDocRatio);
+      return ratio;
     });
     const onPreviewLoad = (event: Event) => {
       const img = event.target as HTMLImageElement | null;
@@ -410,8 +439,9 @@ export default defineComponent({
 	 flex-direction: column;
 	 align-items: center;
 	 justify-content: center;
-	 gap: 0.35rem;
-	 padding: 1rem;
+	 gap: 0.25rem;
+	 padding: 0.75rem;
+	 box-sizing: border-box;
 	 background: linear-gradient(
 		 180deg,
 		 rgba(8, 12, 20, 0.35) 0%,
@@ -428,10 +458,11 @@ export default defineComponent({
 	 );
 }
  .document-label {
-	 font-size: 0.95rem;
+	 font-size: 0.85rem;
 	 font-weight: 600;
 	 letter-spacing: 0.04em;
 	 text-transform: uppercase;
+	 line-height: 1.2;
 }
  .document-excerpt {
 	 max-width: 18rem;

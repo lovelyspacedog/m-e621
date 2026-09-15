@@ -15,9 +15,9 @@
           :class="blacklistClasses"
         >
           <iframe
-            v-if="isPdfPost && currentFileUrl"
+            v-if="showPdfFrame"
             class="document-frame"
-            :src="String(currentFileUrl)"
+            :src="pdfFrameUrl"
             title="PDF document"
           />
           <div v-else class="document-scroll">
@@ -25,9 +25,21 @@
               <div v-if="documentTitle" class="text-h5 mb-4">
                 {{ documentTitle }}
               </div>
-              <pre class="document-text">{{ current.description || "No text available for this post." }}</pre>
-              <div v-if="isPdfPost && !currentFileUrl" class="mt-4 text-medium-emphasis">
-                PDF file URL unavailable — showing post description instead.
+              <div
+                v-if="documentBlurb"
+                class="document-blurb mb-6 text-medium-emphasis"
+              >
+                {{ documentBlurb }}
+              </div>
+              <app-logo
+                v-if="documentLoading"
+                class="centered-in-container"
+                svg-margin-auto
+                type="loader"
+              />
+              <pre v-else class="document-text">{{ documentBodyText }}</pre>
+              <div v-if="documentLoadError" class="mt-4 text-error">
+                {{ documentLoadError }}
               </div>
             </div>
           </div>
@@ -217,18 +229,166 @@ const buttons = computed(() => {
 const isVideoExt = (ext?: string) => ext === "webm" || ext === "mp4";
 const isVideoPost = computed(() => isVideoExt(props.current?.file.ext));
 const DOCUMENT_EXTS = new Set(["txt", "pdf", "html", "doc", "rtf"]);
+const IMAGE_EXTS = new Set([
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "bmp",
+  "avif",
+]);
+
+const urlExt = (url?: string | null) => {
+  if (!url) return "";
+  try {
+    const path = new URL(url, "https://local.invalid").pathname.toLowerCase();
+    const ext = path.split(".").pop() || "";
+    return /^[a-z0-9]{1,5}$/.test(ext) ? ext : "";
+  } catch {
+    return "";
+  }
+};
+
 const isDocumentPost = computed(() => {
   const ext = props.current?.file.ext || "";
+  const fromUrl = urlExt(props.current?.file.url);
+  const faType = props.current?.__meta?.furaffinity?.faType || "";
   return (
     DOCUMENT_EXTS.has(ext) ||
-    props.current?.__meta?.furaffinity?.kind === "journal"
+    DOCUMENT_EXTS.has(fromUrl) ||
+    props.current?.__meta?.furaffinity?.kind === "journal" ||
+    /^(text|story|poetry)$/i.test(faType)
   );
 });
-const isPdfPost = computed(() => props.current?.file.ext === "pdf");
+
+/** True when the downloadable file is a PDF (ext or URL), not merely a story blurb. */
+const isPdfPost = computed(() => {
+  const ext = props.current?.file.ext || "";
+  if (ext === "pdf") return true;
+  return urlExt(props.current?.file.url) === "pdf";
+});
+
 const documentTitle = computed(
   () => props.current?.__meta?.furaffinity?.title || "",
 );
+
+const documentBody = ref("");
+const documentLoading = ref(false);
+const documentLoadError = ref("");
+/** Set when a "txt" URL turns out to be application/pdf after fetch. */
+const resolvedPdfUrl = ref("");
+let documentLoadToken = 0;
+
+const documentBlurb = computed(() => {
+  // Journals already put the full body in description — don't duplicate as a blurb.
+  if (props.current?.__meta?.furaffinity?.kind === "journal") return "";
+  const desc = (props.current?.description || "").trim();
+  if (!desc) return "";
+  // Only show the FA description box when we successfully loaded separate file content.
+  if (!documentBody.value || documentBody.value === desc) return "";
+  return desc;
+});
+
+const documentBodyText = computed(() => {
+  if (documentLoading.value) return "";
+  if (documentBody.value) return documentBody.value;
+  return (
+    props.current?.description ||
+    "No text available for this post."
+  );
+});
+
+const pdfFrameUrl = computed(() => {
+  if (resolvedPdfUrl.value) return resolvedPdfUrl.value;
+  if (!isPdfPost.value || switched.value) return "";
+  const url = props.current?.file.url;
+  if (!url) return "";
+  // Avoid embedding the preview thumbnail if enrich failed to attach a real file.
+  const preview = props.current?.preview?.url || "";
+  if (preview && url === preview) return "";
+  return proxyDownloadUrl(url) || "";
+});
+
+/** Show the PDF iframe when we know it's a PDF (ext/url) or content-type said so. */
+const showPdfFrame = computed(() => !!pdfFrameUrl.value);
+
 const open = computed(() => !!props.current);
+
+const looksLikeBinaryGarbage = (text: string) => {
+  if (!text) return true;
+  const sample = text.slice(0, 4000);
+  let weird = 0;
+  for (let i = 0; i < sample.length; i++) {
+    const code = sample.charCodeAt(i);
+    if (code === 0) return true;
+    if (code < 8 || (code >= 14 && code < 32 && code !== 27)) weird++;
+  }
+  return weird / sample.length > 0.05;
+};
+
+const loadDocumentContent = async (post: EnhancedPost) => {
+  const token = ++documentLoadToken;
+  documentBody.value = "";
+  documentLoadError.value = "";
+  documentLoading.value = false;
+  resolvedPdfUrl.value = "";
+
+  if (isPdfPost.value) return;
+
+  const isJournal = post.__meta?.furaffinity?.kind === "journal";
+  const url = post.file?.url || "";
+  const preview = post.preview?.url || "";
+  const ext = (post.file?.ext || urlExt(url)).toLowerCase();
+
+  // Journals already carry the full body in description after enrich.
+  if (isJournal || !url || url === preview || IMAGE_EXTS.has(ext)) {
+    documentBody.value = post.description || "";
+    return;
+  }
+
+  // Binary office formats aren't readable as plain text in-browser.
+  if (ext === "doc" || ext === "rtf") {
+    documentBody.value = post.description || "";
+    documentLoadError.value =
+      "This file format can't be previewed here — use Download or open externally.";
+    return;
+  }
+
+  documentLoading.value = true;
+  try {
+    const fetchUrl = proxyDownloadUrl(url) || url;
+    const res = await fetch(fetchUrl);
+    if (token !== documentLoadToken) return;
+    if (!res.ok) throw new Error(`Failed to load story file (${res.status})`);
+    const contentType = (res.headers.get("content-type") || "").toLowerCase();
+    if (contentType.includes("pdf")) {
+      resolvedPdfUrl.value = fetchUrl;
+      documentBody.value = "";
+      return;
+    }
+    if (contentType.startsWith("image/")) {
+      documentBody.value = post.description || "";
+      return;
+    }
+    const text = await res.text();
+    if (token !== documentLoadToken) return;
+    if (looksLikeBinaryGarbage(text)) {
+      documentBody.value = post.description || "";
+      documentLoadError.value =
+        "Couldn't read this file as text — use Download or open externally.";
+      return;
+    }
+    documentBody.value = text.replace(/^\uFEFF/, "");
+  } catch (err) {
+    if (token !== documentLoadToken) return;
+    documentBody.value = post.description || "";
+    documentLoadError.value =
+      err instanceof Error ? err.message : "Failed to load story file";
+  } finally {
+    if (token === documentLoadToken) documentLoading.value = false;
+  }
+};
 
 watch(
   open,
@@ -237,6 +397,11 @@ watch(
     if (!isOpen) {
       notes.value = [];
       notesLoadedFor.value = null;
+      documentLoadToken += 1;
+      documentBody.value = "";
+      documentLoadError.value = "";
+      documentLoading.value = false;
+      resolvedPdfUrl.value = "";
     }
   },
   { immediate: true },
@@ -495,7 +660,9 @@ const currentFileUrl = computed(() => {
   if (!url) return false;
   const ext = props.current?.file.ext;
   // Firefox/Zen: same-origin proxy for video + PDF under COEP.
-  if (isVideoExt(ext) || ext === "pdf") return proxyDownloadUrl(url);
+  if (isVideoExt(ext) || ext === "pdf" || urlExt(url) === "pdf") {
+    return proxyDownloadUrl(url);
+  }
   return url;
 });
 const currentSampleFileUrl = computed(() =>
@@ -515,11 +682,14 @@ watch(
       if (val) {
         await nextTick();
         loading.value = true;
-        if (
+        const isDoc =
           DOCUMENT_EXTS.has(val.file.ext) ||
-          val.__meta?.furaffinity?.kind === "journal"
-        ) {
+          DOCUMENT_EXTS.has(urlExt(val.file.url)) ||
+          val.__meta?.furaffinity?.kind === "journal" ||
+          /^(text|story|poetry)$/i.test(val.__meta?.furaffinity?.faType || "");
+        if (isDoc) {
           isZoomed.value = false;
+          await loadDocumentContent(val);
           loadEnd();
         } else if (slideshowPlaying.value && isVideoExt(val.file.ext)) {
           // Wait for video ended; ensure playback starts.
@@ -653,6 +823,14 @@ useHead({
   max-width: 48rem;
   margin: 0 auto;
   padding: 2rem 1.5rem 5rem;
+}
+
+.fullscreen .flex .document-blurb {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.45;
+  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  padding-left: 0.85rem;
 }
 
 .fullscreen .flex .document-text {

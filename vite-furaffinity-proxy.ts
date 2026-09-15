@@ -241,12 +241,37 @@ const parseSubmission = (html: string, id: number) => {
     />(General|Mature|Adult)</.exec(html)?.[1] ||
     "general";
   const tags = [...html.matchAll(/data-tag-name="([^"]+)"/g)].map((m) => m[1]);
-  const file =
-    [...html.matchAll(/href="([^"]+)"[^>]*>\s*Download/gi)][0]?.[1] ||
-    /id="submissionImg"[^>]*src="([^"]+)"/.exec(html)?.[1] ||
-    "";
+  const download =
+    [...html.matchAll(/href="([^"]+)"[^>]*>\s*Download/gi)][0]?.[1] || "";
+  const submissionImg =
+    /id="submissionImg"[^>]*src="([^"]+)"/.exec(html)?.[1] || "";
   const thumb =
-    /id="submissionImg"[^>]*(?:data-preview-src|src)="([^"]+)"/.exec(html)?.[1] || "";
+    /id="submissionImg"[^>]*(?:data-preview-src|src)="([^"]+)"/.exec(html)?.[1] ||
+    "";
+  // Prefer an explicit Download link. Falling back to the preview image makes
+  // stories/PDFs look like image posts and hides the real attachment.
+  const file = download || submissionImg;
+  const category =
+    /Classified:\s*<\/strong>\s*<span[^>]*>\s*<a[^>]*>\s*([^<]+)/i.exec(html)?.[1] ||
+    /">([^<]*(?:Story|Poetry|Music|Flash)[^<]*)<\/a>\s*<\/span>\s*<\/div>/i.exec(html)?.[1] ||
+    "";
+  const typeFromCategory = (() => {
+    const c = category.toLowerCase();
+    if (c.includes("story")) return "story";
+    if (c.includes("poetry")) return "poetry";
+    if (c.includes("music")) return "music";
+    if (c.includes("flash")) return "flash";
+    return "";
+  })();
+  const typeFromFile = (() => {
+    const path = (absUrl(download || file) || "").split("?")[0].toLowerCase();
+    if (path.endsWith(".pdf") || path.endsWith(".txt") || path.endsWith(".doc") || path.endsWith(".rtf")) {
+      return "story";
+    }
+    if (/\.(mp3|wav|flac|ogg)$/.test(path)) return "music";
+    if (path.endsWith(".swf")) return "flash";
+    return "";
+  })();
   const fav =
     /href="(\/fav\/[^"]+)"/.exec(html)?.[1] ||
     /href="(\/unfav\/[^"]+)"/.exec(html)?.[1] ||
@@ -281,7 +306,7 @@ const parseSubmission = (html: string, id: number) => {
     title: tidyText(decodeHtml(title)),
     author: { name: decodeHtml(author) },
     rating: rating.toLowerCase(),
-    type: "image",
+    type: typeFromCategory || typeFromFile || "image",
     thumbnail_url: absUrl(thumb),
     kind: "submission" as const,
     date: parseFaTimestamp(html),

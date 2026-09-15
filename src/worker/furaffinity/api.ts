@@ -229,10 +229,22 @@ export function adaptPartial(hit: FaPartial, cookies?: string | null): Post {
   }
   const kind = hit.kind === "journal" ? "journal" : "submission";
   const thumb = kind === "journal" ? null : proxyMediaUrl(hit.thumbnail_url, cookies);
-  const file = kind === "journal" ? null : proxyMediaUrl(hit.file_url || hit.thumbnail_url, cookies);
+  const storyType = /^(text|story|poetry)$/i.test(hit.type || "");
+  // Stories/PDFs: never fall back to the cover thumbnail as file.url — that
+  // turns a document post into an image and fullscreen only shows the blurb.
+  const file =
+    kind === "journal"
+      ? null
+      : proxyMediaUrl(
+          hit.file_url || (storyType ? null : hit.thumbnail_url),
+          cookies,
+        );
   const created = hit.date || dateFromFaUrl(hit.file_url || hit.thumbnail_url) || "";
   const views = num(hit.views);
-  const ext = kind === "journal" ? "txt" : extFromUrl(hit.file_url || hit.thumbnail_url, hit.type);
+  const ext =
+    kind === "journal"
+      ? "txt"
+      : extFromUrl(hit.file_url || (storyType ? "" : hit.thumbnail_url), hit.type);
   // Prefer scraped/native dims; never invent a square — that stretches cards.
   const isJournal = kind === "journal";
   const width = isJournal ? 400 : num(hit.width) || 0;
