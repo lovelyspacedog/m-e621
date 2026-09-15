@@ -772,7 +772,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header(
                 "Access-Control-Allow-Headers",
-                "Authorization, Content-Type, X-Pull-Token, X-Site-Base",
+                "Authorization, Content-Type, X-Pull-Token, X-Site-Base, Range",
             )
             self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
             self.end_headers()
@@ -795,6 +795,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if not url:
             self._json(400, {"ok": False, "message": "url not allowed"})
             return
+        range_header = self.headers.get("Range")
         # Follow redirects manually and re-check host each hop (M27).
         current = url
         for _ in range(5):
@@ -804,24 +805,39 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 f"m-e621-download-proxy/1.0 (https://{DOMAIN})",
             )
             req.add_header("Accept", "*/*")
+            if range_header:
+                req.add_header("Range", range_header)
             host = (urlparse(current).hostname or "").lower()
             if host in INKBUNNY_MEDIA_HOSTS or host.endswith(".metapix.net"):
                 req.add_header("Referer", "https://inkbunny.net")
             try:
-                with urllib.request.urlopen(req, timeout=60) as resp:
+                with urllib.request.urlopen(req, timeout=120) as resp:
                     final = resp.geturl() if hasattr(resp, "geturl") else current
                     if self._allowed_media_url(final) is None:
                         self._json(400, {"ok": False, "message": "redirect target not allowed"})
                         return
-                    payload = resp.read()
                     status = getattr(resp, "status", 200)
                     content_type = resp.headers.get("Content-Type", "application/octet-stream")
+                    content_length = resp.headers.get("Content-Length")
+                    content_range = resp.headers.get("Content-Range")
+                    accept_ranges = resp.headers.get("Accept-Ranges") or "bytes"
                     self.send_response(status)
                     self.send_header("Content-Type", content_type)
-                    self.send_header("Content-Length", str(len(payload)))
+                    if content_length:
+                        self.send_header("Content-Length", content_length)
+                    if content_range:
+                        self.send_header("Content-Range", content_range)
+                    self.send_header("Accept-Ranges", accept_ranges)
                     self.send_header("Access-Control-Allow-Origin", "*")
+                    # Allow embedding under COEP pages (Firefox media ORB).
+                    self.send_header("Cross-Origin-Resource-Policy", "cross-origin")
+                    self.send_header("Cache-Control", "private, max-age=3600")
                     self.end_headers()
-                    self.wfile.write(payload)
+                    while True:
+                        chunk = resp.read(64 * 1024)
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
                     return
             except urllib.error.HTTPError as exc:
                 if exc.code in (301, 302, 303, 307, 308):
@@ -835,6 +851,32 @@ class SpaHandler(SimpleHTTPRequestHandler):
                         return
                     current = nxt
                     continue
+                # Some stacks surface 206 via HTTPError; stream that body too.
+                if exc.code == 206:
+                    content_type = (
+                        exc.headers.get("Content-Type", "application/octet-stream")
+                        if exc.headers
+                        else "application/octet-stream"
+                    )
+                    content_length = exc.headers.get("Content-Length") if exc.headers else None
+                    content_range = exc.headers.get("Content-Range") if exc.headers else None
+                    self.send_response(206)
+                    self.send_header("Content-Type", content_type)
+                    if content_length:
+                        self.send_header("Content-Length", content_length)
+                    if content_range:
+                        self.send_header("Content-Range", content_range)
+                    self.send_header("Accept-Ranges", "bytes")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.send_header("Cross-Origin-Resource-Policy", "cross-origin")
+                    self.send_header("Cache-Control", "private, max-age=3600")
+                    self.end_headers()
+                    while True:
+                        chunk = exc.read(64 * 1024)
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+                    return
                 self._json(exc.code, {"ok": False, "message": str(exc.reason)})
                 return
             except Exception as exc:  # noqa: BLE001

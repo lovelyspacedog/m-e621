@@ -15,11 +15,11 @@
             <video v-else-if="isVideoPost && currentFileUrl"
               ref="videoEl"
               class="overflow flash bg-black position-relative" controls
+              :src="String(currentFileUrl)"
               :loop="!slideshowPlaying" autoplay playsinline preload="metadata"
               @ended="onVideoEnded"
               @volumechange="onFullscreenVolumeChange"
               @ratechange="onFullscreenRateChange">
-              <source v-if="current.file.url" :src="current.file.url" :type="videoType" />
               Video type not supported by your browser
             </video>
             <div v-else class="overflow">
@@ -98,6 +98,7 @@ import RufflePlayer from "./RufflePlayer.vue";
 import ZoomPanImage from "./ZoomPanImage.vue";
 import NotesOverlay from "./NotesOverlay.vue";
 import { useBlacklistClasses } from "../misc/util/blacklist";
+import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
 import {
   computed,
   nextTick,
@@ -175,9 +176,6 @@ const { classes: blacklistClasses } = useBlacklistClasses({
 const buttons = computed(() => siteMode.filterButtons(posts.fullscreenButtons));
 const isVideoExt = (ext?: string) => ext === "webm" || ext === "mp4";
 const isVideoPost = computed(() => isVideoExt(props.current?.file.ext));
-const videoType = computed(() =>
-  props.current?.file.ext === "mp4" ? "video/mp4" : "video/webm",
-);
 const open = computed(() => !!props.current);
 
 watch(
@@ -425,9 +423,14 @@ const scrollToPost = (postId: number) => {
 const switched = ref(false);
 const loading = ref(false);
 
-const currentFileUrl = computed(() =>
-  switched.value ? false : props.current?.file.url,
-);
+const currentFileUrl = computed(() => {
+  if (switched.value) return false;
+  const url = props.current?.file.url;
+  if (!url) return false;
+  // Firefox/Zen: play e621 CDN video same-origin (COEP + no CORS for our origin).
+  if (isVideoExt(props.current?.file.ext)) return proxyDownloadUrl(url);
+  return url;
+});
 const currentSampleFileUrl = computed(() =>
   switched.value ? false : props.current?.preview.url,
 );

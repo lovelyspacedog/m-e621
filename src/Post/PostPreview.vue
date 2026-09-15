@@ -7,13 +7,12 @@
       controls
       playsinline
       preload="metadata"
+      :src="playableUrl"
       :poster="preview.url || undefined"
       @click.stop
       @volumechange="onVolumeChange"
       @ratechange="onRateChange"
-    >
-      <source :src="playableUrl" :type="videoType" />
-    </video>
+    />
     <template v-else-if="unplayable">
       <img
         v-if="imageSrc"
@@ -63,6 +62,7 @@
 <script lang="ts">
 import { useDataSaverInfo } from "@/misc/util/dataSaver";
 import { remuxLocalPath } from "@/misc/util/localMedia";
+import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
 import { usePostsStore, useSnackbarStore } from "@/services";
 import { DataSaverType } from "@/services/types";
 import type { File, Preview, Sample } from "@/worker/api";
@@ -107,7 +107,9 @@ export default defineComponent({
     const isVideo = computed(() => VIDEO_EXTS.has(props.file.ext));
     const isImage = computed(() => !isSwf.value && !isVideo.value);
     const playableUrl = computed(() =>
-      !props.unplayable && isVideo.value && props.file.url ? props.file.url : null,
+      !props.unplayable && isVideo.value && props.file.url
+        ? proxyDownloadUrl(props.file.url)
+        : null,
     );
     let visibilityObserver: IntersectionObserver | null = null;
     let boundVideo: HTMLVideoElement | null = null;
@@ -153,9 +155,6 @@ export default defineComponent({
     });
 
     const canPlayInline = computed(() => !!playableUrl.value);
-    const videoType = computed(() =>
-      props.file.ext === "mp4" ? "video/mp4" : "video/webm",
-    );
     const router = useRouter();
 
     const handleClick = async () => {
@@ -257,7 +256,6 @@ export default defineComponent({
       canPlayInline,
       playableUrl,
       setVideoEl,
-      videoType,
       imageSrc,
       handleClick,
       loading,

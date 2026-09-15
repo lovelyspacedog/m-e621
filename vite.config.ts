@@ -41,12 +41,15 @@ function e621MediaProxy(): Plugin {
           res.end('host not allowed');
           return;
         }
+        const rangeHeader = typeof req.headers.range === 'string' ? req.headers.range : undefined;
         // Follow redirects manually; re-validate host each hop (M27).
         const fetchAllowed = async (url: URL, hops = 0): Promise<Response> => {
           if (hops > 5) throw new Error('too many redirects');
           const remote = await fetch(url.toString(), {
             headers: {
               'User-Agent': 'm-e621-download-proxy/1.0',
+              Accept: '*/*',
+              ...(rangeHeader ? { Range: rangeHeader } : {}),
               ...(isInkbunnyMediaHost(url.hostname.toLowerCase())
                 ? { Referer: 'https://inkbunny.net' }
                 : {}),
@@ -56,11 +59,11 @@ function e621MediaProxy(): Plugin {
           if ([301, 302, 303, 307, 308].includes(remote.status)) {
             const loc = remote.headers.get('location');
             if (!loc) throw new Error('redirect without Location');
-            const next = new URL(loc, url);
-            if (next.protocol !== 'https:' || !MEDIA_HOST_OK(next.hostname.toLowerCase())) {
+            const nextUrl = new URL(loc, url);
+            if (nextUrl.protocol !== 'https:' || !MEDIA_HOST_OK(nextUrl.hostname.toLowerCase())) {
               throw new Error('redirect target not allowed');
             }
-            return fetchAllowed(next, hops + 1);
+            return fetchAllowed(nextUrl, hops + 1);
           }
           return remote;
         };
@@ -71,11 +74,42 @@ function e621MediaProxy(): Plugin {
               'Content-Type',
               remote.headers.get('content-type') || 'application/octet-stream',
             );
-            res.end(Buffer.from(await remote.arrayBuffer()));
+            const contentLength = remote.headers.get('content-length');
+            if (contentLength) res.setHeader('Content-Length', contentLength);
+            const contentRange = remote.headers.get('content-range');
+            if (contentRange) res.setHeader('Content-Range', contentRange);
+            res.setHeader('Accept-Ranges', remote.headers.get('accept-ranges') || 'bytes');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+            res.setHeader('Cache-Control', 'private, max-age=3600');
+            if (!remote.body) {
+              res.end();
+              return;
+            }
+            const reader = remote.body.getReader();
+            const pump = async (): Promise<void> => {
+              const { done, value } = await reader.read();
+              if (done) {
+                res.end();
+                return;
+              }
+              if (value) {
+                const ok = res.write(Buffer.from(value));
+                if (!ok) {
+                  await new Promise<void>((resolve) => res.once('drain', resolve));
+                }
+              }
+              return pump();
+            };
+            await pump();
           })
           .catch((err) => {
-            res.statusCode = 502;
-            res.end(String(err));
+            if (!res.headersSent) {
+              res.statusCode = 502;
+              res.end(String(err));
+            } else {
+              res.destroy(err instanceof Error ? err : undefined);
+            }
           });
       });
     },
@@ -1194,6 +1228,7 @@ export default defineConfig(({ mode }) => {
           globIgnores: ['ruffle/**'],
           // Main bundle exceeds Workbox's 2 MiB default after multi-site growth
           maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+          navigateFallbackDenylist: [/^\/api\//],
         },
         manifest: {
           id: "/#/posts",
