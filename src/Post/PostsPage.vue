@@ -73,7 +73,7 @@
     </div>
     <posts :posts="posts" :loading="loading" :has-previous="hasPrevious" @load-previous="loadPreviousPage()"
       @load-next="loadNextPage()" @open-post="openFullscreenPost" :fullscreen-post="fullscreenPost || undefined"
-      @exit-fullscreen="fullscreenPost = null" @next-fullscreen-post="openNextFullscreenPost()"
+      @exit-fullscreen="fullscreenPost = null" @next-fullscreen-post="onNextFullscreenPost"
       @previous-fullscreen-post="openPreviousFullscreenPost()"
       :has-previous-fullscreen-post="hasPreviousFullscreenPost"
       :has-next-fullscreen-post="hasNextFullscreenPost"
@@ -191,7 +191,7 @@ import { useHistory } from "@/Post/historyManager";
 import { usePostListManager } from "@/Post/postListManager";
 import Posts from "@/Post/Posts.vue";
 import { useRouterTagManager } from "@/Post/routerTagManager";
-import { useAccountStore, useBlacklistStore, useMainStore, usePostsStore, useSiteModeStore, useSnackbarStore, useUrlStore } from "@/services";
+import { useAccountStore, useBlacklistStore, useMainStore, usePostsStore, useShortcutService, useSiteModeStore, useSnackbarStore, useUrlStore } from "@/services";
 import type { ITag } from "@/Tag/ITag";
 import { debounce, isEqual } from "lodash";
 import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from "vue";
@@ -333,6 +333,15 @@ const {
     return result.posts;
   },
 });
+
+const shortcutService = useShortcutService();
+const onNextFullscreenPost = async (opts?: { skipDocuments?: boolean }) => {
+  const moved = await openNextFullscreenPost(opts);
+  // Slideshow asked to skip stories/PDFs but nothing else remained.
+  if (opts?.skipDocuments && !moved) {
+    shortcutService.emitter.emit("fullscreenSlideshowStop");
+  }
+};
 
 const reloadLocal = () => {
   invalidateLocalMediaIndex();

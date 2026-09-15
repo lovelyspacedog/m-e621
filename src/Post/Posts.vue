@@ -31,7 +31,7 @@
       v-if="!useInkbunnyViewer"
       :has-previous-fullscreen-post="hasPreviousFullscreenPost"
       :has-next-fullscreen-post="hasNextFullscreenPost" :current="fullscreenPost || null"
-      @close="$emit('exit-fullscreen')" @next-post="$emit('next-fullscreen-post')"
+      @close="$emit('exit-fullscreen')" @next-post="$emit('next-fullscreen-post', $event)"
       @previous-post="$emit('previous-fullscreen-post')" @open-post-details="$emit('open-post-details', $event)"
       @set-post-favorite="$emit('set-post-favorite', $event)" />
     <inkbunny-submission-dialog
@@ -40,7 +40,7 @@
       :has-previous="hasPreviousFullscreenPost"
       :has-next="hasNextFullscreenPost"
       @close="$emit('exit-fullscreen')"
-      @next-post="$emit('next-fullscreen-post')"
+      @next-post="$emit('next-fullscreen-post', $event)"
       @previous-post="$emit('previous-fullscreen-post')"
     />
     <details-dialog :current="detailsPost" @close="$emit('close-details')"

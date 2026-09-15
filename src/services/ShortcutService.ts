@@ -15,6 +15,7 @@ export type Events = {
   fullscreenRemoveFavorite: void;
   fullscreenToggleFavorite: void;
   fullscreenSlideshowToggle: void;
+  fullscreenSlideshowStop: void;
 };
 
 class ShortcutService {

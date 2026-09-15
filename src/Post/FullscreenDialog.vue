@@ -140,6 +140,7 @@ import ZoomPanImage from "./ZoomPanImage.vue";
 import NotesOverlay from "./NotesOverlay.vue";
 import { useBlacklistClasses } from "../misc/util/blacklist";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
+import { isDocumentPost as postIsDocument } from "@/misc/util/documentPost";
 import { originAuthForPost, postFeedKey } from "@/misc/util/postOrigin";
 import {
   computed,
@@ -170,7 +171,13 @@ if (!fsListenerRegistered) {
   fsListenerRegistered = true;
 }
 
-const emit = defineEmits(["close", "next-post", "previous-post", "set-post-favorite", "open-post-details"]);
+const emit = defineEmits<{
+  close: [];
+  "next-post": [opts?: { skipDocuments?: boolean }];
+  "previous-post": [];
+  "set-post-favorite": [payload: unknown];
+  "open-post-details": [payload: unknown];
+}>();
 
 
 const props = defineProps({
@@ -228,7 +235,6 @@ const buttons = computed(() => {
 });
 const isVideoExt = (ext?: string) => ext === "webm" || ext === "mp4";
 const isVideoPost = computed(() => isVideoExt(props.current?.file.ext));
-const DOCUMENT_EXTS = new Set(["txt", "pdf", "html", "doc", "rtf"]);
 const IMAGE_EXTS = new Set([
   "jpg",
   "jpeg",
@@ -250,17 +256,7 @@ const urlExt = (url?: string | null) => {
   }
 };
 
-const isDocumentPost = computed(() => {
-  const ext = props.current?.file.ext || "";
-  const fromUrl = urlExt(props.current?.file.url);
-  const faType = props.current?.__meta?.furaffinity?.faType || "";
-  return (
-    DOCUMENT_EXTS.has(ext) ||
-    DOCUMENT_EXTS.has(fromUrl) ||
-    props.current?.__meta?.furaffinity?.kind === "journal" ||
-    /^(text|story|poetry)$/i.test(faType)
-  );
-});
+const isDocumentPost = computed(() => postIsDocument(props.current));
 
 /** True when the downloadable file is a PDF (ext or URL), not merely a story blurb. */
 const isPdfPost = computed(() => {
@@ -522,22 +518,31 @@ const stopSlideshow = () => {
 const scheduleSlideshowAdvance = () => {
   clearSlideshowTimer();
   if (!slideshowPlaying.value || !props.current || isZoomed.value) return;
+  if (isDocumentPost.value) {
+    // Stories/PDFs are skipped — jump to the next media post.
+    void advanceSlideshow();
+    return;
+  }
   if (isVideoExt(props.current.file.ext)) {
     // Video advances on @ended while slideshow is playing.
     return;
   }
-  if (isDocumentPost.value) {
-    // Don't auto-advance while reading text / PDF.
-    return;
-  }
   slideshowTimer.value = setTimeout(() => {
     if (!slideshowPlaying.value) return;
-    if (!props.hasNextFullscreenPost) {
-      stopSlideshow();
-      return;
-    }
-    showNextImage();
+    void advanceSlideshow();
   }, posts.slideshowIntervalMs);
+};
+
+const advanceSlideshow = () => {
+  if (!slideshowPlaying.value) return;
+  if (!props.hasNextFullscreenPost) {
+    stopSlideshow();
+    return;
+  }
+  clearSlideshowTimer();
+  loadStart();
+  emit("next-post", { skipDocuments: true });
+  setTransitionNames("right");
 };
 
 const toggleSlideshow = () => {
@@ -552,11 +557,7 @@ const toggleSlideshow = () => {
 
 const onVideoEnded = () => {
   if (!slideshowPlaying.value) return;
-  if (!props.hasNextFullscreenPost) {
-    stopSlideshow();
-    return;
-  }
-  showNextImage();
+  void advanceSlideshow();
 };
 
 const loadTimeout: Ref<any> = ref(null);
@@ -599,7 +600,11 @@ const showNextImage = () => {
   }
   clearSlideshowTimer();
   loadStart();
-  emit("next-post");
+  // Manual next keeps stories reachable; slideshow skips them.
+  emit(
+    "next-post",
+    slideshowPlaying.value ? { skipDocuments: true } : undefined,
+  );
   setTransitionNames("right");
 };
 const showPreviousImage = () => {
@@ -631,6 +636,7 @@ onBeforeUnmount(() => {
   shortcutService.emitter.off("fullscreenRemoveFavorite", removeFavorite);
   shortcutService.emitter.off("fullscreenToggleFavorite", toggleFavorite);
   shortcutService.emitter.off("fullscreenSlideshowToggle", toggleSlideshow);
+  shortcutService.emitter.off("fullscreenSlideshowStop", stopSlideshow);
 });
 onMounted(() => {
   shortcutService.emitter.on("fullscreenNext", showNextImage);
@@ -640,6 +646,7 @@ onMounted(() => {
   shortcutService.emitter.on("fullscreenRemoveFavorite", removeFavorite);
   shortcutService.emitter.on("fullscreenToggleFavorite", toggleFavorite);
   shortcutService.emitter.on("fullscreenSlideshowToggle", toggleSlideshow);
+  shortcutService.emitter.on("fullscreenSlideshowStop", stopSlideshow);
 });
 
 const scrollToPost = (post: { id: number; __meta?: { originMode?: string } } | number) => {
@@ -682,11 +689,7 @@ watch(
       if (val) {
         await nextTick();
         loading.value = true;
-        const isDoc =
-          DOCUMENT_EXTS.has(val.file.ext) ||
-          DOCUMENT_EXTS.has(urlExt(val.file.url)) ||
-          val.__meta?.furaffinity?.kind === "journal" ||
-          /^(text|story|poetry)$/i.test(val.__meta?.furaffinity?.faType || "");
+        const isDoc = postIsDocument(val);
         if (isDoc) {
           isZoomed.value = false;
           await loadDocumentContent(val);

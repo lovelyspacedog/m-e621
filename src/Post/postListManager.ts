@@ -12,8 +12,10 @@ import {
   postFeedKey,
   unifiedChildLabel,
 } from "@/misc/util/postOrigin";
+import { isDocumentPost } from "@/misc/util/documentPost";
 
 type PostPointer = number | { postId: number; originMode?: string };
+type FullscreenAdvanceOpts = { skipDocuments?: boolean };
 
 const pointerOf = (target: PostPointer): { postId: number; originMode?: string } =>
   typeof target === "number" ? { postId: target } : target;
@@ -41,6 +43,7 @@ export const usePostListManager = ({
   const generation = ref(0);
   /** When next/prev is requested during an in-flight page load, retry once (M23). */
   let pendingFullscreenAdvance: -1 | 1 | null = null;
+  let pendingFullscreenAdvanceOpts: FullscreenAdvanceOpts | null = null;
   let flushPendingFullscreenAdvance = () => {
     /* assigned after _openFullscreenPost exists */
   };
@@ -308,11 +311,16 @@ export const usePostListManager = ({
     const found = idx >= 0 ? posts.value[idx] : null;
     detailsPost.value = found ? await enrichRemote(found) : null;
   };
-  const isValidNextPost = (post: EnhancedPost) => {
-    return !!post.file.url && !post.__meta.isBlacklisted;
+  const isValidNextPost = (
+    post: EnhancedPost,
+    opts?: FullscreenAdvanceOpts,
+  ) => {
+    if (!post.file.url || post.__meta.isBlacklisted) return false;
+    if (opts?.skipDocuments && isDocumentPost(post)) return false;
+    return true;
   };
   const _openFullscreenPost =
-    (offset: number) =>
+    (offset: number, opts?: FullscreenAdvanceOpts) =>
       async (target: PostPointer, depth: number): Promise<boolean> => {
         // returns whether post has been opened successfully
         const idx = indexOfPost(target);
@@ -321,7 +329,7 @@ export const usePostListManager = ({
           nextPostIdx += offset;
         } while (
           posts.value[nextPostIdx] &&
-          !isValidNextPost(posts.value[nextPostIdx]) &&
+          !isValidNextPost(posts.value[nextPostIdx], opts) &&
           offset
         );
         const nextPost = posts.value[nextPostIdx];
@@ -332,6 +340,7 @@ export const usePostListManager = ({
           if (loading.value) {
             // Queue one pending advance for when the in-flight page load finishes (M23).
             if (offset) pendingFullscreenAdvance = offset > 0 ? 1 : -1;
+            pendingFullscreenAdvanceOpts = opts ?? null;
             return false;
           }
           if (offset > 0) {
@@ -340,7 +349,7 @@ export const usePostListManager = ({
             await loadPreviousPage();
           }
           if (depth <= 0) {
-            const success = await _openFullscreenPost(offset)(target, depth + 1);
+            const success = await _openFullscreenPost(offset, opts)(target, depth + 1);
             // Keep current fullscreen post on failed advance (end of results) (H5).
             return success;
           } else {
@@ -358,9 +367,10 @@ export const usePostListManager = ({
           originMode: fullscreenPost.value.__meta.originMode,
         }
       : null;
-  const openNextFullscreenPost = () => {
+  const openNextFullscreenPost = async (opts?: FullscreenAdvanceOpts) => {
     const pointer = fullscreenPointer();
-    if (pointer) void _openFullscreenPost(1)(pointer, 0);
+    if (!pointer) return false;
+    return _openFullscreenPost(1, opts)(pointer, 0);
   };
   const openPreviousFullscreenPost = () => {
     const pointer = fullscreenPointer();
@@ -370,9 +380,11 @@ export const usePostListManager = ({
   flushPendingFullscreenAdvance = () => {
     if (!pendingFullscreenAdvance) return;
     const dir = pendingFullscreenAdvance;
+    const opts = pendingFullscreenAdvanceOpts ?? undefined;
     pendingFullscreenAdvance = null;
+    pendingFullscreenAdvanceOpts = null;
     const pointer = fullscreenPointer();
-    if (pointer) void _openFullscreenPost(dir)(pointer, 0);
+    if (pointer) void _openFullscreenPost(dir, opts)(pointer, 0);
   };
 
   const visiblePosts = computed(() => {
@@ -387,6 +399,7 @@ export const usePostListManager = ({
     reachedEnd.value = false;
     loading.value = false;
     pendingFullscreenAdvance = null;
+    pendingFullscreenAdvanceOpts = null;
     // Search/mode/pool reloads must not leave overlays on stale posts (H3).
     fullscreenPost.value = null;
     detailsPost.value = null;

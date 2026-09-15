@@ -32,6 +32,7 @@
 <script lang="ts">
 import { usePostsStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
+import { isDocumentPost } from "@/misc/util/documentPost";
 import { postFeedKey } from "@/misc/util/postOrigin";
 import { saveLocalResume } from "@/misc/util/localMedia";
 import type { ComponentPublicInstance, PropType} from "vue";
@@ -417,11 +418,18 @@ export default defineComponent({
       attachVideoTimeListener();
     };
 
+    const nextAutoNextIndex = (from: number) => {
+      for (let i = from + 1; i < props.visiblePosts.length; i++) {
+        if (!isDocumentPost(props.visiblePosts[i])) return i;
+      }
+      return -1;
+    };
+
     const advanceCard = () => {
       if (!canRunAutoNext()) return;
       const index = currentCardIndex();
-      const next = index + 1;
-      if (next >= props.visiblePosts.length) {
+      const next = nextAutoNextIndex(index);
+      if (next < 0) {
         waitingForMorePosts = true;
         context.emit("load-next-page");
         return;
@@ -457,6 +465,11 @@ export default defineComponent({
         return;
       }
       if (userPaused.value || hoverPaused.value) {
+        return;
+      }
+      // Stories/PDFs: skip immediately — don't dwell on readable posts.
+      if (isDocumentPost(props.visiblePosts[index])) {
+        advanceCard();
         return;
       }
       lastDwellIndex = index;
@@ -636,14 +649,19 @@ export default defineComponent({
       (loading, wasLoading) => {
         if (wasLoading && !loading && waitingForMorePosts) {
           const index = currentCardIndex();
-          if (index + 1 < props.visiblePosts.length) {
+          const next = nextAutoNextIndex(index);
+          if (next >= 0) {
             waitingForMorePosts = false;
-            lastDwellIndex = index + 1;
-            goToIndex(index + 1);
-            scheduleAutoNextAt(index + 1);
+            lastDwellIndex = next;
+            goToIndex(next);
+            scheduleAutoNextAt(next);
             return;
           }
+          // Loaded more but still no media after this card — stop.
           waitingForMorePosts = false;
+          clearAutoNextSchedule();
+          setActiveCard(index);
+          return;
         }
         if (!loading) {
           scheduleAutoNext();
