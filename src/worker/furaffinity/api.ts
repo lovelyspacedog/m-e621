@@ -25,6 +25,8 @@ export interface FaPartial {
   thumbnail_url: string;
   kind?: "submission" | "journal";
   date?: string;
+  width?: number;
+  height?: number;
   tags?: string[];
   category?: string;
   species?: string;
@@ -128,6 +130,17 @@ function extFromUrl(url?: string | null, type?: string): string {
   return "jpg";
 }
 
+/** FA CDN thumbs embed unix time: …/id@200-1789446690.jpg */
+function dateFromFaUrl(url?: string | null): string {
+  if (!url) return "";
+  const decoded = decodeURIComponent(url);
+  const thumb = /@\d+-(\d{9,})\./.exec(decoded)?.[1];
+  const full = /\/(\d{9,})\/\1\./.exec(decoded)?.[1];
+  const unix = Number(thumb || full || 0);
+  if (!Number.isFinite(unix) || unix <= 0) return "";
+  return new Date(unix * 1000).toISOString();
+}
+
 function stripHtml(text: string): string {
   if (!text) return "";
   return text
@@ -217,9 +230,15 @@ export function adaptPartial(hit: FaPartial, cookies?: string | null): Post {
   const kind = hit.kind === "journal" ? "journal" : "submission";
   const thumb = kind === "journal" ? null : proxyMediaUrl(hit.thumbnail_url, cookies);
   const file = kind === "journal" ? null : proxyMediaUrl(hit.file_url || hit.thumbnail_url, cookies);
-  const created = hit.date || "";
+  const created = hit.date || dateFromFaUrl(hit.file_url || hit.thumbnail_url) || "";
   const views = num(hit.views);
   const ext = kind === "journal" ? "txt" : extFromUrl(hit.file_url || hit.thumbnail_url, hit.type);
+  // Prefer scraped/native dims; never invent a square — that stretches cards.
+  const isJournal = kind === "journal";
+  const width = isJournal ? 400 : num(hit.width) || 0;
+  const height = isJournal ? 400 : num(hit.height) || 0;
+  const dimW = width > 0 ? width : 0;
+  const dimH = height > 0 ? height : 0;
   return {
     id,
     created_at: created,
@@ -227,21 +246,21 @@ export function adaptPartial(hit: FaPartial, cookies?: string | null): Post {
     file: {
       url: file,
       ext,
-      width: 400,
-      height: 400,
+      width: dimW,
+      height: dimH,
       size: 0,
       md5: "",
     },
     preview: {
       url: thumb || "",
-      width: 400,
-      height: 400,
+      width: dimW,
+      height: dimH,
     },
     sample: {
       has: !!file,
       url: file || thumb || "",
-      width: 400,
-      height: 400,
+      width: dimW,
+      height: dimH,
     },
     score: { up: views, down: 0, total: views },
     tags,

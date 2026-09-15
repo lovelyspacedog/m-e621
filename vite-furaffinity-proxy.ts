@@ -142,6 +142,9 @@ const parseFigures = (html: string) => {
     type: string;
     thumbnail_url: string;
     kind: "submission";
+    date?: string;
+    width?: number;
+    height?: number;
   }> = [];
   const re = /<figure\b([^>]*)>([\s\S]*?)<\/figure>/gi;
   let match: RegExpExecArray | null;
@@ -158,15 +161,30 @@ const parseFigures = (html: string) => {
       /href=["']\/view\/\d+[^"']*["'][^>]*title=["']([^"']*)["']/.exec(inner) ||
       /title=["']([^"']*)["'][^>]*href=["']\/view\//.exec(inner);
     const authorM = /href=["']\/user\/[^"']+["'][^>]*title=["']([^"']*)["']/.exec(inner);
-    const imgM = /<img[^>]+src=["']([^"']+)["']/.exec(inner);
+    const imgM = /<img\b([^>]*)>/i.exec(inner);
+    const imgAttrs = imgM?.[1] || "";
+    const src = /src=["']([^"']+)["']/.exec(imgAttrs)?.[1] || "";
+    const thumbUrl = absUrl(src);
+    const width = Number(/data-width=["']([^"']+)["']/.exec(imgAttrs)?.[1] || 0);
+    const height = Number(/data-height=["']([^"']+)["']/.exec(imgAttrs)?.[1] || 0);
+    const unix =
+      /@\d+-(\d{9,})\./.exec(decodeURIComponent(thumbUrl))?.[1] ||
+      /@\d+-(\d{9,})\./.exec(src)?.[1];
+    const date =
+      unix && Number.isFinite(Number(unix))
+        ? new Date(Number(unix) * 1000).toISOString()
+        : "";
     results.push({
       id: Number(idM[1]),
       title: decodeHtml(titleM?.[1] || ""),
       author: { name: decodeHtml(authorM?.[1] || "") },
       rating,
       type,
-      thumbnail_url: absUrl(imgM?.[1] || ""),
+      thumbnail_url: thumbUrl,
       kind: "submission",
+      ...(date ? { date } : {}),
+      ...(width > 0 ? { width: Math.round(width) } : {}),
+      ...(height > 0 ? { height: Math.round(height) } : {}),
     });
   }
   const hasNext = />\s*Next\s*</i.test(html) || /name=["']next_page["']/i.test(html);

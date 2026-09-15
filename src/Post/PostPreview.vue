@@ -1,5 +1,5 @@
 <template>
-  <fixed-aspect-ratio-box @click="handleClick" :ratio="file.height / file.width" v-ripple="!canPlayInline && !unplayable">
+  <fixed-aspect-ratio-box @click="handleClick" :ratio="displayRatio" v-ripple="!canPlayInline && !unplayable">
     <video
       v-if="playableUrl"
       :ref="setVideoEl"
@@ -19,6 +19,7 @@
         :loading="loading"
         :src="imageSrc"
         class="clickable unplayable-media"
+        @load="onPreviewLoad"
       />
       <div class="centered unplayable-overlay">
         <v-icon size="64">mdi-file-video-outline</v-icon>
@@ -45,7 +46,13 @@
       <v-icon size="100">mdi-text-box-outline</v-icon>
       <div>{{ file.ext === "txt" ? "Journal / story" : file.ext.toUpperCase() }}</div>
     </div>
-    <img :loading="loading" v-else-if="(isImage || isVideo) && imageSrc" :src="imageSrc" class="clickable" />
+    <img
+      :loading="loading"
+      v-else-if="(isImage || isVideo) && imageSrc"
+      :src="imageSrc"
+      class="clickable preview-media"
+      @load="onPreviewLoad"
+    />
     <div v-else-if="isImage || isVideo" class="centered clickable play-button">
       <v-chip color="red" text-color="white">Global Blacklist</v-chip>
       <p class="pa-3 text-center">
@@ -71,7 +78,7 @@ import { usePostsStore, useSnackbarStore } from "@/services";
 import { DataSaverType } from "@/services/types";
 import type { File, Preview, Sample } from "@/worker/api";
 import type { PropType } from "vue";
-import { computed, defineComponent, onBeforeUnmount, ref } from "vue";
+import { computed, defineComponent, onBeforeUnmount, ref, watch } from "vue";
 import FixedAspectRatioBox from "./FixedAspectRatioBox.vue";
 import { useRouter } from "vue-router";
 
@@ -107,6 +114,7 @@ export default defineComponent({
     const snackbar = useSnackbarStore();
     const remuxing = ref(false);
     const remuxError = ref("");
+    const naturalRatio = ref<number | null>(null);
     const isSwf = computed(() => props.file.ext === "swf");
     const isVideo = computed(() => VIDEO_EXTS.has(props.file.ext));
     const isDocument = computed(() =>
@@ -117,6 +125,24 @@ export default defineComponent({
       !props.unplayable && isVideo.value && props.file.url
         ? proxyDownloadUrl(props.file.url)
         : null,
+    );
+    const displayRatio = computed(() => {
+      if (naturalRatio.value && naturalRatio.value > 0) return naturalRatio.value;
+      const width = props.file.width;
+      const height = props.file.height;
+      if (width > 0 && height > 0) return height / width;
+      return 1;
+    });
+    const onPreviewLoad = (event: Event) => {
+      const img = event.target as HTMLImageElement | null;
+      if (!img?.naturalWidth || !img.naturalHeight) return;
+      naturalRatio.value = img.naturalHeight / img.naturalWidth;
+    };
+    watch(
+      () => [props.preview.url, props.file.url, props.file.width, props.file.height],
+      () => {
+        naturalRatio.value = null;
+      },
     );
     let visibilityObserver: IntersectionObserver | null = null;
     let boundVideo: HTMLVideoElement | null = null;
@@ -265,6 +291,8 @@ export default defineComponent({
       playableUrl,
       setVideoEl,
       imageSrc,
+      displayRatio,
+      onPreviewLoad,
       handleClick,
       loading,
       remuxing,
@@ -296,6 +324,12 @@ export default defineComponent({
 	 pointer-events: none;
 }
  .card-video {
+	 object-fit: contain;
+	 background: #000;
+}
+ .preview-media {
+	 width: 100%;
+	 height: 100%;
 	 object-fit: contain;
 	 background: #000;
 }

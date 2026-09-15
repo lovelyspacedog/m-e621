@@ -9,9 +9,11 @@ from __future__ import annotations
 import html as html_lib
 import json
 import os
+import re
 import threading
+from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import unquote, urljoin, urlparse
 
 import faapi
 from faapi.comment import flatten_comments
@@ -147,6 +149,34 @@ def _iso(value: Any) -> str:
     return str(value)
 
 
+def _date_from_fa_url(url: str | None) -> str:
+    """FA CDN thumbs embed unix time: …/id@200-1789446690.jpg"""
+    if not url:
+        return ""
+    decoded = unquote(url)
+    match = re.search(r"@\d+-(\d{9,})\.", decoded) or re.search(
+        r"/(\d{9,})/\1\.", decoded
+    )
+    if not match:
+        return ""
+    try:
+        return datetime.fromtimestamp(int(match.group(1)), tz=timezone.utc).isoformat()
+    except (OverflowError, OSError, ValueError):
+        return ""
+
+
+def _dims_from_figure(figure: Any) -> tuple[int, int]:
+    img = getattr(figure, "select_one", lambda _s: None)("img")
+    if img is None:
+        return 0, 0
+    try:
+        width = int(round(float(img.get("data-width") or 0)))
+        height = int(round(float(img.get("data-height") or 0)))
+    except (TypeError, ValueError):
+        return 0, 0
+    return max(0, width), max(0, height)
+
+
 def _html_text(raw: str | None) -> str:
     if not raw:
         return ""
@@ -182,24 +212,46 @@ def serialize_partial(sub: Any) -> dict[str, Any]:
             }
         else:
             author = {"name": raw_author or "", "status": "", "title": "", "avatar_url": ""}
-        return {
+        thumb = _abs_url(sub.get("thumbnail_url") or "")
+        out: dict[str, Any] = {
             "id": int(sub.get("id") or 0),
             "title": sub.get("title") or "",
             "author": author,
             "rating": (sub.get("rating") or "general").lower(),
             "type": (sub.get("type") or "image").lower(),
-            "thumbnail_url": _abs_url(sub.get("thumbnail_url") or ""),
+            "thumbnail_url": thumb,
             "kind": sub.get("kind") or "submission",
         }
-    return {
+        date = sub.get("date") or _date_from_fa_url(thumb) or _date_from_fa_url(sub.get("file_url"))
+        if date:
+            out["date"] = date
+        width = int(sub.get("width") or 0)
+        height = int(sub.get("height") or 0)
+        if width > 0:
+            out["width"] = width
+        if height > 0:
+            out["height"] = height
+        return out
+    thumb = _abs_url(getattr(sub, "thumbnail_url", "") or "")
+    figure = getattr(sub, "submission_figure", None)
+    width, height = _dims_from_figure(figure) if figure is not None else (0, 0)
+    out = {
         "id": int(getattr(sub, "id", 0) or 0),
         "title": getattr(sub, "title", "") or "",
         "author": _user_partial(getattr(sub, "author", None)),
         "rating": (getattr(sub, "rating", "") or "general").lower(),
         "type": (getattr(sub, "type", "") or "image").lower(),
-        "thumbnail_url": _abs_url(getattr(sub, "thumbnail_url", "") or ""),
+        "thumbnail_url": thumb,
         "kind": "submission",
     }
+    date = _date_from_fa_url(thumb)
+    if date:
+        out["date"] = date
+    if width > 0:
+        out["width"] = width
+    if height > 0:
+        out["height"] = height
+    return out
 
 
 def serialize_submission(sub: Any) -> dict[str, Any]:
@@ -228,7 +280,9 @@ def serialize_submission(sub: Any) -> dict[str, Any]:
         comments = []
     return {
         **serialize_partial(sub),
-        "date": _iso(getattr(sub, "date", None)),
+        "date": _iso(getattr(sub, "date", None))
+        or _date_from_fa_url(getattr(sub, "file_url", None))
+        or _date_from_fa_url(getattr(sub, "thumbnail_url", None)),
         "tags": list(getattr(sub, "tags", None) or []),
         "category": getattr(sub, "category", "") or "",
         "species": getattr(sub, "species", "") or "",
@@ -269,18 +323,24 @@ def _figures_from_html(text: str) -> tuple[list[dict[str, Any]], bool]:
     for figure in parse_submission_figures(page):
         try:
             parsed = parse_submission_figure(figure)
-            out.append(
-                serialize_partial(
-                    {
-                        "id": parsed["id"],
-                        "title": parsed["title"],
-                        "author": {"name": parsed["author"]},
-                        "rating": parsed["rating"],
-                        "type": parsed["type"],
-                        "thumbnail_url": parsed["thumbnail_url"],
-                    }
-                )
-            )
+            width, height = _dims_from_figure(figure)
+            thumb = parsed["thumbnail_url"]
+            payload: dict[str, Any] = {
+                "id": parsed["id"],
+                "title": parsed["title"],
+                "author": {"name": parsed["author"]},
+                "rating": parsed["rating"],
+                "type": parsed["type"],
+                "thumbnail_url": thumb,
+            }
+            date = _date_from_fa_url(thumb)
+            if date:
+                payload["date"] = date
+            if width > 0:
+                payload["width"] = width
+            if height > 0:
+                payload["height"] = height
+            out.append(serialize_partial(payload))
         except Exception:
             continue
     has_next = any(
