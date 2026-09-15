@@ -153,6 +153,9 @@ import {
   type TailspacePost,
 } from "@/worker/tailspace/api";
 import TailspacePostDialog from "./TailspacePostDialog.vue";
+import { useTailspaceSession } from "./useTailspaceSession";
+
+useTailspaceSession();
 
 const route = useRoute();
 const router = useRouter();

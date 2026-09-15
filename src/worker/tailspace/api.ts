@@ -17,6 +17,8 @@
  * - Follow: POST /api/follow-artist.data  fields: creatorUserId, action=follow|unfollow
  *
  * Client sends the session as `X-Tailspace-Session`; the proxy forwards Cookie.
+ * Call `setActiveTailspaceSession` from Vue (via useTailspaceSession) — do not
+ * import Pinia here; this module is also pulled into the ApiService worker.
  */
 import type {
   TailspacePostsResponse,
@@ -26,13 +28,28 @@ import type {
   TailspaceAuthResult,
   TailspaceLikeResult,
 } from "./types";
-import { useMainStore } from "@/services";
-import { liveAccount } from "@/services/siteProfiles";
 
 export * from "./types";
 
 /** CDN base for all Tailspace media. */
 export const TAILSPACE_CDN = "https://pics.tailspace.com";
+
+let activeSession: string | null = null;
+
+/** Sync the in-memory session used for `X-Tailspace-Session` on proxy calls. */
+export function setActiveTailspaceSession(cookies: string | null | undefined) {
+  const v = (cookies || "").trim();
+  activeSession = v || null;
+}
+
+/** Current session cookie string (`tailspace_session=…`), if any. */
+export function currentTailspaceSession(): string | null {
+  return activeSession;
+}
+
+export function isTailspaceLoggedIn(): boolean {
+  return !!activeSession;
+}
 
 /** Resolve the proxy base URL for the current environment. */
 function proxyBase(): string {
@@ -40,27 +57,11 @@ function proxyBase(): string {
   return `${origin}/api/tailspace`;
 }
 
-/** Current profile session cookie string (`tailspace_session=…`), if any. */
-export function currentTailspaceSession(): string | null {
-  try {
-    const main = useMainStore();
-    const key = liveAccount(main.$state, "tailspace").apiKey;
-    return key?.trim() || null;
-  } catch {
-    return null;
-  }
-}
-
-export function isTailspaceLoggedIn(): boolean {
-  return !!currentTailspaceSession();
-}
-
 function sessionHeaders(extra?: HeadersInit): HeadersInit {
-  const session = currentTailspaceSession();
   const headers: Record<string, string> = {
     Accept: "application/json",
   };
-  if (session) headers["X-Tailspace-Session"] = session;
+  if (activeSession) headers["X-Tailspace-Session"] = activeSession;
   if (extra) {
     const e = new Headers(extra);
     e.forEach((v, k) => {
@@ -104,15 +105,24 @@ export async function login(
   username: string,
   password: string,
 ): Promise<TailspaceAuthResult> {
-  return postJson<TailspaceAuthResult>("/login", { username, password, redirect: "" });
+  const result = await postJson<TailspaceAuthResult>("/login", {
+    username,
+    password,
+    redirect: "",
+  });
+  if (result.cookies) setActiveTailspaceSession(result.cookies);
+  return result;
 }
 
 export async function loginWithCookies(cookies: string): Promise<TailspaceAuthResult> {
-  return postJson<TailspaceAuthResult>("/login-cookies", { cookies });
+  const result = await postJson<TailspaceAuthResult>("/login-cookies", { cookies });
+  if (result.cookies) setActiveTailspaceSession(result.cookies);
+  return result;
 }
 
-export async function me(): Promise<TailspaceAuthResult> {
-  return postJson<TailspaceAuthResult>("/me", {});
+export async function me(cookies?: string | null): Promise<TailspaceAuthResult> {
+  if (cookies) setActiveTailspaceSession(cookies);
+  return postJson<TailspaceAuthResult>("/me", cookies ? { cookies } : {});
 }
 
 export async function logoutLocal(cookies?: string | null): Promise<void> {
@@ -121,6 +131,7 @@ export async function logoutLocal(cookies?: string | null): Promise<void> {
   } catch {
     /* local clear still happens in UI */
   }
+  setActiveTailspaceSession(null);
 }
 
 // ---------------------------------------------------------------------------

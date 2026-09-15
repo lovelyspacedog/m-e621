@@ -191,6 +191,9 @@ import {
   comicThumb,
   type TailspaceComic,
 } from "@/worker/tailspace/api";
+import { useTailspaceSession } from "./useTailspaceSession";
+
+useTailspaceSession();
 
 const CATEGORIES = ["Male", "Female", "Mix", "Intersex"];
 const SORT_OPTIONS = ["Updated", "Newest", "Rating", "Alphabetical"];
