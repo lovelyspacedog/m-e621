@@ -86,6 +86,28 @@
       @restored="onRestored"
       @remuxed="reloadLocal" />
     <portal to="sidebar-suggestions">
+      <v-list v-if="siteMode.isUnified" class="pa-0 mt-1 mb-2" density="compact">
+        <v-list-subheader class="text-overline">Sites in this search</v-list-subheader>
+        <v-list-item
+          v-for="child in unifiedChildModes"
+          :key="child"
+        >
+          <template #prepend>
+            <v-icon>{{ unifiedChildIcon(child) }}</v-icon>
+          </template>
+          <v-list-item-title>{{ unifiedChildLabel(child) }}</v-list-item-title>
+          <template #append>
+            <v-switch
+              class="ma-0"
+              color="accent"
+              density="compact"
+              hide-details
+              :model-value="siteMode.unifiedSites[child]"
+              @update:model-value="siteMode.setUnifiedChild(child, !!$event)"
+            />
+          </template>
+        </v-list-item>
+      </v-list>
       <v-list class="pa-0 mt-1 mb-2" density="compact">
         <v-list-item>
           <template #prepend>
@@ -179,7 +201,8 @@ import {
   tagQueryTruncationMessage,
 } from "../misc/util/createTagQuery";
 import { orderSupport, type UnifiedOrderKind } from "../misc/util/orderSupport";
-import { buildUnifiedFetchArgs } from "../misc/util/postOrigin";
+import { buildUnifiedFetchArgs, unifiedChildLabel } from "../misc/util/postOrigin";
+import { UNIFIED_CHILD_MODES, type UnifiedChildMode } from "@/services/types";
 import {
   findLocalResumeTarget,
   getLocalPostsPage,
@@ -204,6 +227,15 @@ const postsStore = usePostsStore();
 const siteMode = useSiteModeStore();
 const snackbar = useSnackbarStore();
 const main = useMainStore();
+const unifiedChildModes = UNIFIED_CHILD_MODES;
+const unifiedChildIcon = (mode: UnifiedChildMode) => {
+  switch (mode) {
+    case "e6ai": return "mdi-robot";
+    case "furbooru": return "mdi-dog";
+    case "inkbunny": return "mdi-rabbit";
+    default: return "mdi-paw";
+  }
+};
 const localEmptyMessage = ref(localStatusMessage("no-folder"));
 const restorePath = ref<string | null>(null);
 const restoreVideoTime = ref<number | undefined>(undefined);
