@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   adaptPartial,
+  faThumbAtSize,
   faUnavailableMeta,
   isFaNotFoundError,
   isOwnFavoritesListing,
@@ -82,6 +83,20 @@ describe("isOwnFavoritesListing", () => {
   });
 });
 
+describe("faThumbAtSize", () => {
+  it("upsizes FA CDN thumbs to the requested size", () => {
+    expect(faThumbAtSize("https://t.furaffinity.net/123@200-1.jpg", 600)).toBe(
+      "https://t.furaffinity.net/123@600-1.jpg",
+    );
+  });
+
+  it("does not downsize an already-larger thumb", () => {
+    expect(faThumbAtSize("https://t.furaffinity.net/123@600-1.jpg", 400)).toBe(
+      "https://t.furaffinity.net/123@600-1.jpg",
+    );
+  });
+});
+
 describe("adaptPartial favorite state", () => {
   it("leaves listing figures unfavorited when FA omitted the flag", () => {
     expect(adaptPartial(listingHit()).is_favorited).toBe(false);
@@ -96,5 +111,22 @@ describe("adaptPartial favorite state", () => {
 
   it("keeps the submission-page favorite flag when not overridden", () => {
     expect(adaptPartial(listingHit({ favorite: true })).is_favorited).toBe(true);
+  });
+
+  it("uses an upsized CDN thumb for sample/file when listing has no file_url", () => {
+    const post = adaptPartial(listingHit());
+    expect(decodeURIComponent(post.preview.url)).toContain("@200-");
+    expect(decodeURIComponent(post.sample.url)).toContain("@600-");
+    expect(decodeURIComponent(post.file.url || "")).toContain("@600-");
+  });
+
+  it("keeps the real file_url when enrichment provided one", () => {
+    const post = adaptPartial(
+      listingHit({
+        file_url: "https://d.furaffinity.net/art/artist/1/1.artist_test.png",
+      }),
+    );
+    expect(decodeURIComponent(post.file.url || "")).toContain("d.furaffinity.net");
+    expect(decodeURIComponent(post.sample.url)).toContain("d.furaffinity.net");
   });
 });

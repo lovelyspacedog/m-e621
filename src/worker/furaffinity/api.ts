@@ -182,6 +182,19 @@ function dateFromFaUrl(url?: string | null): string {
   return new Date(unix * 1000).toISOString();
 }
 
+/**
+ * Gallery HTML ships @200 thumbs. FA serves larger CDN sizes up to @600 —
+ * rewrite so feed cards aren't stuck on the tiny listing thumb until enrich.
+ */
+export function faThumbAtSize(url?: string | null, size = 600): string {
+  if (!url) return "";
+  return url.replace(/@(\d+)-/, (_, current) => {
+    const n = Number(current);
+    const next = Number.isFinite(n) && n > size ? n : size;
+    return `@${next}-`;
+  });
+}
+
 function stripHtml(text: string): string {
   if (!text) return "";
   return text
@@ -292,17 +305,25 @@ export function adaptPartial(
     if (tag) tags.general.push(tag.replace(/ /g, "_"));
   }
   const kind = hit.kind === "journal" ? "journal" : "submission";
-  const thumb = kind === "journal" ? null : proxyMediaUrl(hit.thumbnail_url, cookies);
+  const thumb =
+    kind === "journal" ? null : proxyMediaUrl(hit.thumbnail_url, cookies);
+  // Listing hits lack file_url; use the largest CDN thumb for sample/high so
+  // the feed isn't locked to FA's @200 gallery preview until fullscreen enrich.
+  const thumbLarge =
+    kind === "journal"
+      ? null
+      : proxyMediaUrl(faThumbAtSize(hit.thumbnail_url, 600), cookies);
   const storyType = /^(text|story|poetry)$/i.test(hit.type || "");
   // Stories/PDFs: never fall back to the cover thumbnail as file.url — that
   // turns a document post into an image and fullscreen only shows the blurb.
   const file =
     kind === "journal"
       ? null
-      : proxyMediaUrl(
-          hit.file_url || (storyType ? null : hit.thumbnail_url),
-          cookies,
-        );
+      : hit.file_url
+        ? proxyMediaUrl(hit.file_url, cookies)
+        : storyType
+          ? null
+          : thumbLarge;
   const created = hit.date || dateFromFaUrl(hit.file_url || hit.thumbnail_url) || "";
   const views = num(hit.views);
   const ext =
@@ -333,8 +354,8 @@ export function adaptPartial(
       height: dimH,
     },
     sample: {
-      has: !!file,
-      url: file || thumb || "",
+      has: !!(file || thumbLarge),
+      url: file || thumbLarge || thumb || "",
       width: dimW,
       height: dimH,
     },
