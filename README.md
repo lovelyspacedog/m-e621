@@ -22,17 +22,17 @@ Switch sites from the sidebar or landing-page chips. Each mode keeps its **own p
 
 | Mode | What you get |
 |------|----------------|
-| **e621** | Classic Material e621 experience (pools, suggester, analyzer, dashboard, …) |
+| **e621** | Classic Material e621 experience (pools + comic-style reader, suggester, analyzer, dashboard, …) |
 | **e6ai** | e6ai browsing with mode-aware labels (e.g. directors instead of artists) |
 | **Furbooru** | Site mode with API-key auth, tags, comments, faves/votes |
-| **Inkbunny** | Hybrid site mode; Flash/SWF playback via [Ruffle](https://ruffle.rs/) |
-| **FurAffinity** | Site mode via embedded [faapi](https://github.com/FurryCoders/faapi) + `/search` scrape; host cookies (`FA_COOKIE_A`/`FA_COOKIE_B`) or username/password login |
-| **Weasyl** | Site mode with API-key auth; guest is SFW-only; `favs:me` with username |
+| **Inkbunny** | Hybrid site mode; multi-file submissions; `pool:N` / pool order; Following feed (`following:me` / `watch:me`); Flash/SWF via [Ruffle](https://ruffle.rs/); **no in-app fav toggle** |
+| **FurAffinity** | Site mode via embedded [faapi](https://github.com/FurryCoders/faapi) + `/search` scrape; Following feed (`following:me`); host cookies (`FA_COOKIE_A`/`FA_COOKIE_B`) or username/password login |
+| **Weasyl** | Site mode with API-key auth; guest is SFW-only; `favs:me` with username; **no in-app fav toggle** |
 | **Itaku** | Gallery images + flattened multi-image posts; Token auth for stars / following / star toggle / comments; Unified child (off by default) |
-| **SoFurry** | Artwork + stories; email/password or session-cookie login; My Likes / Following feed; Unified child (on by default) |
-| **Tailspace** | Posts + in-app comic reader (page chunks, scroll / full-width reading, comments); optional account login for likes, stars, comments, follow / Following feed |
-| **Local** | Browse a folder on disk (File System Access API); fuzzy search, random order, posters, resume, favorites, remux helpers |
-| **Unified** | Federated Posts feed across e621 + e6ai + Furbooru + Inkbunny + FurAffinity + Weasyl + Itaku + SoFurry (toggle children in Account settings; origin badges; merge by created time) |
+| **SoFurry** | Artwork + stories (fullscreen `.txt` reader); email/password or session-cookie login; My Likes / Following feed; likes toggle; **no** Pools / Suggester / Analyzer / Dashboard or comments/notes; Unified child (on by default) |
+| **Tailspace** | Posts + in-app comic reader (page chunks, scroll / full-width reading, comments); client-side `?tags=` filter + saved searches; optional account login for likes, stars, comments, follow / Following feed |
+| **Local** | Browse a folder on disk (Chromium File System Access API, or **Tauri desktop** read/browse on Firefox); fuzzy search, random order, posters, resume, favorites; audio (`type:audio`); `.me621-tags.json` sidecar tags; MD5 / Fluffle reverse lookup; per-file + bulk remux |
+| **Unified** | Federated Posts feed across e621 + e6ai + Furbooru + Inkbunny + FurAffinity + Weasyl + Itaku + SoFurry (toggle children in Account settings; origin badges; origin-aware actions/comments/favorites; per-child metatag remap; merge by created time) |
 
 Tailspace and Local are **not** included in Unified.
 
@@ -42,19 +42,25 @@ Tailspace and Local are **not** included in Unified.
 - Fullscreen slideshow + timed card auto-next
 - Inline video on post cards (remembered mute / volume / playback rate)
 - Same-origin media proxy (`/api/download`) so video plays in Firefox / Zen
-- **Score / Favs / Random** always on the Posts toolbar (unsupported sorts disabled per mode; Local adds Newest / Name / Size / Duration / Video / Stills)
+- **Score / Favs / Random** always on the Posts toolbar (unsupported sorts disabled per mode; Local adds Newest / Name / Size / Duration / Video / Stills / Audio)
 - Saved-search **groups** in the sidebar (create, rename, reorder, collapse, drag-and-drop)
-- Starred-tag folders / groups
-- Dedicated **Pools** browse pages (`/pools`, `/pools/:id`)
-- Notes tab in post details + notes overlay in fullscreen
+- Starred-tag folders / groups; **copy favorites or blacklist** between site profiles (merge or replace)
+- Dedicated **Pools** browse pages (`/pools`, `/pools/:id`) + comic-style pool reader (gallery / scroll / full-width + numbered chunk pager)
+- Notes tab in post details + notes overlay in fullscreen (where the mode supports notes)
+- Following feeds via `following:me` / `watch:me` where supported (FurAffinity, Inkbunny, Itaku, SoFurry, Tailspace)
+- Fullscreen **`o`** opens the current post on its origin site
 - Collapsed long artist / creator tag lists on cards
 - Landing-page site-mode chips (active chip opens Posts)
 
 ### Local save & remux
 
 - **Save Locally** — download posts to a chosen folder (or Downloads fallback), with smarter filenames (species + tags)
-- Same-origin ffmpeg worker for Local remux / playback helpers
-- Local browse folder is separate from the Save Locally folder
+- Folder saves merge tags into **`.me621-tags.json`** (+ localforage) for Local search
+- **Open in Local** — snackbar (and optional Post setting) reuses the save folder as the browse root and focuses the saved file
+- **Offline save queue** — failed / offline Save Locally jobs retry on `online` / app start (remux is not queued)
+- Same-origin ffmpeg worker for Local remux / playback helpers; Local toolbar **Remux unplayable** for the current tag filter (cancel mid-run)
+- Local browse folder is separate from the Save Locally folder (unless you open a save into Local)
+- Fullscreen story preview for `.rtf` / `.docx` (legacy `.doc` still blocked)
 
 ### Self-host & proxy layer
 
@@ -119,6 +125,8 @@ Requires **Node.js ≥ 20** and **npm** (yarn/pnpm are blocked in `package.json`
 npm install
 npm run dev
 ```
+
+`npm run dev` includes Vite proxies for multi-site APIs during development. Production / self-host still needs `serve.py` (or Docker) for those proxies.
 
 Useful scripts:
 
@@ -195,15 +203,16 @@ Container env defaults: `M_E621_HOST=0.0.0.0`, `M_E621_PORT=18621`, `M_E621_ROOT
 
 ### Desktop (Tauri)
 
-Same as upstream: install Rust + Node, then:
+Install Rust + Node (≥20), then from the repo root:
 
 ```bash
-pnpm install   # only if you follow Tauri docs; this app’s web scripts use npm
+npm install
 cargo install tauri-cli
-cargo tauri build
+cd src-tauri
+cargo tauri dev    # or: cargo tauri build
 ```
 
-(Prefer `npm` for the web app itself; Tauri tooling may differ.)
+Bundle id is `com.lovelyspacedog.me621`. Tauri enables **Local mode** via a read/browse FS bridge (`pick_local_folder` / `list_local_media` / `read_local_file`). Remux, sidecar writes, and Save-into-folder still need Chromium’s File System Access API.
 
 ---
 
@@ -214,6 +223,7 @@ cargo tauri build
 - Comlink workers for API / analyze / dashboard work
 - `@ffmpeg/ffmpeg` for Local remux helpers
 - `@ruffle-rs/ruffle` for Flash/SWF
+- `spark-md5` for Local MD5 → e621 reverse lookup; `mammoth` for `.docx` story preview
 - Python 3 stdlib HTTP server (`serve.py`) for self-host proxies
 
 ---
