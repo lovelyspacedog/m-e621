@@ -219,6 +219,7 @@ import PostCommentsPanel from "./PostCommentsPanel.vue";
 import { useBlacklistClasses } from "../misc/util/blacklist";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
 import { isDocumentPost as postIsDocument } from "@/misc/util/documentPost";
+import { isRtf, rtfToText } from "@/misc/util/rtfToText";
 import { openPostOnSourceSite } from "@/misc/util/url";
 import { originAuthForPost, originModeOf, postFeedKey } from "@/misc/util/postOrigin";
 import {
@@ -542,8 +543,8 @@ const loadDocumentContent = async (post: EnhancedPost) => {
     return;
   }
 
-  // Binary office formats aren't readable as plain text in-browser.
-  if (ext === "doc" || ext === "rtf") {
+  // Legacy .doc (OLE) isn't readable as text; RTF is handled below.
+  if (ext === "doc") {
     documentBody.value = post.description || "";
     documentLoadError.value =
       "This file format can't be previewed here — use Download or open externally.";
@@ -566,15 +567,18 @@ const loadDocumentContent = async (post: EnhancedPost) => {
       documentBody.value = post.description || "";
       return;
     }
-    const text = await res.text();
+    let text = (await res.text()).replace(/^\uFEFF/, "");
     if (token !== documentLoadToken) return;
+    if (ext === "rtf" || contentType.includes("rtf") || isRtf(text)) {
+      text = rtfToText(text);
+    }
     if (looksLikeBinaryGarbage(text)) {
       documentBody.value = post.description || "";
       documentLoadError.value =
         "Couldn't read this file as text — use Download or open externally.";
       return;
     }
-    documentBody.value = text.replace(/^\uFEFF/, "");
+    documentBody.value = text;
   } catch (err) {
     if (token !== documentLoadToken) return;
     documentBody.value = post.description || "";
