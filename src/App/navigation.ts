@@ -123,7 +123,7 @@ export const useTrailingNavigationItems = () => {
         : []),
     ];
     return [
-      ...(siteMode.isUnified
+      ...(siteMode.supportsSavedPosts
         ? [
             {
               icon: "mdi-bookmark",

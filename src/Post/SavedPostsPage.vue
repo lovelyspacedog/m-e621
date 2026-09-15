@@ -22,7 +22,7 @@
       <v-icon size="64" class="mb-4" color="medium-emphasis">mdi-bookmark-outline</v-icon>
       <div class="text-h6 mb-2">No saved posts</div>
       <div class="text-body-2 text-medium-emphasis mb-4">
-        Bookmark posts from the Unified feed to see them here.
+        Bookmark posts from any supported site to see them here.
       </div>
       <v-btn color="accent" variant="tonal" :to="{ name: 'Posts' }">Go to Posts</v-btn>
     </v-container>
@@ -55,7 +55,10 @@
 <script setup lang="ts">
 import Posts from "@/Post/Posts.vue";
 import { usePostListManager } from "@/Post/postListManager";
-import { buildUnifiedFetchArgs } from "@/misc/util/postOrigin";
+import {
+  buildUnifiedFetchArgs,
+  modeSupportsSavedPosts,
+} from "@/misc/util/postOrigin";
 import {
   useMainStore,
   useSavedPostsStore,
@@ -114,7 +117,7 @@ const closeDetails = () => {
 };
 
 const reload = async () => {
-  if (!siteMode.isUnified) return;
+  if (!siteMode.supportsSavedPosts) return;
   clearPosts();
   loading.value = true;
   try {
@@ -144,8 +147,8 @@ const reload = async () => {
   }
 };
 
-const ensureUnified = () => {
-  if (!siteMode.isUnified) {
+const ensureSavedPostsMode = () => {
+  if (!modeSupportsSavedPosts(siteMode.activeMode)) {
     router.replace({ name: "Posts" });
     return false;
   }
@@ -153,21 +156,21 @@ const ensureUnified = () => {
 };
 
 onMounted(() => {
-  if (!ensureUnified()) return;
+  if (!ensureSavedPostsMode()) return;
   reload();
 });
 
 watch(
   () => siteMode.activeMode,
   () => {
-    if (!ensureUnified()) return;
+    if (!ensureSavedPostsMode()) return;
   },
 );
 
 watch(
   () => savedPosts.count,
   () => {
-    if (!siteMode.isUnified) return;
+    if (!siteMode.supportsSavedPosts) return;
     void reload();
   },
 );

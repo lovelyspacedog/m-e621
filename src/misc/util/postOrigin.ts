@@ -20,6 +20,10 @@ export type UnifiedFetchArgs = {
   sharedBlacklist: string[][];
 };
 
+/** Unified itself or any federated child backend (not Local / Tailspace). */
+export const modeSupportsSavedPosts = (mode: SiteMode): boolean =>
+  mode === "unified" || (UNIFIED_CHILD_MODES as readonly string[]).includes(mode);
+
 export const unifiedChildLabel = (mode: SiteMode | UnifiedChildMode): string => {
   switch (mode) {
     case "furbooru":
@@ -83,11 +87,11 @@ export const authFromAccount = (
 
 export const originModeOf = (
   post:
-    | { __meta?: { originMode?: UnifiedChildMode } }
+    | { __meta?: { originMode?: string } }
     | null
     | undefined,
   fallback: SiteMode,
-): SiteMode => post?.__meta?.originMode || fallback;
+): SiteMode => (post?.__meta?.originMode as SiteMode | undefined) || fallback;
 
 export const postPageUrl = (
   post: {

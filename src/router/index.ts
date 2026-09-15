@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { modeSupportsSavedPosts } from '@/misc/util/postOrigin'
 import { useMainStore } from '@/services/state'
 
 // TODO?
@@ -264,7 +265,7 @@ router.beforeEach((to) => {
     ) {
       return { name: "Posts" };
     }
-    if (to.name === "SavedPosts" && mode !== "unified") {
+    if (to.name === "SavedPosts" && !modeSupportsSavedPosts(mode)) {
       return { name: "Posts" };
     }
   } catch {

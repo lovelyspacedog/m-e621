@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { computed } from "vue";
-import { postFeedKey } from "@/misc/util/postOrigin";
+import { originModeOf, postFeedKey } from "@/misc/util/postOrigin";
 import { useMainStore } from "./state";
 import type { SavedPostEntry, UnifiedChildMode } from "./types";
 import { UNIFIED_CHILD_MODES } from "./types";
@@ -20,12 +20,20 @@ export const useSavedPostsStore = defineStore("saved-posts", () => {
   const keyOf = (originMode: UnifiedChildMode, id: number) =>
     `${originMode}:${id}`;
 
+  const resolveOrigin = (post: {
+    id: number;
+    __meta?: { originMode?: string };
+  }): UnifiedChildMode | null => {
+    const mode = originModeOf(post, main.activeMode);
+    return isUnifiedChild(mode) ? mode : null;
+  };
+
   const isSaved = (
     post: { id: number; __meta?: { originMode?: string } } | null | undefined,
   ) => {
     if (!post) return false;
-    const mode = post.__meta?.originMode;
-    if (!isUnifiedChild(mode)) return false;
+    const mode = resolveOrigin(post);
+    if (!mode) return false;
     const key = keyOf(mode, post.id);
     return (main.savedPosts?.entries || []).some(
       (e) => keyOf(e.originMode, e.id) === key,
@@ -58,8 +66,12 @@ export const useSavedPostsStore = defineStore("saved-posts", () => {
     id: number;
     __meta?: { originMode?: string };
   }) => {
-    const mode = post.__meta?.originMode;
-    if (!isUnifiedChild(mode)) return false;
+    const mode = resolveOrigin(post);
+    if (!mode) return false;
+    // Stamp origin so postFeedKey stays unambiguous after save from single-site feed.
+    if (post.__meta && !post.__meta.originMode) {
+      post.__meta.originMode = mode;
+    }
     if (isSaved(post)) {
       remove(mode, post.id);
       return false;

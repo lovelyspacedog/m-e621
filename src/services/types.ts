@@ -215,7 +215,7 @@ export interface ISettingsServiceState {
     };
     localDirectoryName: string | null;
   };
-  /** Mode-independent local bookmarks (Unified UI). Not under profiles. */
+  /** Mode-independent local bookmarks (federated child modes + Unified). Not under profiles. */
   savedPosts: {
     entries: SavedPostEntry[];
   };

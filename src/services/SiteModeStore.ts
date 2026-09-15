@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
+import { modeSupportsSavedPosts } from "@/misc/util/postOrigin";
 import { supportsDirectoryPicker } from "@/misc/util/saveLocal";
 import { useMainStore } from "./state";
 import { useSnackbarStore } from "./SnackbarStore";
@@ -19,10 +20,7 @@ const LOCAL_HIDDEN_BUTTONS = new Set<ButtonType>([
 
 const INKBUNNY_HIDDEN_BUTTONS = new Set<ButtonType>([
   "favorite",
-  "bookmark",
 ]);
-
-const NON_UNIFIED_HIDDEN_BUTTONS = new Set<ButtonType>(["bookmark"]);
 
 const ALL_SITE_MODES: SiteMode[] = [
   "unified",
@@ -128,18 +126,27 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     snackbar.addMessage("Local mode is unavailable in this browser; switched to e621");
   };
 
+  const supportsSavedPosts = computed(() =>
+    modeSupportsSavedPosts(main.activeMode),
+  );
+
   const filterButtons = (buttons: ButtonType[]) => {
-    if (isLocal.value) return buttons.filter((button) => !LOCAL_HIDDEN_BUTTONS.has(button));
-    if (isInkbunny.value) return buttons.filter((button) => !INKBUNNY_HIDDEN_BUTTONS.has(button));
-    if (!isUnified.value) {
-      return buttons.filter((button) => !NON_UNIFIED_HIDDEN_BUTTONS.has(button));
+    let list = buttons;
+    if (isLocal.value) {
+      list = list.filter((button) => !LOCAL_HIDDEN_BUTTONS.has(button));
+    } else if (isInkbunny.value) {
+      list = list.filter((button) => !INKBUNNY_HIDDEN_BUTTONS.has(button));
     }
-    return buttons;
+    if (!supportsSavedPosts.value) {
+      list = list.filter((button) => button !== "bookmark");
+    }
+    return list;
   };
 
   return {
     activeMode,
     supportsLocalMode,
+    supportsSavedPosts,
     isLocal,
     isTailspace,
     isFurbooru,
