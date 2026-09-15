@@ -5,6 +5,7 @@ import {
   defaultUnifiedSites,
 } from "@/services/types";
 import { createEmptySiteProfile } from "@/services/siteProfiles";
+import { toRaw } from "vue";
 
 export type UnifiedChildFetchArgs = {
   mode: UnifiedChildMode;
@@ -108,23 +109,31 @@ export const buildUnifiedFetchArgs = (
 ): UnifiedFetchArgs => {
   const sites = {
     ...defaultUnifiedSites(),
-    ...state.profiles.unified?.unifiedSites,
+    ...(toRaw(state.profiles.unified?.unifiedSites) || {}),
   };
   const children: UnifiedChildFetchArgs[] = [];
   for (const mode of UNIFIED_CHILD_MODES) {
     if (!sites[mode]) continue;
-    const profile = state.profiles[mode] || createEmptySiteProfile(mode);
+    const profile = toRaw(state.profiles[mode]) || createEmptySiteProfile(mode);
+    const account = toRaw(profile.account) || {
+      username: null,
+      apiKey: null,
+      userId: null,
+    };
+    const tags = toRaw(profile.blacklist?.tags) || [];
     children.push({
       mode,
       baseUrl: profile.baseUrl || SITE_MODE_URLS[mode],
-      auth: authFromAccount(mode, profile.account),
-      userId: profile.account.userId ?? null,
-      blacklist: profile.blacklist?.tags || [],
+      auth: authFromAccount(mode, account),
+      userId: account.userId ?? null,
+      // Nested Pinia arrays stay Proxies unless deep-copied for Comlink (postMessage).
+      blacklist: tags.map((line) => [...(toRaw(line) || [])]),
     });
   }
+  const shared = toRaw(state.blacklist?.tags) || [];
   return {
     children,
-    sharedBlacklist: state.blacklist?.tags || [],
+    sharedBlacklist: shared.map((line) => [...(toRaw(line) || [])]),
   };
 };
 
