@@ -1,7 +1,11 @@
 import { useRouter } from "vue-router";
 import { useMainStore } from "@/services/state";
+import { getGitInfo } from "./git";
 
-export const getAppName = () => "m-e621";
+export const getAppName = () => {
+  const hash = getGitInfo()[0]?.hash?.substring(0, 7);
+  return hash ? `m-e621 ${hash}` : "m-e621";
+};
 export const getBaseUrl = () => document.location.origin;
 
 const tagColorMapping: { [idx: string]: string | undefined } = {
