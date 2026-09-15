@@ -1,5 +1,34 @@
 <template>
-  <fixed-aspect-ratio-box @click="handleClick" :ratio="displayRatio" v-ripple="!canPlayInline && !unplayable">
+  <!-- Documents skip FixedAspectRatioBox: landscape covers + padding-ratio
+       boxes clip the centered badge. Use aspect-ratio + min-height instead. -->
+  <div
+    v-if="isDocument"
+    class="document-card clickable"
+    v-ripple
+    @click="handleClick"
+  >
+    <img
+      v-if="documentThumbSrc"
+      :loading="loading"
+      :src="documentThumbSrc"
+      class="document-thumb"
+      alt=""
+    />
+    <div class="document-scrim" :class="{ 'document-scrim--plain': !documentThumbSrc }" />
+    <div class="document-badge">
+      <v-icon size="40">{{ documentIcon }}</v-icon>
+      <span class="document-label">{{ documentLabel }}</span>
+    </div>
+    <p v-if="!documentThumbSrc && documentExcerpt" class="document-excerpt">
+      {{ documentExcerpt }}
+    </p>
+  </div>
+  <fixed-aspect-ratio-box
+    v-else
+    @click="handleClick"
+    :ratio="displayRatio"
+    v-ripple="!canPlayInline && !unplayable"
+  >
     <video
       v-if="playableUrl"
       :ref="setVideoEl"
@@ -42,22 +71,6 @@
         </p>
       </div>
     </template>
-    <div v-else-if="isDocument" class="document-preview clickable">
-      <img
-        v-if="documentThumbSrc"
-        :loading="loading"
-        :src="documentThumbSrc"
-        class="document-thumb"
-        @load="onPreviewLoad"
-      />
-      <div class="document-overlay" :class="{ 'document-overlay--plain': !documentThumbSrc }">
-        <v-icon size="56">{{ documentIcon }}</v-icon>
-        <div class="document-label">{{ documentLabel }}</div>
-        <p v-if="!documentThumbSrc && documentExcerpt" class="document-excerpt">
-          {{ documentExcerpt }}
-        </p>
-      </div>
-    </div>
     <img
       :loading="loading"
       v-else-if="(isImage || isVideo) && imageSrc"
@@ -188,20 +201,11 @@ export default defineComponent({
         : null,
     );
     const displayRatio = computed(() => {
-      // Documents need enough height for the overlay icon+label; landscape
-      // cover thumbs otherwise clip the badge at the card bottom.
-      const minDocRatio = 1;
-      let ratio = 1;
-      if (naturalRatio.value && naturalRatio.value > 0) {
-        ratio = naturalRatio.value;
-      } else {
-        const width = props.file.width;
-        const height = props.file.height;
-        if (width > 0 && height > 0) ratio = height / width;
-        else if (isDocument.value) ratio = 1.25;
-      }
-      if (isDocument.value) return Math.max(ratio, minDocRatio);
-      return ratio;
+      if (naturalRatio.value && naturalRatio.value > 0) return naturalRatio.value;
+      const width = props.file.width;
+      const height = props.file.height;
+      if (width > 0 && height > 0) return height / width;
+      return 1;
     });
     const onPreviewLoad = (event: Event) => {
       const img = event.target as HTMLImageElement | null;
@@ -419,61 +423,80 @@ export default defineComponent({
 	 inset: 0;
 	 background: rgba(0, 0, 0, 0.55);
 }
- .document-preview {
+ .document-card {
 	 position: relative;
 	 width: 100%;
-	 height: 100%;
+	 min-height: 14rem;
+	 aspect-ratio: 4 / 3;
+	 overflow: hidden;
 	 background: #0d1117;
 }
  .document-thumb {
+	 position: absolute;
+	 inset: 0;
 	 width: 100%;
 	 height: 100%;
 	 object-fit: cover;
-	 opacity: 0.45;
+	 opacity: 0.5;
 	 filter: saturate(0.85);
 }
- .document-overlay {
+ .document-scrim {
 	 position: absolute;
 	 inset: 0;
-	 display: flex;
-	 flex-direction: column;
-	 align-items: center;
-	 justify-content: center;
-	 gap: 0.25rem;
-	 padding: 0.75rem;
-	 box-sizing: border-box;
 	 background: linear-gradient(
 		 180deg,
-		 rgba(8, 12, 20, 0.35) 0%,
+		 rgba(8, 12, 20, 0.25) 0%,
+		 rgba(8, 12, 20, 0.55) 55%,
 		 rgba(8, 12, 20, 0.72) 100%
 	 );
-	 text-align: center;
-	 color: #fff;
+	 pointer-events: none;
 }
- .document-overlay--plain {
+ .document-scrim--plain {
 	 background: radial-gradient(
 		 ellipse at center,
 		 rgba(30, 41, 59, 0.95) 0%,
 		 rgba(8, 12, 20, 1) 75%
 	 );
 }
+ .document-badge {
+	 position: absolute;
+	 left: 50%;
+	 top: 50%;
+	 transform: translate(-50%, -50%);
+	 z-index: 1;
+	 display: flex;
+	 flex-direction: column;
+	 align-items: center;
+	 gap: 0.35rem;
+	 padding: 0.75rem 1rem;
+	 border-radius: 0.75rem;
+	 background: rgba(8, 12, 20, 0.72);
+	 border: 1px solid rgba(255, 255, 255, 0.14);
+	 color: #fff;
+	 pointer-events: none;
+}
  .document-label {
-	 font-size: 0.85rem;
+	 font-size: 0.8rem;
 	 font-weight: 600;
-	 letter-spacing: 0.04em;
+	 letter-spacing: 0.06em;
 	 text-transform: uppercase;
-	 line-height: 1.2;
+	 line-height: 1;
 }
  .document-excerpt {
-	 max-width: 18rem;
-	 margin: 0.5rem 0 0;
+	 position: absolute;
+	 left: 1rem;
+	 right: 1rem;
+	 bottom: 1rem;
+	 z-index: 1;
+	 margin: 0;
 	 font-size: 0.8rem;
 	 line-height: 1.35;
-	 opacity: 0.78;
+	 color: rgba(255, 255, 255, 0.78);
 	 display: -webkit-box;
-	 -webkit-line-clamp: 4;
+	 -webkit-line-clamp: 3;
 	 -webkit-box-orient: vertical;
 	 overflow: hidden;
+	 pointer-events: none;
 }
  
 </style>
