@@ -47,7 +47,16 @@
               {{ authorLabel(item) }}
             </v-list-item-subtitle>
             <template #append>
-              <v-icon size="small">mdi-open-in-new</v-icon>
+              <v-btn
+                icon
+                size="small"
+                variant="text"
+                title="Copy URL"
+                @click.stop="copyResult(item.url)"
+              >
+                <v-icon size="small">mdi-content-copy</v-icon>
+              </v-btn>
+              <v-icon size="small" class="ml-1">mdi-open-in-new</v-icon>
             </template>
           </v-list-item>
         </v-list>
@@ -63,6 +72,7 @@ import {
   type FluffleResult,
   type FluffleThumbnail,
 } from "@/misc/util/fluffleSearch";
+import { useSnackbarStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { PropType } from "vue";
 import { defineComponent, ref, watch } from "vue";
@@ -77,6 +87,7 @@ export default defineComponent({
   },
   emits: ["close"],
   setup(props, { emit }) {
+    const snackbar = useSnackbarStore();
     const loading = ref(false);
     const error = ref("");
     const results = ref<FluffleResult[]>([]);
@@ -89,6 +100,16 @@ export default defineComponent({
 
     const openResult = (url: string) => {
       if (url) openUrlInNewTab(url);
+    };
+
+    const copyResult = async (url: string) => {
+      if (!url) return;
+      try {
+        await navigator.clipboard.writeText(url);
+        snackbar.addMessage("Link copied");
+      } catch {
+        snackbar.addMessage("Failed to copy link");
+      }
     };
 
     const authorLabel = (item: FluffleResult) => {
@@ -139,6 +160,7 @@ export default defineComponent({
       close,
       onDialogToggle,
       openResult,
+      copyResult,
       authorLabel,
       thumbStyle,
     };
