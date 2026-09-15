@@ -217,7 +217,26 @@ export function mapSearchTags(tags: string[]): MappedFaSearch {
   return mapped;
 }
 
-export function adaptPartial(hit: FaPartial, cookies?: string | null): Post {
+/**
+ * FA gallery/search figures omit `favorite`. Posts on the logged-in user's
+ * favorites folder are favorited by construction (`favs:me` or `favs:<you>`).
+ */
+export function isOwnFavoritesListing(
+  favsUser: string | undefined,
+  loggedInUsername?: string | null,
+): boolean {
+  if (!favsUser) return false;
+  const folder = favsUser.trim().toLowerCase();
+  if (folder === "me") return true;
+  const me = (loggedInUsername || "").trim().toLowerCase();
+  return !!me && folder === me;
+}
+
+export function adaptPartial(
+  hit: FaPartial,
+  cookies?: string | null,
+  options?: { favorited?: boolean },
+): Post {
   const id = num(hit.id);
   const artist = authorName(hit.author);
   const tags = emptyTags();
@@ -299,7 +318,7 @@ export function adaptPartial(hit: FaPartial, cookies?: string | null): Post {
     uploader_name: artist,
     description: stripHtml(hit.description || "") || hit.title || "",
     comment_count: num(hit.comment_count),
-    is_favorited: !!hit.favorite,
+    is_favorited: options?.favorited ?? !!hit.favorite,
     has_notes: false,
   };
 }
@@ -429,7 +448,10 @@ export async function searchSubmissions(args: {
   if (mapped.random) {
     hits = [...hits].sort(() => Math.random() - 0.5);
   }
-  const posts = hits.map((hit) => adaptPartial(hit, cookies));
+  const ownFavs = isOwnFavoritesListing(mapped.favsUser, args.username);
+  const posts = hits.map((hit) =>
+    adaptPartial(hit, cookies, ownFavs ? { favorited: true } : undefined),
+  );
   return { posts, hits };
 }
 
