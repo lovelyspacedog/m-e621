@@ -33,6 +33,21 @@
           description="Put Score / Favs / Random (and other posts toolbar actions) behind a ⋮ menu on all screen sizes. When off, they only collapse on narrow screens.">
           <v-switch v-model="posts.alwaysCollapseToolbar" />
         </settings-page-item>
+        <settings-page-item title="Animate GIFs in feed" switch
+          description="Load the full GIF so it moves in scrolling previews. Uses more data than still thumbs.">
+          <v-switch v-model="posts.animateFeedGifs" />
+        </settings-page-item>
+        <settings-page-item title="Autoplay video in feed" switch
+          description="Play videos automatically while their card is on screen. Controls still work when off.">
+          <v-switch v-model="posts.autoplayFeedVideo" />
+        </settings-page-item>
+        <settings-page-item title="Autoplay silently" switch
+          description="Mute feed autoplay so browsers allow it. Fullscreen mute/volume stays separate.">
+          <v-switch
+            v-model="posts.autoplayFeedVideoSilent"
+            :disabled="!posts.autoplayFeedVideo"
+          />
+        </settings-page-item>
         <settings-page-item title="Video volume" select
           description="Remembered for feed cards and fullscreen. Default muted helps autoplay.">
           <v-switch v-model="posts.videoMuted" label="Muted" class="mb-2" />

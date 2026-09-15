@@ -173,6 +173,30 @@ export const usePostsStore = defineStore("posts", () => {
       main.posts.videoPlaybackRate = value;
     },
   });
+  const animateFeedGifs = computed({
+    get() {
+      return main.posts.animateFeedGifs;
+    },
+    set(value) {
+      main.posts.animateFeedGifs = value;
+    },
+  });
+  const autoplayFeedVideo = computed({
+    get() {
+      return main.posts.autoplayFeedVideo;
+    },
+    set(value) {
+      main.posts.autoplayFeedVideo = value;
+    },
+  });
+  const autoplayFeedVideoSilent = computed({
+    get() {
+      return main.posts.autoplayFeedVideoSilent;
+    },
+    set(value) {
+      main.posts.autoplayFeedVideoSilent = value;
+    },
+  });
   const saveLocalPathTemplate = computed({
     get() {
       return main.posts.saveLocal.pathTemplate;
@@ -228,6 +252,9 @@ export const usePostsStore = defineStore("posts", () => {
     videoVolume,
     videoMuted,
     videoPlaybackRate,
+    animateFeedGifs,
+    autoplayFeedVideo,
+    autoplayFeedVideoSilent,
     saveLocalPathTemplate,
     saveLocalDirectoryName,
     localDirectoryName,

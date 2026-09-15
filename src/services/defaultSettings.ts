@@ -35,7 +35,7 @@ export const fullscreenSlideshowShortcut: Shortcut = {
 };
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 29,
+  configVersion: 30,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -155,6 +155,9 @@ export const defaultSettings: ISettingsServiceState = {
     videoVolume: 1,
     videoMuted: true,
     videoPlaybackRate: 1,
+    animateFeedGifs: true,
+    autoplayFeedVideo: true,
+    autoplayFeedVideoSilent: true,
     saveLocal: {
       pathTemplate: "%artist%/%tags 1-5%.%ext%",
       directoryName: null,

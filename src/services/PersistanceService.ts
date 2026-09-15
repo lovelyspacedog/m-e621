@@ -518,6 +518,12 @@ class PersistanceService {
       newState.posts.alwaysCollapseToolbar = false;
       newState.configVersion = 29;
     }
+    if (newState.configVersion < 30) {
+      newState.posts.animateFeedGifs = true;
+      newState.posts.autoplayFeedVideo = true;
+      newState.posts.autoplayFeedVideoSilent = true;
+      newState.configVersion = 30;
+    }
 
     // Ensure profiles exist even if a partial export skipped them.
     if (!newState.profiles) {
@@ -641,6 +647,15 @@ class PersistanceService {
     }
     if (newState.posts.videoPlaybackRate == null) {
       newState.posts.videoPlaybackRate = 1;
+    }
+    if (newState.posts.animateFeedGifs === undefined) {
+      newState.posts.animateFeedGifs = true;
+    }
+    if (newState.posts.autoplayFeedVideo === undefined) {
+      newState.posts.autoplayFeedVideo = true;
+    }
+    if (newState.posts.autoplayFeedVideoSilent === undefined) {
+      newState.posts.autoplayFeedVideoSilent = true;
     }
     applyActiveProfileToMirrors(newState);
     // Official Vercel proxy only allows avoonix origins; use same-origin /api/.

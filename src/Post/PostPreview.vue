@@ -244,8 +244,9 @@ export default defineComponent({
     let visibilityObserver: IntersectionObserver | null = null;
     let boundVideo: HTMLVideoElement | null = null;
 
-    const applyPlaybackPrefs = (el: HTMLVideoElement) => {
-      el.muted = posts.videoMuted;
+    const applyPlaybackPrefs = (el: HTMLVideoElement, forAutoplay = false) => {
+      const forceSilent = forAutoplay && posts.autoplayFeedVideoSilent;
+      el.muted = forceSilent || posts.videoMuted;
       el.volume = Math.min(1, Math.max(0, posts.videoVolume));
       el.playbackRate = posts.videoPlaybackRate || 1;
       // Loop so feed previews keep moving; card auto-next uses a dwell timer when looped.
@@ -253,7 +254,8 @@ export default defineComponent({
     };
 
     const playWhenVisible = (el: HTMLVideoElement) => {
-      applyPlaybackPrefs(el);
+      if (!posts.autoplayFeedVideo) return;
+      applyPlaybackPrefs(el, true);
       const playResult = el.play();
       if (playResult && typeof playResult.then === "function") {
         playResult.catch(() => {
@@ -268,7 +270,7 @@ export default defineComponent({
       boundVideo = null;
       if (!(el instanceof HTMLVideoElement)) return;
       boundVideo = el;
-      applyPlaybackPrefs(el);
+      applyPlaybackPrefs(el, posts.autoplayFeedVideo);
       if (typeof IntersectionObserver === "undefined") {
         playWhenVisible(el);
         return;
@@ -287,15 +289,32 @@ export default defineComponent({
     };
 
     watch(
-      () => [posts.videoMuted, posts.videoVolume, posts.videoPlaybackRate] as const,
+      () =>
+        [
+          posts.videoMuted,
+          posts.videoVolume,
+          posts.videoPlaybackRate,
+          posts.autoplayFeedVideo,
+          posts.autoplayFeedVideoSilent,
+        ] as const,
       () => {
-        if (boundVideo) applyPlaybackPrefs(boundVideo);
+        if (!boundVideo) return;
+        if (!posts.autoplayFeedVideo) {
+          boundVideo.pause();
+          applyPlaybackPrefs(boundVideo, false);
+          return;
+        }
+        // Observer handles play on visibility; only refresh mute/volume/rate here.
+        applyPlaybackPrefs(boundVideo, !boundVideo.paused);
       },
     );
 
     const onVolumeChange = () => {
       if (!boundVideo) return;
-      posts.videoMuted = boundVideo.muted;
+      // Silent autoplay forces mute; don't overwrite the remembered mute preference.
+      if (!posts.autoplayFeedVideoSilent) {
+        posts.videoMuted = boundVideo.muted;
+      }
       posts.videoVolume = boundVideo.volume;
     };
 
@@ -357,7 +376,7 @@ export default defineComponent({
         };
       }
       // GIFs must use file.url — sample/preview are usually still frames.
-      if (isAnimatedImage.value && props.file.url) {
+      if (isAnimatedImage.value && posts.animateFeedGifs && props.file.url) {
         const animated = props.file.url;
         return { high: animated, medium: animated, low: animated };
       }
