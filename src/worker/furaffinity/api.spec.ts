@@ -5,6 +5,7 @@ import {
   isFaNotFoundError,
   isOwnFavoritesListing,
   mapSearchTags,
+  unavailableSubmissionPost,
 } from "./api";
 import type { FaPartial } from "./api";
 
@@ -45,6 +46,17 @@ describe("faUnavailableMeta", () => {
       faType: "image",
       unavailable: true,
     });
+  });
+});
+
+describe("unavailableSubmissionPost", () => {
+  it("builds an id-only stub with no media urls", () => {
+    const post = unavailableSubmissionPost(66378247);
+    expect(post.id).toBe(66378247);
+    expect(post.file.url).toBeNull();
+    expect(post.preview.url).toBe("");
+    expect(post.sample.has).toBe(false);
+    expect(post.sources[0]).toContain("66378247");
   });
 });
 

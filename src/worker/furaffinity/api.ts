@@ -66,6 +66,27 @@ export function faUnavailableMeta(existing?: FaMeta | null): FaMeta {
   };
 }
 
+/** Bare post for Saved Posts when FA returns NotFound (id-only bookmark). */
+export function unavailableSubmissionPost(id: number): Post {
+  const adapted = adaptPartial({
+    id,
+    title: "",
+    author: "",
+    rating: "general",
+    type: "",
+    thumbnail_url: "",
+    width: 400,
+    height: 400,
+    details: true,
+  });
+  return {
+    ...adapted,
+    file: { ...adapted.file, url: null },
+    preview: { ...adapted.preview, url: "" },
+    sample: { ...adapted.sample, has: false, url: "" },
+  };
+}
+
 export interface MappedFaSearch {
   text: string;
   username?: string;

@@ -527,7 +527,24 @@ export class ApiService {
                 furaffinity: furaffinity.faMetaFrom(sub, true),
               },
             });
-          } catch {
+          } catch (error) {
+            // Deleted / never-published: keep a bookmarkable unavailable card
+            // (same UX as enrich), instead of dropping the id from Saved Posts.
+            if (furaffinity.isFaNotFoundError(error)) {
+              const adapted = furaffinity.unavailableSubmissionPost(id);
+              return stamp({
+                ...adapted,
+                score: {
+                  ...adapted.score,
+                  down: Math.abs(adapted.score.down),
+                },
+                __meta: {
+                  isBlacklisted: false,
+                  pageNumber: 1,
+                  furaffinity: furaffinity.faUnavailableMeta(),
+                },
+              });
+            }
             return null;
           }
         }),
