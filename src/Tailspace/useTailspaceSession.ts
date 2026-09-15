@@ -1,7 +1,10 @@
-import { watchEffect } from "vue";
+import { onScopeDispose, watchEffect } from "vue";
 import { useMainStore } from "@/services";
-import { liveAccount } from "@/services/siteProfiles";
-import { setActiveTailspaceSession } from "@/worker/tailspace/api";
+import { liveAccount, setLiveAccount } from "@/services/siteProfiles";
+import {
+  onTailspaceSessionCleared,
+  setActiveTailspaceSession,
+} from "@/worker/tailspace/api";
 
 /** Keep the Tailspace proxy session header in sync with the profile apiKey. */
 export function useTailspaceSession() {
@@ -9,6 +12,15 @@ export function useTailspaceSession() {
   watchEffect(() => {
     setActiveTailspaceSession(liveAccount(main.$state, "tailspace").apiKey);
   });
+  const stop = onTailspaceSessionCleared(() => {
+    setLiveAccount(main.$state, "tailspace", {
+      apiKey: "",
+      username: "",
+      userId: null,
+    });
+    setActiveTailspaceSession(null);
+  });
+  onScopeDispose(stop);
   return {
     isLoggedIn: () => !!liveAccount(main.$state, "tailspace").apiKey,
     username: () => liveAccount(main.$state, "tailspace").username,

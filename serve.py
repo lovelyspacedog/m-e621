@@ -660,11 +660,19 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self.send_header("Cross-Origin-Embedder-Policy", "credentialless")
         super().end_headers()
 
-    def _json(self, code: int, payload: dict) -> None:
+    def _json(
+        self,
+        code: int,
+        payload: dict,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
         body = json.dumps(payload).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
+        if extra_headers:
+            for key, value in extra_headers.items():
+                self.send_header(key, value)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -1028,6 +1036,31 @@ class SpaHandler(SimpleHTTPRequestHandler):
             set_cookies = exc.headers.get_all("Set-Cookie") if exc.headers else []
             return exc.read(), exc.code, "application/json", set_cookies or []
 
+    def _tailspace_get(
+        self,
+        url: str,
+        *,
+        accept: str = "application/json, */*",
+        cookie: str | None = None,
+        fallback_without_cookie: bool = True,
+    ) -> tuple[bytes, int, str, bool]:
+        """GET Tailspace URL; on session-induced 500, retry anonymously once."""
+        body, status, ct, _sc = self._tailspace_request(url, accept=accept, cookie=cookie)
+        rejected = False
+        if fallback_without_cookie and cookie and status == 500:
+            body2, status2, ct2, _sc2 = self._tailspace_request(
+                url, accept=accept, cookie=None
+            )
+            if status2 == 200:
+                return body2, status2, ct2, True
+        return body, status, ct, rejected
+
+    @staticmethod
+    def _session_rejected_headers(rejected: bool) -> dict[str, str] | None:
+        if not rejected:
+            return None
+        return {"X-Tailspace-Session-Rejected": "1"}
+
     def _proxy_tailspace_posts(self, parsed) -> None:
         params = parse_qs(parsed.query)
         page = (params.get("page") or ["1"])[0]
@@ -1036,11 +1069,13 @@ class SpaHandler(SimpleHTTPRequestHandler):
         except ValueError:
             page_n = 1
         url = f"{TAILSPACE_BASE}/api/get-browse-posts-paginated?page={page_n}"
-        body, status, ct, _sc = self._tailspace_request(url, cookie=self._tailspace_session())
+        body, status, _ct, rejected = self._tailspace_get(
+            url, cookie=self._tailspace_session() or None
+        )
         if status == 200:
             try:
                 data = _normalize_tailspace_posts(json.loads(body))
-                self._json(200, data)
+                self._json(200, data, self._session_rejected_headers(rejected))
                 return
             except (json.JSONDecodeError, ValueError) as exc:
                 self._json(502, {"ok": False, "message": f"upstream JSON parse error: {exc}"})
@@ -1064,17 +1099,17 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
         qs = urlencode(fwd)
         url = f"{TAILSPACE_BASE}/browse.data" + (f"?{qs}" if qs else "")
-        body, status, _ct, _sc = self._tailspace_request(
+        body, status, _ct, rejected = self._tailspace_get(
             url,
             accept="text/x-turbo-stream, application/json, */*",
-            cookie=self._tailspace_session(),
+            cookie=self._tailspace_session() or None,
         )
         if status != 200:
             self._json(status, {"ok": False, "message": f"upstream returned {status}"})
             return
         try:
             data = _parse_tailspace_comics_response(body)
-            self._json(200, data)
+            self._json(200, data, self._session_rejected_headers(rejected))
         except Exception as exc:  # noqa: BLE001
             self._json(502, {"ok": False, "message": f"parse error: {exc}"})
 
@@ -1086,17 +1121,17 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return
 
         url = f"{TAILSPACE_BASE}/c/{quote(name, safe='')}.data"
-        body, status, _ct, _sc = self._tailspace_request(
+        body, status, _ct, rejected = self._tailspace_get(
             url,
             accept="text/x-turbo-stream, application/json, */*",
-            cookie=self._tailspace_session(),
+            cookie=self._tailspace_session() or None,
         )
         if status != 200:
             self._json(status, {"ok": False, "message": f"upstream returned {status}"})
             return
         try:
             data = _parse_tailspace_comic_detail(body)
-            self._json(200, data)
+            self._json(200, data, self._session_rejected_headers(rejected))
         except Exception as exc:  # noqa: BLE001
             self._json(502, {"ok": False, "message": f"parse error: {exc}"})
 
@@ -1112,17 +1147,17 @@ class SpaHandler(SimpleHTTPRequestHandler):
             self._json(400, {"ok": False, "message": "invalid username"})
             return
         url = f"{TAILSPACE_BASE}/artist/{quote(username, safe='')}/post/{post_id}.data"
-        body, status, _ct, _sc = self._tailspace_request(
+        body, status, _ct, rejected = self._tailspace_get(
             url,
             accept="text/x-turbo-stream, application/json, */*",
-            cookie=self._tailspace_session(),
+            cookie=self._tailspace_session() or None,
         )
         if status != 200:
             self._json(status, {"ok": False, "message": f"upstream returned {status}"})
             return
         try:
             comments = _parse_tailspace_post_comments(body)
-            self._json(200, {"comments": comments})
+            self._json(200, {"comments": comments}, self._session_rejected_headers(rejected))
         except Exception as exc:  # noqa: BLE001
             self._json(502, {"ok": False, "message": f"parse error: {exc}"})
 
@@ -1172,7 +1207,14 @@ class SpaHandler(SimpleHTTPRequestHandler):
         url = f"{TAILSPACE_BASE}/api/get-feed-paginated?page={page_n}"
         body, status, _ct, _sc = self._tailspace_request(url, cookie=cookie)
         if status != 200:
-            self._json(status, {"ok": False, "message": f"upstream returned {status}"})
+            if status == 500:
+                self._json(
+                    401,
+                    {"ok": False, "message": "Tailspace session expired — sign in again"},
+                    self._session_rejected_headers(True),
+                )
+            else:
+                self._json(status, {"ok": False, "message": f"upstream returned {status}"})
             return
         try:
             payload = json.loads(body)

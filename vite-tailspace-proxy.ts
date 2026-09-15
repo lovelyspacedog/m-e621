@@ -5,11 +5,45 @@ const TAILSPACE_BASE = 'https://tailspace.com';
 const UA = 'me621-tailspace-proxy/1.0';
 const SESSION_HEADER = 'x-tailspace-session';
 
-function json(res: ServerResponse, status: number, payload: unknown) {
+function json(
+  res: ServerResponse,
+  status: number,
+  payload: unknown,
+  extraHeaders?: Record<string, string>,
+) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
+  if (extraHeaders) {
+    for (const [k, v] of Object.entries(extraHeaders)) res.setHeader(k, v);
+  }
   res.end(JSON.stringify(payload));
+}
+
+async function fetchUpstream(
+  url: string,
+  cookie: string,
+  accept: string,
+  referer?: string,
+): Promise<Response> {
+  return fetch(url, {
+    headers: upstreamHeaders(cookie, accept, referer),
+  });
+}
+
+/** GET with cookie; if Tailspace 500s on a bad session, retry anonymously. */
+async function fetchUpstreamWithSessionFallback(
+  url: string,
+  cookie: string,
+  accept: string,
+  referer?: string,
+): Promise<{ remote: Response; sessionRejected: boolean }> {
+  let remote = await fetchUpstream(url, cookie, accept, referer);
+  if (cookie && remote.status === 500) {
+    const anon = await fetchUpstream(url, '', accept, referer);
+    if (anon.ok) return { remote: anon, sessionRejected: true };
+  }
+  return { remote, sessionRejected: false };
 }
 
 function readBody(req: IncomingMessage): Promise<Buffer> {
@@ -406,7 +440,18 @@ export function tailspaceProxy(): Plugin {
           );
           const text = await remote.text();
           if (!remote.ok) {
-            json(res, remote.status, { ok: false, message: `upstream ${remote.status}` });
+            const rejected = remote.status === 500;
+            json(
+              res,
+              rejected ? 401 : remote.status,
+              {
+                ok: false,
+                message: rejected
+                  ? 'Tailspace session expired — sign in again'
+                  : `upstream ${remote.status}`,
+              },
+              rejected ? { 'X-Tailspace-Session-Rejected': '1' } : undefined,
+            );
             return;
           }
           let payload: Record<string, unknown>;
@@ -442,9 +487,11 @@ export function tailspaceProxy(): Plugin {
         const page = Math.max(1, parseInt(params.get('page') || '1', 10) || 1);
         const url = `${TAILSPACE_BASE}/api/get-browse-posts-paginated?page=${page}`;
         try {
-          const remote = await fetch(url, {
-            headers: upstreamHeaders(cookie, 'application/json'),
-          });
+          const { remote, sessionRejected } = await fetchUpstreamWithSessionFallback(
+            url,
+            cookie,
+            'application/json',
+          );
           if (!remote.ok) {
             json(res, remote.status, { ok: false, message: `upstream ${remote.status}` });
             return;
@@ -453,10 +500,15 @@ export function tailspaceProxy(): Plugin {
           const data = (payload?.data && typeof payload.data === 'object'
             ? payload.data
             : payload) as Record<string, unknown>;
-          json(res, 200, {
-            posts: Array.isArray(data?.posts) ? data.posts : [],
-            hasNextPage: Boolean(data?.hasNextPage),
-          });
+          json(
+            res,
+            200,
+            {
+              posts: Array.isArray(data?.posts) ? data.posts : [],
+              hasNextPage: Boolean(data?.hasNextPage),
+            },
+            sessionRejected ? { 'X-Tailspace-Session-Rejected': '1' } : undefined,
+          );
         } catch (err) {
           json(res, 502, { ok: false, message: String(err) });
         }
@@ -482,14 +534,22 @@ export function tailspaceProxy(): Plugin {
         const fwdQs = fwd.toString();
         const url = `${TAILSPACE_BASE}/browse.data` + (fwdQs ? `?${fwdQs}` : '');
         try {
-          const remote = await fetch(url, {
-            headers: upstreamHeaders(cookie, 'text/x-turbo-stream, application/json, */*', `${TAILSPACE_BASE}/browse`),
-          });
+          const { remote, sessionRejected } = await fetchUpstreamWithSessionFallback(
+            url,
+            cookie,
+            'text/x-turbo-stream, application/json, */*',
+            `${TAILSPACE_BASE}/browse`,
+          );
           if (!remote.ok) {
             json(res, remote.status, { ok: false, message: `upstream ${remote.status}` });
             return;
           }
-          json(res, 200, parseTailspaceComics(await remote.text()));
+          json(
+            res,
+            200,
+            parseTailspaceComics(await remote.text()),
+            sessionRejected ? { 'X-Tailspace-Session-Rejected': '1' } : undefined,
+          );
         } catch (err) {
           json(res, 502, { ok: false, message: String(err) });
         }
@@ -511,14 +571,21 @@ export function tailspaceProxy(): Plugin {
         }
         const url = `${TAILSPACE_BASE}/c/${encodeURIComponent(name)}.data`;
         try {
-          const remote = await fetch(url, {
-            headers: upstreamHeaders(cookie, 'text/x-turbo-stream, application/json, */*'),
-          });
+          const { remote, sessionRejected } = await fetchUpstreamWithSessionFallback(
+            url,
+            cookie,
+            'text/x-turbo-stream, application/json, */*',
+          );
           if (!remote.ok) {
             json(res, remote.status, { ok: false, message: `upstream ${remote.status}` });
             return;
           }
-          json(res, 200, parseTailspaceComicDetail(await remote.text()));
+          json(
+            res,
+            200,
+            parseTailspaceComicDetail(await remote.text()),
+            sessionRejected ? { 'X-Tailspace-Session-Rejected': '1' } : undefined,
+          );
         } catch (err) {
           json(res, 502, { ok: false, message: String(err) });
         }
@@ -541,14 +608,21 @@ export function tailspaceProxy(): Plugin {
         }
         const url = `${TAILSPACE_BASE}/artist/${encodeURIComponent(username)}/post/${postId}.data`;
         try {
-          const remote = await fetch(url, {
-            headers: upstreamHeaders(cookie, 'text/x-turbo-stream, application/json, */*'),
-          });
+          const { remote, sessionRejected } = await fetchUpstreamWithSessionFallback(
+            url,
+            cookie,
+            'text/x-turbo-stream, application/json, */*',
+          );
           if (!remote.ok) {
             json(res, remote.status, { ok: false, message: `upstream ${remote.status}` });
             return;
           }
-          json(res, 200, { comments: parseTailspaceComments(await remote.text()) });
+          json(
+            res,
+            200,
+            { comments: parseTailspaceComments(await remote.text()) },
+            sessionRejected ? { 'X-Tailspace-Session-Rejected': '1' } : undefined,
+          );
         } catch (err) {
           json(res, 502, { ok: false, message: String(err) });
         }

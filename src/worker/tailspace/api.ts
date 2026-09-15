@@ -35,6 +35,7 @@ export * from "./types";
 export const TAILSPACE_CDN = "https://pics.tailspace.com";
 
 let activeSession: string | null = null;
+const sessionClearedListeners = new Set<() => void>();
 
 /** Sync the in-memory session used for `X-Tailspace-Session` on proxy calls. */
 export function setActiveTailspaceSession(cookies: string | null | undefined) {
@@ -49,6 +50,29 @@ export function currentTailspaceSession(): string | null {
 
 export function isTailspaceLoggedIn(): boolean {
   return !!activeSession;
+}
+
+/** Called when the proxy reports the stored session was rejected by Tailspace. */
+export function onTailspaceSessionCleared(cb: () => void): () => void {
+  sessionClearedListeners.add(cb);
+  return () => sessionClearedListeners.delete(cb);
+}
+
+function notifySessionCleared() {
+  activeSession = null;
+  for (const cb of sessionClearedListeners) {
+    try {
+      cb();
+    } catch {
+      /* ignore listener errors */
+    }
+  }
+}
+
+function noteSessionRejected(response: Response) {
+  if (response.headers.get("X-Tailspace-Session-Rejected") === "1") {
+    notifySessionCleared();
+  }
 }
 
 /** Resolve the proxy base URL for the current environment. */
@@ -76,6 +100,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: sessionHeaders(init?.headers),
   });
+  noteSessionRejected(response);
   if (!response.ok) {
     let message = `${response.status} ${response.statusText}`;
     try {
