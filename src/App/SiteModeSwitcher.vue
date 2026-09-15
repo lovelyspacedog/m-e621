@@ -1,18 +1,37 @@
 <template>
-  <v-list v-if="variant === 'list'" class="pa-0 mt-2 mb-1" density="compact">
-    <v-list-subheader class="text-overline">Site</v-list-subheader>
-    <v-list-item
-      v-for="mode in siteMode.siteModes"
-      :key="mode"
-      :active="siteMode.activeMode === mode"
-      @click="onSelect(mode)"
+  <div v-if="variant === 'list'" class="site-mode-list mt-2 mb-1">
+    <v-list class="pa-0" density="compact">
+      <v-list-subheader class="text-overline">Site</v-list-subheader>
+    </v-list>
+    <v-autocomplete
+      :model-value="siteMode.activeMode"
+      :items="selectItems"
+      item-title="title"
+      item-value="value"
+      variant="outlined"
+      density="compact"
+      hide-details
+      class="site-mode-sidebar mx-3 mb-2"
+      menu-icon="mdi-chevron-down"
+      placeholder="Choose site"
+      autocomplete="off"
+      @update:model-value="onSelect($event as SiteMode)"
     >
-      <template #prepend>
-        <v-icon>{{ modeIcon(mode) }}</v-icon>
+      <template #selection="{ item }">
+        <span class="d-inline-flex align-center ga-2">
+          <v-icon size="18">{{ modeIcon(item.raw.value) }}</v-icon>
+          <span>{{ item.title }}</span>
+        </span>
       </template>
-      <v-list-item-title>{{ modeLabel(mode) }}</v-list-item-title>
-    </v-list-item>
-  </v-list>
+      <template #item="{ props: itemProps, item }">
+        <v-list-item
+          v-bind="itemProps"
+          :prepend-icon="modeIcon(item.raw.value)"
+          :title="item.title"
+        />
+      </template>
+    </v-autocomplete>
+  </div>
   <div v-else-if="variant === 'chips'" class="site-mode-chips">
     <v-btn
       v-for="mode in siteMode.siteModes"
@@ -68,7 +87,7 @@ import type { SiteMode } from "@/services/types";
 
 const props = withDefaults(
   defineProps<{
-    /** Sidebar list, landing chips, or inline headline select. */
+    /** Sidebar select, landing chips, or inline headline select. */
     variant?: "list" | "chips" | "inline";
     /** When false, only switch mode (stay on the current page). */
     navigateOnChange?: boolean;
@@ -149,6 +168,12 @@ const onSelect = async (mode: SiteMode) => {
   flex-wrap: wrap;
   justify-content: center;
   gap: 6px;
+}
+
+.site-mode-sidebar :deep(.v-field__input) {
+  min-height: 2rem;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .site-mode-inline {
