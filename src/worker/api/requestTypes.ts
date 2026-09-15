@@ -33,6 +33,8 @@ export interface IPoolsArgs extends IBaseArgs {
   order: "count" | "date" | "name" | "created_at" | "updated_at" | "post_count";
   query?: string;
   page?: number;
+  /** e621 pool category filter; omit or leave unset for all */
+  category?: "series" | "collection";
 }
 
 export interface IGetPoolArgs extends IBaseArgs {

@@ -141,7 +141,12 @@ export const useTrailingNavigationItems = () => {
             },
           ]
         : []),
-      ...(siteMode.isLocal || siteMode.isFurbooru || siteMode.isInkbunny || siteMode.isFurAffinity || siteMode.isUnified
+      ...(siteMode.isLocal ||
+      siteMode.isFurbooru ||
+      siteMode.isInkbunny ||
+      siteMode.isFurAffinity ||
+      siteMode.isWeasyl ||
+      siteMode.isUnified
         ? []
         : remoteItems),
       settings,
