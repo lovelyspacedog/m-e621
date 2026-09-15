@@ -129,19 +129,13 @@ const onSelect = async (mode: SiteMode) => {
     }
     return;
   }
-  if (!props.navigateOnChange) {
-    siteMode.setMode(mode);
-    return;
-  }
-  // Navigate off /posts before setMode when entering Tailspace so PostsPage's
-  // modeChangeCount watcher cannot fire an e621-shaped getPosts (C3).
-  if (mode === "tailspace") {
-    await router.push({ name: "TailspacePosts" });
-    siteMode.setMode(mode);
-    return;
-  }
+  // setMode before navigate: the router guard blocks Tailspace* routes while
+  // activeMode is still non-tailspace, so push-first left us on Posts with
+  // Tailspace selected and the previous site's feed still showing.
+  // PostsPage's modeChangeCount watcher already no-ops when isTailspace (C3).
   siteMode.setMode(mode);
-  await router.push({ name: "Posts", query: {} });
+  if (!props.navigateOnChange) return;
+  await router.push(postsRouteFor(mode));
 };
 </script>
 

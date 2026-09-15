@@ -436,11 +436,6 @@ onMounted(() => {
   }
 });
 
-onBeforeUnmount(() => {
-  searchSaveAbort?.abort();
-  revokeLocalBlobUrls();
-});
-
 const { historyEntries, addHistoryEntry, removeHistoryEntry } =
   useHistory();
 
@@ -488,7 +483,8 @@ const suggestTags = async () => {
 };
 
 const onSearchClick = debounce(async () => {
-  await removeRouterQuery(["page"]);
+  // Clear before awaiting router so an in-flight page load cannot keep
+  // appending the previous query's posts across the yield.
   if (siteMode.isLocal) {
     invalidateLocalMediaIndex();
     revokeLocalBlobUrls();
@@ -496,8 +492,15 @@ const onSearchClick = debounce(async () => {
     restoreVideoTime.value = undefined;
   }
   clearPosts();
+  await removeRouterQuery(["page"]);
   loadNextPage();
 }, 50);
+
+onBeforeUnmount(() => {
+  onSearchClick.cancel();
+  searchSaveAbort?.abort();
+  revokeLocalBlobUrls();
+});
 
 watch(
   query,
@@ -514,11 +517,24 @@ watch(
 // same blank /posts route is a no-op.  Watch the store signal so we always
 // reload posts after a mode change regardless of route state.
 // Skip Tailspace: that mode uses TailspacePosts, not this page (C3).
+// Do not go through onSearchClick's debounce — clear immediately so the
+// previous site's feed cannot linger across the 50ms wait / router await.
 watch(
   () => siteMode.modeChangeCount,
-  () => {
+  async (count) => {
     if (siteMode.isTailspace) return;
-    onSearchClick();
+    onSearchClick.cancel();
+    if (siteMode.isLocal) {
+      invalidateLocalMediaIndex();
+      revokeLocalBlobUrls();
+      restorePath.value = null;
+      restoreVideoTime.value = undefined;
+    }
+    clearPosts();
+    await removeRouterQuery(["page"]);
+    if (siteMode.isTailspace) return;
+    if (count !== siteMode.modeChangeCount) return;
+    loadNextPage();
   },
 );
 
