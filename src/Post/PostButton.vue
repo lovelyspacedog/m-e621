@@ -105,7 +105,8 @@ export default defineComponent({
         color: "",
         icon: "mdi-download",
         loading: saving.value,
-        disabled: !props.post?.file?.url || saving.value,
+        // No post = settings palette; keep enabled so drag-and-drop works.
+        disabled: props.post ? !props.post.file?.url || saving.value : false,
         onClick: async () => {
           if (!props.post?.file?.url || saving.value) return;
           saving.value = true;
@@ -123,7 +124,8 @@ export default defineComponent({
       fluffle: {
         color: "",
         icon: "mdi-image-search",
-        disabled: !fluffleEnabled.value,
+        // No post = settings palette; keep enabled so drag-and-drop works.
+        disabled: props.post ? !fluffleEnabled.value : false,
         onClick: () => {
           if (!props.post || !fluffleEnabled.value) return;
           context.emit("open-fluffle-search", props.post);
