@@ -122,31 +122,39 @@ export const useTrailingNavigationItems = () => {
           ]
         : []),
     ];
-    return [...(siteMode.isLocal ? [] : remoteItems), settings].map((item) =>
-      resolveItem(router, item),
-    );
+    return [
+      ...(siteMode.isLocal || siteMode.isFurbooru || siteMode.isInkbunny
+        ? []
+        : remoteItems),
+      settings,
+    ].map((item) => resolveItem(router, item));
   });
 };
 
 export const useNavigationItems = () => {
   const router = useRouter();
+  const siteMode = useSiteModeStore();
   const home = useHomeNavigationItem();
   const trailing = useTrailingNavigationItems();
   const navigationItems = computed(() => [
     home.value,
-    ...customItems.value.map((entry) =>
-      resolveItem(router, {
-        icon: "mdi-panorama-variant",
-        name: entry.name,
-        exact: true,
-        to: {
-          name: "Posts",
-          query: {
-            tags: entry.tags.join(" "),
-          },
-        },
-      }),
-    ),
+    // Tailspace has its own browse UI; e621-shaped saved searches must not
+    // deep-link into Posts while Tailspace is active (C3).
+    ...(siteMode.isTailspace
+      ? []
+      : customItems.value.map((entry) =>
+          resolveItem(router, {
+            icon: "mdi-panorama-variant",
+            name: entry.name,
+            exact: true,
+            to: {
+              name: "Posts",
+              query: {
+                tags: entry.tags.join(" "),
+              },
+            },
+          }),
+        )),
     ...trailing.value,
   ]);
   return navigationItems;

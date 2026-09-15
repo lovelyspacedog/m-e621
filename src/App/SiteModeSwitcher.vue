@@ -44,13 +44,16 @@ const modeLabel = (mode: SiteMode) => {
   }
 };
 
-const onSelect = (mode: SiteMode) => {
+const onSelect = async (mode: SiteMode) => {
   if (mode === siteMode.activeMode) return;
-  siteMode.setMode(mode);
+  // Navigate off /posts before setMode when entering Tailspace so PostsPage's
+  // modeChangeCount watcher cannot fire an e621-shaped getPosts (C3).
   if (mode === "tailspace") {
-    router.push({ name: "TailspacePosts" });
-  } else {
-    router.push({ name: "Posts", query: {} });
+    await router.push({ name: "TailspacePosts" });
+    siteMode.setMode(mode);
+    return;
   }
+  siteMode.setMode(mode);
+  await router.push({ name: "Posts", query: {} });
 };
 </script>

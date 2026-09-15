@@ -7,7 +7,7 @@ export const head = createHead({
   init: [
     {
       title: "Home",
-      titleTemplate: "%s | Material e621",
+      titleTemplate: "%s | m-e621",
     }
   ]
 })

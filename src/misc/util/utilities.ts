@@ -1,7 +1,7 @@
 import { useRouter } from "vue-router";
 import { useMainStore } from "@/services/state";
 
-export const getAppName = () => "Material e621";
+export const getAppName = () => "m-e621";
 export const getBaseUrl = () => document.location.origin;
 
 const tagColorMapping: { [idx: string]: string | undefined } = {
@@ -49,29 +49,48 @@ export const categoryIdToCategoryName = (id: number) => {
 export const useRouterQueryHelpers = () => {
   const router = useRouter();
 
+  // Serialize navigations so concurrent tag/page updates cannot overwrite each
+  // other with a stale merge of router.currentRoute (H2). Use replace so page
+  // bumps do not pollute browser history (H1).
+  let pending: Promise<void> = Promise.resolve();
+
+  const replaceQuery = async (
+    build: (current: Record<string, string | string[] | null | undefined>) => Record<
+      string,
+      string | string[] | null | undefined
+    >,
+  ) => {
+    const run = async () => {
+      const next = build({ ...router.currentRoute.value.query });
+      // Drop undefined so Vue Router clears those keys.
+      const cleaned = Object.fromEntries(
+        Object.entries(next).filter(([, v]) => v !== undefined),
+      );
+      await router.replace({ query: cleaned });
+    };
+    pending = pending.then(run, run);
+    return pending;
+  };
+
   const updateRouterQuery = async (newQuery: {
     [idx: string]: string | undefined;
   }) => {
-    router.push({
-      query: { ...router.currentRoute.value.query, ...newQuery },
-    });
+    await replaceQuery((current) => ({ ...current, ...newQuery }));
   };
 
   const removeRouterQuery = async (keys: string[]) => {
-    router.push({
-      query: Object.fromEntries(
-        Object.entries(router.currentRoute.value.query).filter(
-          (e) => !keys.includes(e[0]),
-        ),
+    await replaceQuery((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([k]) => !keys.includes(k)),
       ),
-    });
+    );
   };
 
   return {
     updateRouterQuery,
     removeRouterQuery,
-  }
-}
+  };
+};
 
 export const getTagColorFromCategory = (category?: string) => {
   return category

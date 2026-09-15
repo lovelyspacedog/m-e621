@@ -1,6 +1,13 @@
 <template>
   <div ref="middle" class="middle bg-black" @wheel="onScroll" @mousewheel="onScroll">
-    <div ref="overflow" class="overflow" @mousedown.prevent="onMouseDown" @mouseup="onMouseUp">
+    <div
+      ref="overflow"
+      class="overflow"
+      @mousedown.prevent="onMouseDown"
+      @mouseup="onMouseUp"
+      @mouseleave="onMouseUp"
+      @mousemove="onMouseMove"
+    >
       <div :style="containerStyle" ref="zoom" class="zoom-container text-center" style="position: relative">
         <slot />
       </div>
@@ -190,6 +197,13 @@ export default defineComponent({
       currentZoom.mouseDown = false;
     };
 
+    const onMouseMove = (event: MouseEvent) => {
+      if (!currentZoom.mouseDown || currentZoom.level <= 1) return;
+      currentZoom.left -= event.movementX;
+      currentZoom.top -= event.movementY;
+      constrainZoom();
+    };
+
     const containerStyle = computed(() => {
       const zoom = currentZoom;
       const style = {
@@ -200,8 +214,11 @@ export default defineComponent({
       };
       return style;
     });
-    const onMouseDown = (event: any) => {
+    const onMouseDown = (event: MouseEvent) => {
+      if (currentZoom.level <= 1) return;
       currentZoom.mouseDown = true;
+      currentZoom.startX = event.clientX;
+      currentZoom.startY = event.clientY;
     };
 
     const zoomInfo = computed(() => {
@@ -218,6 +235,7 @@ export default defineComponent({
       onScroll,
       onMouseUp,
       onMouseDown,
+      onMouseMove,
       containerStyle,
       middle,
       zoom

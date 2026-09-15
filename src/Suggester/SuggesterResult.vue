@@ -37,7 +37,7 @@ import { usePostListManager } from "@/Post/postListManager";
 import { useRouterQueryHelpers } from "@/misc/util/utilities";
 import Posts from "@/Post/Posts.vue";
 import ProgressMessage from "./ProgressMessage.vue";
-import { useAccountStore, useBlacklistStore, usePostsStore, useUrlStore } from "@/services";
+import { useAccountStore, useBlacklistStore, usePostsStore, useSiteModeStore, useUrlStore } from "@/services";
 import { useHead } from "@unhead/vue";
 import { useRoute } from "vue-router";
 
@@ -48,6 +48,7 @@ const blacklist = useBlacklistStore();
 const { removeRouterQuery, updateRouterQuery } = useRouterQueryHelpers();
 
 const postsStore = usePostsStore();
+const siteMode = useSiteModeStore();
 const account = useAccountStore();
 const route = useRoute();
 const progress = ref<IProgressEvent>();
@@ -86,6 +87,7 @@ const analyze = async (username: string) => {
     Comlink.proxy((progressEvent) => {
       progress.value = progressEvent;
     }),
+    siteMode.activeMode,
   );
   // Discard stale responses (user changed name while request was in flight)
   if (thisGen !== analyzeGeneration) return;
@@ -145,6 +147,7 @@ const {
         }),
         toRaw(blacklist.tags),
         toRaw(blacklist.mode),
+        toRaw(siteMode.activeMode),
       );
       return posts;
     } finally {

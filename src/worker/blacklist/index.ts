@@ -3,7 +3,7 @@ import { debug } from "@/misc/util/debug";
 
 const log = debug("app:blacklist");
 
-const COMPARISON_RE = /^(score|width|height):([<>]=?|=)?(-?\d+)$/;
+const COMPARISON_RE = /^(score|width|height|id|favcount):([<>]=?|=)?(-?\d+)$/;
 
 export const evaluateComparison = (term: string, post: Post): boolean | null => {
   const match = COMPARISON_RE.exec(term);
@@ -16,7 +16,11 @@ export const evaluateComparison = (term: string, post: Post): boolean | null => 
       ? post.score.total
       : field === "width"
         ? post.file.width
-        : post.file.height;
+        : field === "height"
+          ? post.file.height
+          : field === "id"
+            ? post.id
+            : post.fav_count;
   switch (op) {
     case ">":
       return live > threshold;
@@ -50,7 +54,7 @@ const syntheticTags = (post: Post): string[] => {
 const termMatches = (term: string, postTags: string[], post: Post): boolean => {
   const comparison = evaluateComparison(term, post);
   if (comparison !== null) return comparison;
-  return postTags.includes(term);
+  return postTags.includes(term.toLowerCase());
 };
 
 export const isPostBlacklisted = (post: Post, blacklist?: string[][]) => {
@@ -61,7 +65,7 @@ export const isPostBlacklisted = (post: Post, blacklist?: string[][]) => {
   const postTags = [
     ...(Object.values(post.tags).flat() as string[]),
     ...syntheticTags(post),
-  ];
+  ].map((t) => t.toLowerCase());
   log(postTags);
   switch (post.rating) {
     case "e":

@@ -28,14 +28,22 @@ export const useAccountStore = defineStore("account", () => {
       main.account.userId = value;
     },
   });
-  const auth = computed(() =>
-    main.account.apiKey && main.account.username
-      ? {
-          login: main.account.username,
-          api_key: main.account.apiKey,
-        }
-      : undefined,
-  );
+  // Mode-aware: Furbooru is API-key-only (no username). e621/e6ai/Inkbunny need both.
+  const auth = computed(() => {
+    const api_key = main.account.apiKey;
+    if (!api_key) return undefined;
+    if (main.activeMode === "furbooru") {
+      return {
+        login: main.account.username || "",
+        api_key,
+      };
+    }
+    if (!main.account.username) return undefined;
+    return {
+      login: main.account.username,
+      api_key,
+    };
+  });
 
   return {
     username,

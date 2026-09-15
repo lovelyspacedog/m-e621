@@ -3,6 +3,7 @@ import mitt from "mitt";
 import Mousetrap from "mousetrap";
 import { useShortcutStore } from "./ShortcutStore";
 import { useUiStore } from "./UiStore";
+import { useSiteModeStore } from "./SiteModeStore";
 import { useRouter } from "vue-router";
 
 export type Events = {
@@ -29,9 +30,13 @@ class ShortcutService {
           case "go_to_settings":
             this.router.push({ name: "Settings" });
             break;
-          case "go_to_posts":
-            this.router.push({ name: "Posts" });
+          case "go_to_posts": {
+            const siteMode = useSiteModeStore();
+            this.router.push({
+              name: siteMode.isTailspace ? "TailspacePosts" : "Posts",
+            });
             break;
+          }
           case "focus_search":
             this.emitter.emit("fullscreenExit"); // search can't be focused otherwise
             this.emitter.emit("focusSearch");

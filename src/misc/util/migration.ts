@@ -93,7 +93,7 @@ export const useMigrator = () => {
         console.log("Setting up migration data listener", allowedOrigin);
         setInterval(() => {
             const state = persistanceService.getState();
-            if (state.history.entries.length > 0) {
+            if (hasMigratableState(state)) {
                 console.log("sending state to opener");
                 const response: MigrationMessage = {
                     type: "migrationDataResponse",
@@ -112,7 +112,7 @@ export const useMigrator = () => {
             if (event.data?.type === "requestMigrationData") {
                 const state = persistanceService.getState();
                 console.log("got state")
-                if (state.history.entries.length > 0) {
+                if (hasMigratableState(state)) {
                     console.log("sending state");
                     const response: MigrationMessage = {
                         type: "migrationDataResponse",
@@ -131,4 +131,25 @@ export const useMigrator = () => {
         requestMigrationDataViaIframe,
         setupMigrationDataListener
     };
+}
+
+/** True if there is anything worth migrating (not history-only). */
+function hasMigratableState(state: ISettingsServiceState): boolean {
+    if (state.history?.entries?.length > 0) return true;
+    if (state.account?.apiKey || state.account?.username) return true;
+    if (state.blacklist?.tags?.length > 0) return true;
+    if (state.searches?.entries?.length > 0) return true;
+    if (state.favorites?.posts?.length > 0) return true;
+    const profiles = state.profiles;
+    if (profiles) {
+        for (const profile of Object.values(profiles)) {
+            if (!profile) continue;
+            if (profile.account?.apiKey || profile.account?.username) return true;
+            if (profile.blacklist?.tags?.length > 0) return true;
+            if (profile.searches?.entries?.length > 0) return true;
+            if (profile.history?.entries?.length > 0) return true;
+            if (profile.favorites?.posts?.length > 0) return true;
+        }
+    }
+    return false;
 }

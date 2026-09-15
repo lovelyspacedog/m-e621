@@ -9,12 +9,13 @@ import type {
   INotesListArgs,
 } from "./requestTypes";
 import { getGitInfo } from "@/misc/util/git";
+import type { SiteMode } from "@/services/types";
 
 export * from "./returnTypes";
 export * from "./requestTypes";
 
 const version = getGitInfo()[0]?.hash?.substring(0, 7) ?? "0.0.0";
-const clientHeader = `Material e621/${version} (by Avoonix on e621)`;
+const clientHeader = `m-e621/${version} (fork of Material e621)`;
 
 const buildUrl = (baseUrl: string, path: string, params: Record<string, any> = {}) => {
   const url = new URL(`${baseUrl}${path}`);
@@ -27,12 +28,39 @@ const buildUrl = (baseUrl: string, path: string, params: Record<string, any> = {
   return url.toString();
 };
 
-const fetchJson = async <T>(url: string, options: RequestInit = {}): Promise<T> => {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    throw new Error(`Fetch error: ${response.status} ${response.statusText}`);
+const fetchErrorMessage = async (response: Response, fallback: string) => {
+  try {
+    const data = (await response.clone().json()) as { message?: string; reason?: string };
+    if (data?.message) return data.message;
+    if (data?.reason) return data.reason;
+  } catch {
+    // ignore non-JSON bodies
   }
-  return response.json();
+  return `${fallback}: ${response.status} ${response.statusText}`;
+};
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const fetchJson = async <T>(url: string, options: RequestInit = {}, retries = 2): Promise<T> => {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const response = await fetch(url, options);
+    if (response.ok) {
+      return response.json();
+    }
+    // Rate limit / Philomena anti-bot (M12).
+    if ((response.status === 429 || response.status === 501) && attempt < retries) {
+      const retryAfter = Number(response.headers.get("Retry-After"));
+      const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : 5000 * (attempt + 1);
+      await sleep(waitMs);
+      continue;
+    }
+    lastError = new Error(await fetchErrorMessage(response, "Fetch error"));
+    break;
+  }
+  throw lastError || new Error("Fetch error");
 };
 
 const getAuthHeader = (auth?: { login: string; api_key: string }): { Authorization: string } | {} => {
@@ -154,6 +182,7 @@ export interface IPostFavoriteArgs {
   };
   proxyUrl: string;
   baseUrl: string;
+  mode?: SiteMode;
 }
 
 export interface IPostVoteArgs extends IPostFavoriteArgs {
@@ -188,7 +217,7 @@ export const custom = {
         body: JSON.stringify({ post_id: args.postId }),
       });
       if (!response.ok) {
-        throw new Error(`Error favoriting post: ${response.statusText}`);
+        throw new Error(await fetchErrorMessage(response, "Error favoriting post"));
       }
       return response.json();
     },
@@ -205,7 +234,7 @@ export const custom = {
         },
       );
       if (!response.ok) {
-        throw new Error(`Error unfavoriting post: ${response.statusText}`);
+        throw new Error(await fetchErrorMessage(response, "Error unfavoriting post"));
       }
       return response.ok;
     },
@@ -220,7 +249,7 @@ export const custom = {
         body: JSON.stringify({ post_id: args.postId, score: args.score }),
       });
       if (!response.ok) {
-        throw new Error(`Error voting on post: ${response.statusText}`);
+        throw new Error(await fetchErrorMessage(response, "Error voting on post"));
       }
       return response.json() as Promise<{
         score: number;
@@ -240,7 +269,7 @@ export const custom = {
         body: JSON.stringify({ post_id: args.postId, body: args.body }),
       });
       if (!response.ok) {
-        throw new Error(`Error posting comment: ${response.statusText}`);
+        throw new Error(await fetchErrorMessage(response, "Error posting comment"));
       }
       return response.json() as Promise<Comment>;
     },

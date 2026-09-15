@@ -17,12 +17,40 @@ import * as furbooru from "./furbooru/api";
 import * as inkbunny from "./inkbunny/api";
 import type { InkbunnyMeta } from "./inkbunny/api";
 import { isPostBlacklisted } from "./blacklist";
-import type { BlacklistMode } from "@/services/types";
+import type { BlacklistMode, SiteMode } from "@/services/types";
 import { createTagQuery } from "@/misc/util/createTagQuery";
 import { debug } from "@/misc/util/debug";
 
 const isFurbooruUrl = (baseUrl: string) => baseUrl.includes("furbooru.org");
 const isInkbunnyUrl = (baseUrl: string) => baseUrl.includes("inkbunny.net");
+const isTailspaceUrl = (baseUrl: string) =>
+  /(?:^|\.)tailspace\.com(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
+
+/** Prefer explicit mode; fall back to hostname only when mode omitted (M17). */
+type ApiBackend = "e621" | "furbooru" | "inkbunny" | "tailspace";
+
+const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
+  if (mode === "furbooru") return "furbooru";
+  if (mode === "inkbunny") return "inkbunny";
+  if (mode === "tailspace") return "tailspace";
+  if (mode === "e621" || mode === "e6ai" || mode === "local") return "e621";
+  if (isFurbooruUrl(baseUrl)) return "furbooru";
+  if (isInkbunnyUrl(baseUrl)) return "inkbunny";
+  if (isTailspaceUrl(baseUrl)) return "tailspace";
+  return "e621";
+};
+
+const assertNotTailspace = (
+  baseUrl: string,
+  method: string,
+  mode?: SiteMode,
+) => {
+  if (resolveApiBackend(baseUrl, mode) === "tailspace") {
+    throw new Error(
+      `${method} is not available for Tailspace; use the Tailspace pages instead`,
+    );
+  }
+};
 
 // debug.disable();
 // debug.enable("app:*");
@@ -52,14 +80,29 @@ export class ApiService {
     blacklistMode: BlacklistMode;
     auth?: IPostsListArgs["auth"];
     baseUrl: string;
+    mode?: SiteMode;
     userId?: number | null;
   }) {
     log(args);
+    const backend = resolveApiBackend(args.baseUrl, args.mode);
+    assertNotTailspace(args.baseUrl, "getPosts", args.mode);
 
-    if (isFurbooruUrl(args.baseUrl)) {
+    if (backend === "furbooru") {
       // Furbooru: strip e621 order:* tags → Philomena sf/sd; join rest as query
       const { sort, tags: searchTags } = furbooru.mapOrderTags(args.tags.filter(Boolean));
-      const query = searchTags.join(", ") || "*";
+      const hideNegations =
+        args.blacklistMode === BlacklistMode.hide
+          ? (args.blacklist || [])
+              .filter((line) => line.length === 1 && line[0] && !line[0].startsWith("~"))
+              .map((line) => {
+                const term = line[0];
+                if (/^(score|width|height|id|favcount):/i.test(term)) return null;
+                return term.startsWith("-") ? term : `-${term}`;
+              })
+              .filter((t): t is string => !!t)
+          : [];
+      const query =
+        [...searchTags, ...hideNegations].join(", ") || "*";
       const result = await furbooru.searchImages({
         query,
         page: args.page,
@@ -76,9 +119,15 @@ export class ApiService {
       }));
     }
 
-    if (isInkbunnyUrl(args.baseUrl)) {
+    if (backend === "inkbunny") {
+      const hideNegations =
+        args.blacklistMode === BlacklistMode.hide
+          ? (args.blacklist || [])
+              .filter((line) => line.length === 1 && line[0] && !line[0].startsWith("~") && !line[0].startsWith("-"))
+              .map((line) => `-${line[0]}`)
+          : [];
       const result = await inkbunny.searchSubmissions({
-        tags: args.tags.filter(Boolean),
+        tags: [...args.tags.filter(Boolean), ...hideNegations],
         page: args.page,
         limit: args.limit,
         sid: args.auth?.api_key ?? null,
@@ -120,14 +169,16 @@ export class ApiService {
   }
 
   async getTags(args: ITagsListArgs) {
-    if (isFurbooruUrl(args.baseUrl)) {
+    const backend = resolveApiBackend(args.baseUrl, args.mode);
+    assertNotTailspace(args.baseUrl, "getTags", args.mode);
+    if (backend === "furbooru") {
       return furbooru.searchTags({
         query: args.query ?? args.name,
         limit: args.limit,
-        apiKey: null,
+        apiKey: args.auth?.api_key ?? null,
       });
     }
-    if (isInkbunnyUrl(args.baseUrl)) {
+    if (backend === "inkbunny") {
       return inkbunny.searchKeywords({
         query: args.query ?? args.name ?? "",
         sid: null,
@@ -142,42 +193,53 @@ export class ApiService {
   }
 
   async getPools(args: IPoolsArgs) {
-    if (isFurbooruUrl(args.baseUrl) || isInkbunnyUrl(args.baseUrl)) {
+    const backend = resolveApiBackend(args.baseUrl, args.mode);
+    assertNotTailspace(args.baseUrl, "getPools", args.mode);
+    if (backend === "furbooru" || backend === "inkbunny") {
       return [];
     }
     return (await e621.pools.list(args));
   }
 
   async getPool(args: IGetPoolArgs) {
+    const backend = resolveApiBackend(args.baseUrl, args.mode);
+    assertNotTailspace(args.baseUrl, "getPool", args.mode);
+    if (backend === "furbooru" || backend === "inkbunny") {
+      throw new Error("Pools are not supported on this site");
+    }
     return (await e621.pools.get(args));
   }
 
   async getComments(args: ICommentsListArgs) {
-    if (isInkbunnyUrl(args.baseUrl)) {
+    const backend = resolveApiBackend(args.baseUrl, args.mode);
+    assertNotTailspace(args.baseUrl, "getComments", args.mode);
+    if (backend === "inkbunny") {
       return [];
     }
-    if (isFurbooruUrl(args.baseUrl)) {
+    if (backend === "furbooru") {
       return furbooru.getComments({
         imageId: args.postId,
         limit: args.limit ?? 100,
-        apiKey: null,
+        apiKey: args.auth?.api_key ?? null,
       });
     }
     return e621.comments.list(args);
   }
 
   async getNotes(args: INotesListArgs) {
-    if (isFurbooruUrl(args.baseUrl) || isInkbunnyUrl(args.baseUrl)) {
+    const backend = resolveApiBackend(args.baseUrl, args.mode);
+    if (backend === "furbooru" || backend === "inkbunny") {
       return [];
     }
     return e621.notes.list(args);
   }
 
   async favoritePost(args: IPostFavoriteArgs) {
-    if (isInkbunnyUrl(args.baseUrl)) {
+    const backend = resolveApiBackend(args.baseUrl, args.mode);
+    if (backend === "inkbunny") {
       return false;
     }
-    if (isFurbooruUrl(args.baseUrl)) {
+    if (backend === "furbooru") {
       await furbooru.favoriteImage({
         postId: args.postId,
         apiKey: args.auth.api_key,
@@ -188,19 +250,20 @@ export class ApiService {
       await custom.posts.favorite(args);
       return true;
     } catch (error: any) {
-      const message = error?.response?.data?.message;
-      if (message) {
+      const message = error?.response?.data?.message || error?.message;
+      if (message && message !== error?.message) {
         throw new Error(message);
       }
-      throw error;
+      throw error instanceof Error ? error : new Error(String(error));
     }
   }
 
   async unfavoritePost(args: IPostFavoriteArgs) {
-    if (isInkbunnyUrl(args.baseUrl)) {
+    const backend = resolveApiBackend(args.baseUrl, args.mode);
+    if (backend === "inkbunny") {
       return false;
     }
-    if (isFurbooruUrl(args.baseUrl)) {
+    if (backend === "furbooru") {
       await furbooru.unfavoriteImage({
         postId: args.postId,
         apiKey: args.auth.api_key,
@@ -211,19 +274,26 @@ export class ApiService {
       await custom.posts.unfavorite(args);
       return true;
     } catch (error: any) {
-      const message = error?.response?.data?.message;
-      if (message) {
+      const message = error?.response?.data?.message || error?.message;
+      if (message && message !== error?.message) {
         throw new Error(message);
       }
-      throw error;
+      throw error instanceof Error ? error : new Error(String(error));
     }
   }
 
   async votePost(args: IPostVoteArgs) {
-    if (isInkbunnyUrl(args.baseUrl)) {
+    const backend = resolveApiBackend(args.baseUrl, args.mode);
+    if (backend === "inkbunny") {
       return { score: 0, up: 0, down: 0 };
     }
-    if (isFurbooruUrl(args.baseUrl)) {
+    if (backend === "furbooru") {
+      if (args.score === 0) {
+        return furbooru.clearVoteImage({
+          postId: args.postId,
+          apiKey: args.auth.api_key,
+        });
+      }
       const value = args.score > 0 ? "up" : "down";
       return furbooru.voteImage({
         postId: args.postId,
@@ -243,10 +313,11 @@ export class ApiService {
   }
 
   async createComment(args: IPostCommentArgs) {
-    if (isInkbunnyUrl(args.baseUrl)) {
+    const backend = resolveApiBackend(args.baseUrl, args.mode);
+    if (backend === "inkbunny") {
       throw new Error("Inkbunny does not support posting comments via API");
     }
-    if (isFurbooruUrl(args.baseUrl)) {
+    if (backend === "furbooru") {
       return furbooru.createComment({
         postId: args.postId,
         apiKey: args.auth.api_key,
@@ -268,17 +339,21 @@ export class ApiService {
     username: string;
     apiKey: string;
     baseUrl: string;
+    mode?: SiteMode;
   }) {
-    if (isInkbunnyUrl(args.baseUrl)) {
-      await inkbunny.searchSubmissions({
-        tags: [],
-        page: 1,
-        limit: 1,
-        sid: args.apiKey,
-      });
+    const backend = resolveApiBackend(args.baseUrl, args.mode);
+    if (backend === "inkbunny") {
+      const { userId } = await inkbunny.verifySidForUsername(
+        args.apiKey,
+        args.username,
+      );
+      // Persist resolved user id for favs:me when AccountSettings stores it.
+      if (userId > 0) {
+        // Caller (AccountSettings) already has username; return ok.
+      }
       return true;
     }
-    if (isFurbooruUrl(args.baseUrl)) {
+    if (backend === "furbooru") {
       // Furbooru uses API key only — no username needed
       await furbooru.verifyApiKey({ apiKey: args.apiKey });
       return true;
@@ -314,7 +389,10 @@ export class ApiService {
     return inkbunny.getWatchlist(args.sid);
   }
 
-  async enrichInkbunnyPost(post: EnhancedPost, args: { sid?: string | null }) {
+  async enrichInkbunnyPost(
+    post: EnhancedPost,
+    args: { sid?: string | null; blacklist?: string[][] },
+  ) {
     const subs = await inkbunny.getSubmissions({
       ids: [post.id],
       sid: args.sid ?? null,
@@ -323,11 +401,16 @@ export class ApiService {
     if (!sub) return post;
     const sid = args.sid ?? null;
     const adapted = inkbunny.adaptDetails(sub, sid);
-    return {
+    const merged = {
       ...post,
       ...adapted,
+    };
+    return {
+      ...merged,
       __meta: {
         ...post.__meta,
+        // Recompute after keywords load — search hits lack tags (H10).
+        isBlacklisted: isPostBlacklisted(merged, args.blacklist || []),
         inkbunny: inkbunny.inkbunnyMetaFromHit(sub, sid, true),
       },
     } satisfies EnhancedPost;

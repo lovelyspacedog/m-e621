@@ -191,6 +191,13 @@ function openPost(post: TailspacePost) {
 
 onMounted(() => loadPage(page.value));
 watch(page, (p) => loadPage(p));
+// Drive page from the route so Back/Forward updates the feed (M24).
+watch(
+  () => Number(route.query.page) || 1,
+  (p) => {
+    if (p !== page.value) page.value = p;
+  },
+);
 </script>
 
 <style scoped>

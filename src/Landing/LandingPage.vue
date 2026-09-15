@@ -3,7 +3,7 @@
     <div class="w-100 d-flex flex-column align-center justify-center fill-height">
 
       <app-logo v-view-transition-name="'applogo'" type="face" size="200" />
-      <h1 class="mb-2 text-h1 text-center">Material e621</h1>
+      <h1 class="mb-2 text-h1 text-center">m-e621</h1>
       <div class="text-h5">A {{ adjective }} frontend for e621.net</div>
       <div style="min-width: 50vw;">
         <tag-search v-view-transition-name="'tagsearch'" style="flex: 1 1 auto" :tags="tags" @add-tag="addTag"
@@ -68,14 +68,16 @@ import Footer from "./Footer.vue";
 import { computed, ref } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import MigrationInfo from "./MigrationInfo.vue";
+import { useSiteModeStore } from "@/services/SiteModeStore";
 
 const router = useRouter();
+const siteMode = useSiteModeStore();
 
 const chooseRandom = (arr: string[]) =>
   arr[Math.floor(Math.random() * arr.length)];
 
 useHead({
-  title: "Material e621",
+  title: "m-e621",
   titleTemplate: null,
 });
 
@@ -88,10 +90,14 @@ const adjective = chooseRandom([
 ]);
 
 const tags = ref<string[]>([]);
-const query = computed<RouteLocationRaw>(() => ({
-  name: "Posts",
-  query: { tags: tags.value.join(" ") },
-}));
+const query = computed<RouteLocationRaw>(() =>
+  siteMode.isTailspace
+    ? { name: "TailspacePosts" }
+    : {
+        name: "Posts",
+        query: { tags: tags.value.join(" ") },
+      },
+);
 const addTag = (tag: string) => tags.value.push(tag);
 const removeTag = (tag: string) => {
   const i = tags.value.indexOf(tag);

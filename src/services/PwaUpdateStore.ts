@@ -11,6 +11,7 @@ export const usePwaUpdateStore = defineStore("pwaUpdate", () => {
   };
 
   const dismiss = () => {
+    // Keep applyUpdate so a later banner/session can still apply this waiting SW (L14).
     needRefresh.value = false;
   };
 

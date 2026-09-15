@@ -69,6 +69,8 @@ useSyncedTheme();
 onMounted(async () => {
   await persistance.persist();
   siteMode.ensureCompatibleActiveMode();
+  // Bind immediately — $subscribe alone waits for the first mutation (M30).
+  shortcutService.setUpShortcuts();
 });
 
 const logoStyle = computed(() => appearance.logoStyle);

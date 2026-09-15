@@ -73,7 +73,11 @@ class PersistanceService {
   private savePending = false;
 
   public async saveState() {
-    if (this.applying) return;
+    if (this.applying) {
+      // Defer until setState finishes so imports/migrations are not dropped (H17).
+      this.savePending = true;
+      return;
+    }
     // Serialize writes: if a save is already in flight, queue exactly one
     // follow-up so we always persist the latest state without races.
     if (this.saveInFlight) {
@@ -82,11 +86,14 @@ class PersistanceService {
     }
     this.saveInFlight = true;
     try {
-      // Detached snapshot only — never write back into the live store here.
+      // Sync live mirrors into profiles BEFORE snapshotting. Syncing only the
+      // detached copy left profiles[activeMode] stale until mode switch (C4).
+      syncMirrorsToActiveProfile(this.main.$state);
       const snapshot = JSON.parse(
         JSON.stringify(toPlain(this.main.$state)),
       ) as ISettingsServiceState;
-      syncMirrorsToActiveProfile(snapshot);
+      // Snackbar is transient UI — never persist (L3).
+      snapshot.snackbar = null;
       await this.saveToLocalStorage("state", snapshot);
       log("saved state");
     } finally {
@@ -109,8 +116,8 @@ class PersistanceService {
     }
   }
   public async stateToFile() {
+    // getState syncs live mirrors into profiles (C4).
     const snapshot = JSON.parse(JSON.stringify(this.getState())) as ISettingsServiceState;
-    syncMirrorsToActiveProfile(snapshot);
     return new File([JSON.stringify(snapshot)], "material-e621-settings.json", {
       type: "text/plain",
     });
@@ -158,6 +165,8 @@ class PersistanceService {
   }
 
   public getState() {
+    // Keep profiles[activeMode] current for migration/export consumers (C4).
+    syncMirrorsToActiveProfile(this.main.$state);
     return toRaw(this.main.$state);
   }
 
@@ -167,10 +176,23 @@ class PersistanceService {
     // Pinia $subscribe is async (flush: pre). Keep the gate up until watchers run.
     nextTick(() => {
       this.applying = false;
+      // Always persist after apply — scheduleSave is suppressed while applying (H17/M1).
+      void this.saveState();
     });
   }
 
   private applyMigrationsAndReplace(newState: ISettingsServiceState) {
+    // Schema defaults so partial/corrupt imports do not crash mid-migration (M4).
+    if (!newState.posts) newState.posts = reactive(clone(defaultSettings.posts));
+    if (!newState.appearance) newState.appearance = reactive(clone(defaultSettings.appearance));
+    if (!newState.blacklist) newState.blacklist = reactive(clone(defaultSettings.blacklist));
+    if (!Array.isArray(newState.shortcuts)) newState.shortcuts = reactive(clone(defaultSettings.shortcuts));
+    if (!newState.favorites) newState.favorites = reactive(clone(defaultSettings.favorites));
+    if (!newState.history) newState.history = reactive(clone(defaultSettings.history));
+    if (!newState.searches) newState.searches = reactive(clone(defaultSettings.searches));
+    if (!newState.misc) newState.misc = reactive(clone(defaultSettings.misc));
+    if (!newState.account) newState.account = reactive(clone(defaultSettings.account));
+
     // migrations
     if (!newState.configVersion) {
       newState.configVersion = 1;
@@ -189,7 +211,9 @@ class PersistanceService {
       newState.configVersion = 4;
     }
     if (newState.configVersion < 5) {
-      newState.shortcuts.push(focusSearchShortcut);
+      if (!newState.shortcuts.some((s) => s.action === focusSearchShortcut.action && s.sequence === focusSearchShortcut.sequence)) {
+        newState.shortcuts.push(focusSearchShortcut);
+      }
       newState.configVersion = 5;
     }
     if (newState.configVersion < 6) {
@@ -206,7 +230,11 @@ class PersistanceService {
       newState.configVersion = 6;
     }
     if (newState.configVersion < 7) {
-      newState.shortcuts.push(...fullscreenFavoriteShortcuts);
+      for (const shortcut of fullscreenFavoriteShortcuts) {
+        if (!newState.shortcuts.some((s) => s.action === shortcut.action && s.sequence === shortcut.sequence)) {
+          newState.shortcuts.push(shortcut);
+        }
+      }
       newState.configVersion = 7;
     }
     if (newState.configVersion < 8) {
@@ -222,10 +250,43 @@ class PersistanceService {
       newState.configVersion = 10;
     }
     if (newState.configVersion < 11) {
-      const old = newState.blacklist.tags as unknown as string[];
-      newState.blacklist.tags = reactive(old.map(tag => [tag]));
+      const raw = newState.blacklist?.tags as unknown;
+      if (Array.isArray(raw)) {
+        const alreadyNested =
+          raw.length === 0 ||
+          raw.every((row) => Array.isArray(row));
+        if (!alreadyNested) {
+          newState.blacklist.tags = reactive(
+            (raw as string[]).map((tag) => [String(tag)]),
+          );
+        } else {
+          newState.blacklist.tags = reactive(
+            (raw as string[][]).map((row) =>
+              Array.isArray(row)
+                ? row.map((t) => String(t))
+                : [String(row)],
+            ),
+          );
+        }
+      } else {
+        newState.blacklist = reactive({
+          ...(newState.blacklist || {}),
+          tags: [],
+          mode: newState.blacklist?.mode ?? defaultSettings.blacklist.mode,
+          hideServerSideBlacklisted:
+            newState.blacklist?.hideServerSideBlacklisted ??
+            defaultSettings.blacklist.hideServerSideBlacklisted,
+        });
+      }
+      if (!newState.appearance) {
+        newState.appearance = reactive(clone(defaultSettings.appearance));
+      }
       newState.appearance.hideGithubInfo = defaultSettings.appearance.hideGithubInfo;
-      newState.blacklist.hideServerSideBlacklisted = defaultSettings.blacklist.hideServerSideBlacklisted;
+      if (newState.blacklist) {
+        newState.blacklist.hideServerSideBlacklisted =
+          newState.blacklist.hideServerSideBlacklisted ??
+          defaultSettings.blacklist.hideServerSideBlacklisted;
+      }
       newState.configVersion = 11;
     }
     if (newState.configVersion < 12) {
@@ -457,6 +518,11 @@ class PersistanceService {
       newState.profiles.furbooru.baseUrl || SITE_MODE_URLS.furbooru;
     newState.profiles.inkbunny.baseUrl =
       newState.profiles.inkbunny.baseUrl || SITE_MODE_URLS.inkbunny;
+    if (!newState.profiles.tailspace) {
+      newState.profiles.tailspace = createEmptySiteProfile("tailspace");
+    }
+    newState.profiles.tailspace.baseUrl =
+      newState.profiles.tailspace.baseUrl || SITE_MODE_URLS.tailspace;
 
     if (newState.posts.localDirectoryName === undefined) {
       newState.posts.localDirectoryName = null;
@@ -464,7 +530,7 @@ class PersistanceService {
     if (newState.posts.cardAutoNext === undefined) {
       newState.posts.cardAutoNext = false;
     }
-    if (!newState.posts.cardAutoNextIntervalMs) {
+    if (newState.posts.cardAutoNextIntervalMs == null) {
       newState.posts.cardAutoNextIntervalMs =
         newState.posts.slideshowIntervalMs || 15000;
     }

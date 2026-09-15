@@ -1,5 +1,5 @@
 import { round } from "@/misc/util/round";
-import { BlacklistMode } from "@/services/types";
+import { BlacklistMode, type SiteMode } from "@/services/types";
 import type { ITag } from "@/Tag/ITag";
 import { expose } from "comlink";
 import { differenceInDays, format, parseISO } from "date-fns";
@@ -47,7 +47,7 @@ export class DashboardService {
     args: IDashboardArgs,
     onProgress: (event: IProgressEvent) => void,
   ): Promise<IDashboardResult> {
-    const posts = await this.getPosts([args.artist], args.baseUrl, onProgress);
+    const posts = await this.getPosts([args.artist], args.baseUrl, onProgress, args.mode);
     if (!posts.length)
       return {
         communityMetrics: [],
@@ -197,21 +197,21 @@ export class DashboardService {
     const count = [...tags].sort(
       (a, b) => (b.post_count ?? 0) - (a.post_count ?? 0),
     );
-    const fav = [...tags].sort(
-      (a, b) =>
-        (b.counts.favorites ?? 0) / b.counts.count -
-        (a.counts.favorites ?? 0) / a.counts.count,
-    );
-    const up = [...tags].sort(
-      (a, b) =>
-        b.counts.up / (b.counts.up + b.counts.down) -
-        a.counts.up / (a.counts.up + a.counts.down),
-    );
-    const down = [...tags].sort(
-      (a, b) =>
-        b.counts.down / (b.counts.up + b.counts.down) -
-        a.counts.down / (a.counts.up + a.counts.down),
-    );
+    const fav = [...tags].sort((a, b) => {
+      const ba = b.counts.count ? (b.counts.favorites ?? 0) / b.counts.count : 0;
+      const aa = a.counts.count ? (a.counts.favorites ?? 0) / a.counts.count : 0;
+      return ba - aa;
+    });
+    const up = [...tags].sort((a, b) => {
+      const bTot = b.counts.up + b.counts.down;
+      const aTot = a.counts.up + a.counts.down;
+      return (bTot ? b.counts.up / bTot : 0) - (aTot ? a.counts.up / aTot : 0);
+    });
+    const down = [...tags].sort((a, b) => {
+      const bTot = b.counts.up + b.counts.down;
+      const aTot = a.counts.up + a.counts.down;
+      return (bTot ? b.counts.down / bTot : 0) - (aTot ? a.counts.down / aTot : 0);
+    });
 
     const removeOutliers = (t: { counts: { count: number } }) =>
       t.counts.count > posts.length * 0.02; // TODO: let user decide this number?
@@ -244,18 +244,21 @@ export class DashboardService {
     tags: string[],
     baseUrl: string,
     onProgress: (event: IProgressEvent) => void,
+    mode?: SiteMode,
   ) {
     const service = new ApiService();
     const posts: EnhancedPost[] = [];
     let page = 1;
+    const pageLimit = 320;
     log("start fetch");
     while (posts.length < DashboardService.POST_LIMIT) {
       const newPosts: EnhancedPost[] = await service.getPosts({
         blacklistMode: BlacklistMode.blur,
-        limit: 320,
+        limit: pageLimit,
         tags,
         page,
-        baseUrl
+        baseUrl,
+        mode,
       });
       page += 1;
       posts.push(...newPosts);
@@ -263,7 +266,8 @@ export class DashboardService {
         message: `got ${posts.length} of ${DashboardService.POST_LIMIT} posts`,
         progress: Math.min(1, posts.length / DashboardService.POST_LIMIT),
       });
-      if (newPosts.length !== 320) {
+      // Stop when the site returns fewer than requested (Inkbunny max 100, etc.) (H9).
+      if (newPosts.length < pageLimit) {
         break;
       }
     }

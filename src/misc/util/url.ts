@@ -1,8 +1,16 @@
-import { useUrlStore } from "@/services";
+import { useSiteModeStore, useUrlStore } from "@/services";
 
 export const getE6PostUrl = (id: number) => {
   const url = useUrlStore();
-  return `${url.e621Url}posts/${id}`;
+  const siteMode = useSiteModeStore();
+  const base = url.e621Url.endsWith("/") ? url.e621Url : `${url.e621Url}/`;
+  if (siteMode.isFurbooru) {
+    return `${base}images/${id}`;
+  }
+  if (siteMode.isInkbunny) {
+    return `${base}s/${id}`;
+  }
+  return `${base}posts/${id}`;
 };
 
 export const openUrlInNewTab = (url: string) => {

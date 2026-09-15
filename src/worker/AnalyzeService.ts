@@ -2,7 +2,7 @@ import { expose } from "comlink";
 import type { PostTags, Post } from "./api";
 import type { EnhancedPost } from "./ApiService";
 import { ApiService } from "./ApiService";
-import { BlacklistMode } from "@/services/types";
+import { BlacklistMode, type SiteMode } from "@/services/types";
 import { debug } from "@/misc/util/debug";
 
 const log = debug("app:AnalyzeService");
@@ -34,6 +34,7 @@ export interface IAnalyzeTagsArgs {
   tags: string[];
   postLimit: number;
   baseUrl: string;
+  mode?: SiteMode;
 }
 
 export interface IAnalyzeTagsResult {
@@ -111,21 +112,24 @@ export class AnalyzeService {
     postLimit: number,
     baseUrl: string,
     onProgress: (event: IProgressEvent) => void,
+    mode?: SiteMode,
   ) {
     const service = new ApiService();
     const posts: Post[] = [];
     let page = 1;
-    const key = JSON.stringify({ tags, postLimit, baseUrl });
+    const key = JSON.stringify({ tags, postLimit, baseUrl, mode });
     log("start fetch");
     if (key && this.cache[key]) {
       posts.push(...this.cache[key]!);
     } else {
+      const pageLimit = 320;
       while (posts.length < postLimit) {
         const newPosts: Post[] = await service.getPosts({
           blacklistMode: BlacklistMode.blur,
-          limit: 320,
+          limit: pageLimit,
           tags,
           baseUrl,
+          mode,
           page,
         });
         page += 1;
@@ -134,7 +138,8 @@ export class AnalyzeService {
           message: `got ${posts.length} of ${postLimit} posts`,
           progress: Math.min(1, posts.length / postLimit),
         });
-        if (newPosts.length !== 320) {
+        // Stop when the site returns fewer than requested (Inkbunny max 100, etc.) (H9).
+        if (newPosts.length < pageLimit) {
           break;
         }
       }
@@ -152,6 +157,7 @@ export class AnalyzeService {
       args.postLimit,
       args.baseUrl,
       onProgress,
+      args.mode,
     );
     onProgress({
       message: "got posts, sorting tags",
@@ -180,12 +186,32 @@ export class AnalyzeService {
     username: string,
     baseUrl: string,
     onProgress: (event: IProgressEvent) => void,
+    mode?: SiteMode,
   ): Promise<FavoriteTagsResult> {
+    const backend =
+      mode === "furbooru"
+        ? "furbooru"
+        : mode === "inkbunny"
+          ? "inkbunny"
+          : mode === "e621" || mode === "e6ai" || mode === "local" || mode === "tailspace"
+            ? "e621"
+            : baseUrl.includes("furbooru.org")
+              ? "furbooru"
+              : baseUrl.includes("inkbunny.net")
+                ? "inkbunny"
+                : "e621";
+    const favQuery =
+      backend === "furbooru"
+        ? ["my:faves"]
+        : backend === "inkbunny"
+          ? ["favs:me"]
+          : [`fav:${username}`];
     const posts = await this.fetchPostsCached(
-      [`fav:${username}`],
+      favQuery,
       320 * 6,
       baseUrl,
       onProgress,
+      mode,
     );
 
     const counts = getCounts(posts);
@@ -221,6 +247,7 @@ export class AnalyzeService {
     onProgress: (event: IProgressEvent) => void,
     blacklist: string[][],
     blacklistMode: BlacklistMode,
+    mode?: SiteMode,
   ) {
     // fetch posts, sort them by score and display the top `limit` ones
     const toFetch = limit * 40;
@@ -240,6 +267,7 @@ export class AnalyzeService {
         page,
         auth,
         baseUrl,
+        mode,
       });
 
       const scoredNewPosts = scorePosts(tags, weights, newPosts);
@@ -285,7 +313,7 @@ const scorePosts = (
     }
     scoredPosts.push({
       ...post,
-      __score: Math.round(score / tagCount),
+      __score: tagCount ? Math.round(score / tagCount) : 0,
     });
   }
   return scoredPosts;

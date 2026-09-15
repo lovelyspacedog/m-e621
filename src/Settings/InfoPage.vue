@@ -5,7 +5,7 @@
         <settings-page-title section="info" title="Info" color="teal-darken-2" />
         <settings-page-item title="Version Info" select>
           You are running {{ appName }}, which was last changed with commit
-          <a :href="`https://github.com/avoonix/material-e621/commit/${commit.hash}`" target="_blank">{{
+          <a :href="`https://github.com/lovelyspacedog/material-e621/commit/${commit.hash}`" target="_blank">{{
             commit.hash.substring(0, 7) }}</a>
           on <b>{{ commitDate }}</b> (this was <b>{{ commitDateRelative }}</b>) from branch <b>{{ branch }}</b>.
           <v-btn color="accent" variant="text" @click="forceUpdate" block>
@@ -16,7 +16,7 @@
         <settings-page-item
           v-if="gitPullEnabled"
           title="Pull from Git"
-          description="Fetch origin, rebuild this instance, then reload. Requires the pull token from ~/.config/m-e621/pull_token on expedition."
+          description="Fetch origin, rebuild this instance, then reload. Requires the pull token from ~/.config/m-e621/pull_token on the host."
           select
         >
           <div class="text-left px-1 mb-2">
@@ -125,7 +125,7 @@ let pollTimer: ReturnType<typeof setInterval> | undefined;
 const getPullToken = (): string | null => {
   const saved = sessionStorage.getItem(TOKEN_KEY);
   if (saved) return saved;
-  const entered = window.prompt("Pull token (from expedition ~/.config/m-e621/pull_token):");
+  const entered = window.prompt("Pull token (from ~/.config/m-e621/pull_token on the host):");
   if (!entered) return null;
   sessionStorage.setItem(TOKEN_KEY, entered.trim());
   return entered.trim();

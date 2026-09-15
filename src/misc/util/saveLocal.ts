@@ -1,9 +1,10 @@
 import localforage from "localforage";
 import { downloadjs } from "@/Settings/download";
-import { usePostsStore, useSnackbarStore, useUrlStore } from "@/services";
+import { usePostsStore, useSnackbarStore, useSiteModeStore, useUrlStore } from "@/services";
 import { getCreatorTags } from "@/misc/util/siteLabels";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { getApiService } from "@/worker/services";
+import type { SiteMode } from "@/services/types";
 
 const DIR_HANDLE_KEY = "save_local_dir_handle";
 const TAG_COUNT_CACHE = new Map<string, number>();
@@ -72,6 +73,7 @@ const sortByCount = (names: string[], counts: Map<string, number> | null) =>
 const lookupTagCounts = async (
   names: string[],
   baseUrl: string,
+  mode?: SiteMode,
 ): Promise<Map<string, number>> => {
   const counts = new Map<string, number>();
   const missing: string[] = [];
@@ -88,6 +90,7 @@ const lookupTagCounts = async (
     const service = await getApiService();
     const tags = await service.getTags({
       baseUrl,
+      mode,
       limit: Math.min(100, missing.length),
       order: "count",
       name: missing.join(","),
@@ -123,7 +126,7 @@ export const resolveTopTags = async (
 
   const urlStore = useUrlStore();
   const counts = await withTimeout(
-    lookupTagCounts(candidates, urlStore.e621Url),
+    lookupTagCounts(candidates, urlStore.e621Url, useSiteModeStore().activeMode),
     2500,
   );
 

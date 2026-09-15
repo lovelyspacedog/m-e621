@@ -16,6 +16,10 @@ export interface ITagsListArgs extends IBaseArgs {
   query?: string;
   /** Exact tag name (e621 search[name]) */
   name?: string;
+  auth?: {
+    login: string;
+    api_key: string;
+  };
 }
 
 export interface ITagAliasesArgs extends IBaseArgs {
@@ -38,6 +42,10 @@ export interface IGetPoolArgs extends IBaseArgs {
 export interface ICommentsListArgs extends IBaseArgs {
   postId: number;
   limit?: number;
+  auth?: {
+    login: string;
+    api_key: string;
+  };
 }
 
 export interface INotesListArgs extends IBaseArgs {
@@ -45,6 +53,10 @@ export interface INotesListArgs extends IBaseArgs {
   limit?: number;
 }
 
+import type { SiteMode } from "@/services/types";
+
 export interface IBaseArgs {
   baseUrl: string;
+  /** Prefer over URL hostname for backend dispatch (M17). */
+  mode?: SiteMode;
 }

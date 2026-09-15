@@ -5,26 +5,45 @@
         <tag-search v-view-transition-name="'tagsearch'" style="flex: 1 1 auto" :tags="tags" @add-tag="addTag"
           @remove-tag="removeTag" @confirm-search="updateQuery(), onSearchClick()" label="Tags" />
         <v-btn
-          v-if="!siteMode.isLocal"
+          v-if="!siteMode.isLocal && !siteMode.isInkbunny"
           class="text-none"
           size="small"
           variant="text"
-          :title="siteMode.isInkbunny ? 'Inkbunny sorts by views' : undefined"
           :color="activeOrder === 'order:score' ? 'accent' : undefined"
           @click="applyOrder('order:score')"
         >
           Score
         </v-btn>
         <v-btn
-          v-if="!siteMode.isLocal"
+          v-if="!siteMode.isLocal && !siteMode.isInkbunny"
           class="text-none"
           size="small"
           variant="text"
-          :title="siteMode.isInkbunny ? 'Inkbunny sorts by views' : undefined"
           :color="activeOrder === 'order:favcount' ? 'accent' : undefined"
           @click="applyOrder('order:favcount')"
         >
           Favs
+        </v-btn>
+        <v-btn
+          v-if="siteMode.isInkbunny"
+          class="text-none"
+          size="small"
+          variant="text"
+          title="Inkbunny sorts by view count"
+          :color="activeOrder === 'order:score' || activeOrder === 'order:favcount' ? 'accent' : undefined"
+          @click="applyOrder('order:score')"
+        >
+          Views
+        </v-btn>
+        <v-btn
+          v-if="siteMode.isInkbunny"
+          class="text-none"
+          size="small"
+          variant="text"
+          :color="activeOrder === 'order:newest' ? 'accent' : undefined"
+          @click="applyOrder('order:newest')"
+        >
+          Newest
         </v-btn>
         <v-btn
           v-if="siteMode.isLocal"
@@ -249,11 +268,15 @@ import { useHistory } from "@/Post/historyManager";
 import { usePostListManager } from "@/Post/postListManager";
 import Posts from "@/Post/Posts.vue";
 import { useRouterTagManager } from "@/Post/routerTagManager";
-import { useAccountStore, useBlacklistStore, usePostsStore, useSiteModeStore, useUrlStore } from "@/services";
+import { useAccountStore, useBlacklistStore, usePostsStore, useSiteModeStore, useSnackbarStore, useUrlStore } from "@/services";
 import type { ITag } from "@/Tag/ITag";
 import { debounce, isEqual } from "lodash";
 import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from "vue";
 import { useRouterQueryHelpers } from "../misc/util/utilities";
+import {
+  buildTagQuery,
+  tagQueryTruncationMessage,
+} from "../misc/util/createTagQuery";
 import {
   findLocalResumeTarget,
   getLocalPostsPage,
@@ -275,6 +298,7 @@ const account = useAccountStore();
 const blacklist = useBlacklistStore();
 const postsStore = usePostsStore();
 const siteMode = useSiteModeStore();
+const snackbar = useSnackbarStore();
 const localEmptyMessage = ref(localStatusMessage("no-folder"));
 const restorePath = ref<string | null>(null);
 const restoreVideoTime = ref<number | undefined>(undefined);
@@ -332,6 +356,22 @@ const {
         localStatusMessage(result.status) || "No matching local files.";
       return result.posts;
     }
+    // e621/e6ai only — hide-mode blacklist is folded into the 40-tag API cap (M9).
+    if (
+      page <= 1 &&
+      !siteMode.isFurbooru &&
+      !siteMode.isInkbunny &&
+      !siteMode.isTailspace
+    ) {
+      const built = buildTagQuery(
+        toRaw(blacklist.mode),
+        toRaw(blacklist.tags),
+        toRaw(tags.value),
+      );
+      if (built.truncated) {
+        snackbar.addMessage(tagQueryTruncationMessage(built.total, built.limit));
+      }
+    }
     const service = await getApiService();
     const posts = await service.getPosts(toRaw({
       limit: toRaw(postsStore.postListFetchLimit),
@@ -342,6 +382,7 @@ const {
       auth: toRaw(account.auth),
       userId: toRaw(account.userId),
       baseUrl: toRaw(urlStore.e621Url),
+      mode: toRaw(siteMode.activeMode),
     }));
     return posts;
   },
@@ -395,6 +436,7 @@ const toggleSaveSearch = async () => {
             auth: toRaw(account.auth),
             userId: toRaw(account.userId),
             baseUrl: toRaw(urlStore.e621Url),
+            mode: toRaw(siteMode.activeMode),
           }),
         );
       },
@@ -411,7 +453,7 @@ const loadLocalWithResume = async () => {
     toRaw(tags.value),
     toRaw(postsStore.postListFetchLimit),
   );
-  const pagesToLoad = target ? Math.min(Math.max(target.page, 1), 5) : 1;
+  const pagesToLoad = target ? Math.max(target.page, 1) : 1;
   for (let i = 0; i < pagesToLoad; i++) {
     await loadNextPage();
     if (
@@ -515,9 +557,13 @@ watch(
 // When the user switches site mode from the nav drawer, router.push to the
 // same blank /posts route is a no-op.  Watch the store signal so we always
 // reload posts after a mode change regardless of route state.
+// Skip Tailspace: that mode uses TailspacePosts, not this page (C3).
 watch(
   () => siteMode.modeChangeCount,
-  () => { onSearchClick(); },
+  () => {
+    if (siteMode.isTailspace) return;
+    onSearchClick();
+  },
 );
 
 const activeOrder = computed(
@@ -560,10 +606,13 @@ const onHistoryEntryClick = (entry: string[]) => {
   updateQuery();
 };
 
-watch(posts, () => {
-  console.log("posts changed", posts.value.length)
-  addHistoryEntry(tags.value);
-  suggestTags();
-}, { deep: true, });
+watch(
+  () => posts.value.map((p) => p.id).join(","),
+  () => {
+    console.log("posts changed", posts.value.length);
+    addHistoryEntry(tags.value);
+    suggestTags();
+  },
+);
 
 </script>

@@ -1,6 +1,6 @@
 <template>
   <v-list>
-    <PoolInfo v-if="pool" class="mb-2" :pool-id="pool" />
+    <PoolInfo v-if="pool && showPoolBrowse" class="mb-2" :pool-id="pool" />
     <v-list-item v-for="(item, i) in items" :key="i" @click.stop="item.action" :router="!!item.route" exact :to="item.route" >
       {{ item.text }}
     </v-list-item>
@@ -9,19 +9,12 @@
 
 <script lang="ts">
 import PoolInfo from "@/Pool/PoolInfo.vue";
-import { useBlacklistStore, useUrlStore } from "@/services";
+import { useBlacklistStore, useSiteModeStore, useUrlStore } from "@/services";
 import { useFavoritesStore } from "@/services/FavoriteStore";
 import { computed, defineComponent } from "vue";
 import { openUrlInNewTab } from "@/misc/util/url";
 import { isCreatorCategory, useSiteLabels } from "@/misc/util/siteLabels";
 import { useRouter } from "vue-router";
-
-// const menu = {
-//   remove: "Remove from search",
-//   add: "Add to search",
-//   exclude: "Exclude from search",
-//   openNew: "Search in new tab",
-// };
 
 export default defineComponent({
     props: {
@@ -38,12 +31,19 @@ export default defineComponent({
         const blacklist = useBlacklistStore();
         const favorites = useFavoritesStore();
         const urlStore = useUrlStore();
+        const siteMode = useSiteModeStore();
         const wikiUrl = computed(() => `${urlStore.e621Url}wiki/show?title=${props.name}`);
         const e621Url = computed(() => `${urlStore.e621Url}posts?tags=${props.name}`);
+        const furbooruSearchUrl = computed(
+          () => `${urlStore.e621Url}search?q=${encodeURIComponent(props.name)}`,
+        );
         const isBlacklisted = computed(() => blacklist.tagIsBlacklisted(props.name));
         const isFavorited = computed(() => favorites.isFavorited(props.name, props.category));
         const router = useRouter();
         const { creatorLabel } = useSiteLabels();
+        const isE621Family = computed(
+          () => !siteMode.isFurbooru && !siteMode.isInkbunny && !siteMode.isLocal && !siteMode.isTailspace,
+        );
         const pool = computed(() => {
             if(props.category === "pool") {
                 const match = /pool:(\d+)/.exec(props.name);
@@ -52,6 +52,12 @@ export default defineComponent({
                 }
             }
             return false;
+        });
+        const showPoolBrowse = computed(() => {
+          if (!pool.value) return false;
+          // Inkbunny pools browse via Posts tags; Pool page is e621-shaped (H15/H13).
+          if (siteMode.isInkbunny) return false;
+          return isE621Family.value;
         });
         const toggleFavorite = () => {
             favorites.setFavorite(props.name, props.category, !isFavorited.value);
@@ -71,14 +77,23 @@ export default defineComponent({
             },
             {
                 text: "Browse pool",
-                route: {
-                    name: "Pool",
-                    params: {
-                        id: pool.value || 0,
+                route: siteMode.isInkbunny
+                  ? { name: "Posts", query: { tags: `pool:${pool.value || 0}` } }
+                  : {
+                      name: "Pool",
+                      params: {
+                          id: pool.value || 0,
+                      },
                     },
-                },
                 action: async () => {
                     if (!pool.value) return;
+                    if (siteMode.isInkbunny) {
+                      router.push({
+                        name: "Posts",
+                        query: { tags: `pool:${pool.value}` },
+                      });
+                      return;
+                    }
                     router.push({
                         name: "Pool",
                         params: {
@@ -86,7 +101,7 @@ export default defineComponent({
                         },
                     });
                 },
-                visible: !!pool.value,
+                visible: !!pool.value && (isE621Family.value || siteMode.isInkbunny),
             },
             {
                 text: "Search",
@@ -112,7 +127,10 @@ export default defineComponent({
                     : "Add to blacklist",
                 action: () => {
                     if (isBlacklisted.value) {
-                        blacklist.removeTag(blacklist.tags.findIndex(tags => tags.length === 1 && tags[0] === props.name), props.name);
+                        const idx = blacklist.tags.findIndex(
+                          (tags) => tags.length === 1 && tags[0] === props.name.toLowerCase().replace(/ /g, "_"),
+                        );
+                        blacklist.removeTag(idx >= 0 ? idx : 0, props.name);
                     }
                     else {
                         blacklist.addTag(blacklist.tags.length, props.name);
@@ -121,18 +139,22 @@ export default defineComponent({
                 visible: true,
             },
             {
-                text: "Open e621.net wiki article",
+                text: `Open ${siteMode.activeLabel} wiki`,
                 action: () => {
                     openUrlInNewTab(wikiUrl.value);
                 },
-                visible: true,
+                visible: isE621Family.value,
             },
             {
-                text: "Search on e621.net",
+                text: siteMode.isFurbooru
+                  ? "Search on Furbooru"
+                  : `Search on ${siteMode.activeLabel}`,
                 action: () => {
-                    openUrlInNewTab(e621Url.value);
+                    openUrlInNewTab(
+                      siteMode.isFurbooru ? furbooruSearchUrl.value : e621Url.value,
+                    );
                 },
-                visible: true,
+                visible: isE621Family.value || siteMode.isFurbooru,
             },
             {
                 text: `View in ${creatorLabel.value} Dashboard`,
@@ -144,109 +166,15 @@ export default defineComponent({
                         },
                     });
                 },
-                visible: isCreatorCategory(props.category),
+                visible: isCreatorCategory(props.category) && isE621Family.value,
             },
         ].filter(item => item.visible));
         return {
             items,
             pool,
+            showPoolBrowse,
         };
     },
     components: { PoolInfo }
 });
-// data() {
-//   return {
-//     items: [menu.remove, menu.add, menu.exclude],
-//   };
-// },
-// methods: {
-//   getAvailableOptions(tag) {
-//     const options = [];
-//     let inArray = false,
-//       inArrayButNegated = false,
-//     for (const cur of this.currentQuery) {
-//       if (cur == tag) {
-//         inArray = true;
-//       }
-//       if (cur == "-" + tag) {
-//         inArrayButNegated = true;
-//       }
-//     }
-//     if (inArray) options.push(menu.remove);
-//     if (!inArray) options.push(menu.add);
-//     if (!inArrayButNegated) options.push(menu.exclude);
-//     options.push(menu.wiki);
-//     options.push(menu.openNew);
-//     return options;
-//   },
-//   executeAction(tag, action) {
-//     switch (action) {
-//       case menu.remove:
-//         this.setQueryParams(
-//           (this.$store.state.routerModule.query.tags || "")
-//             .replace(
-//               new RegExp(
-//                 "(\\s|^)(\\-)?" + escapeStringRegexp(tag) + "(\\s|$)",
-//                 "g",
-//               ),
-//               " ",
-//             )
-//             .replace(/\s+/, " "),
-//         );
-//         break;
-//       case menu.add:
-//         this.setQueryParams(
-//           (
-//             (this.$store.state.routerModule.query.tags || "").replace(
-//               new RegExp(
-//                 "(\\s|^)(\\-)?" + escapeStringRegexp(tag) + "(\\s|$)",
-//                 "g",
-//               ),
-//               " ",
-//             ) +
-//             " " +
-//             tag
-//           ).replace(/\s+/g, " "),
-//         );
-//         break;
-//       case menu.exclude:
-//         this.setQueryParams(
-//           (
-//             (this.$store.state.routerModule.query.tags || "").replace(
-//               new RegExp(
-//                 "(\\s|^)(\\-)?" + escapeStringRegexp(tag) + "(\\s|$)",
-//                 "g",
-//               ),
-//               " ",
-//             ) +
-//             " -" +
-//             tag
-//           ).replace(/\s+/g, " "),
-//         );
-//         break;
-//       case menu.openNew:
-//         window
-//           .open(
-//             `${window.location.origin}/#/e621?agree=true&tags=${tag}`,
-//             "_blank",
-//           )
-//           .focus();
-//         break;
-//     }
-//   },
-//   setQueryParams(tags) {
-//     this.$store.dispatch("resetNoResults");
-//     this.$router.push({
-//       query: {
-//         ...this.$store.state.routerModule.query,
-//         tags: tags,
-//       },
-//     });
-//   },
-// },
-// computed: {
-//   currentQuery() {
-//     return (this.$store.state.routerModule.query.tags || "").split(" ");
-//   },
-// },
 </script>

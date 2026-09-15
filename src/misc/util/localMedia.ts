@@ -82,6 +82,8 @@ export type LocalMediaStatus =
 
 let cachedIndex: LocalMediaEntry[] | null = null;
 let cachedRootName: string | null = null;
+/** Stable per-folder id (sidecar UUID); not just display name (H19). */
+let cachedFolderKey: string | null = null;
 let cachedOrdered: LocalMediaEntry[] | null = null;
 let cachedOrderKey = "";
 let browseRoot: FileSystemDirectoryHandle | null = null;
@@ -90,8 +92,12 @@ let posterMetaByPath: Record<string, PosterMeta> = {};
 let favoritedPaths = new Set<string>();
 const blobUrls = new Map<number, string>();
 const posterUrls = new Map<number, string>();
+/** path → numeric id; avoids hash collisions sharing blob/poster slots (M29). */
+const pathToId = new Map<string, number>();
+const idToPath = new Map<number, string>();
 const EXTRA_TAGS_KEY = "local_mode_extra_tags";
 const SIDECAR_NAME = ".me621-tags.json";
+const FOLDER_ID_SIDECAR = ".me621-folder-id";
 const POSTER_DIR = ".me621-posters";
 const POSTER_META_KEY = "local_mode_poster_meta";
 const FAVORITES_KEY = "local_mode_favorites";
@@ -116,14 +122,76 @@ export type LocalResumeState = {
 type ResumeStore = Record<string, LocalResumeState>;
 
 const folderName = () => cachedRootName || browseRoot?.name || null;
+const folderKey = () => cachedFolderKey || folderName();
 
-export const hashLocalPath = (path: string) => {
-  let hash = 2166136261;
+const newFolderId = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `f-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+/** Resolve a stable storage key for this directory (persisted in-folder when possible). */
+const resolveFolderKey = async (
+  root: FileSystemDirectoryHandle,
+): Promise<string> => {
+  try {
+    const file = await root.getFileHandle(FOLDER_ID_SIDECAR);
+    const text = await (await file.getFile()).text();
+    const parsed = JSON.parse(text) as { id?: string };
+    if (parsed?.id && typeof parsed.id === "string") {
+      return `id:${parsed.id}`;
+    }
+  } catch {
+    // missing or unreadable — try to create
+  }
+  const id = newFolderId();
+  try {
+    const writableHandle = await root.getFileHandle(FOLDER_ID_SIDECAR, {
+      create: true,
+    });
+    const writable = await writableHandle.createWritable();
+    await writable.write(`${JSON.stringify({ id }, null, 2)}\n`);
+    await writable.close();
+    return `id:${id}`;
+  } catch {
+    // Read-only folder: fall back to name (legacy behavior).
+    return `name:${root.name}`;
+  }
+};
+
+/** Prefer id-keyed store; migrate from legacy name key when empty. */
+const storeBucket = <T>(
+  all: Record<string, T> | null | undefined,
+  key: string,
+  legacyName: string,
+): T | undefined => {
+  if (!all) return undefined;
+  if (all[key] != null) return all[key];
+  if (key.startsWith("id:") && all[legacyName] != null) return all[legacyName];
+  if (key.startsWith("name:") && all[key.slice(5)] != null) return all[key.slice(5)];
+  return undefined;
+};
+
+export const hashLocalPath = (path: string, salt = 0) => {
+  let hash = 2166136261 ^ salt;
   for (let i = 0; i < path.length; i++) {
     hash ^= path.charCodeAt(i);
     hash = Math.imul(hash, 16777619);
   }
   return (hash >>> 0) % 0x7fffffff || 1;
+};
+
+const idForPath = (path: string) => {
+  const existing = pathToId.get(path);
+  if (existing != null) return existing;
+  let salt = 0;
+  let id = hashLocalPath(path, salt);
+  while (idToPath.has(id) && idToPath.get(id) !== path) {
+    salt += 1;
+    id = hashLocalPath(path, salt);
+  }
+  pathToId.set(path, id);
+  idToPath.set(id, path);
+  return id;
 };
 
 const tokenize = (segment: string) =>
@@ -169,7 +237,8 @@ const sniffMp4Playable = async (file: File) => {
     ) {
       return true;
     }
-    return true;
+    // No ftyp box — not a reliable MP4 (M29).
+    return false;
   } catch {
     return false;
   }
@@ -249,8 +318,11 @@ const walkDirectory = async (
 export const invalidateLocalMediaIndex = () => {
   cachedIndex = null;
   cachedRootName = null;
+  cachedFolderKey = null;
   cachedOrdered = null;
   cachedOrderKey = "";
+  pathToId.clear();
+  idToPath.clear();
 };
 
 const revokeUrl = (map: Map<number, string>, id: number) => {
@@ -316,25 +388,26 @@ const writeSidecar = async () => {
 };
 
 const persistExtraTags = async () => {
-  const folder = cachedRootName || browseRoot?.name;
-  if (!folder) return;
+  const key = folderKey();
+  if (!key) return;
   const all =
     (await localforage.getItem<ExtraTagsStore>(EXTRA_TAGS_KEY)) || {};
-  all[folder] = extraTagsByPath;
+  all[key] = extraTagsByPath;
   await localforage.setItem(EXTRA_TAGS_KEY, all);
   await writeSidecar();
 };
 
 const loadExtraTags = async (
   root: FileSystemDirectoryHandle,
-  folderNameArg: string,
+  key: string,
+  legacyName: string,
 ) => {
   browseRoot = root;
   extraTagsByPath = {};
   try {
     const all =
       (await localforage.getItem<ExtraTagsStore>(EXTRA_TAGS_KEY)) || {};
-    extraTagsByPath = { ...(all[folderNameArg] || {}) };
+    extraTagsByPath = { ...(storeBucket(all, key, legacyName) || {}) };
   } catch {
     extraTagsByPath = {};
   }
@@ -350,19 +423,19 @@ const loadExtraTags = async (
 };
 
 const persistPosterMeta = async () => {
-  const folder = folderName();
-  if (!folder) return;
+  const key = folderKey();
+  if (!key) return;
   const all =
     (await localforage.getItem<PosterMetaStore>(POSTER_META_KEY)) || {};
-  all[folder] = posterMetaByPath;
+  all[key] = posterMetaByPath;
   await localforage.setItem(POSTER_META_KEY, all);
 };
 
-const loadPosterMeta = async (folderNameArg: string) => {
+const loadPosterMeta = async (key: string, legacyName: string) => {
   try {
     const all =
       (await localforage.getItem<PosterMetaStore>(POSTER_META_KEY)) || {};
-    posterMetaByPath = { ...(all[folderNameArg] || {}) };
+    posterMetaByPath = { ...(storeBucket(all, key, legacyName) || {}) };
   } catch {
     posterMetaByPath = {};
   }
@@ -478,22 +551,23 @@ const writeFavoritesSidecar = async () => {
 };
 
 const persistFavorites = async () => {
-  const folder = folderName();
-  if (!folder) return;
+  const key = folderKey();
+  if (!key) return;
   const all = (await localforage.getItem<FavoritesStore>(FAVORITES_KEY)) || {};
-  all[folder] = [...favoritedPaths];
+  all[key] = [...favoritedPaths];
   await localforage.setItem(FAVORITES_KEY, all);
   await writeFavoritesSidecar();
 };
 
 const loadFavorites = async (
   root: FileSystemDirectoryHandle,
-  folderNameArg: string,
+  key: string,
+  legacyName: string,
 ) => {
   favoritedPaths = new Set();
   try {
     const all = (await localforage.getItem<FavoritesStore>(FAVORITES_KEY)) || {};
-    for (const path of all[folderNameArg] || []) {
+    for (const path of storeBucket(all, key, legacyName) || []) {
       favoritedPaths.add(path);
     }
   } catch {
@@ -536,10 +610,14 @@ export const saveLocalResume = async (
   videoTime?: number,
   folderOverride?: string | null,
 ) => {
-  const folder = folderOverride || folderName();
-  if (!folder || !path) return;
+  const key = folderOverride
+    ? folderOverride.startsWith("id:") || folderOverride.startsWith("name:")
+      ? folderOverride
+      : `name:${folderOverride}`
+    : folderKey();
+  if (!key || !path) return;
   const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
-  all[folder] = {
+  all[key] = {
     path,
     videoTime:
       typeof videoTime === "number" && Number.isFinite(videoTime) && videoTime > 0
@@ -553,24 +631,40 @@ export const saveLocalResume = async (
 export const getLocalResume = async (
   folderOverride?: string | null,
 ): Promise<LocalResumeState | null> => {
-  const folder = folderOverride || folderName() || usePostsStore().localDirectoryName;
-  if (!folder) return null;
+  const displayName = usePostsStore().localDirectoryName;
+  const key = folderOverride
+    ? folderOverride.startsWith("id:") || folderOverride.startsWith("name:")
+      ? folderOverride
+      : `name:${folderOverride}`
+    : folderKey() || (displayName ? `name:${displayName}` : null);
+  if (!key) return null;
+  const legacyName =
+    key.startsWith("name:") ? key.slice(5) : folderName() || displayName || "";
   try {
     const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
-    return all[folder] || null;
+    return storeBucket(all, key, legacyName) || (legacyName ? all[legacyName] : null) || null;
   } catch {
     return null;
   }
 };
 
 export const clearLocalResume = async (folderOverride?: string | null) => {
-  const folder = folderOverride || folderName();
-  if (!folder) return;
+  const raw = folderOverride || folderKey() || folderName();
+  if (!raw) return;
   try {
     const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
-    if (!(folder in all)) return;
-    delete all[folder];
-    await localforage.setItem(RESUME_KEY, all);
+    const keys = new Set<string>([raw]);
+    if (!raw.startsWith("id:") && !raw.startsWith("name:")) {
+      keys.add(`name:${raw}`);
+    }
+    let changed = false;
+    for (const k of keys) {
+      if (k in all) {
+        delete all[k];
+        changed = true;
+      }
+    }
+    if (changed) await localforage.setItem(RESUME_KEY, all);
   } catch {
     // ignore
   }
@@ -661,10 +755,12 @@ export const scanLocalMedia = async (
     return { entries: [], status: "denied" };
   }
   browseRoot = handle;
-  await loadExtraTags(handle, handle.name);
-  await loadPosterMeta(handle.name);
-  await loadFavorites(handle, handle.name);
-  if (cachedIndex && cachedRootName === handle.name && !force) {
+  const key = await resolveFolderKey(handle);
+  cachedFolderKey = key;
+  await loadExtraTags(handle, key, handle.name);
+  await loadPosterMeta(key, handle.name);
+  await loadFavorites(handle, key, handle.name);
+  if (cachedIndex && cachedRootName === handle.name && cachedFolderKey === key && !force) {
     return {
       entries: cachedIndex,
       status: cachedIndex.length ? "ok" : "empty",
@@ -984,7 +1080,7 @@ const toPostTags = (entry: LocalMediaEntry): PostTags => ({
 });
 
 const blobUrlFor = async (entry: LocalMediaEntry) => {
-  const id = hashLocalPath(entry.relativePath);
+  const id = idForPath(entry.relativePath);
   const existing = blobUrls.get(id);
   if (existing) return { id, url: existing };
   const file = await entry.handle.getFile();

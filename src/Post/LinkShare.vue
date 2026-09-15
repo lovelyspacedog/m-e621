@@ -33,8 +33,8 @@
 <script lang="ts">
 import { getAppName, getBaseUrl } from "@/misc/util/utilities";
 import { computed, defineComponent, ref } from "vue";
-import { useSnackbarStore, useUrlStore } from "@/services";
-import { openUrlInNewTab } from "@/misc/util/url";
+import { useSnackbarStore, useSiteModeStore } from "@/services";
+import { getE6PostUrl, openUrlInNewTab } from "@/misc/util/url";
 
 enum UrlTypes {
   image,
@@ -65,14 +65,14 @@ export default defineComponent({
   },
   setup(props) {
     const snackbar = useSnackbarStore();
-    const urlStore = useUrlStore();
+    const siteMode = useSiteModeStore();
 
     const url = computed(() => {
       switch (urlType.value) {
         case UrlTypes.materialE621:
           return `${getBaseUrl()}/#/posts?tags=id:${props.postId}`;
         case UrlTypes.e621:
-          return `${urlStore.e621Url}posts/${props.postId}`;
+          return getE6PostUrl(props.postId);
         case UrlTypes.image:
         default:
           return props.rawFileUrl;
@@ -86,7 +86,7 @@ export default defineComponent({
       },
       {
         type: UrlTypes.e621,
-        display: "Share link to the e621 page",
+        display: `Share link to the ${siteMode.activeLabel} page`,
       },
       {
         type: UrlTypes.image,

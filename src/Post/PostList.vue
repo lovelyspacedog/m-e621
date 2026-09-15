@@ -105,7 +105,10 @@ export default defineComponent({
     let observer: IntersectionObserver | null = null;
     const elementIndexMap = new WeakMap<Element, number>();
 
-    watch(props.visiblePosts,
+    // Must use a getter: parents pass a fresh array each compute; watching the
+    // prop value alone never re-fires, so infinite scroll never re-arms (C1).
+    watch(
+      () => props.visiblePosts,
       () => {
         canTriggerLoad.value = { next: true, previous: true };
       },

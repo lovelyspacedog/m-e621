@@ -24,6 +24,7 @@ export const useHistoryStore = defineStore("history", () => {
     main.history.entries.splice(index, 1);
   };
   const addEntry = (tags: string[]) => {
+    if (!tags.length) return;
     if (isEqual(tags, main.history.entries[0])) {
       return;
     }

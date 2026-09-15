@@ -1,6 +1,10 @@
 #!/bin/bash
-# Start m-e621 static server (localhost TCP port for self-hosted managed link)
+# Start m-e621 static server (localhost TCP port for a reverse-proxied custom app).
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=load-m-e621-env.sh
+source "$ROOT/load-m-e621-env.sh"
 
 APP_DIR="${M_E621_DIR:-$HOME/m-e621}"
 CONFIG_DIR="${M_E621_CONFIG:-$HOME/.config/m-e621}"
@@ -29,6 +33,7 @@ fi
 export M_E621_ROOT="$APP_DIR/dist"
 export M_E621_HOST="$HOST"
 export M_E621_PORT="$PORT"
+# DOMAIN / CONFIG already available via load-m-e621-env.sh when set.
 
 nohup python3 "$APP_DIR/serve.py" >>"$LOG" 2>&1 &
 echo $! >"$PIDFILE"

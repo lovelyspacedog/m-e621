@@ -456,6 +456,9 @@ export function mapSearchTags(tags: string[]): MappedInkbunnySearch {
 // ---------------------------------------------------------------------------
 
 let guestSid: string | null = null;
+// RID cache keyed by search fingerprint + session so concurrent Comlink
+// searches cannot overwrite each other's pagination state (H12).
+const ridCache = new Map<string, string>();
 
 export async function login(username: string, password?: string): Promise<InkbunnyLoginResult> {
   const data = await postForm<{ sid: string; user_id?: number | string; ratingsmask?: string }>(
@@ -463,7 +466,7 @@ export async function login(username: string, password?: string): Promise<Inkbun
     { username, password: password || undefined },
   );
   if (!data.sid) throw new Error("Inkbunny login did not return a SID");
-  ridCache = null;
+  ridCache.clear();
   const userId = num(data.user_id);
   if (username.toLowerCase() === "guest") {
     guestSid = data.sid;
@@ -481,7 +484,7 @@ export async function logout(sid: string): Promise<void> {
     // SID may already be dead
   }
   if (guestSid === sid) guestSid = null;
-  ridCache = null;
+  ridCache.clear();
 }
 
 async function enableAllGuestRatings(sid: string): Promise<void> {
@@ -529,10 +532,8 @@ async function withSidRetry<T>(
 // Search (RID pagination)
 // ---------------------------------------------------------------------------
 
-let ridCache: { key: string; rid: string } | null = null;
-
-function searchKey(mapped: MappedInkbunnySearch, userId?: number | null): string {
-  return JSON.stringify({ ...mapped, userId: mapped.favsMe ? userId : null });
+function searchKey(mapped: MappedInkbunnySearch, userId?: number | null, sid?: string | null): string {
+  return JSON.stringify({ ...mapped, userId: mapped.favsMe ? userId : null, sid: sid || null });
 }
 
 function isInkbunnyCode(error: unknown, code: number): boolean {
@@ -551,7 +552,7 @@ export async function searchSubmissions(args: {
   const sid = await ensureSid(args.sid);
   const isGuest = !args.sid || args.sid === guestSid;
   const page = Math.max(1, args.page || 1);
-  const key = searchKey(mapped, args.userId);
+  const key = searchKey(mapped, args.userId, sid);
 
   const run = async (sessionId: string, useRid: boolean) => {
     const fields: Record<string, string | number> = {
@@ -559,8 +560,9 @@ export async function searchSubmissions(args: {
       submissions_per_page: Math.min(100, Math.max(1, args.limit || 30)),
       page,
     };
-    if (useRid && ridCache?.rid) {
-      fields.rid = ridCache.rid;
+    const cachedRid = ridCache.get(key);
+    if (useRid && cachedRid) {
+      fields.rid = cachedRid;
     } else {
       fields.get_rid = "yes";
       if (mapped.text) fields.text = mapped.text;
@@ -581,7 +583,7 @@ export async function searchSubmissions(args: {
       submissions?: InkbunnySearchHit[];
     }>("search", fields);
 
-    if (data.rid) ridCache = { key, rid: data.rid };
+    if (data.rid) ridCache.set(key, data.rid);
     const hits = asList(data.submissions);
     return {
       posts: hits.map((hit) => adaptSearchHit(hit, sessionId)),
@@ -592,12 +594,12 @@ export async function searchSubmissions(args: {
   };
 
   return withSidRetry(sid, isGuest, async (sessionId) => {
-    const useRid = page > 1 && ridCache?.key === key && !!ridCache.rid;
+    const useRid = page > 1 && ridCache.has(key);
     try {
       return await run(sessionId, useRid);
     } catch (error) {
       if (useRid && (isInkbunnyCode(error, 3) || isInkbunnyCode(error, 4))) {
-        ridCache = null;
+        ridCache.delete(key);
         return run(sessionId, false);
       }
       throw error;
@@ -648,6 +650,30 @@ export async function searchKeywords(args: {
     created_at: new Date(),
     updated_at: new Date(),
   }));
+}
+
+/** Confirm a SID is a logged-in (non-guest) session that can act for `username`. */
+export async function verifySidForUsername(
+  sid: string,
+  username: string,
+): Promise<{ userId: number }> {
+  if (!username.trim()) {
+    throw new Error("Username is required to verify an Inkbunny session");
+  }
+  if (sid === guestSid) {
+    throw new Error("Inkbunny guest session cannot be verified as a user account");
+  }
+  // Watchlist requires a real logged-in SID (guest fails).
+  await getWatchlist(sid);
+  // Prove the SID can search; gallery for the typed username should resolve.
+  const result = await searchSubmissions({
+    tags: [`username:${username}`],
+    page: 1,
+    limit: 1,
+    sid,
+  });
+  const hitId = result.hits[0] ? num(result.hits[0].user_id) : 0;
+  return { userId: hitId };
 }
 
 export async function getWatchlist(sid: string): Promise<Array<{ user_id: number; username: string }>> {

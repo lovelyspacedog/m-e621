@@ -41,15 +41,30 @@ function e621MediaProxy(): Plugin {
           res.end('host not allowed');
           return;
         }
-        fetch(target.toString(), {
-          headers: {
-            'User-Agent': 'm-e621-download-proxy/1.0',
-            ...(isInkbunnyMediaHost(target.hostname.toLowerCase())
-              ? { Referer: 'https://inkbunny.net' }
-              : {}),
-          },
-          redirect: 'follow',
-        })
+        // Follow redirects manually; re-validate host each hop (M27).
+        const fetchAllowed = async (url: URL, hops = 0): Promise<Response> => {
+          if (hops > 5) throw new Error('too many redirects');
+          const remote = await fetch(url.toString(), {
+            headers: {
+              'User-Agent': 'm-e621-download-proxy/1.0',
+              ...(isInkbunnyMediaHost(url.hostname.toLowerCase())
+                ? { Referer: 'https://inkbunny.net' }
+                : {}),
+            },
+            redirect: 'manual',
+          });
+          if ([301, 302, 303, 307, 308].includes(remote.status)) {
+            const loc = remote.headers.get('location');
+            if (!loc) throw new Error('redirect without Location');
+            const next = new URL(loc, url);
+            if (next.protocol !== 'https:' || !MEDIA_HOST_OK(next.hostname.toLowerCase())) {
+              throw new Error('redirect target not allowed');
+            }
+            return fetchAllowed(next, hops + 1);
+          }
+          return remote;
+        };
+        fetchAllowed(target)
           .then(async (remote) => {
             res.statusCode = remote.status;
             res.setHeader(
@@ -466,11 +481,11 @@ function furbooruProxy(): Plugin {
         }
       });
 
-      // ── Votes: POST /api/furbooru/images/:id/votes?key=...&value=up|down ───
+      // ── Votes: POST/DELETE /api/furbooru/images/:id/votes?key=... ─────────
       server.middlewares.use(async (req, res, next) => {
         const pathOnly = (req.url ?? '').split('?')[0];
         const voteMatch = /^\/api\/furbooru\/images\/(\d+)\/votes$/.exec(pathOnly);
-        if (!voteMatch || req.method !== 'POST') {
+        if (!voteMatch || (req.method !== 'POST' && req.method !== 'DELETE')) {
           next();
           return;
         }
@@ -479,10 +494,13 @@ function furbooruProxy(): Plugin {
         const params = new URLSearchParams(qs);
         const key = params.get('key') ?? '';
         const value = params.get('value') ?? 'up';
-        const url = `${FURBOORU_BASE}/api/v1/json/images/${imageId}/votes?key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`;
+        const url =
+          req.method === 'DELETE'
+            ? `${FURBOORU_BASE}/api/v1/json/images/${imageId}/votes?key=${encodeURIComponent(key)}`
+            : `${FURBOORU_BASE}/api/v1/json/images/${imageId}/votes?key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`;
         try {
           const remote = await fetch(url, {
-            method: 'POST',
+            method: req.method,
             headers: { Accept: 'application/json', 'User-Agent': 'me621-furbooru-proxy/1.0' },
           });
           res.statusCode = remote.ok ? 200 : remote.status;
@@ -1177,15 +1195,15 @@ export default defineConfig(({ mode }) => {
         },
         manifest: {
           id: "/#/posts",
-          name: "Material e621",
-          short_name: "Material e6", // maximum of 12 characters recommended by chromium devs
+          name: "m-e621",
+          short_name: "m-e621", // maximum of 12 characters recommended by chromium devs
           start_url: "/#/posts",
           scope: "/",
           display: "fullscreen",
           background_color: "#000000",
           theme_color: "#000000",
           description:
-            "Material e621 is a modern, open source web client for e621.net. It is customizable, comes with a bunch of additional features that are not available on e621.net, and makes browsing posts a delightful experience.",
+            "m-e621 is a personal multi-site fork of Material e621 — a modern web client for e621.net and related sites.",
           orientation: "any",
           lang: "en",
           icons: [

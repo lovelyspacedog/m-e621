@@ -2,11 +2,15 @@
 # Pull latest from origin, rebuild dist, restart m-e621 if needed.
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=load-m-e621-env.sh
+source "$ROOT/load-m-e621-env.sh"
+
 APP_DIR="${M_E621_DIR:-$HOME/m-e621}"
 CONFIG_DIR="${M_E621_CONFIG:-$HOME/.config/m-e621}"
 LOG="$CONFIG_DIR/sync.log"
 DOMAIN="${M_E621_DOMAIN:-localhost}"
-REPO_URL="${M_E621_REPO:-git@github.com:lovelyspacedog/material-e621.git}"
+REPO_URL="${M_E621_REPO:-https://github.com/lovelyspacedog/material-e621.git}"
 BRANCH="${M_E621_BRANCH:-master}"
 
 mkdir -p "$CONFIG_DIR"
@@ -22,14 +26,14 @@ cd "$APP_DIR"
 
 # Ensure helper scripts exist even on a fresh clone (deploy also rsyncs them).
 if [[ ! -x "$APP_DIR/start" || ! -f "$APP_DIR/serve.py" ]]; then
-  echo "missing start/serve.py in $APP_DIR — re-run deploy.sh from the laptop" >&2
+  echo "missing start/serve.py in $APP_DIR — re-run deploy.sh from your laptop" >&2
   exit 1
 fi
 
 before="$(git rev-parse HEAD)"
 
 # Helpers may exist as untracked copies from deploy.sh; drop them so ff-merge can land tracked versions.
-for f in start sync serve.py deploy.sh; do
+for f in start sync serve.py deploy.sh load-m-e621-env.sh; do
   if [[ -e "$f" ]] && ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
     echo "removing untracked $f so git merge can proceed"
     rm -f "$f"
@@ -41,7 +45,7 @@ git merge --ff-only "origin/$BRANCH"
 after="$(git rev-parse HEAD)"
 
 # Re-apply executable bits on helpers if present in tree.
-chmod +x start sync serve.py deploy.sh 2>/dev/null || true
+chmod +x start sync serve.py deploy.sh load-m-e621-env.sh 2>/dev/null || true
 
 cat >"$APP_DIR/.env.local" <<EOF
 VITE_CANONICAL_URL=https://${DOMAIN}

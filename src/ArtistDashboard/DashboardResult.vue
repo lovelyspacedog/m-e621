@@ -93,13 +93,14 @@ import PostsDataTable from "./PostsDataTable.vue";
 import ArtistMetrics from "./ArtistMetrics.vue";
 import ArtistTags from "./ArtistTags.vue";
 import UploadHeatmap from "./UploadHeatmap.vue";
-import { useUrlStore } from "@/services";
+import { useSiteModeStore, useUrlStore } from "@/services";
 import { useSiteLabels } from "@/misc/util/siteLabels";
 import { useHead } from "@unhead/vue";
 
 useHead({ title: "Dashboard" });
 
 const urlStore = useUrlStore();
+const siteMode = useSiteModeStore();
 const progress = ref<IProgressEvent>();
 
 const route = useRoute();
@@ -113,7 +114,8 @@ const artist = computed<string>(() => {
 const args = computed<IDashboardArgs>(() => {
   return {
     artist: artist.value,
-    baseUrl: urlStore.e621Url
+    baseUrl: urlStore.e621Url,
+    mode: siteMode.activeMode,
   };
 });
 

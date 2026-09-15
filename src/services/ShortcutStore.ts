@@ -14,10 +14,13 @@ export const useShortcutStore = defineStore("shortcuts", () => {
   };
 
   const addShortcut = (shortcut: Shortcut) => {
+    if (!shortcut.sequence?.trim()) return;
     main.shortcuts.unshift(shortcut);
   };
 
   const updateShortcut = (index: number, shortcut: Shortcut) => {
+    if (index < 0 || index >= main.shortcuts.length) return;
+    if (!shortcut.sequence?.trim()) return;
     Object.assign(main.shortcuts[index], shortcut);
   };
 

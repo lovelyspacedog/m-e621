@@ -3,15 +3,25 @@
     <div class="d-flex flex-column flex-md-row fill-width" style="gap: 8px;">
       <v-select v-model="sortBy" item-title="name" item-value="tag" hide-details variant="outlined" label="Sort by"
         :items="sortTagItems" class="fill-width shrink" />
-      <v-select v-model="rating" item-title="name" item-value="tag" hide-details variant="outlined" label="Rating"
-        :items="ratingTags" multiple class="fill-width shrink" />
+      <v-select
+        v-if="showRatingFilter"
+        v-model="rating"
+        item-title="name"
+        item-value="tag"
+        hide-details
+        variant="outlined"
+        label="Rating"
+        :items="ratingTagItems"
+        multiple
+        class="fill-width shrink"
+      />
     </div>
   </v-list-item>
 </template>
 
 <script lang="ts">
 // https://e621.net/help/cheatsheet
-const sortTags = [
+const e621SortTags = [
   { tag: null, name: "Date (newest first) - Default" }, // default
   { tag: "order:random", name: "Random" },
   { tag: "order:id", name: "Date (oldest first)" },
@@ -53,10 +63,47 @@ const sortTags = [
   { tag: "order:lortags_asc", name: "Lore Tags (least first)" },
 ];
 
-const ratingTags = [
+/** Subset mapped by furbooru.mapOrderTags */
+const furbooruSortTags = [
+  { tag: null, name: "Relevance / default" },
+  { tag: "order:random", name: "Random" },
+  { tag: "order:id", name: "ID (oldest first)" },
+  { tag: "order:id_desc", name: "ID (newest first)" },
+  { tag: "order:rank", name: "Wilson score" },
+  { tag: "order:score", name: "Score (highest first)" },
+  { tag: "order:score_asc", name: "Score (lowest first)" },
+  { tag: "order:favcount", name: "Favorites (most first)" },
+  { tag: "order:favcount_asc", name: "Favorites (least first)" },
+  { tag: "order:comment_count", name: "Comments (most first)" },
+  { tag: "order:comment_count_asc", name: "Comments (least first)" },
+  { tag: "order:mpixels", name: "Resolution (largest first)" },
+  { tag: "order:mpixels_asc", name: "Resolution (smallest first)" },
+  { tag: "order:filesize", name: "Filesize (largest first)" },
+  { tag: "order:filesize_asc", name: "Filesize (smallest first)" },
+  { tag: "order:duration", name: "Duration (longest first)" },
+  { tag: "order:duration_asc", name: "Duration (shortest first)" },
+];
+
+/** Subset mapped by inkbunny.mapSearchTags */
+const inkbunnySortTags = [
+  { tag: null, name: "Default" },
+  { tag: "order:newest", name: "Newest first" },
+  { tag: "order:score", name: "Views (most first)" },
+  { tag: "order:random", name: "Random" },
+];
+
+const e621RatingTags = [
   { tag: "rating:safe", name: "Safe" },
   { tag: "rating:questionable", name: "Questionable" },
   { tag: "rating:explicit", name: "Explicit" },
+];
+
+/** Philomena uses bare rating tags; keep rating:* aliases for blacklist parity */
+const furbooruRatingTags = [
+  { tag: "safe", name: "Safe" },
+  { tag: "suggestive", name: "Suggestive" },
+  { tag: "questionable", name: "Questionable" },
+  { tag: "explicit", name: "Explicit" },
 ];
 </script>
 
@@ -64,14 +111,27 @@ const ratingTags = [
 import type { PropType } from "vue";
 import { computed } from "vue";
 import { useSiteLabels } from "@/misc/util/siteLabels";
+import { useSiteModeStore } from "@/services";
 
+const siteMode = useSiteModeStore();
 const { creatorLabel } = useSiteLabels();
-const sortTagItems = computed(() =>
-  sortTags.map((item) =>
+
+const sortTagItems = computed(() => {
+  const base = siteMode.isFurbooru
+    ? furbooruSortTags
+    : siteMode.isInkbunny
+      ? inkbunnySortTags
+      : e621SortTags;
+  return base.map((item) =>
     item.name.startsWith("Artist Tags")
       ? { ...item, name: item.name.replace("Artist", creatorLabel.value) }
       : item,
-  ),
+  );
+});
+
+const showRatingFilter = computed(() => !siteMode.isInkbunny && !siteMode.isLocal);
+const ratingTagItems = computed(() =>
+  siteMode.isFurbooru ? furbooruRatingTags : e621RatingTags,
 );
 
 const emit = defineEmits<{
@@ -88,20 +148,40 @@ const props = defineProps({
 
 const rating = computed<string[]>({
   get() {
-    let result = ["rating:explicit", "rating:questionable", "rating:safe"];
-    const includedTags = props.tags.filter(t => t.startsWith("rating:"));
-    const excludedTags = props.tags.filter(t => t.startsWith("-rating:"));
-    result = includedTags.length ? includedTags : result; // no included tags -> show all ratings
-    result = result.filter(t => !excludedTags.includes(`-${t}`))
+    const all = ratingTagItems.value.map((t) => t.tag);
+    let result = [...all];
+    const includedTags = props.tags.filter((t) =>
+      all.includes(t) || t.startsWith("rating:"),
+    );
+    const excludedTags = props.tags.filter(
+      (t) => t.startsWith("-") && (all.includes(t.slice(1)) || t.startsWith("-rating:")),
+    );
+    if (includedTags.length) {
+      result = includedTags.filter((t) => all.includes(t) || t.startsWith("rating:"));
+      // Map rating:x → bare tag for Furbooru display when present
+      if (siteMode.isFurbooru) {
+        result = result.map((t) =>
+          t.startsWith("rating:") ? t.slice("rating:".length) : t,
+        ).filter((t) => all.includes(t));
+      }
+    }
+    result = result.filter((t) => !excludedTags.includes(`-${t}`) && !excludedTags.includes(`-rating:${t.replace(/^rating:/, "")}`));
     return result;
   },
   set(value) {
-    const all = ["rating:explicit", "rating:questionable", "rating:safe"];
-    all.forEach(t => { removeTag(`-${t}`); removeTag(t) });
-    if (!value.length || value.length === all.length) return
+    const all = ratingTagItems.value.map((t) => t.tag);
+    all.forEach((t) => {
+      removeTag(`-${t}`);
+      removeTag(t);
+      if (!t.startsWith("rating:")) {
+        removeTag(`-rating:${t}`);
+        removeTag(`rating:${t}`);
+      }
+    });
+    if (!value.length || value.length === all.length) return;
     if (value.length === all.length - 1) {
-      const missingTag = all.find(t => !value.includes(t))
-      addTag(`-${missingTag}`)
+      const missingTag = all.find((t) => !value.includes(t));
+      if (missingTag) addTag(`-${missingTag}`);
       return;
     }
     if (value.length === 1) {

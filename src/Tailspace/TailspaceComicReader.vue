@@ -621,6 +621,26 @@ onMounted(() => window.addEventListener("keydown", onWindowKey));
 onBeforeUnmount(() => window.removeEventListener("keydown", onWindowKey));
 
 watch(comicName, (name) => loadComic(name), { immediate: true });
+// Apply Back/Forward changes to page/chunk without remounting (M26).
+watch(
+  () => [route.query.page, route.query.chunk] as const,
+  () => {
+    if (!comic.value) return;
+    const qPage = Number(route.query.page);
+    const qChunk = Number(route.query.chunk);
+    if (qPage > 0) {
+      const idx = comic.value.pages.findIndex((p) => p.pageNumber === qPage);
+      if (idx >= 0) {
+        ensureChunkForPageNumber(qPage);
+        if (viewMode.value === "scroll") scrollToPage(qPage);
+        return;
+      }
+    }
+    if (qChunk > 0 && qChunk !== chunkPage.value) {
+      changeChunk(qChunk);
+    }
+  },
+);
 watch(viewerOpen, (open) => {
   if (!open) return;
   nextTick(() => viewerEl.value?.focus());

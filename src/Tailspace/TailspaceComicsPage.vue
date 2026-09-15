@@ -209,9 +209,17 @@ const totalNumComics = ref(0);
 const page = ref(Number(route.query.page) || 1);
 const searchInput = ref((route.query.search as string) || "");
 const activeSearch = ref((route.query.search as string) || "");
-const selectedCategories = ref<string[]>([]);
-const sort = ref("Updated");
-const finishedOnly = ref(false);
+const selectedCategories = ref<string[]>(
+  typeof route.query.categories === "string" && route.query.categories
+    ? route.query.categories.split(",").filter(Boolean)
+    : [],
+);
+const sort = ref(
+  typeof route.query.sort === "string" && route.query.sort
+    ? route.query.sort
+    : "Updated",
+);
+const finishedOnly = ref(route.query.finished === "1");
 
 async function loadPage(p: number) {
   loading.value = true;
@@ -277,6 +285,11 @@ function changePage(p: number) {
   const q: Record<string, string> = {};
   if (next > 1) q.page = String(next);
   if (activeSearch.value) q.search = activeSearch.value;
+  if (selectedCategories.value.length) {
+    q.categories = selectedCategories.value.join(",");
+  }
+  if (sort.value && sort.value !== "Updated") q.sort = sort.value;
+  if (finishedOnly.value) q.finished = "1";
   router.replace({ query: q });
   window.scrollTo({ top: 0, behavior: "smooth" });
   // watch(page) only fires on value change — reload explicitly when
@@ -303,6 +316,44 @@ const pageButtons = computed((): (number | "...")[] => {
 
 onMounted(() => loadPage(page.value));
 watch(page, (p) => loadPage(p));
+// Sync from browser history (M24/M25).
+watch(
+  () => ({
+    page: Number(route.query.page) || 1,
+    search: typeof route.query.search === "string" ? route.query.search : "",
+    categories:
+      typeof route.query.categories === "string" ? route.query.categories : "",
+    sort: typeof route.query.sort === "string" ? route.query.sort : "Updated",
+    finished: route.query.finished === "1",
+  }),
+  (q) => {
+    let dirty = false;
+    if (q.page !== page.value) {
+      page.value = q.page;
+      dirty = true;
+    }
+    if (q.search !== activeSearch.value) {
+      searchInput.value = q.search;
+      activeSearch.value = q.search;
+      dirty = true;
+    }
+    const cats = q.categories ? q.categories.split(",").filter(Boolean) : [];
+    if (cats.join(",") !== selectedCategories.value.join(",")) {
+      selectedCategories.value = cats;
+      dirty = true;
+    }
+    if (q.sort !== sort.value) {
+      sort.value = q.sort || "Updated";
+      dirty = true;
+    }
+    if (q.finished !== finishedOnly.value) {
+      finishedOnly.value = q.finished;
+      dirty = true;
+    }
+    // page watch loads on page change; reload when only filters changed.
+    if (dirty && q.page === page.value) void loadPage(page.value);
+  },
+);
 </script>
 
 <style scoped>

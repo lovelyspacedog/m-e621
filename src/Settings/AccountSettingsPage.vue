@@ -17,6 +17,7 @@
             <v-btn v-if="siteMode.supportsLocalMode" value="local">local</v-btn>
             <v-btn value="furbooru">Furbooru</v-btn>
             <v-btn value="inkbunny">Inkbunny</v-btn>
+            <v-btn value="tailspace">Tailspace</v-btn>
           </v-btn-toggle>
           <p class="text-left">
             Each site keeps its own username, API key, starred tags, blacklist, saved searches, and history.
@@ -32,7 +33,7 @@
           </p>
           <local-folder-picker purpose="local" />
         </settings-page-item>
-        <settings-page-item title="Credentials" select v-if="!siteMode.isLocal && !siteMode.isInkbunny">
+        <settings-page-item title="Credentials" select v-if="!siteMode.isLocal && !siteMode.isInkbunny && !siteMode.isTailspace">
           <!-- Username: hidden for Furbooru (API key only) -->
           <v-text-field
             v-if="!siteMode.isFurbooru"
@@ -73,7 +74,7 @@
                 <external-link :href="`${e621Url}users/home`" /> and make sure you copied the API key correctly - it
                 should be 24 characters long.
                 <br />
-                Due to a security policy (CORS), Material e621 cannot determine the cause of the error. There might be a
+                Due to a security policy (CORS), m-e621 cannot determine the cause of the error. There might be a
                 general error with the network or {{ siteLabel }}.
               </template>
               <template v-else>
@@ -174,7 +175,7 @@
           <p class="text-left">
             Favorites are proxied through this app's <code>/api/</code> so they
             work on this host. The old public Vercel proxy only allows the
-            original Material e621 websites, which is why it returns
+            original m-e621 websites, which is why it returns
             “Failed to fetch” here.
           </p>
         </settings-page-item>
@@ -210,10 +211,15 @@ const apiUrlItems = computed(() =>
     : ["https://e621.net/", "https://e926.net/", "https://e6ai.net/"],
 );
 
-const onModeChange = (mode: SiteMode | null) => {
+const onModeChange = async (mode: SiteMode | null) => {
   if (!mode || mode === siteMode.activeMode) return;
+  if (mode === "tailspace") {
+    await router.push({ name: "TailspacePosts" });
+    siteMode.setMode(mode);
+    return;
+  }
   siteMode.setMode(mode);
-  router.push({ name: "Posts", query: {} });
+  await router.push({ name: "Posts", query: {} });
 };
 
 const username = computed<string>({
@@ -408,6 +414,7 @@ const verifyCredentials = async () => {
       username: username.value,
       apiKey: apiKey.value,
       baseUrl: url.e621Url,
+      mode: siteMode.activeMode,
     });
     verification.value.success = true;
     verification.value.message = "Credentials are valid";

@@ -47,7 +47,7 @@
             Found a bug or got an idea for a new feature?
           </v-card-title>
           <v-card-text class="py-0">
-            Create, comment on, or react to issues on the Material e621 GitHub page!
+            Create, comment on, or react to issues on the m-e621 GitHub page!
           </v-card-text>
           <v-card-actions class="pb-2">
             <v-spacer />
@@ -55,12 +55,12 @@
               Never show again
             </v-btn>
             <v-btn size="small" variant="outlined" color="primary" target="_blank"
-              href="https://github.com/avoonix/material-e621/issues">
+              href="https://github.com/lovelyspacedog/material-e621/issues">
               <v-icon start> mdi-open-in-new </v-icon>
               browse issues
             </v-btn>
             <v-btn size="small" variant="outlined" color="primary" target="_blank"
-              href="https://github.com/avoonix/material-e621/issues/new/choose">
+              href="https://github.com/lovelyspacedog/material-e621/issues/new/choose">
               <v-icon start> mdi-open-in-new </v-icon>
               create issue
             </v-btn>

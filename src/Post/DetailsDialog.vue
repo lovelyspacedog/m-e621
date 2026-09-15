@@ -233,16 +233,24 @@ export default defineComponent({
       commentsError.value = null;
       try {
         const service = await getApiService();
-        comments.value = await service.getComments({
+        const result = await service.getComments({
           postId,
           baseUrl: urlStore.e621Url,
+          mode: siteMode.activeMode,
+          auth: account.auth,
         });
+        // Ignore stale responses after the user switched posts (H6).
+        if (props.current?.id !== postId) return;
+        comments.value = result;
         commentsLoadedFor.value = postId;
       } catch (error: any) {
+        if (props.current?.id !== postId) return;
         commentsError.value = error?.message || String(error);
         comments.value = [];
       } finally {
-        commentsLoading.value = false;
+        if (props.current?.id === postId) {
+          commentsLoading.value = false;
+        }
       }
     };
 
@@ -252,16 +260,22 @@ export default defineComponent({
       notesError.value = null;
       try {
         const service = await getApiService();
-        notes.value = await service.getNotes({
+        const result = await service.getNotes({
           postId,
           baseUrl: urlStore.e621Url,
+          mode: siteMode.activeMode,
         });
+        if (props.current?.id !== postId) return;
+        notes.value = result;
         notesLoadedFor.value = postId;
       } catch (error: any) {
+        if (props.current?.id !== postId) return;
         notesError.value = error?.message || String(error);
         notes.value = [];
       } finally {
-        notesLoading.value = false;
+        if (props.current?.id === postId) {
+          notesLoading.value = false;
+        }
       }
     };
 
@@ -306,6 +320,7 @@ export default defineComponent({
           auth: account.auth,
           proxyUrl: urlStore.proxyUrl,
           baseUrl: urlStore.e621Url,
+          mode: siteMode.activeMode,
         });
         comments.value = [...comments.value, created];
         post.comment_count = (post.comment_count || 0) + 1;

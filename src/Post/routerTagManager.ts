@@ -11,8 +11,10 @@ export const useRouterTagManager = () => {
       if (!route.query.tags) {
         return [];
       }
-      const tags = route.query.tags as any;
-      return tags.split(" ").filter((t: any) => t);
+      const raw = route.query.tags;
+      const tags = Array.isArray(raw) ? raw[0] : raw;
+      if (typeof tags !== "string") return [];
+      return tags.split(" ").filter((t) => t);
     },
     set(value) {
       updateRouterQuery({

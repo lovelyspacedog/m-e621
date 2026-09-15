@@ -18,6 +18,8 @@ type FFmpegInstance = {
 type FFmpegCtor = new () => FFmpegInstance;
 
 let ffmpegPromise: Promise<FFmpegInstance> | null = null;
+let progressCb: ((ratio: number) => void) | null = null;
+let progressHooked = false;
 
 const ffmpegBaseUrl = () => {
   const base = import.meta.env.BASE_URL || "/";
@@ -87,8 +89,11 @@ const ensureFFmpeg = async (
       const FFmpeg = getFFmpegCtor();
       const coreBase = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${CORE_VERSION}/dist/umd`;
       const ffmpeg = new FFmpeg();
-      if (onProgress) {
-        ffmpeg.on("progress", ({ progress }) => onProgress(progress));
+      if (!progressHooked) {
+        progressHooked = true;
+        ffmpeg.on("progress", ({ progress }) => {
+          progressCb?.(progress);
+        });
       }
       await ffmpeg.load({
         coreURL: await toBlobURL(
@@ -107,9 +112,7 @@ const ensureFFmpeg = async (
     });
   }
   const ffmpeg = await ffmpegPromise;
-  if (onProgress) {
-    ffmpeg.on("progress", ({ progress }) => onProgress(progress));
-  }
+  progressCb = onProgress || null;
   return ffmpeg;
 };
 

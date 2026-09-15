@@ -1,12 +1,15 @@
 import { defineStore } from "pinia";
-import { computed } from "vue";
-import { useMainStore } from "./state";
+import { ref } from "vue";
 
+/** Transient UI toasts — not part of persisted settings (L3). */
 export const useSnackbarStore = defineStore("snackbar", () => {
-  const main = useMainStore();
-  const message = computed(() => main.snackbar);
-  const addMessage = (message: string) => (main.snackbar = message);
-  const clearMessage = () => (main.snackbar = null);
+  const message = ref<string | null>(null);
+  const addMessage = (value: string) => {
+    message.value = value;
+  };
+  const clearMessage = () => {
+    message.value = null;
+  };
 
   return {
     message,

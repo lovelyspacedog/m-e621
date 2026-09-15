@@ -1,7 +1,8 @@
 import type { EnhancedPost } from "@/worker/ApiService";
 import { getApiService } from "@/worker/services";
+import { isPostBlacklisted } from "@/worker/blacklist";
 import { computed, ref, toRaw, watch } from "vue";
-import { useAccountStore, useSnackbarStore, useUrlStore, useBlacklistStore, usePostsStore, useSiteModeStore } from "@/services";
+import { useAccountStore, useSnackbarStore, useUrlStore, useBlacklistStore, usePostsStore, useSiteModeStore, useUiStore } from "@/services";
 import { BlacklistMode } from "@/services/types";
 import { useRouter } from "vue-router";
 import { setLocalFavorite } from "@/misc/util/localMedia";
@@ -27,6 +28,11 @@ export const usePostListManager = ({
   // Bumped by clearPosts() so in-flight page fetches are discarded after a
   // search/pool change, instead of being applied to the new query.
   const generation = ref(0);
+  /** When next/prev is requested during an in-flight page load, retry once (M23). */
+  let pendingFullscreenAdvance: -1 | 1 | null = null;
+  let flushPendingFullscreenAdvance = () => {
+    /* assigned after _openFullscreenPost exists */
+  };
   const urlStore = useUrlStore();
   const blacklistStore = useBlacklistStore();
   const postsStore = usePostsStore();
@@ -47,6 +53,7 @@ export const usePostListManager = ({
       const service = await getApiService();
       const updated = await service.enrichInkbunnyPost(toRaw(post), {
         sid: account.apiKey,
+        blacklist: toRaw(blacklistStore.tags),
       });
       const idx = posts.value.findIndex((p) => p.id === post.id);
       if (idx >= 0) posts.value[idx] = updated;
@@ -104,6 +111,7 @@ export const usePostListManager = ({
       auth: account.auth,
       proxyUrl: urlStore.proxyUrl,
       baseUrl: urlStore.e621Url,
+      mode: siteMode.activeMode,
     };
     try {
       post.__meta.isFavoriteLoading = true;
@@ -113,6 +121,7 @@ export const usePostListManager = ({
         await service.unfavoritePost(serviceArgs);
       }
       post.is_favorited = args.favorited;
+      post.fav_count = Math.max(0, (post.fav_count || 0) + (args.favorited ? 1 : -1));
     } catch (error: any) {
       handleError(error);
     } finally {
@@ -142,6 +151,7 @@ export const usePostListManager = ({
         auth: account.auth,
         proxyUrl: urlStore.proxyUrl,
         baseUrl: urlStore.e621Url,
+        mode: siteMode.activeMode,
       });
       if (result && typeof result.score === "number") {
         post.score.total = result.score;
@@ -171,14 +181,20 @@ export const usePostListManager = ({
     if (loading.value) {
       return console.log("loadPreviousPage called, but already loading");
     }
+    if (firstPageNumber.value <= 1) {
+      return;
+    }
     const thisGen = generation.value;
     try {
       loading.value = true;
       const newPosts = await loadPosts(firstPageNumber.value - 1, "previous");
       if (thisGen !== generation.value) return;
-      const postCountToRemove = getPostCountToRemove();
       // newly uploaded posts cause old posts to shift pages, and duplicates are bad
-      const newPostsFiltered = newPosts.filter(newP => !posts.value.find(existing => existing.id === newP.id))
+      const newPostsFiltered = newPosts.filter(
+        (newP) => !posts.value.find((existing) => existing.id === newP.id),
+      );
+      if (!newPostsFiltered.length) return;
+      const postCountToRemove = getPostCountToRemove();
       posts.value.unshift(...newPostsFiltered);
       posts.value.splice(
         posts.value.length - postCountToRemove,
@@ -188,6 +204,7 @@ export const usePostListManager = ({
       if (thisGen === generation.value) handleError(error);
     } finally {
       if (thisGen === generation.value) loading.value = false;
+      if (thisGen === generation.value) flushPendingFullscreenAdvance();
     }
   };
   const loadNextPage = async () => {
@@ -216,6 +233,7 @@ export const usePostListManager = ({
       if (thisGen === generation.value) handleError(error);
     } finally {
       if (thisGen === generation.value) loading.value = false;
+      if (thisGen === generation.value) flushPendingFullscreenAdvance();
     }
   };
 
@@ -225,6 +243,17 @@ export const usePostListManager = ({
       savePageNumber(posts.value[0]?.__meta.pageNumber || null);
     },
     { deep: true },
+  );
+
+  // Recompute blacklist flags when the user edits the blacklist (M18).
+  watch(
+    () => JSON.stringify(blacklistStore.tags),
+    () => {
+      const lines = toRaw(blacklistStore.tags);
+      for (const post of posts.value) {
+        post.__meta.isBlacklisted = isPostBlacklisted(post, lines);
+      }
+    },
   );
 
   const openPostDetails = async (postId: number) => {
@@ -252,6 +281,11 @@ export const usePostListManager = ({
           fullscreenPost.value = await enrichInkbunny(nextPost);
           return true;
         } else {
+          if (loading.value) {
+            // Queue one pending advance for when the in-flight page load finishes (M23).
+            if (offset) pendingFullscreenAdvance = offset > 0 ? 1 : -1;
+            return false;
+          }
           if (offset > 0) {
             await loadNextPage();
           } else if (offset < 0) {
@@ -259,9 +293,7 @@ export const usePostListManager = ({
           }
           if (depth <= 0) {
             const success = await _openFullscreenPost(offset)(postId, depth + 1);
-            if (!success) {
-              fullscreenPost.value = null; // no further posts
-            }
+            // Keep current fullscreen post on failed advance (end of results) (H5).
             return success;
           } else {
             return false;
@@ -277,6 +309,14 @@ export const usePostListManager = ({
     fullscreenPost.value?.id &&
     _openFullscreenPost(-1)(fullscreenPost.value.id, 0);
 
+  flushPendingFullscreenAdvance = () => {
+    if (!pendingFullscreenAdvance) return;
+    const dir = pendingFullscreenAdvance;
+    pendingFullscreenAdvance = null;
+    const id = fullscreenPost.value?.id;
+    if (id) void _openFullscreenPost(dir)(id, 0);
+  };
+
   const visiblePosts = computed(() => {
     const visibleAfterApplyingBlacklist = blacklistStore.mode === BlacklistMode.hide ? posts.value.filter(p => !p.__meta.isBlacklisted) : [...posts.value];
     const visibleAfterApplyingServerSideBlacklistSetting = blacklistStore.hideServerSideBlacklisted ? visibleAfterApplyingBlacklist.filter(p => !!p.file.url) : [...visibleAfterApplyingBlacklist];
@@ -288,6 +328,11 @@ export const usePostListManager = ({
     posts.value = [];
     reachedEnd.value = false;
     loading.value = false;
+    pendingFullscreenAdvance = null;
+    // Search/mode/pool reloads must not leave overlays on stale posts (H3).
+    fullscreenPost.value = null;
+    detailsPost.value = null;
+    useUiStore().fullscreenOpen = false;
   };
   const hasPrevious = computed(() => posts.value.length !== 0 && posts.value[0].__meta.pageNumber > 1);
 

@@ -34,7 +34,13 @@
                     ">
                     <img v-if="currentSampleFileUrl" :class="{ grey: false, 'darken-3': false }"
                       :src="currentSampleFileUrl" />
-                    <img v-if="currentFileUrl" @loadstart="loadStart" @load="onImageLoad" :class="{
+                    <img
+                      v-if="currentFileUrl"
+                      ref="fullImageEl"
+                      @loadstart="loadStart"
+                      @load="onImageLoad"
+                      @error="onImageError"
+                      :class="{
                       grey: false,
                       'darken-3': false,
                       hidden: loading,
@@ -154,6 +160,7 @@ const isZoomed = ref(false);
 const slideshowPlaying = ref(false);
 const slideshowTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const videoEl = ref<HTMLVideoElement | null>(null);
+const fullImageEl = ref<HTMLImageElement | null>(null);
 const notes = ref<Note[]>([]);
 const notesVisible = ref(true);
 const notesLoadedFor = ref<number | null>(null);
@@ -191,15 +198,21 @@ const loadNotesForCurrent = async () => {
     notes.value = [];
     return;
   }
-  if (notesLoadedFor.value === post.id) return;
+  const postId = post.id;
+  if (notesLoadedFor.value === postId) return;
   try {
     const service = await getApiService();
-    notes.value = await service.getNotes({
-      postId: post.id,
+    const result = await service.getNotes({
+      postId,
       baseUrl: urlStore.e621Url,
+      mode: siteMode.activeMode,
     });
-    notesLoadedFor.value = post.id;
+    // Ignore stale responses after the user switched posts (H6).
+    if (props.current?.id !== postId) return;
+    notes.value = result;
+    notesLoadedFor.value = postId;
   } catch (error) {
+    if (props.current?.id !== postId) return;
     console.error(error);
     notes.value = [];
   }
@@ -341,6 +354,19 @@ const onImageLoad = () => {
     scheduleSlideshowAdvance();
   }
 };
+const onImageError = () => {
+  // Broken URL — stop hiding the (failed) full image behind the sample (M19).
+  loadEnd();
+};
+
+/** If the browser already has the image cached, @load may have fired before we set loading. */
+const syncCachedImageState = async () => {
+  await nextTick();
+  const img = fullImageEl.value;
+  if (img?.complete && img.naturalWidth > 0) {
+    loadEnd();
+  }
+};
 
 const showNextImage = () => {
   if (!props.hasNextFullscreenPost) {
@@ -424,9 +450,14 @@ watch(
           await nextTick();
           applyFullscreenPlaybackPrefs();
           videoEl.value?.play().catch(() => undefined);
+          loadEnd();
         } else if (isVideoExt(val.file.ext)) {
           await nextTick();
           applyFullscreenPlaybackPrefs();
+          loadEnd();
+        } else {
+          // Cached images may not re-fire @load after remount (M19).
+          await syncCachedImageState();
         }
       }
     }

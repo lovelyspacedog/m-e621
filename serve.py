@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serve Material e621 dist/ + git pull API for self-hosted managed links."""
+"""Serve m-e621 dist/ + same-origin API proxies and optional git-pull control."""
 from __future__ import annotations
 
 import json
@@ -13,8 +13,41 @@ import urllib.error
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, quote, urlencode, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse
 
+
+def _load_dotenv(path: Path) -> None:
+    """Load KEY=VALUE lines into os.environ without overriding existing keys."""
+    if not path.is_file():
+        return
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        if not key or key in os.environ:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if value.startswith("~/"):
+            value = str(Path.home() / value[2:])
+        elif value == "$HOME" or value.startswith("$HOME/"):
+            value = str(Path.home() / value[len("$HOME") :].lstrip("/"))
+        os.environ[key] = value
+
+
+_REPO_DIR = Path(__file__).resolve().parent
+_CONFIG_DIR_EARLY = Path(
+    os.environ.get("M_E621_CONFIG", Path.home() / ".config" / "m-e621")
+).expanduser()
+_load_dotenv(_CONFIG_DIR_EARLY / "env")
+_load_dotenv(_REPO_DIR / "deploy.env")
 
 ROOT = Path(os.environ.get("M_E621_ROOT", Path.home() / "m-e621" / "dist")).resolve()
 APP_DIR = Path(os.environ.get("M_E621_DIR", ROOT.parent)).resolve()
@@ -762,38 +795,52 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if not url:
             self._json(400, {"ok": False, "message": "url not allowed"})
             return
-        req = urllib.request.Request(url, method="GET")
-        req.add_header(
-            "User-Agent",
-            f"m-e621-download-proxy/1.0 (https://{DOMAIN})",
-        )
-        req.add_header("Accept", "*/*")
-        host = (urlparse(url).hostname or "").lower()
-        if host in INKBUNNY_MEDIA_HOSTS or host.endswith(".metapix.net"):
-            req.add_header("Referer", "https://inkbunny.net")
-        try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                payload = resp.read()
-                status = getattr(resp, "status", 200)
-                content_type = resp.headers.get("Content-Type", "application/octet-stream")
-        except urllib.error.HTTPError as exc:
-            payload = exc.read()
-            status = exc.code
-            content_type = (
-                exc.headers.get("Content-Type", "application/octet-stream")
-                if exc.headers
-                else "application/octet-stream"
+        # Follow redirects manually and re-check host each hop (M27).
+        current = url
+        for _ in range(5):
+            req = urllib.request.Request(current, method="GET")
+            req.add_header(
+                "User-Agent",
+                f"m-e621-download-proxy/1.0 (https://{DOMAIN})",
             )
-        except Exception as exc:  # noqa: BLE001
-            self._json(502, {"ok": False, "message": str(exc)})
-            return
-        self.send_response(status)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
+            req.add_header("Accept", "*/*")
+            host = (urlparse(current).hostname or "").lower()
+            if host in INKBUNNY_MEDIA_HOSTS or host.endswith(".metapix.net"):
+                req.add_header("Referer", "https://inkbunny.net")
+            try:
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    final = resp.geturl() if hasattr(resp, "geturl") else current
+                    if self._allowed_media_url(final) is None:
+                        self._json(400, {"ok": False, "message": "redirect target not allowed"})
+                        return
+                    payload = resp.read()
+                    status = getattr(resp, "status", 200)
+                    content_type = resp.headers.get("Content-Type", "application/octet-stream")
+                    self.send_response(status)
+                    self.send_header("Content-Type", content_type)
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
+            except urllib.error.HTTPError as exc:
+                if exc.code in (301, 302, 303, 307, 308):
+                    loc = exc.headers.get("Location")
+                    if not loc:
+                        self._json(exc.code, {"ok": False, "message": "redirect without Location"})
+                        return
+                    nxt = urljoin(current, loc)
+                    if self._allowed_media_url(nxt) is None:
+                        self._json(400, {"ok": False, "message": "redirect target not allowed"})
+                        return
+                    current = nxt
+                    continue
+                self._json(exc.code, {"ok": False, "message": str(exc.reason)})
+                return
+            except Exception as exc:  # noqa: BLE001
+                self._json(502, {"ok": False, "message": str(exc)})
+                return
+        self._json(502, {"ok": False, "message": "too many redirects"})
 
     def _tailspace_request(
         self,
@@ -902,7 +949,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if "/" in username or ".." in username:
             self._json(400, {"ok": False, "message": "invalid username"})
             return
-        url = f"{TAILSPACE_BASE}/artist/{username}/post/{post_id}.data"
+        url = f"{TAILSPACE_BASE}/artist/{quote(username, safe='')}/post/{post_id}.data"
         body, status, _ct = self._tailspace_request(
             url,
             accept="text/x-turbo-stream, application/json, */*",
@@ -1043,13 +1090,16 @@ class SpaHandler(SimpleHTTPRequestHandler):
         body, status, ct = self._furbooru_request(url, method=method)
         self._furbooru_respond(body, status, ct)
 
-    def _proxy_furbooru_votes(self, image_id: str, parsed) -> None:
-        """POST /api/furbooru/images/:id/votes"""
+    def _proxy_furbooru_votes(self, image_id: str, parsed, method: str = "POST") -> None:
+        """POST/DELETE /api/furbooru/images/:id/votes"""
         params = parse_qs(parsed.query)
         key = (params.get("key") or [""])[0].strip()
-        value = (params.get("value") or ["up"])[0]
-        url = f"{FURBOORU_BASE}/api/v1/json/images/{image_id}/votes?key={quote(key)}&value={quote(value)}"
-        body, status, ct = self._furbooru_request(url, method="POST")
+        if method == "DELETE":
+            url = f"{FURBOORU_BASE}/api/v1/json/images/{image_id}/votes?key={quote(key)}"
+        else:
+            value = (params.get("value") or ["up"])[0]
+            url = f"{FURBOORU_BASE}/api/v1/json/images/{image_id}/votes?key={quote(key)}&value={quote(value)}"
+        body, status, ct = self._furbooru_request(url, method=method)
         self._furbooru_respond(body, status, ct)
 
     def _proxy_furbooru_comments_post(self, parsed, body: bytes) -> None:
@@ -1198,6 +1248,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if fav_match:
             self._proxy_furbooru_faves("DELETE", fav_match.group(1), parsed)
             return
+        vote_match = FURBOORU_VOTES_PATH.match(path)
+        if vote_match:
+            self._proxy_furbooru_votes(vote_match.group(1), parsed, method="DELETE")
+            return
         self.send_error(404)
 
     def do_POST(self) -> None:  # noqa: N802
@@ -1225,7 +1279,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
         vote_match = FURBOORU_VOTES_PATH.match(path)
         if vote_match:
-            self._proxy_furbooru_votes(vote_match.group(1), parsed)
+            self._proxy_furbooru_votes(vote_match.group(1), parsed, method="POST")
             return
 
         if FURBOORU_COMMENTS_POST_PATH.match(path):

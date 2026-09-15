@@ -37,15 +37,23 @@ import {
   useAccountStore,
   useBlacklistStore,
   usePostsStore,
+  useSiteModeStore,
+  useSnackbarStore,
   useUrlStore,
 } from "@/services";
 import { getApiService } from "@/worker/services";
+import {
+  buildTagQuery,
+  tagQueryTruncationMessage,
+} from "@/misc/util/createTagQuery";
 
 const route = useRoute();
 const account = useAccountStore();
 const blacklist = useBlacklistStore();
 const postsStore = usePostsStore();
 const urlStore = useUrlStore();
+const siteMode = useSiteModeStore();
+const snackbar = useSnackbarStore();
 const { removeRouterQuery, updateRouterQuery } = useRouterQueryHelpers();
 
 const poolId = computed(() => Number(route.params.id) || 0);
@@ -85,6 +93,21 @@ const {
     }
   },
   async loadPosts(page) {
+    if (
+      page <= 1 &&
+      !siteMode.isFurbooru &&
+      !siteMode.isInkbunny &&
+      !siteMode.isTailspace
+    ) {
+      const built = buildTagQuery(
+        toRaw(blacklist.mode),
+        toRaw(blacklist.tags),
+        [`pool:${poolId.value}`],
+      );
+      if (built.truncated) {
+        snackbar.addMessage(tagQueryTruncationMessage(built.total, built.limit));
+      }
+    }
     const service = await getApiService();
     return service.getPosts(
       toRaw({
@@ -95,6 +118,7 @@ const {
         blacklistMode: toRaw(blacklist.mode),
         auth: toRaw(account.auth),
         baseUrl: toRaw(urlStore.e621Url),
+        mode: toRaw(siteMode.activeMode),
       }),
     );
   },

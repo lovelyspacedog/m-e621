@@ -54,7 +54,7 @@ import { getApiService } from "@/worker/services";
 import { categoryIdToCategoryName } from "@/misc/util/utilities";
 import TagFavoriteButton from "./TagFavoriteButton.vue";
 import { useFavoritesStore } from "@/services/FavoriteStore";
-import { usePostsStore, useShortcutService, useUrlStore } from "@/services";
+import { useAccountStore, usePostsStore, useShortcutService, useSiteModeStore, useUrlStore } from "@/services";
 import type { ITag } from "./ITag";
 import SearchFilters from "./SearchFilters.vue";
 import type { InternalItem } from "vuetify";
@@ -98,12 +98,15 @@ const emit = defineEmits<{
 }>();
 
 const urlStore = useUrlStore();
+const siteMode = useSiteModeStore();
 const shortcutService = useShortcutService();
 const posts = usePostsStore();
+const account = useAccountStore();
 const favoritesStore = useFavoritesStore();
 const search = ref("");
 const tagsLoading = ref(false);
 const loadedTags = ref<ITagWithText[]>([]);
+let tagFetchGeneration = 0;
 const searchAsTag = computed(() =>
   (search.value || "").replace(/\s/g, "_"),
 );
@@ -147,45 +150,59 @@ const items = computed(() => {
 });
 const fetchTags = debounce(
   async (search: string) => {
+    const requestId = ++tagFetchGeneration;
     tagsLoading.value = true;
-    const service = await getApiService();
-    const result = await Promise.all([
-      // TODO: error handling
-      service.getTags({
-        limit: posts.tagFetchLimit,
-        order: "count",
-        query: `*${search}*`,
-        baseUrl: urlStore.e621Url,
-      }),
-      service.getPools({
-        limit: posts.tagFetchLimit,
-        order: "count",
-        query: `*${search}*`,
-        baseUrl: urlStore.e621Url,
-      }),
-    ]);
+    try {
+      const service = await getApiService();
+      const result = await Promise.all([
+        service.getTags({
+          limit: posts.tagFetchLimit,
+          order: "count",
+          query: `*${search}*`,
+          baseUrl: urlStore.e621Url,
+          mode: siteMode.activeMode,
+          auth: account.auth,
+        }),
+        service.getPools({
+          limit: posts.tagFetchLimit,
+          order: "count",
+          query: `*${search}*`,
+          baseUrl: urlStore.e621Url,
+          mode: siteMode.activeMode,
+        }),
+      ]);
+      // Ignore stale responses from an older keystroke (M21).
+      if (requestId !== tagFetchGeneration) return;
 
-    loadedTags.value = [
-      ...result[0].map(
-        (t) =>
-        ({
-          text: t.name,
-          name: t.name,
-          post_count: t.post_count,
-          category: categoryIdToCategoryName(t.category),
-        } as ITagWithText),
-      ),
-      ...result[1].map(
-        (p) =>
-        ({
-          text: `pool:${p.id}`,
-          category: "pool",
-          post_count: p.post_count,
-          name: p.name,
-        } as ITagWithText),
-      ),
-    ];
-    tagsLoading.value = false;
+      loadedTags.value = [
+        ...result[0].map(
+          (t) =>
+          ({
+            text: t.name,
+            name: t.name,
+            post_count: t.post_count,
+            category: categoryIdToCategoryName(t.category),
+          } as ITagWithText),
+        ),
+        ...result[1].map(
+          (p) =>
+          ({
+            text: `pool:${p.id}`,
+            category: "pool",
+            post_count: p.post_count,
+            name: p.name,
+          } as ITagWithText),
+        ),
+      ];
+    } catch (err) {
+      if (requestId !== tagFetchGeneration) return;
+      console.error(err);
+      loadedTags.value = [];
+    } finally {
+      if (requestId === tagFetchGeneration) {
+        tagsLoading.value = false;
+      }
+    }
   },
   500,
   { trailing: true, maxWait: 3000 },

@@ -142,6 +142,7 @@ node_modules
 # local env files
 .env.local
 .env.*.local
+deploy.env
 
 # Log files
 npm-debug.log*
@@ -162,5 +163,10 @@ public/favicon.ico
 /playwright-report/
 /playwright/.cache/
 
-# Tauri output
-/src-tauri/target/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Screenshot working copies (pre-censor / duplicates)
+screenshots/raw/

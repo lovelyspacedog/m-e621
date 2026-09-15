@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { useMainStore } from '@/services/state'
 
 // TODO?
 // // workaround for errors in console
@@ -224,6 +225,45 @@ const router = createRouter({
   ],
 })
 
+router.beforeEach((to) => {
+  // Mode ↔ route guards (C3 / M31). Pinia may be unavailable during early boot.
+  try {
+    const mode = useMainStore().activeMode;
+    const tailspaceRoutes = new Set([
+      "TailspacePosts",
+      "TailspaceComics",
+      "TailspaceComic",
+    ]);
+    const e621ShapedRoutes = new Set([
+      "Posts",
+      "Pools",
+      "Pool",
+      "Suggester",
+      "SuggesterResult",
+      "FavoritesAnalyzer",
+      "Dashboard",
+      "DashboardResult",
+    ]);
+    if (mode === "tailspace" && e621ShapedRoutes.has(String(to.name))) {
+      return { name: "TailspacePosts" };
+    }
+    if (mode !== "tailspace" && tailspaceRoutes.has(String(to.name))) {
+      return { name: "Posts" };
+    }
+    if (
+      (mode === "furbooru" || mode === "inkbunny" || mode === "local") &&
+      ["Pools", "Pool", "Suggester", "SuggesterResult", "FavoritesAnalyzer", "Dashboard", "DashboardResult"].includes(
+        String(to.name),
+      )
+    ) {
+      return { name: "Posts" };
+    }
+  } catch {
+    // Pinia not ready yet
+  }
+  return true;
+});
+
 router.beforeResolve(async (to, from) => {
   // First load has no `from` route. Starting a view transition there captures the
   // empty shell, then persist() replaces the whole store and the overlay never
@@ -274,9 +314,7 @@ export function startViewTransition(callback?: () => Promise<void>): ViewTransit
       callbackPromise
     // eslint-disable-next-line @typescript-eslint/no-empty-function
     viewTransition.skipTransition = () => { }
-    console.error(
-      "[vue-view-transitions]: This browser doesn't support View Transitions Api, please check: https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API#browser_compatibility"
-    )
+    // Unsupported browsers (Firefox etc.): silent fallback (L8).
   }
   return viewTransition
 }

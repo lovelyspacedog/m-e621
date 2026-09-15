@@ -62,12 +62,13 @@ import { onMounted, ref, watch } from "vue";
 import { useHead } from "@unhead/vue";
 import { debounce } from "lodash";
 import type { Pool } from "@/worker/api";
-import { usePostsStore, useUrlStore } from "@/services";
+import { usePostsStore, useSiteModeStore, useUrlStore } from "@/services";
 import { getApiService } from "@/worker/services";
 
 useHead({ title: "Pools" });
 
 const urlStore = useUrlStore();
+const siteMode = useSiteModeStore();
 const postsStore = usePostsStore();
 
 const query = ref("");
@@ -92,6 +93,7 @@ const fetchPools = async (pageNumber: number, append: boolean) => {
       order: "post_count",
       query: q ? `*${q}*` : undefined,
       baseUrl: urlStore.e621Url,
+      mode: siteMode.activeMode,
     });
     const list = Array.isArray(result) ? result : [];
     pools.value = append ? [...pools.value, ...list] : list;

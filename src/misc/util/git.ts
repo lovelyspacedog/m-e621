@@ -48,5 +48,5 @@ export const getGitInfo = (): IGitCommit[] =>
 
 export const createIssueLink = (args: { title: string; body: string }) => {
   const params = new URLSearchParams(Object.entries(args)).toString()
-  return `https://github.com/avoonix/material-e621/issues/new?${params}`;
+  return `https://github.com/${FORK_GITHUB_REPO}/issues/new?${params}`;
 }

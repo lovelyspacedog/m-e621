@@ -31,7 +31,7 @@
 <script lang="ts">
 import AppLogo from "@/App/AppLogo.vue";
 import DText from "@/Parser/DText.vue";
-import { useUrlStore } from "@/services";
+import { useSiteModeStore, useUrlStore } from "@/services";
 import type { Pool } from "@/worker/api";
 import { getApiService } from "@/worker/services";
 import { defineComponent, onMounted, ref, watch } from "vue";
@@ -49,6 +49,7 @@ export default defineComponent({
     },
     setup(props) {
         const urlStore = useUrlStore();
+        const siteMode = useSiteModeStore();
         const pool = ref<Pool>();
         const loading = ref(false);
         const getInfo = async () => {
@@ -59,6 +60,7 @@ export default defineComponent({
                 pool.value = await service.getPool({
                     id: props.poolId,
                     baseUrl: urlStore.e621Url,
+                    mode: siteMode.activeMode,
                 });
             } catch (err) {
                 console.log(err);

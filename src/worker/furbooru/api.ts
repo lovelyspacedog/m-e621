@@ -115,12 +115,29 @@ function proxyBase(): string {
 // Fetch helper
 // ---------------------------------------------------------------------------
 
-async function fetchJson<T>(url: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    throw new Error(`Furbooru proxy error: ${response.status} ${response.statusText}`);
+async function fetchJson<T>(url: string, options: RequestInit = {}, retries = 2): Promise<T> {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const response = await fetch(url, options);
+    if (response.ok) {
+      return response.json() as Promise<T>;
+    }
+    if ((response.status === 429 || response.status === 501) && attempt < retries) {
+      const retryAfter = Number(response.headers.get("Retry-After"));
+      const waitMs =
+        Number.isFinite(retryAfter) && retryAfter > 0
+          ? retryAfter * 1000
+          : 5000 * (attempt + 1);
+      await sleep(waitMs);
+      continue;
+    }
+    lastError = new Error(
+      `Furbooru proxy error: ${response.status} ${response.statusText}`,
+    );
+    break;
   }
-  return response.json() as Promise<T>;
+  throw lastError || new Error("Furbooru proxy error");
 }
 
 // ---------------------------------------------------------------------------
@@ -143,30 +160,36 @@ function adaptTags(tags: string[]): PostTags {
     const colon = tag.indexOf(":");
     if (colon > 0) {
       const prefix = tag.slice(0, colon).toLowerCase();
-      const rest = tag.slice(colon + 1);
+      const rest = tag.slice(colon + 1).toLowerCase();
       switch (prefix) {
         case "artist":
           result.artist.push(rest);
+          // Keep prefixed form so blacklist lines like artist:foo still match (H11).
+          result.meta.push(`${prefix}:${rest}`);
           continue;
         case "species":
           result.species.push(rest);
+          result.meta.push(`${prefix}:${rest}`);
           continue;
         case "character":
           result.character.push(rest);
+          result.meta.push(`${prefix}:${rest}`);
           continue;
         case "copyright":
         case "franchise":
           result.copyright.push(rest);
+          result.meta.push(`copyright:${rest}`);
           continue;
         case "meta":
           result.meta.push(rest);
           continue;
         case "lore":
           result.lore.push(rest);
+          result.meta.push(`lore:${rest}`);
           continue;
       }
     }
-    result.general.push(tag);
+    result.general.push(tag.toLowerCase());
   }
   return result;
 }
@@ -194,6 +217,21 @@ function adaptRating(img: PhilomenaImage): "s" | "q" | "e" {
     default:
       return "q";
   }
+}
+
+/** Synthetic rating tags for blacklist matching (includes Philomena-native names). */
+export function furbooruRatingTags(rating: "s" | "q" | "e", raw?: string): string[] {
+  const tags = [
+    `rating:${rating}`,
+    rating === "s"
+      ? "rating:safe"
+      : rating === "e"
+        ? "rating:explicit"
+        : "rating:questionable",
+  ];
+  const native = (raw || "").toLowerCase();
+  if (native) tags.push(`rating:${native}`, native);
+  return tags;
 }
 
 /** Map a Philomena image to an e621-shaped Post. */
@@ -235,12 +273,21 @@ export function adaptImage(img: PhilomenaImage): Post {
       down: Math.abs(img.downvotes ?? 0),
       total: img.score ?? 0,
     },
-    tags: adaptTags(img.tags || []),
+    tags: (() => {
+      const t = adaptTags(img.tags || []);
+      const ratingChar = adaptRating(img);
+      const native = (img.rating || "").toLowerCase();
+      for (const tag of furbooruRatingTags(ratingChar, native)) {
+        if (!t.meta.includes(tag) && !t.general.includes(tag)) t.meta.push(tag);
+      }
+      if (img.spoilered) t.meta.push("spoilered");
+      return t;
+    })(),
     locked_tags: [],
     change_seq: 0,
     flags: {
       pending: false,
-      flagged: false,
+      flagged: !!img.spoilered,
       note_locked: false,
       status_locked: false,
       rating_locked: false,
@@ -416,9 +463,12 @@ export interface FurbooruWriteArgs {
 
 export async function favoriteImage(args: FurbooruWriteArgs): Promise<void> {
   const q = new URLSearchParams({ key: args.apiKey });
-  await fetch(`${proxyBase()}/images/${args.postId}/faves?${q}`, {
+  const response = await fetch(`${proxyBase()}/images/${args.postId}/faves?${q}`, {
     method: "POST",
   });
+  if (!response.ok) {
+    throw new Error(`Furbooru favorite error: ${response.status}`);
+  }
 }
 
 export async function unfavoriteImage(args: FurbooruWriteArgs): Promise<void> {
@@ -442,6 +492,26 @@ export async function voteImage(
   });
   if (!response.ok) {
     throw new Error(`Furbooru vote error: ${response.status}`);
+  }
+  const data = await response.json() as { image?: PhilomenaImage };
+  const img = data.image;
+  return {
+    score: img?.score ?? 0,
+    up: img?.upvotes ?? 0,
+    down: img?.downvotes ?? 0,
+  };
+}
+
+/** Clear the current user's vote (Philomena DELETE /votes). */
+export async function clearVoteImage(
+  args: FurbooruWriteArgs,
+): Promise<{ score: number; up: number; down: number }> {
+  const q = new URLSearchParams({ key: args.apiKey });
+  const response = await fetch(`${proxyBase()}/images/${args.postId}/votes?${q}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    throw new Error(`Furbooru clear vote error: ${response.status}`);
   }
   const data = await response.json() as { image?: PhilomenaImage };
   const img = data.image;

@@ -125,6 +125,7 @@ export default defineComponent({
       editedIndex.value = -1;
     };
     const save = () => {
+      if (!editedItem.value.sequence?.trim()) return;
       if (editedIndex.value > -1) {
         shortcutStore.updateShortcut(editedIndex.value, editedItem.value);
       } else {

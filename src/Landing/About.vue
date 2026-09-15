@@ -4,18 +4,18 @@
             <v-row>
                 <v-col cols="12" md="6" offset-md="3">
                     <div class="mb-3">
-                        <h2 class="text-h4 text-center">What is Material e621?</h2>
+                        <h2 class="text-h4 text-center">What is m-e621?</h2>
                     </div>
                     <p class="text-center">
-                        Material e621 is a modern, open source web client for e621.net. It
-                        is customizable, comes with a bunch of features that are not
-                        available on e621.net, and makes browsing posts a delightful
+                        m-e621 is a personal, AI-first fork of Material e621 — a modern
+                        open source web client for e621.net and related sites. It adds
+                        multi-site modes and local tools on top of the upstream browsing
                         experience.
                     </p>
                     <p class="text-center">
-                        Further information can be found on the project's
+                        Further information can be found on this fork's
                         <a class="text-primary text-decoration-none" target="_blank"
-                            href="https://github.com/avoonix/material-e621/issues">
+                            href="https://github.com/lovelyspacedog/material-e621">
                             <v-icon color="primary" size="1em" class="mr-1">
                                 mdi-open-in-new </v-icon><span class="text-decoration-underline">GitHub page</span></a>.
                     </p>
@@ -31,12 +31,12 @@
                         <a class="text-primary text-decoration-none" target="_blank" :href="url.e621Url">
                             <v-icon color="primary" size="1em" class="mr-1">
                                 mdi-open-in-new </v-icon><span class="text-decoration-underline">here</span></a>. While
-                        Material e621
+                        m-e621
                         provides an enhanced interface for browsing
                         posts, e621.net has more features that go beyond that, such as
                         image uploads, comments, and a forum (among others). If you need
                         any of those, use e621.net directly as most of these features will
-                        never be available in Material e621.
+                        never be available in m-e621.
                     </p>
                 </v-col>
             </v-row>
