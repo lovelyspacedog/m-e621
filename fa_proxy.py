@@ -1,8 +1,9 @@
 """Fur Affinity JSON API used by serve.py (/api/furaffinity/*).
 
 Embeds faapi for gallery/submission/favorites/journals/watchlist/me.
-Scrapes /search/ and /browse/ directly (robots Disallow: /search is ignored
-on purpose). Cookies come from the request body, then FA_COOKIE_A/B env.
+Scrapes /search/ and /browse/ directly, and toggles /fav/|/unfav/, bypassing
+robots Disallow for those paths on purpose. Cookies come from the request
+body, then FA_COOKIE_A/B env.
 """
 from __future__ import annotations
 
@@ -502,7 +503,8 @@ def _set_favorite(api: faapi.FAAPI, payload: dict[str, Any], want: bool) -> dict
     if not link:
         raise FaProxyError("No favorite toggle link (login required?)", 401)
     path = urlparse(link).path.lstrip("/")
-    api.get(path)
+    # faapi.api.get() honors robots.txt; FA Disallow:/fav/|/unfav/ is for crawlers.
+    _session_get(api, path)
     return {"ok": True, "favorite": want}
 
 
