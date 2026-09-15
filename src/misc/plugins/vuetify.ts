@@ -39,7 +39,7 @@ export const vuetify = createVuetify({
       tanukiAi: TanukiAiIcon,
       // Iconify cib:weasyl (CC0 1.0); used for Weasyl site mode
       weasyl: WeasylIcon,
-      // Simple mark for Itaku site mode
+      // Iconify pinhead:bird-flying; used for Itaku site mode
       itaku: ItakuIcon,
     },
   },
