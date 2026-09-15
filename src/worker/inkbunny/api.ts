@@ -215,13 +215,56 @@ export function submissionUrl(id: number): string {
   return `https://inkbunny.net/s/${id}`;
 }
 
+/** Inkbunny "Writing / Story" submission type (text body in `writing`, not an image file). */
+export const INKBUNNY_SUBMISSION_TYPE_WRITING = 12;
+
+function fileLooksDisplayable(mimetype?: string, fileName?: string): boolean {
+  const mime = (mimetype || "").toLowerCase();
+  if (mime.startsWith("image/") || mime.startsWith("video/") || mime.startsWith("audio/")) {
+    return true;
+  }
+  if (mime.includes("flash") || mime.includes("shockwave")) return true;
+  const name = (fileName || "").toLowerCase();
+  if (/\.(jpe?g|png|gif|webp|bmp|swf|mp4|webm|mov|mkv|wav|mp3|ogg|flac)$/i.test(name)) {
+    return true;
+  }
+  if (mime.startsWith("text/") || name.endsWith(".txt") || name.endsWith(".rtf")) return false;
+  return false;
+}
+
+export function inkbunnyFileIsDisplayableMedia(
+  file: Pick<InkbunnyFile, "mimetype" | "file_name"> | null | undefined,
+): boolean {
+  if (!file) return false;
+  return fileLooksDisplayable(file.mimetype, file.file_name);
+}
+
+/** Writing submissions often expose text file URLs that must not be loaded as `<img>`. */
+export function inkbunnyHitIsDisplayableMedia(
+  hit: Pick<InkbunnySearchHit, "mimetype" | "file_name" | "submission_type_id">,
+): boolean {
+  if (num(hit.submission_type_id) !== INKBUNNY_SUBMISSION_TYPE_WRITING) return true;
+  return fileLooksDisplayable(hit.mimetype, hit.file_name);
+}
+
+function clearPostMediaUrls(post: Post): void {
+  post.file.url = null;
+  post.preview.url = "";
+  post.sample.has = false;
+  post.sample.url = "";
+}
+
 export function shouldUseInkbunnyViewer(meta?: {
   pagecount?: number;
   typeId?: number;
 }): boolean {
   if (!meta) return false;
   if ((meta.pagecount ?? 1) > 1) return true;
-  return meta.typeId === 3 || meta.typeId === 4 || meta.typeId === 12;
+  return (
+    meta.typeId === 3 ||
+    meta.typeId === 4 ||
+    meta.typeId === INKBUNNY_SUBMISSION_TYPE_WRITING
+  );
 }
 
 function pickThumb(hit: InkbunnySearchHit, sid?: string | null): string | null {
@@ -280,7 +323,7 @@ export function adaptSearchHit(hit: InkbunnySearchHit, sid?: string | null): Pos
   const full = pickFull(hit, sid);
   const hidden = yn(hit.hidden);
   const { width, height } = pickThumbSize(hit);
-  return {
+  const post: Post = {
     id,
     created_at: hit.create_datetime || "",
     updated_at: hit.create_datetime || "",
@@ -331,6 +374,10 @@ export function adaptSearchHit(hit: InkbunnySearchHit, sid?: string | null): Pos
     is_favorited: false,
     has_notes: false,
   };
+  if (!hidden && !inkbunnyHitIsDisplayableMedia(hit)) {
+    clearPostMediaUrls(post);
+  }
+  return post;
 }
 
 export function adaptDetails(sub: InkbunnySubmission, sid?: string | null): Post {
@@ -366,6 +413,12 @@ export function adaptDetails(sub: InkbunnySubmission, sid?: string | null): Post
       proxyMediaUrl(f.thumbnail_url_medium || f.thumbnail_url_large, sid) || base.preview.url;
     base.sample.url =
       proxyMediaUrl(f.file_url_screen || f.file_url_preview, sid) || base.sample.url;
+    if (
+      num(sub.submission_type_id) === INKBUNNY_SUBMISSION_TYPE_WRITING &&
+      !inkbunnyFileIsDisplayableMedia(f)
+    ) {
+      clearPostMediaUrls(base);
+    }
   }
   if (sub.full_file_md5) base.file.md5 = sub.full_file_md5;
   return base;

@@ -60,6 +60,7 @@ import { useBlacklistClasses } from "@/misc/util/blacklist";
 import { postFeedKey, unifiedChildLabel } from "@/misc/util/postOrigin";
 import { useBlacklistStore, usePostsStore, useSiteModeStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
+import { INKBUNNY_SUBMISSION_TYPE_WRITING } from "@/worker/inkbunny/api";
 import type { PropType, Ref } from "vue";
 import { computed, defineComponent, inject, ref } from "vue";
 import PostButtons from "./PostButtons.vue";
@@ -136,6 +137,7 @@ export default defineComponent({
     );
     const documentKind = computed<"journal" | "story" | "">(() => {
       if (props.post.__meta?.furaffinity?.kind === "journal") return "journal";
+      if (props.post.__meta?.inkbunny?.typeId === INKBUNNY_SUBMISSION_TYPE_WRITING) return "story";
       const ext = props.post.file?.ext || "";
       if (ext === "txt") return "story";
       return "";

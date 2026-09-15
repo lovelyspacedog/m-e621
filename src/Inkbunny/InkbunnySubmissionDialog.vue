@@ -196,7 +196,11 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { PropType } from "vue";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { InkbunnyFile } from "@/worker/inkbunny/api";
-import { submissionUrl } from "@/worker/inkbunny/api";
+import {
+  INKBUNNY_SUBMISSION_TYPE_WRITING,
+  inkbunnyFileIsDisplayableMedia,
+  submissionUrl,
+} from "@/worker/inkbunny/api";
 import TagWithMenu from "@/Tag/TagWithMenu.vue";
 import RufflePlayer from "@/Post/RufflePlayer.vue";
 import { useShortcutService, useUiStore } from "@/services";
@@ -277,6 +281,7 @@ const meta = computed(() => props.current?.__meta.inkbunny);
 const files = computed<InkbunnyFile[]>(() => {
   const list = meta.value?.files || [];
   if (list.length) return list;
+  if (meta.value?.typeId === INKBUNNY_SUBMISSION_TYPE_WRITING) return [];
   const post = props.current;
   if (!post?.file.url) return [];
   return [
@@ -293,14 +298,27 @@ const files = computed<InkbunnyFile[]>(() => {
 });
 
 const currentFile = computed(() => files.value[fileIndex.value] || files.value[0]);
-const currentFileUrl = computed(
-  () =>
+const currentFileUrl = computed(() => {
+  const fromCurrent =
     currentFile.value?.file_url_full ||
     currentFile.value?.file_url_screen ||
     currentFile.value?.file_url_preview ||
-    props.current?.file.url ||
-    "",
-);
+    "";
+  if (fromCurrent) return fromCurrent;
+  const post = props.current;
+  const url = post?.file.url || "";
+  if (!url || !post) return "";
+  if (
+    meta.value?.typeId === INKBUNNY_SUBMISSION_TYPE_WRITING &&
+    !inkbunnyFileIsDisplayableMedia({
+      file_name: `file.${post.file.ext || "txt"}`,
+      mimetype: "",
+    })
+  ) {
+    return "";
+  }
+  return url;
+});
 const mime = computed(() => (currentFile.value?.mimetype || "").toLowerCase());
 const isVideo = computed(() => mime.value.startsWith("video/"));
 const isAudio = computed(() => mime.value.startsWith("audio/"));
@@ -310,7 +328,11 @@ const isFlash = computed(
     mime.value.includes("shockwave") ||
     (currentFile.value?.file_name || "").toLowerCase().endsWith(".swf"),
 );
-const isWritingOnly = computed(() => meta.value?.typeId === 12 && !currentFileUrl.value);
+const isWritingOnly = computed(() => {
+  if (meta.value?.typeId !== INKBUNNY_SUBMISSION_TYPE_WRITING) return false;
+  if (inkbunnyFileIsDisplayableMedia(currentFile.value)) return false;
+  return !!writing.value || !currentFileUrl.value;
+});
 const writing = computed(() => meta.value?.writing || "");
 const title = computed(() => meta.value?.title || props.current?.description || "");
 const artist = computed(() => props.current?.tags.artist?.[0] || props.current?.uploader_name || "");
