@@ -242,7 +242,20 @@
                   <external-link href="https://www.furaffinity.net/login/">
                     FurAffinity login
                   </external-link>
-                  in a browser to solve captchas and copy the <code>a</code>/<code>b</code> cookies.
+                  if you need to sign in first.
+                </p>
+                <p class="text-left mt-2">
+                  <strong>Chrome / Chromium:</strong>
+                  log in on furaffinity.net → F12 → Application → Cookies →
+                  <code>https://www.furaffinity.net</code> → copy the Values for
+                  <code>a</code> and <code>b</code> into <code>FA_COOKIE_A</code> /
+                  <code>FA_COOKIE_B</code> on the host, then restart the server.
+                </p>
+                <p class="text-left mt-2">
+                  <strong>Firefox:</strong>
+                  log in on furaffinity.net → F12 → Storage → Cookies →
+                  <code>https://www.furaffinity.net</code> → copy the Values for
+                  <code>a</code> and <code>b</code> the same way.
                 </p>
                 <div>
                   <v-btn
