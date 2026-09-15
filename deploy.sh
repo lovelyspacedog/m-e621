@@ -75,9 +75,10 @@ elif [[ -f "$ROOT/deploy.env" ]]; then
 fi
 if [[ -n "$LOCAL_ENV" ]]; then
   echo "- uploading host env from $LOCAL_ENV"
+  # Use remote-relative ~/.config path — do not expand local $HOME into the SSH target.
   rsync -a -e "sshpass -e ssh ${SSH_OPTS[*]}" \
-    "$LOCAL_ENV" "$HOST:$HOME/.config/m-e621/env"
-  ssh_exp "chmod 600 '$HOME/.config/m-e621/env'"
+    "$LOCAL_ENV" "$HOST:.config/m-e621/env"
+  ssh_exp 'chmod 600 "$HOME/.config/m-e621/env"'
 fi
 
 ssh_exp "chmod +x '$REMOTE_DIR/start' '$REMOTE_DIR/sync' '$REMOTE_DIR/serve.py' '$REMOTE_DIR/load-m-e621-env.sh'"

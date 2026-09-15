@@ -6,6 +6,7 @@ This is **not** a polished product with a roadmap and support team. It is a **pe
 
 Upstream remains the better choice if you want a stable, e621-focused client:
 
+- This fork: [github.com/lovelyspacedog/m-e621](https://github.com/lovelyspacedog/m-e621)
 - Upstream app: [material-e621.avoonix.com](https://material-e621.avoonix.com)
 - Upstream repo: [avoonix/material-e621](https://github.com/avoonix/material-e621)
 
