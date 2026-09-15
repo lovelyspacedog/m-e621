@@ -38,7 +38,7 @@
           <v-switch v-model="posts.animateFeedGifs" />
         </settings-page-item>
         <settings-page-item title="Autoplay video in feed" switch
-          description="Play videos automatically while their card is on screen. Controls still work when off.">
+          description="Play videos while on screen. Off-screen cards drop their buffers so a long feed does not keep every video loaded.">
           <v-switch v-model="posts.autoplayFeedVideo" />
         </settings-page-item>
         <settings-page-item title="Autoplay silently" switch

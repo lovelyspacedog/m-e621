@@ -36,8 +36,8 @@
       controls
       playsinline
       loop
-      preload="metadata"
-      :src="playableUrl"
+      :preload="videoSrcLive ? 'metadata' : 'none'"
+      :src="videoSrcLive ? playableUrl : undefined"
       :poster="preview.url || undefined"
       @click.stop
       @volumechange="onVolumeChange"
@@ -114,7 +114,7 @@ import { usePostsStore, useSnackbarStore } from "@/services";
 import { DataSaverType } from "@/services/types";
 import type { File, Preview, Sample } from "@/worker/api";
 import type { PropType } from "vue";
-import { computed, defineComponent, onBeforeUnmount, ref, watch } from "vue";
+import { computed, defineComponent, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import FixedAspectRatioBox from "./FixedAspectRatioBox.vue";
 import { useRouter } from "vue-router";
 
@@ -243,6 +243,9 @@ export default defineComponent({
     );
     let visibilityObserver: IntersectionObserver | null = null;
     let boundVideo: HTMLVideoElement | null = null;
+    let videoIsIntersecting = false;
+    // With feed autoplay, only keep src while on-screen so off-screen cards free buffers.
+    const videoSrcLive = ref(!posts.autoplayFeedVideo);
 
     const applyPlaybackPrefs = (el: HTMLVideoElement, forAutoplay = false) => {
       const forceSilent = forAutoplay && posts.autoplayFeedVideoSilent;
@@ -251,6 +254,15 @@ export default defineComponent({
       el.playbackRate = posts.videoPlaybackRate || 1;
       // Loop so feed previews keep moving; card auto-next uses a dwell timer when looped.
       el.loop = true;
+    };
+
+    const releaseVideoBuffer = (el: HTMLVideoElement) => {
+      el.pause();
+      if (!posts.autoplayFeedVideo) return;
+      videoSrcLive.value = false;
+      // Drop decoder/network buffers immediately; poster still shows.
+      el.removeAttribute("src");
+      el.load();
     };
 
     const playWhenVisible = (el: HTMLVideoElement) => {
@@ -264,24 +276,43 @@ export default defineComponent({
       }
     };
 
+    const attachAndMaybePlay = async (el: HTMLVideoElement) => {
+      if (!videoSrcLive.value) {
+        videoSrcLive.value = true;
+        await nextTick();
+      }
+      if (!el.isConnected) return;
+      playWhenVisible(el);
+    };
+
     const setVideoEl = (el: unknown) => {
       visibilityObserver?.disconnect();
       visibilityObserver = null;
       boundVideo = null;
+      videoIsIntersecting = false;
       if (!(el instanceof HTMLVideoElement)) return;
       boundVideo = el;
-      applyPlaybackPrefs(el, posts.autoplayFeedVideo);
+      // Fresh mount: if autoplay is on, wait for intersection before loading src.
+      if (posts.autoplayFeedVideo) {
+        videoSrcLive.value = false;
+        el.removeAttribute("src");
+        el.load();
+      } else {
+        videoSrcLive.value = true;
+        applyPlaybackPrefs(el, false);
+      }
       if (typeof IntersectionObserver === "undefined") {
-        playWhenVisible(el);
+        void attachAndMaybePlay(el);
         return;
       }
       visibilityObserver = new IntersectionObserver(
         ([entry]) => {
-          if (!entry?.isIntersecting) {
-            el.pause();
+          videoIsIntersecting = !!entry?.isIntersecting;
+          if (!videoIsIntersecting) {
+            releaseVideoBuffer(el);
             return;
           }
-          playWhenVisible(el);
+          void attachAndMaybePlay(el);
         },
         { threshold: 0.15 },
       );
@@ -300,8 +331,21 @@ export default defineComponent({
       () => {
         if (!boundVideo) return;
         if (!posts.autoplayFeedVideo) {
-          boundVideo.pause();
-          applyPlaybackPrefs(boundVideo, false);
+          // Manual mode: keep src loaded, stop autoplay eviction.
+          void (async () => {
+            if (!boundVideo) return;
+            if (!videoSrcLive.value) {
+              videoSrcLive.value = true;
+              await nextTick();
+            }
+            if (!boundVideo) return;
+            boundVideo.pause();
+            applyPlaybackPrefs(boundVideo, false);
+          })();
+          return;
+        }
+        if (!videoIsIntersecting) {
+          releaseVideoBuffer(boundVideo);
           return;
         }
         // Observer handles play on visibility; only refresh mute/volume/rate here.
@@ -325,6 +369,7 @@ export default defineComponent({
 
     onBeforeUnmount(() => {
       visibilityObserver?.disconnect();
+      if (boundVideo) releaseVideoBuffer(boundVideo);
     });
 
     const canPlayInline = computed(() => !!playableUrl.value);
@@ -451,6 +496,7 @@ export default defineComponent({
       documentExcerpt,
       canPlayInline,
       playableUrl,
+      videoSrcLive,
       setVideoEl,
       imageSrc,
       displayRatio,
