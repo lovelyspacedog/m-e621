@@ -228,6 +228,7 @@ export const usePostsStore = defineStore("posts", () => {
     "favorite",
     "bookmark",
     "save_local",
+    "fluffle",
   ]);
 
   return {

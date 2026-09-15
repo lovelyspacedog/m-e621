@@ -18,6 +18,7 @@
         <post :post="post" @open-post="$emit('open-post', $event)"
           @open-post-details="$emit('open-post-details', $event)"
           @set-post-favorite="$emit('set-post-favorite', $event)"
+          @open-fluffle-search="flufflePost = $event"
           @remuxed="$emit('remuxed')" />
       </template>
     </post-list>
@@ -33,7 +34,8 @@
       :has-next-fullscreen-post="hasNextFullscreenPost" :current="fullscreenPost || null"
       @close="$emit('exit-fullscreen')" @next-post="$emit('next-fullscreen-post', $event)"
       @previous-post="$emit('previous-fullscreen-post')" @open-post-details="$emit('open-post-details', $event)"
-      @set-post-favorite="$emit('set-post-favorite', $event)" />
+      @set-post-favorite="$emit('set-post-favorite', $event)"
+      @open-fluffle-search="flufflePost = $event" />
     <inkbunny-submission-dialog
       v-else
       :current="fullscreenPost || null"
@@ -45,7 +47,9 @@
     />
     <details-dialog :current="detailsPost" @close="$emit('close-details')"
       @open-post-fullscreen="$emit('open-post', $event)" @set-post-favorite="$emit('set-post-favorite', $event)"
-      @set-post-vote="$emit('set-post-vote', $event)" />
+      @set-post-vote="$emit('set-post-vote', $event)"
+      @open-fluffle-search="flufflePost = $event" />
+    <fluffle-search-dialog :post="flufflePost" @close="flufflePost = null" />
     <!--
     <div>
       <blacklist-suggestions :suggested-blacklist="ratingTags" />
@@ -97,9 +101,10 @@ import Post from "@/Post/Post.vue";
 import PostList from "@/Post/PostList.vue";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { PropType } from "vue";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import AppLogo from "../App/AppLogo.vue";
 import DetailsDialog from "./DetailsDialog.vue";
+import FluffleSearchDialog from "./FluffleSearchDialog.vue";
 import FullscreenDialog from "./FullscreenDialog.vue";
 import InkbunnySubmissionDialog from "@/Inkbunny/InkbunnySubmissionDialog.vue";
 import { useSiteModeStore } from "@/services";
@@ -107,6 +112,8 @@ import { shouldUseInkbunnyViewer } from "@/worker/inkbunny/api";
 import { useHead } from "@unhead/vue";
 
 const emit = defineEmits(["load-next", "load-previous", "open-post", "open-post-details", "exit-fullscreen", "set-post-favorite", "set-post-vote", "close-details", "next-fullscreen-post", "previous-fullscreen-post", "restored", "remuxed"]);
+
+const flufflePost = ref<EnhancedPost | null>(null);
 
 const props = defineProps({
   fullscreenPost: { type: Object as PropType<EnhancedPost> },

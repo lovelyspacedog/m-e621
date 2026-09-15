@@ -30,6 +30,14 @@ const isFurAffinityMediaHost = (host: string) =>
 const isWeasylMediaHost = (host: string) =>
   host === 'www.weasyl.com' || host === 'weasyl.com' || host === 'cdn.weasyl.com' || host === 'static.weasyl.com';
 
+const isFluffleSourceHost = (host: string) =>
+  MEDIA_HOST_OK(host) ||
+  host === 'furrycdn.org' ||
+  host.endsWith('.furrycdn.org') ||
+  host === 'pics.tailspace.com' ||
+  host === 'tailspace.com' ||
+  host.endsWith('.tailspace.com');
+
 function e621MediaProxy(): Plugin {
   return {
     name: 'e621-media-proxy',
@@ -708,6 +716,190 @@ function inkbunnyProxy(): Plugin {
 }
 
 
+function fluffleProxy(): Plugin {
+  const FLUFFLE_API = 'https://api.fluffle.xyz/exact-search-by-file';
+  const FLUFFLE_UA = 'm-e621/1.0 (by lovelyspacedog on GitHub)';
+
+  const guessFilename = (url: string, contentType: string): { filename: string; mime: string } => {
+    const pathLower = new URL(url).pathname.toLowerCase();
+    const ctype = (contentType || '').split(';')[0].trim().toLowerCase();
+    for (const ext of ['jpg', 'jpeg', 'png', 'webp', 'gif'] as const) {
+      if (pathLower.endsWith('.' + ext)) {
+        const nameExt = ext === 'jpeg' ? 'jpg' : ext;
+        const mime =
+          nameExt === 'jpg'
+            ? 'image/jpeg'
+            : nameExt === 'png'
+              ? 'image/png'
+              : nameExt === 'webp'
+                ? 'image/webp'
+                : 'image/gif';
+        return { filename: `image.${nameExt}`, mime };
+      }
+    }
+    const map: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+      'image/gif': 'gif',
+    };
+    if (ctype in map) {
+      const ext = map[ctype];
+      return { filename: `image.${ext}`, mime: ctype === 'image/jpg' ? 'image/jpeg' : ctype };
+    }
+    return { filename: 'image.jpg', mime: 'image/jpeg' };
+  };
+
+  const encodeMultipart = (
+    fileBytes: Buffer,
+    filename: string,
+    mime: string,
+    limit: number,
+  ): { body: Buffer; contentType: string } => {
+    const boundary = `----m-e621-fluffle-${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
+    const crlf = '\r\n';
+    const head =
+      `--${boundary}${crlf}` +
+      `Content-Disposition: form-data; name="limit"${crlf}${crlf}` +
+      `${limit}${crlf}` +
+      `--${boundary}${crlf}` +
+      `Content-Disposition: form-data; name="file"; filename="${filename}"${crlf}` +
+      `Content-Type: ${mime}${crlf}${crlf}`;
+    const tail = `${crlf}--${boundary}--${crlf}`;
+    return {
+      body: Buffer.concat([Buffer.from(head, 'utf8'), fileBytes, Buffer.from(tail, 'utf8')]),
+      contentType: `multipart/form-data; boundary=${boundary}`,
+    };
+  };
+
+  const fetchAllowed = async (url: URL, hops = 0): Promise<Response> => {
+    if (hops > 5) throw new Error('too many redirects');
+    const host = url.hostname.toLowerCase();
+    const faCookies = [
+      process.env.FA_COOKIE_A ? `a=${process.env.FA_COOKIE_A}` : '',
+      process.env.FA_COOKIE_B ? `b=${process.env.FA_COOKIE_B}` : '',
+    ]
+      .filter(Boolean)
+      .join('; ');
+    const remote = await fetch(url.toString(), {
+      headers: {
+        'User-Agent': 'm-e621-fluffle-proxy/1.0',
+        Accept: 'image/*,*/*',
+        ...(isInkbunnyMediaHost(host) ? { Referer: 'https://inkbunny.net' } : {}),
+        ...(isFurAffinityMediaHost(host)
+          ? {
+              Referer: 'https://www.furaffinity.net',
+              ...(faCookies ? { Cookie: faCookies } : {}),
+            }
+          : {}),
+      },
+      redirect: 'manual',
+    });
+    if ([301, 302, 303, 307, 308].includes(remote.status)) {
+      const loc = remote.headers.get('location');
+      if (!loc) throw new Error('redirect without Location');
+      const nextUrl = new URL(loc, url);
+      if (nextUrl.protocol !== 'https:' || !isFluffleSourceHost(nextUrl.hostname.toLowerCase())) {
+        throw new Error('redirect target not allowed');
+      }
+      return fetchAllowed(nextUrl, hops + 1);
+    }
+    return remote;
+  };
+
+  return {
+    name: 'fluffle-proxy',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const urlPath = (req.url || '').split('?')[0];
+        if (urlPath !== '/api/fluffle/exact-search' || req.method !== 'POST') {
+          next();
+          return;
+        }
+
+        const jsonError = (code: number, message: string) => {
+          res.statusCode = code;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(JSON.stringify({ ok: false, message }));
+        };
+
+        try {
+          const chunks: Buffer[] = [];
+          for await (const chunk of req) {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          }
+          let payload: { url?: string; limit?: number };
+          try {
+            payload = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+          } catch {
+            jsonError(400, 'invalid json');
+            return;
+          }
+          const rawUrl = (payload.url || '').trim();
+          let limit = Number(payload.limit ?? 8);
+          if (!Number.isFinite(limit)) limit = 8;
+          limit = Math.max(8, Math.min(32, Math.floor(limit)));
+
+          let target: URL;
+          try {
+            target = new URL(rawUrl);
+          } catch {
+            jsonError(400, 'bad url');
+            return;
+          }
+          if (target.protocol !== 'https:' || !isFluffleSourceHost(target.hostname.toLowerCase())) {
+            jsonError(400, 'url not allowed');
+            return;
+          }
+
+          const remote = await fetchAllowed(target);
+          if (!remote.ok) {
+            jsonError(502, `failed to fetch image (${remote.status})`);
+            return;
+          }
+          const fileBytes = Buffer.from(await remote.arrayBuffer());
+          if (!fileBytes.length) {
+            jsonError(502, 'empty image');
+            return;
+          }
+          if (fileBytes.length > 4 * 1024 * 1024) {
+            jsonError(400, 'image too large (max 4 MiB)');
+            return;
+          }
+          const { filename, mime } = guessFilename(
+            target.toString(),
+            remote.headers.get('content-type') || '',
+          );
+          const { body, contentType } = encodeMultipart(fileBytes, filename, mime, limit);
+
+          const fluffleResp = await fetch(FLUFFLE_API, {
+            method: 'POST',
+            headers: {
+              'User-Agent': FLUFFLE_UA,
+              Accept: 'application/json',
+              'Content-Type': contentType,
+            },
+            body,
+          });
+          const out = Buffer.from(await fluffleResp.arrayBuffer());
+          res.statusCode = fluffleResp.status;
+          res.setHeader(
+            'Content-Type',
+            fluffleResp.headers.get('content-type') || 'application/json',
+          );
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(out);
+        } catch (err) {
+          jsonError(502, String(err));
+        }
+      });
+    },
+  };
+}
+
+
 function rufflePlugin(): Plugin {
   const ruffleDir = path.resolve(process.cwd(), 'node_modules/@ruffle-rs/ruffle');
 
@@ -841,6 +1033,7 @@ export default defineConfig(({ mode }) => {
       inkbunnyProxy(),
       furaffinityProxy(),
       weasylProxy(),
+      fluffleProxy(),
       rufflePlugin(),
       generateSitemap(env),
       vue(),

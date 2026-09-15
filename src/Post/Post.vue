@@ -43,6 +43,7 @@
         @open-post-details="$emit('open-post-details', $event)"
         @open-post-fullscreen="setClicked"
         @set-post-favorite="$emit('set-post-favorite', $event)"
+        @open-fluffle-search="$emit('open-fluffle-search', $event)"
       />
     </v-card-actions>
     <div class="post-card-footer">
@@ -99,7 +100,7 @@ export default defineComponent({
       required: true,
     },
   },
-  emits: ["open-post", "open-post-details", "set-post-favorite", "remuxed"],
+  emits: ["open-post", "open-post-details", "set-post-favorite", "open-fluffle-search", "remuxed"],
   setup(props, context) {
     const blacklist = useBlacklistStore();
     const posts = usePostsStore();

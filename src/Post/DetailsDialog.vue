@@ -96,6 +96,7 @@
           @open-post-details="dialog = false"
           @open-post-fullscreen="$emit('open-post-fullscreen', $event)"
           @set-post-favorite="$emit('set-post-favorite', $event)"
+          @open-fluffle-search="$emit('open-fluffle-search', $event)"
         />
         <v-btn color="primary" variant="text" @click="dialog = false">Close</v-btn>
       </v-card-actions>
@@ -135,7 +136,7 @@ export default defineComponent({
       required: false,
     },
   },
-  emits: ["close", "open-post-fullscreen", "set-post-favorite", "set-post-vote"],
+  emits: ["close", "open-post-fullscreen", "set-post-favorite", "set-post-vote", "open-fluffle-search"],
   setup(props, context) {
     const posts = usePostsStore();
     const siteMode = useSiteModeStore();

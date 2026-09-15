@@ -38,6 +38,7 @@
         @previous-post="openPreviousFullscreenPost()"
         @open-post-details="onOpenDetails"
         @set-post-favorite="onSetFavorite"
+        @open-fluffle-search="flufflePost = $event"
       />
       <details-dialog
         :current="detailsPost || undefined"
@@ -45,7 +46,9 @@
         @open-post-fullscreen="onOpenFullscreen"
         @set-post-favorite="onSetFavorite"
         @set-post-vote="onSetVote"
+        @open-fluffle-search="flufflePost = $event"
       />
+      <fluffle-search-dialog :post="flufflePost" @close="flufflePost = null" />
     </template>
     <div v-if="sequenceLabel" class="pool-sequence-caption text-caption">
       {{ sequenceLabel }}
@@ -61,6 +64,7 @@ import PoolInfo from "@/Pool/PoolInfo.vue";
 import PoolReader, { type PoolViewMode } from "@/Pool/PoolReader.vue";
 import FullscreenDialog from "@/Post/FullscreenDialog.vue";
 import DetailsDialog from "@/Post/DetailsDialog.vue";
+import FluffleSearchDialog from "@/Post/FluffleSearchDialog.vue";
 import { usePostListManager } from "@/Post/postListManager";
 import { useRouterQueryHelpers } from "@/misc/util/utilities";
 import {
@@ -94,6 +98,7 @@ const poolMeta = ref<Pool | null>(null);
 const poolError = ref<string | null>(null);
 const viewMode = ref<PoolViewMode>("gallery");
 const chunkLoading = ref(false);
+const flufflePost = ref<EnhancedPost | null>(null);
 
 const displayPoolName = computed(() =>
   (poolMeta.value?.name || "").replace(/_/g, " "),

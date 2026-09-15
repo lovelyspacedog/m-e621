@@ -7,6 +7,7 @@
 <script lang="ts">
 import { openUrlInNewTab, postStandaloneUrl } from "@/misc/util/url";
 import { savePostLocally } from "@/misc/util/saveLocal";
+import { fluffleImageUrl, isFluffleStillPost } from "@/misc/util/fluffleSearch";
 import { useSavedPostsStore, useSnackbarStore } from "@/services";
 import type { ButtonType } from "@/services/types";
 import type { EnhancedPost } from "@/worker/ApiService";
@@ -38,6 +39,9 @@ export default defineComponent({
     const savedPosts = useSavedPostsStore();
 
     const bookmarked = computed(() => savedPosts.isSaved(props.post));
+    const fluffleEnabled = computed(
+      () => !!props.post && isFluffleStillPost(props.post) && !!fluffleImageUrl(props.post),
+    );
 
     const buttons = computed<{ [key in ButtonType]: IButton }>(() => ({
       info: {
@@ -114,6 +118,15 @@ export default defineComponent({
           } finally {
             saving.value = false;
           }
+        },
+      },
+      fluffle: {
+        color: "",
+        icon: "mdi-image-search",
+        disabled: !fluffleEnabled.value,
+        onClick: () => {
+          if (!props.post || !fluffleEnabled.value) return;
+          context.emit("open-fluffle-search", props.post);
         },
       },
     }));

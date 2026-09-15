@@ -3,7 +3,8 @@
     <post-button :post="post" v-for="(button, idx) in buttons" :key="idx" :type="button"
       @open-post-details="$emit('open-post-details', $event)"
       @open-post-fullscreen="$emit('open-post-fullscreen', $event)"
-      @set-post-favorite="$emit('set-post-favorite', $event)" />
+      @set-post-favorite="$emit('set-post-favorite', $event)"
+      @open-fluffle-search="$emit('open-fluffle-search', $event)" />
   </div>
 </template>
 
@@ -26,7 +27,13 @@ export default defineComponent({
       required: true,
     },
   },
-  setup(props, context) {
+  emits: [
+    "open-post-details",
+    "open-post-fullscreen",
+    "set-post-favorite",
+    "open-fluffle-search",
+  ],
+  setup() {
     return {};
   },
 });

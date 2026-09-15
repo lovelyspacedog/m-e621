@@ -10,7 +10,8 @@ export type ButtonType =
   | "external"
   | "favorite"
   | "bookmark"
-  | "save_local";
+  | "save_local"
+  | "fluffle";
 
 export enum FullscreenZoomUiMode {
   alwaysHide,

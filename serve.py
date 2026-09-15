@@ -135,6 +135,13 @@ WEASYL_FAVORITES_PATH = re.compile(r"^/api/weasyl/favorites/([^/]+)$")
 WEASYL_USER_PATH = re.compile(r"^/api/weasyl/user/([^/]+)$")
 WEASYL_WHOAMI_PATH = re.compile(r"^/api/weasyl/whoami$")
 
+FLUFFLE_API = "https://api.fluffle.xyz/exact-search-by-file"
+FLUFFLE_UA = "m-e621/1.0 (by lovelyspacedog on GitHub)"
+FLUFFLE_PATH = "/api/fluffle/exact-search"
+# Extra CDN hosts allowed only for Fluffle source fetch (not general /api/download).
+FLUFFLE_EXTRA_HOSTS = frozenset({"furrycdn.org", "pics.tailspace.com"})
+FLUFFLE_EXTRA_SUFFIXES = (".furrycdn.org",)
+
 _pull_lock = threading.Lock()
 _state: dict = {
     "running": False,
@@ -1081,6 +1088,178 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if host in WEASYL_MEDIA_HOSTS:
             return parsed.geturl()
         return None
+
+    def _allowed_fluffle_source_url(self, raw: str) -> str | None:
+        """Allowlist for images forwarded to Fluffle (download allowlist + a few CDNs)."""
+        allowed = self._allowed_media_url(raw)
+        if allowed:
+            return allowed
+        parsed = urlparse(raw)
+        host = (parsed.hostname or "").lower()
+        if parsed.scheme != "https" or not host:
+            return None
+        if host in FLUFFLE_EXTRA_HOSTS or host.endswith(FLUFFLE_EXTRA_SUFFIXES):
+            return parsed.geturl()
+        if host == "tailspace.com" or host.endswith(".tailspace.com"):
+            return parsed.geturl()
+        return None
+
+    def _guess_image_filename(self, url: str, content_type: str) -> tuple[str, str]:
+        path = urlparse(url).path.lower()
+        ctype = (content_type or "").split(";")[0].strip().lower()
+        ext_map = {
+            "image/jpeg": "jpg",
+            "image/jpg": "jpg",
+            "image/png": "png",
+            "image/webp": "webp",
+            "image/gif": "gif",
+        }
+        for ext in ("jpg", "jpeg", "png", "webp", "gif"):
+            if path.endswith("." + ext):
+                name_ext = "jpg" if ext == "jpeg" else ext
+                mime = {
+                    "jpg": "image/jpeg",
+                    "png": "image/png",
+                    "webp": "image/webp",
+                    "gif": "image/gif",
+                }[name_ext]
+                return f"image.{name_ext}", mime
+        if ctype in ext_map:
+            ext = ext_map[ctype]
+            return f"image.{ext}", ctype if ctype != "image/jpg" else "image/jpeg"
+        return "image.jpg", "image/jpeg"
+
+    def _fetch_fluffle_source(self, url: str) -> tuple[bytes, str] | None:
+        """Download image bytes for Fluffle; returns (bytes, content_type) or None on hard failure."""
+        current = url
+        for _ in range(5):
+            req = urllib.request.Request(current, method="GET")
+            req.add_header("User-Agent", f"m-e621-fluffle-proxy/1.0 (https://{DOMAIN})")
+            req.add_header("Accept", "image/*,*/*")
+            host = (urlparse(current).hostname or "").lower()
+            if host in INKBUNNY_MEDIA_HOSTS or host.endswith(".metapix.net"):
+                req.add_header("Referer", "https://inkbunny.net")
+            if host in FURAFFINITY_MEDIA_HOSTS or host.endswith(FURAFFINITY_MEDIA_SUFFIXES):
+                req.add_header("Referer", "https://www.furaffinity.net")
+                parts = []
+                a = os.environ.get("FA_COOKIE_A", "").strip()
+                b = os.environ.get("FA_COOKIE_B", "").strip()
+                if a:
+                    parts.append(f"a={a}")
+                if b:
+                    parts.append(f"b={b}")
+                if parts:
+                    req.add_header("Cookie", "; ".join(parts))
+            try:
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    final = resp.geturl() if hasattr(resp, "geturl") else current
+                    if self._allowed_fluffle_source_url(final) is None:
+                        return None
+                    data = resp.read()
+                    ctype = resp.headers.get("Content-Type", "application/octet-stream")
+                    return data, ctype
+            except urllib.error.HTTPError as exc:
+                if exc.code in (301, 302, 303, 307, 308):
+                    loc = exc.headers.get("Location")
+                    if not loc:
+                        return None
+                    nxt = urljoin(current, loc)
+                    if self._allowed_fluffle_source_url(nxt) is None:
+                        return None
+                    current = nxt
+                    continue
+                return None
+            except Exception:
+                return None
+        return None
+
+    def _encode_fluffle_multipart(
+        self, file_bytes: bytes, filename: str, content_type: str, limit: int
+    ) -> tuple[bytes, str]:
+        boundary = f"----m-e621-fluffle-{secrets.token_hex(16)}"
+        crlf = b"\r\n"
+        chunks: list[bytes] = [
+            f"--{boundary}".encode(),
+            b'Content-Disposition: form-data; name="limit"',
+            b"",
+            str(limit).encode("utf-8"),
+            f"--{boundary}".encode(),
+            (
+                f'Content-Disposition: form-data; name="file"; '
+                f'filename="{filename}"'
+            ).encode("utf-8"),
+            f"Content-Type: {content_type}".encode("utf-8"),
+            b"",
+            file_bytes,
+            f"--{boundary}--".encode(),
+            b"",
+        ]
+        return crlf.join(chunks), f"multipart/form-data; boundary={boundary}"
+
+    def _proxy_fluffle_exact_search(self, body: bytes) -> None:
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}")
+        except json.JSONDecodeError:
+            self._json(400, {"ok": False, "message": "invalid json"})
+            return
+        raw_url = (payload.get("url") or "").strip() if isinstance(payload, dict) else ""
+        limit_raw = payload.get("limit", 8) if isinstance(payload, dict) else 8
+        try:
+            limit = int(limit_raw)
+        except (TypeError, ValueError):
+            limit = 8
+        limit = max(8, min(limit, 32))
+        url = self._allowed_fluffle_source_url(raw_url)
+        if not url:
+            self._json(400, {"ok": False, "message": "url not allowed"})
+            return
+        fetched = self._fetch_fluffle_source(url)
+        if not fetched:
+            self._json(502, {"ok": False, "message": "failed to fetch image"})
+            return
+        file_bytes, src_ctype = fetched
+        if not file_bytes:
+            self._json(502, {"ok": False, "message": "empty image"})
+            return
+        # Fluffle hard limit is 4 MiB.
+        if len(file_bytes) > 4 * 1024 * 1024:
+            self._json(400, {"ok": False, "message": "image too large (max 4 MiB)"})
+            return
+        filename, mime = self._guess_image_filename(url, src_ctype)
+        multipart, content_type = self._encode_fluffle_multipart(
+            file_bytes, filename, mime, limit
+        )
+        req = urllib.request.Request(FLUFFLE_API, data=multipart, method="POST")
+        req.add_header("User-Agent", FLUFFLE_UA)
+        req.add_header("Accept", "application/json")
+        req.add_header("Content-Type", content_type)
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                out = resp.read()
+                status = getattr(resp, "status", 200)
+                resp_ctype = resp.headers.get("Content-Type", "application/json")
+                self.send_response(status)
+                self.send_header("Content-Type", resp_ctype)
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(out)))
+                self.end_headers()
+                self.wfile.write(out)
+        except urllib.error.HTTPError as exc:
+            err_body = exc.read() if exc.fp else b""
+            self.send_response(exc.code)
+            self.send_header(
+                "Content-Type",
+                exc.headers.get("Content-Type", "application/json")
+                if exc.headers
+                else "application/json",
+            )
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(err_body)))
+            self.end_headers()
+            if err_body:
+                self.wfile.write(err_body)
+        except Exception as exc:
+            self._json(502, {"ok": False, "message": f"fluffle request failed: {exc}"})
 
     def _proxy_media(self, raw_url: str) -> None:
         url = self._allowed_media_url(raw_url)
@@ -2134,6 +2313,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
         path = parsed.path
         length = int(self.headers.get("Content-Length", "0") or 0)
         body = self.rfile.read(length) if length else b""
+
+        if path == FLUFFLE_PATH:
+            self._proxy_fluffle_exact_search(body)
+            return
 
         if path == "/api/favorites":
             self._proxy_favorite("POST", body)

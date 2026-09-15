@@ -140,7 +140,7 @@ export const defaultSettings: ISettingsServiceState = {
     entries: [],
   },
   posts: {
-    buttons: ["info", "fullscreen", "external", "favorite", "bookmark", "save_local"],
+    buttons: ["info", "fullscreen", "external", "favorite", "bookmark", "save_local", "fluffle"],
     fullscreenButtons: ["external", "info", "favorite", "bookmark", "save_local"],
     detailsButtons: ["external", "favorite", "bookmark", "save_local"],
     fullscreenZoomUiMode: FullscreenZoomUiMode.hideWhileZoomed,

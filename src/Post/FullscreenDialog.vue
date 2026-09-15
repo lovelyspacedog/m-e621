@@ -188,7 +188,8 @@
       <div class="bottom-right" v-show="!hideUi" :style="commentsChromeOffset">
         <post-buttons v-if="current" :key="current.id" :buttons="buttons" :post="current"
           @open-post-details="$emit('open-post-details', $event)" @open-post-fullscreen="exitFullscreen()"
-          @set-post-favorite="$emit('set-post-favorite', $event)" />
+          @set-post-favorite="$emit('set-post-favorite', $event)"
+          @open-fluffle-search="$emit('open-fluffle-search', $event)" />
       </div>
     </div>
   </v-dialog>
@@ -241,6 +242,7 @@ const emit = defineEmits<{
   "previous-post": [];
   "set-post-favorite": [payload: unknown];
   "open-post-details": [payload: unknown];
+  "open-fluffle-search": [post: EnhancedPost];
 }>();
 
 

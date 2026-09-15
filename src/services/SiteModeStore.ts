@@ -16,6 +16,7 @@ const LOCAL_HIDDEN_BUTTONS = new Set<ButtonType>([
   "external",
   "save_local",
   "bookmark",
+  "fluffle",
 ]);
 
 const INKBUNNY_HIDDEN_BUTTONS = new Set<ButtonType>([
