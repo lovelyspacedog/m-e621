@@ -42,9 +42,21 @@
         </p>
       </div>
     </template>
-    <div v-else-if="isDocument" class="centered clickable">
-      <v-icon size="100">mdi-text-box-outline</v-icon>
-      <div>{{ file.ext === "txt" ? "Journal / story" : file.ext.toUpperCase() }}</div>
+    <div v-else-if="isDocument" class="document-preview clickable">
+      <img
+        v-if="documentThumbSrc"
+        :loading="loading"
+        :src="documentThumbSrc"
+        class="document-thumb"
+        @load="onPreviewLoad"
+      />
+      <div class="document-overlay" :class="{ 'document-overlay--plain': !documentThumbSrc }">
+        <v-icon size="72">{{ documentIcon }}</v-icon>
+        <div class="document-label">{{ documentLabel }}</div>
+        <p v-if="!documentThumbSrc && documentExcerpt" class="document-excerpt">
+          {{ documentExcerpt }}
+        </p>
+      </div>
     </div>
     <img
       :loading="loading"
@@ -99,6 +111,14 @@ export default defineComponent({
       type: Object as PropType<Sample>,
       required: true,
     },
+    description: {
+      type: String,
+      default: "",
+    },
+    documentKind: {
+      type: String as PropType<"journal" | "story" | "">,
+      default: "",
+    },
     unplayable: {
       type: Boolean,
       default: false,
@@ -121,6 +141,26 @@ export default defineComponent({
       ["txt", "pdf", "html", "doc", "rtf"].includes(props.file.ext),
     );
     const isImage = computed(() => !isSwf.value && !isVideo.value && !isDocument.value);
+    const documentLabel = computed(() => {
+      if (props.documentKind === "journal") return "Journal";
+      if (props.documentKind === "story" || props.file.ext === "txt") return "Story";
+      if (props.file.ext === "html") return "HTML";
+      return props.file.ext.toUpperCase();
+    });
+    const documentIcon = computed(() => {
+      if (props.file.ext === "pdf") return "mdi-file-pdf-box";
+      if (props.documentKind === "journal") return "mdi-notebook-outline";
+      return "mdi-text-box-outline";
+    });
+    const documentThumbSrc = computed(() => {
+      // Never use file.url for documents — it is the PDF/text file, not an image.
+      return props.preview.url || props.sample.url || "";
+    });
+    const documentExcerpt = computed(() => {
+      const text = (props.description || "").replace(/\s+/g, " ").trim();
+      if (!text) return "";
+      return text.length > 160 ? `${text.slice(0, 157)}…` : text;
+    });
     const playableUrl = computed(() =>
       !props.unplayable && isVideo.value && props.file.url
         ? proxyDownloadUrl(props.file.url)
@@ -128,6 +168,7 @@ export default defineComponent({
     );
     const displayRatio = computed(() => {
       if (naturalRatio.value && naturalRatio.value > 0) return naturalRatio.value;
+      if (isDocument.value && !documentThumbSrc.value) return 1.25;
       const width = props.file.width;
       const height = props.file.height;
       if (width > 0 && height > 0) return height / width;
@@ -287,6 +328,10 @@ export default defineComponent({
       isVideo,
       isDocument,
       isImage,
+      documentLabel,
+      documentIcon,
+      documentThumbSrc,
+      documentExcerpt,
       canPlayInline,
       playableUrl,
       setVideoEl,
@@ -344,6 +389,60 @@ export default defineComponent({
 	 position: absolute;
 	 inset: 0;
 	 background: rgba(0, 0, 0, 0.55);
+}
+ .document-preview {
+	 position: relative;
+	 width: 100%;
+	 height: 100%;
+	 background: #0d1117;
+}
+ .document-thumb {
+	 width: 100%;
+	 height: 100%;
+	 object-fit: cover;
+	 opacity: 0.45;
+	 filter: saturate(0.85);
+}
+ .document-overlay {
+	 position: absolute;
+	 inset: 0;
+	 display: flex;
+	 flex-direction: column;
+	 align-items: center;
+	 justify-content: center;
+	 gap: 0.35rem;
+	 padding: 1rem;
+	 background: linear-gradient(
+		 180deg,
+		 rgba(8, 12, 20, 0.35) 0%,
+		 rgba(8, 12, 20, 0.72) 100%
+	 );
+	 text-align: center;
+	 color: #fff;
+}
+ .document-overlay--plain {
+	 background: radial-gradient(
+		 ellipse at center,
+		 rgba(30, 41, 59, 0.95) 0%,
+		 rgba(8, 12, 20, 1) 75%
+	 );
+}
+ .document-label {
+	 font-size: 0.95rem;
+	 font-weight: 600;
+	 letter-spacing: 0.04em;
+	 text-transform: uppercase;
+}
+ .document-excerpt {
+	 max-width: 18rem;
+	 margin: 0.5rem 0 0;
+	 font-size: 0.8rem;
+	 line-height: 1.35;
+	 opacity: 0.78;
+	 display: -webkit-box;
+	 -webkit-line-clamp: 4;
+	 -webkit-box-orient: vertical;
+	 overflow: hidden;
 }
  
 </style>

@@ -8,8 +8,37 @@
             mdi-chevron-left
           </v-icon>
         </div>
-        <zoom-pan-image @update-zoomed="isZoomed = $event" @swipe-down="!$event.zoomedIn && exitFullscreen()"
-          @swipe-right="!$event.zoomedIn && showPreviousImage()" @swipe-left="!$event.zoomedIn && showNextImage()">
+        <!-- Document / story viewers need native scroll; ZoomPanImage hijacks wheel for zoom. -->
+        <div
+          v-if="current && isDocumentPost"
+          class="middle bg-black document-middle"
+          :class="blacklistClasses"
+        >
+          <iframe
+            v-if="isPdfPost && currentFileUrl"
+            class="document-frame"
+            :src="String(currentFileUrl)"
+            title="PDF document"
+          />
+          <div v-else class="document-scroll">
+            <div class="document-body text-body-1">
+              <div v-if="documentTitle" class="text-h5 mb-4">
+                {{ documentTitle }}
+              </div>
+              <pre class="document-text">{{ current.description || "No text available for this post." }}</pre>
+              <div v-if="isPdfPost && !currentFileUrl" class="mt-4 text-medium-emphasis">
+                PDF file URL unavailable — showing post description instead.
+              </div>
+            </div>
+          </div>
+        </div>
+        <zoom-pan-image
+          v-else
+          @update-zoomed="isZoomed = $event"
+          @swipe-down="!$event.zoomedIn && exitFullscreen()"
+          @swipe-right="!$event.zoomedIn && showPreviousImage()"
+          @swipe-left="!$event.zoomedIn && showNextImage()"
+        >
           <div v-if="current" style="height: 100%" class="middle bg-black" :class="blacklistClasses">
             <ruffle-player v-if="current.file.ext == 'swf'" class="overflow flash" :url="currentFileUrl || null" />
             <video v-else-if="isVideoPost && currentFileUrl"
@@ -22,16 +51,6 @@
               @ratechange="onFullscreenRateChange">
               Video type not supported by your browser
             </video>
-            <div
-              v-else-if="isTextPost"
-              class="overflow pa-8 text-body-1"
-              style="max-width: 800px; margin: 0 auto; white-space: pre-wrap"
-            >
-              <div v-if="current.__meta?.furaffinity?.title" class="text-h5 mb-4">
-                {{ current.__meta.furaffinity.title }}
-              </div>
-              {{ current.description }}
-            </div>
             <div v-else class="overflow">
               <div class="zoom-container text-center" style="position: relative">
                 <transition :enter-active-class="enterTransitionName" :leave-active-class="leaveTransitionName"
@@ -77,7 +96,7 @@
       <div class="top-right" v-ripple @click.stop="exitFullscreen">
         <v-icon size="40" class="ml-2 mt-2">mdi-close</v-icon>
       </div>
-      <div class="bottom-left" v-show="!hideUi">
+      <div class="bottom-left" v-show="!hideUi && !isDocumentPost">
         <v-btn icon size="large" color="white" variant="text" @click="toggleSlideshow">
           <v-icon size="36">{{ slideshowPlaying ? "mdi-pause" : "mdi-play" }}</v-icon>
         </v-btn>
@@ -197,15 +216,18 @@ const buttons = computed(() => {
 });
 const isVideoExt = (ext?: string) => ext === "webm" || ext === "mp4";
 const isVideoPost = computed(() => isVideoExt(props.current?.file.ext));
-const isTextPost = computed(() => {
+const DOCUMENT_EXTS = new Set(["txt", "pdf", "html", "doc", "rtf"]);
+const isDocumentPost = computed(() => {
   const ext = props.current?.file.ext || "";
   return (
-    ext === "txt" ||
-    ext === "pdf" ||
-    ext === "html" ||
+    DOCUMENT_EXTS.has(ext) ||
     props.current?.__meta?.furaffinity?.kind === "journal"
   );
 });
+const isPdfPost = computed(() => props.current?.file.ext === "pdf");
+const documentTitle = computed(
+  () => props.current?.__meta?.furaffinity?.title || "",
+);
 const open = computed(() => !!props.current);
 
 watch(
@@ -339,6 +361,10 @@ const scheduleSlideshowAdvance = () => {
     // Video advances on @ended while slideshow is playing.
     return;
   }
+  if (isDocumentPost.value) {
+    // Don't auto-advance while reading text / PDF.
+    return;
+  }
   slideshowTimer.value = setTimeout(() => {
     if (!slideshowPlaying.value) return;
     if (!props.hasNextFullscreenPost) {
@@ -467,8 +493,9 @@ const currentFileUrl = computed(() => {
   if (switched.value) return false;
   const url = props.current?.file.url;
   if (!url) return false;
-  // Firefox/Zen: play e621 CDN video same-origin (COEP + no CORS for our origin).
-  if (isVideoExt(props.current?.file.ext)) return proxyDownloadUrl(url);
+  const ext = props.current?.file.ext;
+  // Firefox/Zen: same-origin proxy for video + PDF under COEP.
+  if (isVideoExt(ext) || ext === "pdf") return proxyDownloadUrl(url);
   return url;
 });
 const currentSampleFileUrl = computed(() =>
@@ -488,7 +515,13 @@ watch(
       if (val) {
         await nextTick();
         loading.value = true;
-        if (slideshowPlaying.value && isVideoExt(val.file.ext)) {
+        if (
+          DOCUMENT_EXTS.has(val.file.ext) ||
+          val.__meta?.furaffinity?.kind === "journal"
+        ) {
+          isZoomed.value = false;
+          loadEnd();
+        } else if (slideshowPlaying.value && isVideoExt(val.file.ext)) {
           // Wait for video ended; ensure playback starts.
           await nextTick();
           applyFullscreenPlaybackPrefs();
@@ -497,13 +530,6 @@ watch(
         } else if (isVideoExt(val.file.ext)) {
           await nextTick();
           applyFullscreenPlaybackPrefs();
-          loadEnd();
-        } else if (
-          val.file.ext === "txt" ||
-          val.file.ext === "pdf" ||
-          val.file.ext === "html" ||
-          val.__meta?.furaffinity?.kind === "journal"
-        ) {
           loadEnd();
         } else {
           // Cached images may not re-fire @load after remount (M19).
@@ -598,6 +624,45 @@ useHead({
   position: relative;
   flex-grow: 1;
   overflow: hidden;
+}
+
+.fullscreen .flex .document-middle {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fullscreen .flex .document-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #111;
+}
+
+.fullscreen .flex .document-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fullscreen .flex .document-body {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 5rem;
+}
+
+.fullscreen .flex .document-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.6;
+  color: inherit;
 }
 
 .fullscreen .flex .middle .overflow {

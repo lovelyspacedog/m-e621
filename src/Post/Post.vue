@@ -21,6 +21,8 @@
         :file="post.file"
         :preview="post.preview"
         :sample="post.sample"
+        :description="post.description || ''"
+        :document-kind="documentKind"
         :unplayable="isUnplayable"
         :local-path="post.__meta?.localPath || ''"
         @open-post="setClicked"
@@ -136,6 +138,12 @@ export default defineComponent({
     const isUnplayable = computed(
       () => siteMode.isLocal && props.post.__meta?.localPlayable === false,
     );
+    const documentKind = computed<"journal" | "story" | "">(() => {
+      if (props.post.__meta?.furaffinity?.kind === "journal") return "journal";
+      const ext = props.post.file?.ext || "";
+      if (ext === "txt") return "story";
+      return "";
+    });
     const compactCards = computed(
       () => posts.compactCards || feedIsGrid.value,
     );
@@ -165,6 +173,7 @@ export default defineComponent({
       setClicked,
       buttons,
       isUnplayable,
+      documentKind,
       autoNext,
       showAutoNextProgress,
       compactCards,
