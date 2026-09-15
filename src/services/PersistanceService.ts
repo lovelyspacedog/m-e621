@@ -117,10 +117,11 @@ class PersistanceService {
     }
   }
   public async stateToFile() {
-    // getState syncs live mirrors into profiles (C4).
+    // Flush mirrors + durable save so the download matches what localforage holds.
+    await this.saveState();
     const snapshot = JSON.parse(JSON.stringify(this.getState())) as ISettingsServiceState;
-    return new File([JSON.stringify(snapshot)], "material-e621-settings.json", {
-      type: "text/plain",
+    return new File([JSON.stringify(snapshot, null, 2)], "material-e621-settings.json", {
+      type: "application/json",
     });
   }
   public async loadStateFromFile(file: File) {

@@ -314,6 +314,31 @@ export async function login(username: string, password: string): Promise<{ usern
   return data;
 }
 
+/** Normalize a pasted FA cookie value (`a`/`b`), stripping an accidental `a=`/`b=` prefix. */
+export function normalizeCookieValue(raw: string, name: "a" | "b"): string {
+  let value = (raw || "").trim();
+  const prefixed = new RegExp(`^${name}\\s*=\\s*(.+)$`, "i").exec(value);
+  if (prefixed) value = prefixed[1].trim();
+  return value;
+}
+
+export function cookiesFromAb(cookieA: string, cookieB: string): string {
+  const a = normalizeCookieValue(cookieA, "a");
+  const b = normalizeCookieValue(cookieB, "b");
+  if (!a || !b) throw new Error("Both FA_COOKIE_A and FA_COOKIE_B are required");
+  return `a=${a};b=${b}`;
+}
+
+/** Verify pasted `a`/`b` cookies and return username + stored cookie string. */
+export async function loginWithCookies(
+  cookieA: string,
+  cookieB: string,
+): Promise<{ username: string; cookies: string }> {
+  const cookies = cookiesFromAb(cookieA, cookieB);
+  const data = await me(cookies);
+  return { username: data.username, cookies };
+}
+
 export async function me(cookies?: string | null): Promise<{ username: string }> {
   const key = cookies || "";
   if (cachedMe && cachedMe.cookies === key) return { username: cachedMe.username };

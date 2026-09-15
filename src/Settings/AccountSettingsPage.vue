@@ -234,11 +234,32 @@
                   @click:append="showSecret.furaffinity = !showSecret.furaffinity"
                   autocomplete="current-password"
                 />
+                <v-text-field
+                  v-if="!faLoggedIn"
+                  variant="filled"
+                  :append-icon="showFaCookies ? 'mdi-eye-off' : 'mdi-eye'"
+                  :type="showFaCookies ? 'text' : 'password'"
+                  label="FA_COOKIE_A"
+                  v-model="faCookieA"
+                  @click:append="showFaCookies = !showFaCookies"
+                  autocomplete="off"
+                />
+                <v-text-field
+                  v-if="!faLoggedIn"
+                  variant="filled"
+                  :append-icon="showFaCookies ? 'mdi-eye-off' : 'mdi-eye'"
+                  :type="showFaCookies ? 'text' : 'password'"
+                  label="FA_COOKIE_B"
+                  v-model="faCookieB"
+                  @click:append="showFaCookies = !showFaCookies"
+                  autocomplete="off"
+                />
                 <p class="text-left">
-                  Prefer setting <code>FA_COOKIE_A</code> and <code>FA_COOKIE_B</code> on the host
-                  so every browser is already logged in. Password login is a fallback; the password
-                  is not saved. Do not log out of the FurAffinity session those cookies belong to.
-                  Open
+                  Paste <code>a</code>/<code>b</code> cookies here to sign in — they are stored in
+                  settings and included in Backup JSON. Host <code>FA_COOKIE_A</code> /
+                  <code>FA_COOKIE_B</code> still work for every browser on the server without
+                  pasting per client. Password login is a fallback; the password is not saved.
+                  Do not log out of the FurAffinity session those cookies belong to. Open
                   <external-link href="https://www.furaffinity.net/login/">
                     FurAffinity login
                   </external-link>
@@ -248,8 +269,7 @@
                   <strong>Chrome / Chromium:</strong>
                   log in on furaffinity.net → F12 → Application → Cookies →
                   <code>https://www.furaffinity.net</code> → copy the Values for
-                  <code>a</code> and <code>b</code> into <code>FA_COOKIE_A</code> /
-                  <code>FA_COOKIE_B</code> on the host, then restart the server.
+                  <code>a</code> and <code>b</code> into the fields above (or host env).
                 </p>
                 <p class="text-left mt-2">
                   <strong>Firefox:</strong>
@@ -260,13 +280,13 @@
                 <div>
                   <v-btn
                     v-if="!faLoggedIn"
-                    :disabled="!fields.furaffinity.username || !faPassword"
+                    :disabled="!canFaPasswordLogin && !canFaCookieLogin"
                     :loading="faAuth.loading"
                     :color="faAuth.success ? 'success' : faAuth.message ? 'error' : 'accent'"
                     variant="text"
-                    @click="loginFurAffinity"
+                    @click="canFaCookieLogin ? loginFurAffinityCookies() : loginFurAffinity()"
                   >
-                    Log in
+                    {{ canFaCookieLogin ? "Log in with cookies" : "Log in" }}
                   </v-btn>
                   <v-btn
                     v-else
@@ -625,11 +645,18 @@ watch(inkbunnyPassword, () => {
 });
 
 const faPassword = ref("");
+const faCookieA = ref("");
+const faCookieB = ref("");
+const showFaCookies = ref(false);
 const faWatchlistLoading = ref(false);
 const faAuth = ref(emptyAuth());
 const faLoggedIn = computed(
   () => !!fields.furaffinity.apiKey && !!fields.furaffinity.username,
 );
+const canFaPasswordLogin = computed(
+  () => !!(fields.furaffinity.username && faPassword.value),
+);
+const canFaCookieLogin = computed(() => !!(faCookieA.value.trim() && faCookieB.value.trim()));
 const faNeedsBrowserLogin = computed(() => {
   const msg = (faAuth.value.message || "").toLowerCase();
   return msg.includes("captcha") || msg.includes("challenge");
@@ -638,7 +665,7 @@ const openFaLoginPage = () => openUrlInNewTab(FA_LOGIN_URL);
 const faStatus = computed(() =>
   faLoggedIn.value
     ? `Signed in as ${fields.furaffinity.username}`
-    : "Host cookies or password login",
+    : "Cookies, host env, or password",
 );
 const FA_FAVS_TAG = "favs:me";
 const faFavsExists = computed(() =>
@@ -647,8 +674,22 @@ const faFavsExists = computed(() =>
 const toggleFaFavsSearch = () =>
   toggleSearchTag(liveSearches(main.$state, "furaffinity"), FA_FAVS_TAG, "My Favs");
 
+const applyFaLoginResult = (result: { username: string; cookies: string }) => {
+  setLiveAccount(main.$state, "furaffinity", {
+    username: result.username,
+    apiKey: result.cookies,
+  });
+  fields.furaffinity.username = result.username;
+  faPassword.value = "";
+  faCookieA.value = "";
+  faCookieB.value = "";
+  addSearchTag(liveSearches(main.$state, "furaffinity"), FA_FAVS_TAG, "My Favs");
+  faAuth.value.success = true;
+  faAuth.value.message = `Logged in as ${result.username}`;
+};
+
 const loginFurAffinity = async () => {
-  if (!fields.furaffinity.username || !faPassword.value) return;
+  if (!canFaPasswordLogin.value) return;
   faAuth.value.loading = true;
   faAuth.value.message = "";
   try {
@@ -657,14 +698,26 @@ const loginFurAffinity = async () => {
       username: fields.furaffinity.username,
       password: faPassword.value,
     });
-    setLiveAccount(main.$state, "furaffinity", {
-      username: result.username,
-      apiKey: result.cookies,
+    applyFaLoginResult(result);
+  } catch (e: any) {
+    faAuth.value.success = false;
+    faAuth.value.message = e?.message || String(e);
+  } finally {
+    faAuth.value.loading = false;
+  }
+};
+
+const loginFurAffinityCookies = async () => {
+  if (!canFaCookieLogin.value) return;
+  faAuth.value.loading = true;
+  faAuth.value.message = "";
+  try {
+    const service = await getApiService();
+    const result = await service.loginFurAffinityCookies({
+      cookieA: faCookieA.value,
+      cookieB: faCookieB.value,
     });
-    faPassword.value = "";
-    addSearchTag(liveSearches(main.$state, "furaffinity"), FA_FAVS_TAG, "My Favs");
-    faAuth.value.success = true;
-    faAuth.value.message = `Logged in as ${result.username}`;
+    applyFaLoginResult(result);
   } catch (e: any) {
     faAuth.value.success = false;
     faAuth.value.message = e?.message || String(e);
@@ -686,6 +739,8 @@ const logoutFurAffinity = async () => {
       apiKey: null,
     });
     faPassword.value = "";
+    faCookieA.value = "";
+    faCookieB.value = "";
     faAuth.value.loading = false;
     faAuth.value.success = false;
     faAuth.value.message = "Logged out. Host FA_COOKIE_A/B still apply if set.";

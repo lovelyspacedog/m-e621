@@ -570,6 +570,10 @@ export class ApiService {
     return furaffinity.login(args.username, args.password);
   }
 
+  async loginFurAffinityCookies(args: { cookieA: string; cookieB: string }) {
+    return furaffinity.loginWithCookies(args.cookieA, args.cookieB);
+  }
+
   async logoutFurAffinity() {
     await furaffinity.logoutLocal();
   }
