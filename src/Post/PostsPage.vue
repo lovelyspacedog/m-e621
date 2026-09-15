@@ -568,7 +568,7 @@ const toolbarActions = computed((): ToolbarAction[] => {
     orderTag: string,
     label: string,
   ): ToolbarAction => {
-    const support = orderSupport(siteMode.activeMode, kind);
+    const support = orderSupport(siteMode.activeMode, kind, tags.value);
     return {
       key: kind,
       label,

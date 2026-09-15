@@ -132,13 +132,26 @@ const furaffinityRatingTags = [
 import type { PropType } from "vue";
 import { computed } from "vue";
 import { useSiteLabels } from "@/misc/util/siteLabels";
+import { isFaFavoritesQuery } from "@/misc/util/orderSupport";
 import { useSiteModeStore } from "@/services";
 
 const siteMode = useSiteModeStore();
 const { creatorLabel } = useSiteLabels();
 
+const emit = defineEmits<{
+  (e: "add-tag", tag: string): void;
+  (e: "remove-tag", tag: string): void;
+}>();
+
+const props = defineProps({
+  tags: {
+    type: Array as PropType<string[]>,
+    required: true,
+  }
+});
+
 const sortTagItems = computed(() => {
-  const base = siteMode.isFurbooru
+  let base = siteMode.isFurbooru
     ? furbooruSortTags
     : siteMode.isInkbunny
       ? inkbunnySortTags
@@ -153,6 +166,9 @@ const sortTagItems = computed(() => {
                 item.tag !== "order:favcount_asc",
             )
           : e621SortTags;
+  if (siteMode.isFurAffinity && isFaFavoritesQuery(props.tags)) {
+    base = base.filter((item) => item.tag !== "order:score");
+  }
   return base.map((item) =>
     item.name.startsWith("Artist Tags")
       ? { ...item, name: item.name.replace("Artist", creatorLabel.value) }
@@ -168,18 +184,6 @@ const ratingTagItems = computed(() =>
       ? furaffinityRatingTags
       : e621RatingTags,
 );
-
-const emit = defineEmits<{
-  (e: "add-tag", tag: string): void;
-  (e: "remove-tag", tag: string): void;
-}>();
-
-const props = defineProps({
-  tags: {
-    type: Array as PropType<string[]>,
-    required: true,
-  }
-});
 
 const rating = computed<string[]>({
   get() {
