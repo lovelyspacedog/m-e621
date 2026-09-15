@@ -129,40 +129,31 @@ export default defineComponent({
       },
       fluffle: {
         color: "",
-        icon: md5LookupOk.value && !fluffleImageOk.value
-          ? "mdi-fingerprint"
-          : "mdi-image-search",
+        icon: fluffleImageOk.value
+          ? "mdi-image-search"
+          : "mdi-fingerprint",
         loading: findingMd5.value,
         // No post = settings palette; keep enabled so drag-and-drop works.
         disabled: props.post ? !fluffleEnabled.value || findingMd5.value : false,
         onClick: async () => {
           if (!props.post || !fluffleEnabled.value) return;
-          // Local / blob → MD5. Remote stills keep Fluffle. Videos / no-image fall back to MD5.
-          const isLocalFile =
-            !!props.post.__meta?.localPath ||
-            (props.post.file?.url || "").startsWith("blob:");
-          const preferMd5 =
-            isLocalFile || (md5LookupOk.value && !fluffleImageOk.value);
-          if (preferMd5 && md5LookupOk.value) {
-            findingMd5.value = true;
-            try {
-              const md5 = await findPostOnE621ByMd5(props.post);
-              snackbar.addMessage(`Opened e621 md5:${md5}`);
-            } catch (err) {
-              const message =
-                err instanceof Error ? err.message : "MD5 lookup failed";
-              if (fluffleImageOk.value) {
-                snackbar.addMessage(`${message} — trying Fluffle`);
-                context.emit("open-fluffle-search", props.post);
-              } else {
-                snackbar.addMessage(message);
-              }
-            } finally {
-              findingMd5.value = false;
-            }
+          // Prefer Fluffle when a searchable still exists; MD5 for videos / no-image.
+          if (fluffleImageOk.value) {
+            context.emit("open-fluffle-search", props.post);
             return;
           }
-          context.emit("open-fluffle-search", props.post);
+          if (!md5LookupOk.value) return;
+          findingMd5.value = true;
+          try {
+            const md5 = await findPostOnE621ByMd5(props.post);
+            snackbar.addMessage(`Opened e621 md5:${md5}`);
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : "MD5 lookup failed";
+            snackbar.addMessage(message);
+          } finally {
+            findingMd5.value = false;
+          }
         },
       },
     }));
