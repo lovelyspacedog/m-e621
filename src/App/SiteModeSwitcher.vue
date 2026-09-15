@@ -20,7 +20,7 @@
       size="small"
       class="text-none"
       :variant="siteMode.activeMode === mode ? 'flat' : 'outlined'"
-      :color="siteMode.activeMode === mode ? 'secondary' : undefined"
+      :color="siteMode.activeMode === mode ? 'secondary' : 'white'"
       @click="onSelect(mode)"
     >
       <v-icon start size="18">{{ modeIcon(mode) }}</v-icon>
@@ -71,8 +71,19 @@ const modeLabel = (mode: SiteMode) => {
   }
 };
 
+const postsRouteFor = (mode: SiteMode) =>
+  mode === "tailspace"
+    ? { name: "TailspacePosts" as const }
+    : { name: "Posts" as const, query: {} };
+
 const onSelect = async (mode: SiteMode) => {
-  if (mode === siteMode.activeMode) return;
+  // Landing: active chip is a shortcut to browse that site (otherwise a no-op).
+  if (mode === siteMode.activeMode) {
+    if (!props.navigateOnChange) {
+      await router.push(postsRouteFor(mode));
+    }
+    return;
+  }
   if (!props.navigateOnChange) {
     siteMode.setMode(mode);
     return;
