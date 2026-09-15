@@ -19,6 +19,7 @@ import {
   focusSearchShortcut,
   fullscreenFavoriteShortcuts,
   fullscreenSlideshowShortcut,
+  historyNavigationShortcuts,
 } from "./defaultSettings";
 import { debug } from "@/misc/util/debug";
 import {
@@ -523,6 +524,14 @@ class PersistanceService {
       newState.posts.autoplayFeedVideo = true;
       newState.posts.autoplayFeedVideoSilent = true;
       newState.configVersion = 30;
+    }
+    if (newState.configVersion < 31) {
+      for (const shortcut of historyNavigationShortcuts) {
+        if (!newState.shortcuts.some((s) => s.action === shortcut.action && s.sequence === shortcut.sequence)) {
+          newState.shortcuts.push(shortcut);
+        }
+      }
+      newState.configVersion = 31;
     }
 
     // Ensure profiles exist even if a partial export skipped them.

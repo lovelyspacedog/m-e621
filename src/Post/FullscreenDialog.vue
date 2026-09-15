@@ -117,6 +117,39 @@
             mdi-chevron-right
           </v-icon>
         </div>
+        <aside
+          v-if="commentsVisible && supportsComments && current"
+          class="fullscreen-comments"
+          :style="{ width: `${commentsWidthPx}px` }"
+          @click.stop
+        >
+          <div
+            class="fullscreen-comments-resizer"
+            title="Drag to resize"
+            @pointerdown="startCommentsResize"
+          />
+          <div class="fullscreen-comments-header text-subtitle-2">
+            <span>
+              Comments
+              <span v-if="current.comment_count" class="text-medium-emphasis">
+                ({{ current.comment_count }})
+              </span>
+            </span>
+            <v-btn
+              icon
+              size="small"
+              variant="text"
+              color="white"
+              title="Hide comments"
+              @click="toggleComments"
+            >
+              <v-icon>mdi-close</v-icon>
+            </v-btn>
+          </div>
+          <div class="fullscreen-comments-body">
+            <post-comments-panel :post="current" />
+          </div>
+        </aside>
       </div>
       <div class="top-right" v-ripple @click.stop="exitFullscreen">
         <v-icon size="40" class="ml-2 mt-2">mdi-close</v-icon>
@@ -152,21 +185,6 @@
           @open-post-details="$emit('open-post-details', $event)" @open-post-fullscreen="exitFullscreen()"
           @set-post-favorite="$emit('set-post-favorite', $event)" />
       </div>
-      <aside
-        v-if="commentsVisible && supportsComments && current"
-        class="fullscreen-comments"
-        @click.stop
-      >
-        <div class="fullscreen-comments-header text-subtitle-2">
-          Comments
-          <span v-if="current.comment_count" class="text-medium-emphasis">
-            ({{ current.comment_count }})
-          </span>
-        </div>
-        <div class="fullscreen-comments-body">
-          <post-comments-panel :post="current" />
-        </div>
-      </aside>
     </div>
   </v-dialog>
 </template>
@@ -250,7 +268,37 @@ const route = useRoute();
 
 const COMMENTS_POOL_KEY = "fullscreen-comments-pools";
 const COMMENTS_FEED_KEY = "fullscreen-comments-feed";
-const COMMENTS_RAIL_WIDTH = "360px";
+const COMMENTS_WIDTH_KEY = "fullscreen-comments-width";
+const COMMENTS_WIDTH_DEFAULT = 360;
+const COMMENTS_WIDTH_MIN = 240;
+
+const clampCommentsWidth = (px: number) => {
+  const max = Math.max(
+    COMMENTS_WIDTH_MIN,
+    Math.floor(window.innerWidth * 0.7),
+  );
+  return Math.min(max, Math.max(COMMENTS_WIDTH_MIN, Math.round(px)));
+};
+
+const readCommentsWidth = () => {
+  try {
+    const raw = localStorage.getItem(COMMENTS_WIDTH_KEY);
+    if (raw == null) return COMMENTS_WIDTH_DEFAULT;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return COMMENTS_WIDTH_DEFAULT;
+    return clampCommentsWidth(n);
+  } catch {
+    return COMMENTS_WIDTH_DEFAULT;
+  }
+};
+
+const writeCommentsWidth = (px: number) => {
+  try {
+    localStorage.setItem(COMMENTS_WIDTH_KEY, String(px));
+  } catch {
+    /* ignore */
+  }
+};
 
 const readCommentsPref = (pools: boolean): boolean => {
   try {
@@ -275,6 +323,13 @@ const writeCommentsPref = (pools: boolean, value: boolean) => {
 
 const isPoolsFullscreen = computed(() => route.name === "Pool");
 const commentsVisible = ref(readCommentsPref(route.name === "Pool"));
+const commentsWidthPx = ref(readCommentsWidth());
+/** Used by CSS v-bind so chrome clears the rail. */
+const commentsRailCss = computed(() =>
+  commentsVisible.value && supportsComments.value
+    ? `${commentsWidthPx.value}px`
+    : "0px",
+);
 
 const originMode = computed(() =>
   originModeOf(props.current, siteMode.activeMode),
@@ -295,6 +350,34 @@ const supportsComments = computed(() => {
 const toggleComments = () => {
   commentsVisible.value = !commentsVisible.value;
   writeCommentsPref(isPoolsFullscreen.value, commentsVisible.value);
+};
+
+let commentsResizeCleanup: (() => void) | null = null;
+
+const startCommentsResize = (event: PointerEvent) => {
+  event.preventDefault();
+  event.stopPropagation();
+  const startX = event.clientX;
+  const startWidth = commentsWidthPx.value;
+  const target = event.currentTarget as HTMLElement | null;
+  target?.setPointerCapture?.(event.pointerId);
+
+  const onMove = (ev: PointerEvent) => {
+    // Dragging the left edge leftward widens the panel.
+    commentsWidthPx.value = clampCommentsWidth(startWidth + (startX - ev.clientX));
+  };
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("pointercancel", onUp);
+    writeCommentsWidth(commentsWidthPx.value);
+    commentsResizeCleanup = null;
+  };
+  commentsResizeCleanup?.();
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
+  commentsResizeCleanup = onUp;
 };
 
 watch(isPoolsFullscreen, (pools) => {
@@ -725,6 +808,7 @@ const removeFavorite = updateFavorite(() => false)
 const toggleFavorite = updateFavorite((cur) => !cur)
 
 onBeforeUnmount(() => {
+  commentsResizeCleanup?.();
   ui.fullscreenOpen = false;
   stopSlideshow();
   shortcutService.emitter.off("fullscreenNext", showNextImage);
@@ -875,37 +959,61 @@ useHead({
   padding: 0;
 }
 
-.fullscreen--comments .flex {
-  padding-right: v-bind(COMMENTS_RAIL_WIDTH);
-}
-
 .fullscreen--comments .top-right,
 .fullscreen--comments .bottom-right {
-  right: v-bind(COMMENTS_RAIL_WIDTH);
-}
-
-.fullscreen--comments .float-right {
-  margin-right: 0;
+  right: v-bind(commentsRailCss);
 }
 
 .fullscreen-comments {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: v-bind(COMMENTS_RAIL_WIDTH);
+  position: relative;
+  flex: 0 0 auto;
+  align-self: stretch;
+  height: 100vh;
+  min-width: 0;
   z-index: 1010;
   display: flex;
   flex-direction: column;
-  background: rgba(18, 18, 22, 0.92);
-  backdrop-filter: blur(8px);
+  background: rgba(18, 18, 22, 0.96);
   border-left: 1px solid rgba(255, 255, 255, 0.08);
   pointer-events: auto;
 }
 
+.fullscreen-comments-resizer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 8px;
+  transform: translateX(-50%);
+  cursor: col-resize;
+  z-index: 2;
+  touch-action: none;
+}
+.fullscreen-comments-resizer::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 48px;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.28);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.fullscreen-comments-resizer:hover::after,
+.fullscreen-comments-resizer:active::after {
+  opacity: 1;
+}
+
 .fullscreen-comments-header {
   flex: 0 0 auto;
-  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 8px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -913,6 +1021,7 @@ useHead({
   flex: 1 1 auto;
   overflow-y: auto;
   padding: 12px 16px 24px;
+  min-height: 0;
 }
 
 .fullscreen .flex {
@@ -934,6 +1043,8 @@ useHead({
 .fullscreen .flex .middle {
   position: relative;
   flex-grow: 1;
+  flex-shrink: 1;
+  min-width: 0;
   overflow: hidden;
 }
 

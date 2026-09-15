@@ -34,8 +34,13 @@ export const fullscreenSlideshowShortcut: Shortcut = {
   sequence: "space",
 };
 
+export const historyNavigationShortcuts: Shortcut[] = [
+  { action: "navigate_back", sequence: "alt+left" },
+  { action: "navigate_forward", sequence: "alt+right" },
+];
+
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 30,
+  configVersion: 31,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -50,6 +55,7 @@ export const defaultSettings: ISettingsServiceState = {
   shortcuts: [
     { action: "go_to_posts", sequence: "g p" },
     { action: "go_to_settings", sequence: "g s" },
+    ...historyNavigationShortcuts,
 
     { action: "focus_search", sequence: "f s" },
     focusSearchShortcut,

@@ -27,6 +27,7 @@
         <v-app-bar-nav-icon @click.stop="drawer = !drawer" class="hidden-lg-and-up"
           v-if="navMode == 'sidebar' && !minimalHeader" />
       </v-slide-x-transition>
+      <history-nav-buttons v-if="!minimalHeader" class="mr-1" />
       <portal-target name="toolbar">
         <v-toolbar-title>{{ appName }}</v-toolbar-title>
       </portal-target>
@@ -45,6 +46,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import AppLogo from "./App/AppLogo.vue";
 import AppSnackbar from "./App/AppSnackbar.vue";
+import HistoryNavButtons from "./App/HistoryNavButtons.vue";
 import InstallMenu from "./App/InstallMenu.vue";
 import MainContent from "./App/MainContent.vue";
 import NavigationList from "./App/NavigationList.vue";

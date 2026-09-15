@@ -38,6 +38,18 @@ class ShortcutService {
             });
             break;
           }
+          case "navigate_back": {
+            const state = window.history.state as { back?: unknown | null } | null;
+            if (state?.back == null) return true;
+            this.router.back();
+            break;
+          }
+          case "navigate_forward": {
+            const state = window.history.state as { forward?: unknown | null } | null;
+            if (state?.forward == null) return true;
+            this.router.forward();
+            break;
+          }
           case "focus_search":
             this.emitter.emit("fullscreenExit"); // search can't be focused otherwise
             this.emitter.emit("focusSearch");

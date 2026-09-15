@@ -137,6 +137,8 @@ export default defineComponent({
     const actions: Action[] = [
       "go_to_posts",
       "go_to_settings",
+      "navigate_back",
+      "navigate_forward",
       "focus_search",
       "fullscreen_exit",
       "fullscreen_next_post",
