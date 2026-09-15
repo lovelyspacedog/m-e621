@@ -230,8 +230,7 @@ const postsStore = usePostsStore();
 const account = useAccountStore();
 const blacklist = useBlacklistStore();
 const { updateRouterQuery, removeRouterQuery } = useRouterQueryHelpers();
-const { tags, addTag, removeTag, updateQuery: commitTagsToRoute } =
-  useRouterTagManager();
+const { tags, addTag, removeTag } = useRouterTagManager();
 
 const orderItems = [
   { title: "Post count", value: "post_count" },
@@ -291,6 +290,8 @@ const syncingFromRoute = ref(false);
 /** Posts page cursor for tags-mode discovery */
 const tagPostsPage = ref(0);
 const seenPoolIds = ref<Set<number>>(new Set());
+/** Bumps on each tags fetch so overlapping resets cannot wipe results. */
+let tagsFetchGeneration = 0;
 
 const displayName = (name: string) => name.replace(/_/g, " ");
 const coverUrl = (pool: Pool) => {
@@ -463,9 +464,15 @@ const fetchPoolsByName = async (pageNumber: number, append: boolean) => {
 /**
  * Discover pools from posts matching tags (+ inpool:true). Advances posts pages
  * until we collect `browseLimit` new pools or posts run out.
+ *
+ * Search + route watchers can start overlapping resets; each call owns a local
+ * seen-set and only commits UI state if it is still the latest generation.
  */
 const fetchPoolsByTags = async (reset: boolean) => {
+  const generation = ++tagsFetchGeneration;
+
   if (!tags.value.length) {
+    if (generation !== tagsFetchGeneration) return;
     pools.value = [];
     covers.value = {};
     seenPoolIds.value = new Set();
@@ -485,15 +492,17 @@ const fetchPoolsByTags = async (reset: boolean) => {
     if (reset) {
       pools.value = [];
       covers.value = {};
-      seenPoolIds.value = new Set();
       tagPostsPage.value = 0;
     }
 
+    // Local set: concurrent resets must not poison each other's id tracking.
+    const seen = reset ? new Set<number>() : new Set(seenPoolIds.value);
     const collected: Pool[] = [];
     let postsPage = tagPostsPage.value;
     let postsExhausted = false;
 
     while (collected.length < limit && !postsExhausted) {
+      if (generation !== tagsFetchGeneration) return;
       postsPage += 1;
       const { posts } = await service.getPosts({
         page: postsPage,
@@ -505,6 +514,7 @@ const fetchPoolsByTags = async (reset: boolean) => {
         baseUrl: toRaw(urlStore.e621Url),
         mode: toRaw(siteMode.activeMode),
       });
+      if (generation !== tagsFetchGeneration) return;
       if (!posts.length) {
         postsExhausted = true;
         break;
@@ -514,43 +524,57 @@ const fetchPoolsByTags = async (reset: boolean) => {
       const newIds: number[] = [];
       for (const post of posts) {
         for (const poolId of post.pools || []) {
-          if (seenPoolIds.value.has(poolId)) continue;
-          seenPoolIds.value.add(poolId);
+          if (seen.has(poolId)) continue;
+          seen.add(poolId);
           newIds.push(poolId);
         }
       }
       if (newIds.length) {
         const hydrated = await hydratePools(newIds);
+        if (generation !== tagsFetchGeneration) return;
         collected.push(...hydrated);
       }
     }
 
+    if (generation !== tagsFetchGeneration) return;
+    seenPoolIds.value = seen;
     tagPostsPage.value = postsPage;
     pools.value = reset ? collected : [...pools.value, ...collected];
     hasMore.value = !postsExhausted;
     searched.value = true;
     void fetchCovers(collected);
   } catch (err: any) {
+    if (generation !== tagsFetchGeneration) return;
     error.value = err?.message || String(err);
     if (reset) pools.value = [];
   } finally {
-    loading.value = false;
+    if (generation === tagsFetchGeneration) loading.value = false;
   }
 };
 
-const runSearch = () => {
-  void syncQueryToRoute();
-  if (searchMode.value === "tags") {
-    commitTagsToRoute();
-    void fetchPoolsByTags(true);
-  } else {
-    void fetchPoolsByName(1, false);
+const runSearch = async () => {
+  // Suppress route watchers while we push query + start the fetch ourselves.
+  syncingFromRoute.value = true;
+  try {
+    await syncQueryToRoute();
+    if (searchMode.value === "tags") {
+      await updateRouterQuery({ tags: tags.value.join(" ") });
+    }
+  } finally {
+    syncingFromRoute.value = false;
   }
+  if (searchMode.value === "tags") void fetchPoolsByTags(true);
+  else void fetchPoolsByName(1, false);
 };
 
-const runTagSearch = () => {
-  commitTagsToRoute();
-  void syncQueryToRoute();
+const runTagSearch = async () => {
+  syncingFromRoute.value = true;
+  try {
+    await updateRouterQuery({ tags: tags.value.join(" ") });
+    await syncQueryToRoute();
+  } finally {
+    syncingFromRoute.value = false;
+  }
   void fetchPoolsByTags(true);
 };
 
