@@ -4,6 +4,7 @@ import { ref } from "vue";
 export const usePwaUpdateStore = defineStore("pwaUpdate", () => {
   const needRefresh = ref(false);
   let applyUpdate: (() => Promise<void>) | null = null;
+  let reloading = false;
 
   const setNeedRefresh = (updater: () => Promise<void>) => {
     applyUpdate = updater;
@@ -16,11 +17,17 @@ export const usePwaUpdateStore = defineStore("pwaUpdate", () => {
   };
 
   const reload = async () => {
-    if (applyUpdate) {
-      await applyUpdate();
-    } else {
-      window.location.reload();
+    if (reloading) return;
+    reloading = true;
+    try {
+      if (applyUpdate) {
+        await applyUpdate();
+        return;
+      }
+    } catch (err) {
+      console.error("PWA update failed", err);
     }
+    window.location.reload();
   };
 
   return {

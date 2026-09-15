@@ -10,8 +10,8 @@
     text="New version available"
   >
     <template #actions>
-      <v-btn variant="text" @click="pwa.dismiss()">Later</v-btn>
-      <v-btn color="primary" variant="flat" @click="pwa.reload()">Reload</v-btn>
+      <v-btn variant="text" @click.stop="pwa.dismiss()">Later</v-btn>
+      <v-btn color="primary" variant="flat" @click.stop="pwa.reload()">Reload</v-btn>
     </template>
   </v-banner>
 </template>
