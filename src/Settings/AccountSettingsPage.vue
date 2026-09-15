@@ -238,7 +238,11 @@
                   Prefer setting <code>FA_COOKIE_A</code> and <code>FA_COOKIE_B</code> on the host
                   so every browser is already logged in. Password login is a fallback; the password
                   is not saved. Do not log out of the FurAffinity session those cookies belong to.
-                  See <external-link href="https://www.furaffinity.net/" />.
+                  Open
+                  <external-link href="https://www.furaffinity.net/login/">
+                    FurAffinity login
+                  </external-link>
+                  in a browser to solve captchas and copy the <code>a</code>/<code>b</code> cookies.
                 </p>
                 <div>
                   <v-btn
@@ -259,6 +263,14 @@
                     @click="logoutFurAffinity"
                   >
                     Log out
+                  </v-btn>
+                  <v-btn
+                    v-if="!faLoggedIn && faNeedsBrowserLogin"
+                    color="accent"
+                    variant="text"
+                    @click="openFaLoginPage"
+                  >
+                    Open FurAffinity login
                   </v-btn>
                   <p v-if="faAuth.message">{{ faAuth.message }}</p>
                 </div>
@@ -326,8 +338,11 @@ import {
   toggleSearchTag,
 } from "@/services/savedSearchNormalize";
 import { unifiedChildLabel } from "@/misc/util/postOrigin";
+import { openUrlInNewTab } from "@/misc/util/url";
 import { getApiService } from "@/worker/services";
 import { useHead } from "@unhead/vue";
+
+const FA_LOGIN_URL = "https://www.furaffinity.net/login/";
 
 useHead({ title: "Account Settings" });
 
@@ -602,6 +617,11 @@ const faAuth = ref(emptyAuth());
 const faLoggedIn = computed(
   () => !!fields.furaffinity.apiKey && !!fields.furaffinity.username,
 );
+const faNeedsBrowserLogin = computed(() => {
+  const msg = (faAuth.value.message || "").toLowerCase();
+  return msg.includes("captcha") || msg.includes("challenge");
+});
+const openFaLoginPage = () => openUrlInNewTab(FA_LOGIN_URL);
 const faStatus = computed(() =>
   faLoggedIn.value
     ? `Signed in as ${fields.furaffinity.username}`
