@@ -61,7 +61,7 @@ import { postFeedKey, unifiedChildLabel } from "@/misc/util/postOrigin";
 import { useBlacklistStore, usePostsStore, useSiteModeStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { PropType, Ref } from "vue";
-import { computed, defineComponent, inject, ref, type ComputedRef } from "vue";
+import { computed, defineComponent, inject, ref } from "vue";
 import PostButtons from "./PostButtons.vue";
 import PostPreview from "./PostPreview.vue";
 import PostText from "./PostText.vue";
@@ -97,10 +97,6 @@ export default defineComponent({
     const posts = usePostsStore();
     const siteMode = useSiteModeStore();
     const forceExpanded = ref(false);
-    const feedIsGrid = inject<ComputedRef<boolean>>(
-      "feedIsGrid",
-      computed(() => false),
-    );
     const postIsBlacklisted = computed(
       () => Boolean(props.post?.__meta.isBlacklisted), // TODO: types
     );
@@ -144,9 +140,7 @@ export default defineComponent({
       if (ext === "txt") return "story";
       return "";
     });
-    const compactCards = computed(
-      () => posts.compactCards || feedIsGrid.value,
-    );
+    const compactCards = computed(() => posts.compactCards);
 
     const onCardActivate = (event: MouseEvent) => {
       if (!compactCards.value) return;

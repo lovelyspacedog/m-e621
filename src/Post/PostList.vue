@@ -102,7 +102,6 @@ export default defineComponent({
     const postsStore = usePostsStore();
     const fullWidthFeed = computed(() => postsStore.fullWidthFeed);
     const isGrid = computed(() => postsStore.feedLayout === "grid");
-    provide("feedIsGrid", isGrid);
 
     let observer: IntersectionObserver | null = null;
     const elementIndexMap = new WeakMap<Element, number>();

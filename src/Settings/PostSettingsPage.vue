@@ -26,7 +26,7 @@
           />
         </settings-page-item>
         <settings-page-item title="Compact cards" switch
-          description="Hide tags and buttons until you hover the card (tap to expand on touch). Always on in grid layout.">
+          description="Hide tags and buttons until you hover the card (tap to expand on touch). When off, chrome stays visible in list and grid.">
           <v-switch v-model="posts.compactCards" />
         </settings-page-item>
         <settings-page-item title="Video volume" select
