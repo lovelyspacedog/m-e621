@@ -618,6 +618,22 @@ def _parse_tailspace_comic_detail(raw: bytes) -> dict:
     }
 
 
+def _normalize_tailspace_session(raw: str) -> str:
+    """Normalize pasted cookie / raw session value to `tailspace_session=…`."""
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    if re.search(r"tailspace_session\s*=", s, flags=re.I):
+        for part in re.split(r";\s*", s):
+            m = re.match(r"^tailspace_session\s*=\s*(.*)$", part.strip(), flags=re.I)
+            if m:
+                return f"tailspace_session={m.group(1).strip()}"
+    if "=" in s and not re.match(r"^tailspace_session=", s, flags=re.I):
+        # Full cookie header without our session — keep as-is
+        return s
+    return f"tailspace_session={s}"
+
+
 def _normalize_tailspace_posts(payload: object) -> dict:
     """Unwrap {success,data:{posts,hasNextPage}} into a flat posts response."""
     if not isinstance(payload, dict):
