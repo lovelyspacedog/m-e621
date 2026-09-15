@@ -1,1 +1,2 @@
 faapi>=3.12.7
+curl_cffi>=0.7.0

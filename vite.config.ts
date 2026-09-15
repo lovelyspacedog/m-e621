@@ -5,7 +5,7 @@ import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import vuetify from 'vite-plugin-vuetify'
-import { execSync } from "child_process";
+import { execFileSync, execSync } from "child_process";
 import { VitePWA } from 'vite-plugin-pwa'
 import fs from 'fs';
 import path from 'path';
@@ -19,17 +19,56 @@ import { sofurryProxy } from './vite-sofurry-proxy'
 // Furbooru's Cloudflare IPv6 path 520s from some hosts; prefer IPv4.
 dns.setDefaultResultOrder('ipv4first');
 
-const FURBOORU_UA =
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ' +
-  'Chrome/124.0.0.0 Safari/537.36';
+const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
-const furbooruUpstreamHeaders = (): Record<string, string> => ({
-  Accept: 'application/json',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'User-Agent': FURBOORU_UA,
-  Referer: 'https://furbooru.org/',
-  Origin: 'https://furbooru.org',
-});
+/** Resolve python that can import curl_cffi (venv preferred). */
+function furbooruPython(): string {
+  const venvPy = path.join(ROOT_DIR, '.venv', 'bin', 'python');
+  if (fs.existsSync(venvPy)) return venvPy;
+  return 'python3';
+}
+
+/**
+ * Upstream Furbooru via furbooru_cf.py (curl_cffi + Philomena bot challenge).
+ * Plain Node fetch gets HTTP 501 "I'm not a robot" without `_philomena_key`.
+ */
+function furbooruUpstream(
+  url: string,
+  init: { method?: string; body?: Buffer | string } = {},
+): { status: number; contentType: string; body: Buffer } {
+  const script = path.join(ROOT_DIR, 'furbooru_cf.py');
+  const payload = JSON.stringify({
+    url,
+    method: init.method || 'GET',
+    body_b64: init.body
+      ? Buffer.from(init.body).toString('base64')
+      : undefined,
+  });
+  try {
+    const out = execFileSync(furbooruPython(), [script], {
+      input: payload,
+      maxBuffer: 20 * 1024 * 1024,
+      encoding: 'utf8',
+    });
+    const parsed = JSON.parse(out) as {
+      status: number;
+      content_type: string;
+      body_b64: string;
+    };
+    return {
+      status: parsed.status,
+      contentType: parsed.content_type || 'application/json',
+      body: Buffer.from(parsed.body_b64 || '', 'base64'),
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      status: 502,
+      contentType: 'application/json',
+      body: Buffer.from(JSON.stringify({ ok: false, message })),
+    };
+  }
+}
 
 const MEDIA_HOST_OK = (host: string) =>
   ['.e621.net', '.e926.net', '.e6ai.net', '.furaffinity.net', '.facdn.net'].some((s) => host.endsWith(s)) ||
@@ -414,11 +453,14 @@ function e621CommentsProxy(): Plugin {
 function furbooruProxy(): Plugin {
   const FURBOORU_BASE = 'https://furbooru.org';
 
-  /** Forward select headers from the upstream response to the client. */
-  function setResponseHeaders(res: ServerResponse, remote: Response) {
-    const ct = remote.headers.get('content-type');
-    if (ct) res.setHeader('Content-Type', ct);
+  function respondUpstream(
+    res: ServerResponse,
+    remote: { status: number; contentType: string; body: Buffer },
+  ) {
+    res.statusCode = remote.status;
+    res.setHeader('Content-Type', remote.contentType);
     res.setHeader('Cache-Control', 'no-store');
+    res.end(remote.body);
   }
 
   return {
@@ -445,18 +487,7 @@ function furbooruProxy(): Plugin {
           if (v !== null) fwd.set(key, v);
         }
         const url = `${FURBOORU_BASE}/api/v1/json/search/images?${fwd}`;
-        try {
-          const remote = await fetch(url, {
-            headers: furbooruUpstreamHeaders(),
-          });
-          res.statusCode = remote.ok ? 200 : remote.status;
-          setResponseHeaders(res, remote);
-          res.end(Buffer.from(await remote.arrayBuffer()));
-        } catch (err) {
-          res.statusCode = 502;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ ok: false, message: String(err) }));
-        }
+        respondUpstream(res, furbooruUpstream(url));
       });
 
       // ── Tag search: GET /api/furbooru/tags?q=...&per_page=... ──────────────
@@ -473,18 +504,7 @@ function furbooruProxy(): Plugin {
           if (v !== null) fwd.set(key, v);
         }
         const url = `${FURBOORU_BASE}/api/v1/json/search/tags?${fwd}`;
-        try {
-          const remote = await fetch(url, {
-            headers: furbooruUpstreamHeaders(),
-          });
-          res.statusCode = remote.ok ? 200 : remote.status;
-          setResponseHeaders(res, remote);
-          res.end(Buffer.from(await remote.arrayBuffer()));
-        } catch (err) {
-          res.statusCode = 502;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ ok: false, message: String(err) }));
-        }
+        respondUpstream(res, furbooruUpstream(url));
       });
 
       // ── Comment search: GET /api/furbooru/comments?q=image_id:N&per_page=... ─
@@ -506,18 +526,7 @@ function furbooruProxy(): Plugin {
         }
         // Philomena path is /search/comments — /comments/search returns 400
         const url = `${FURBOORU_BASE}/api/v1/json/search/comments?${fwd}`;
-        try {
-          const remote = await fetch(url, {
-            headers: furbooruUpstreamHeaders(),
-          });
-          res.statusCode = remote.ok ? 200 : remote.status;
-          setResponseHeaders(res, remote);
-          res.end(Buffer.from(await remote.arrayBuffer()));
-        } catch (err) {
-          res.statusCode = 502;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ ok: false, message: String(err) }));
-        }
+        respondUpstream(res, furbooruUpstream(url));
       });
 
       // ── Current user: GET /api/furbooru/user?key=... ──────────────────────
@@ -536,18 +545,7 @@ function furbooruProxy(): Plugin {
           return;
         }
         const url = `${FURBOORU_BASE}/api/v1/json/filters/user?key=${encodeURIComponent(key)}`;
-        try {
-          const remote = await fetch(url, {
-            headers: furbooruUpstreamHeaders(),
-          });
-          res.statusCode = remote.ok ? 200 : remote.status;
-          setResponseHeaders(res, remote);
-          res.end(Buffer.from(await remote.arrayBuffer()));
-        } catch (err) {
-          res.statusCode = 502;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ ok: false, message: String(err) }));
-        }
+        respondUpstream(res, furbooruUpstream(url));
       });
 
       // ── Faves: POST/DELETE /api/furbooru/images/:id/faves?key=... ──────────
@@ -562,20 +560,7 @@ function furbooruProxy(): Plugin {
         const qs = req.url!.includes('?') ? req.url!.slice(req.url!.indexOf('?')) : '';
         const key = new URLSearchParams(qs).get('key') ?? '';
         const url = `${FURBOORU_BASE}/api/v1/json/images/${imageId}/faves?key=${encodeURIComponent(key)}`;
-        try {
-          const remote = await fetch(url, {
-            method: req.method,
-            headers: furbooruUpstreamHeaders(),
-          });
-          res.statusCode = remote.status;
-          setResponseHeaders(res, remote);
-          const body = await remote.arrayBuffer();
-          res.end(body.byteLength ? Buffer.from(body) : '');
-        } catch (err) {
-          res.statusCode = 502;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ ok: false, message: String(err) }));
-        }
+        respondUpstream(res, furbooruUpstream(url, { method: req.method }));
       });
 
       // ── Votes: POST/DELETE /api/furbooru/images/:id/votes?key=... ─────────
@@ -595,19 +580,7 @@ function furbooruProxy(): Plugin {
           req.method === 'DELETE'
             ? `${FURBOORU_BASE}/api/v1/json/images/${imageId}/votes?key=${encodeURIComponent(key)}`
             : `${FURBOORU_BASE}/api/v1/json/images/${imageId}/votes?key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`;
-        try {
-          const remote = await fetch(url, {
-            method: req.method,
-            headers: furbooruUpstreamHeaders(),
-          });
-          res.statusCode = remote.ok ? 200 : remote.status;
-          setResponseHeaders(res, remote);
-          res.end(Buffer.from(await remote.arrayBuffer()));
-        } catch (err) {
-          res.statusCode = 502;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ ok: false, message: String(err) }));
-        }
+        respondUpstream(res, furbooruUpstream(url, { method: req.method }));
       });
 
       // ── Create comment: POST /api/furbooru/comments?key=... ────────────────
@@ -625,23 +598,7 @@ function furbooruProxy(): Plugin {
         }
         const body = Buffer.concat(chunks);
         const url = `${FURBOORU_BASE}/api/v1/json/comments?key=${encodeURIComponent(key)}`;
-        try {
-          const remote = await fetch(url, {
-            method: 'POST',
-            headers: {
-              ...furbooruUpstreamHeaders(),
-              'Content-Type': 'application/json',
-            },
-            body,
-          });
-          res.statusCode = remote.ok ? 200 : remote.status;
-          setResponseHeaders(res, remote);
-          res.end(Buffer.from(await remote.arrayBuffer()));
-        } catch (err) {
-          res.statusCode = 502;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ ok: false, message: String(err) }));
-        }
+        respondUpstream(res, furbooruUpstream(url, { method: 'POST', body }));
       });
     },
   };
