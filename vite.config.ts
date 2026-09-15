@@ -8,15 +8,20 @@ import { execSync } from "child_process";
 import { VitePWA } from 'vite-plugin-pwa'
 import fs from 'fs';
 import path from 'path';
+import { furaffinityProxy } from './vite-furaffinity-proxy'
 
 const MEDIA_HOST_OK = (host: string) =>
-  ['.e621.net', '.e926.net', '.e6ai.net'].some((s) => host.endsWith(s)) ||
-  ['e621.net', 'e926.net', 'e6ai.net', 'inkbunny.net'].includes(host) ||
+  ['.e621.net', '.e926.net', '.e6ai.net', '.furaffinity.net', '.facdn.net'].some((s) => host.endsWith(s)) ||
+  ['e621.net', 'e926.net', 'e6ai.net', 'inkbunny.net', 'furaffinity.net', 'www.furaffinity.net', 'facdn.net'].includes(host) ||
   host === 'ib.metapix.net' ||
   host.endsWith('.metapix.net');
 
 const isInkbunnyMediaHost = (host: string) =>
   host === 'inkbunny.net' || host === 'ib.metapix.net' || host.endsWith('.metapix.net');
+
+const isFurAffinityMediaHost = (host: string) =>
+  host === 'furaffinity.net' || host === 'www.furaffinity.net' || host === 'facdn.net' ||
+  host.endsWith('.furaffinity.net') || host.endsWith('.facdn.net');
 
 function e621MediaProxy(): Plugin {
   return {
@@ -42,16 +47,29 @@ function e621MediaProxy(): Plugin {
           return;
         }
         const rangeHeader = typeof req.headers.range === 'string' ? req.headers.range : undefined;
+        const faCookies =
+          new URL(req.url, 'http://127.0.0.1').searchParams.get('fa') ||
+          [
+            process.env.FA_COOKIE_A ? `a=${process.env.FA_COOKIE_A}` : '',
+            process.env.FA_COOKIE_B ? `b=${process.env.FA_COOKIE_B}` : '',
+          ].filter(Boolean).join('; ');
         // Follow redirects manually; re-validate host each hop (M27).
         const fetchAllowed = async (url: URL, hops = 0): Promise<Response> => {
           if (hops > 5) throw new Error('too many redirects');
+          const host = url.hostname.toLowerCase();
           const remote = await fetch(url.toString(), {
             headers: {
               'User-Agent': 'm-e621-download-proxy/1.0',
               Accept: '*/*',
               ...(rangeHeader ? { Range: rangeHeader } : {}),
-              ...(isInkbunnyMediaHost(url.hostname.toLowerCase())
+              ...(isInkbunnyMediaHost(host)
                 ? { Referer: 'https://inkbunny.net' }
+                : {}),
+              ...(isFurAffinityMediaHost(host)
+                ? {
+                    Referer: 'https://www.furaffinity.net',
+                    ...(faCookies ? { Cookie: faCookies } : {}),
+                  }
                 : {}),
             },
             redirect: 'manual',
@@ -1227,6 +1245,8 @@ const VITE_GIT_BRANCH = execSync("git branch --show-current")
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
+  if (env.FA_COOKIE_A && !process.env.FA_COOKIE_A) process.env.FA_COOKIE_A = env.FA_COOKIE_A;
+  if (env.FA_COOKIE_B && !process.env.FA_COOKIE_B) process.env.FA_COOKIE_B = env.FA_COOKIE_B;
   return {
     define: {
       "import.meta.env.VITE_GIT_COMMIT_INFO": JSON.stringify(VITE_GIT_COMMIT_INFO),
@@ -1240,6 +1260,7 @@ export default defineConfig(({ mode }) => {
       tailspaceProxy(),
       furbooruProxy(),
       inkbunnyProxy(),
+      furaffinityProxy(),
       rufflePlugin(),
       generateSitemap(env),
       vue(),

@@ -193,17 +193,21 @@ export class AnalyzeService {
         ? "furbooru"
         : mode === "inkbunny"
           ? "inkbunny"
+          : mode === "furaffinity"
+            ? "furaffinity"
           : mode === "e621" || mode === "e6ai" || mode === "local" || mode === "tailspace"
             ? "e621"
             : baseUrl.includes("furbooru.org")
               ? "furbooru"
               : baseUrl.includes("inkbunny.net")
                 ? "inkbunny"
+                : baseUrl.includes("furaffinity.net")
+                  ? "furaffinity"
                 : "e621";
     const favQuery =
       backend === "furbooru"
         ? ["my:faves"]
-        : backend === "inkbunny"
+        : backend === "inkbunny" || backend === "furaffinity"
           ? ["favs:me"]
           : [`fav:${username}`];
     const posts = await this.fetchPostsCached(

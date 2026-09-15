@@ -8,13 +8,13 @@
       {{ filename }}
     </div>
     <div>
-      <v-chip v-if="!isLocal && !isInkbunny" variant="outlined" class="mr-2 mb-2 no-before-content">
+      <v-chip v-if="!isLocal && !isInkbunny && !isFurAffinity" variant="outlined" class="mr-2 mb-2 no-before-content">
         <v-icon>mdi-thumbs-up-down</v-icon>
         <span class="ml-2">
           {{ post.score.total }}
         </span>
       </v-chip>
-      <v-chip v-if="!isLocal && !isInkbunny" variant="outlined" class="mr-2 mb-2 no-before-content">
+      <v-chip v-if="!isLocal && !isInkbunny && !isFurAffinity" variant="outlined" class="mr-2 mb-2 no-before-content">
         <v-icon>mdi-heart</v-icon>
         <span class="ml-2">
           {{ post.fav_count }}
@@ -121,6 +121,9 @@ export default defineComponent({
     const isInkbunny = computed(
       () => originModeOf(props.post as EnhancedPost, siteMode.activeMode) === "inkbunny",
     );
+    const isFurAffinity = computed(
+      () => originModeOf(props.post as EnhancedPost, siteMode.activeMode) === "furaffinity",
+    );
     const creatorTags = computed(() => getCreatorTags(props.post.tags));
     const creatorsExpanded = ref(false);
     watch(
@@ -194,6 +197,7 @@ export default defineComponent({
       creatorsExpanded,
       isLocal,
       isInkbunny,
+      isFurAffinity,
       inkbunnyPagecount,
       filename,
       localDerivedGeneral,

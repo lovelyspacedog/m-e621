@@ -6,7 +6,7 @@
           <v-tab value="overview">Overview</v-tab>
           <v-tab value="tags">Tags</v-tab>
           <v-tab value="description">Description</v-tab>
-          <v-tab v-if="!isLocal && !isInkbunny" value="comments">Comments</v-tab>
+          <v-tab v-if="!isLocal && !isInkbunny && !isFaJournal" value="comments">Comments</v-tab>
           <v-tab v-if="!isLocal && !isInkbunny && current.has_notes" value="notes">Notes</v-tab>
           <v-tab v-if="!isLocal" value="share">Share</v-tab>
         </v-tabs>
@@ -39,7 +39,7 @@
               </v-card-text>
             </v-card>
           </v-tabs-window-item>
-          <v-tabs-window-item v-if="!isLocal && !isInkbunny" value="comments">
+          <v-tabs-window-item v-if="!isLocal && !isInkbunny && !isFaJournal" value="comments">
             <v-card text>
               <v-card-text>
                 <div v-if="!isFurbooru" class="mb-4">
@@ -193,9 +193,17 @@ export default defineComponent({
     const isLocal = computed(() => siteMode.isLocal);
     const isFurbooru = computed(() => originMode.value === "furbooru");
     const isInkbunny = computed(() => originMode.value === "inkbunny");
+    const isFaJournal = computed(
+      () =>
+        originMode.value === "furaffinity" &&
+        props.current?.__meta?.furaffinity?.kind === "journal",
+    );
     const buttons = computed(() => {
       let list = siteMode.filterButtons(posts.detailsButtons);
       if (originMode.value === "inkbunny") {
+        list = list.filter((button) => button !== "favorite");
+      }
+      if (isFaJournal.value) {
         list = list.filter((button) => button !== "favorite");
       }
       return list;
@@ -320,7 +328,7 @@ export default defineComponent({
     watch(
       [tabs, () => props.current?.id],
       ([tab, postId]) => {
-        if (!postId || isLocal.value || isInkbunny.value) return;
+        if (!postId || isLocal.value || isInkbunny.value || isFaJournal.value) return;
         if (tab === "comments") void loadComments(postId);
         if (tab === "notes") void loadNotes(postId);
       },
@@ -371,6 +379,7 @@ export default defineComponent({
       isLocal,
       isFurbooru,
       isInkbunny,
+      isFaJournal,
       comments,
       notes,
       commentsLoading,

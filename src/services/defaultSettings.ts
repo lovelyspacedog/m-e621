@@ -35,7 +35,7 @@ export const fullscreenSlideshowShortcut: Shortcut = {
 };
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 26,
+  configVersion: 27,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -44,6 +44,7 @@ export const defaultSettings: ISettingsServiceState = {
     tailspace: createEmptySiteProfile("tailspace"),
     furbooru: createEmptySiteProfile("furbooru"),
     inkbunny: createEmptySiteProfile("inkbunny"),
+    furaffinity: createEmptySiteProfile("furaffinity"),
     unified: createEmptySiteProfile("unified"),
   },
   shortcuts: [
@@ -182,4 +183,5 @@ defaultSettings.profiles.local = createEmptySiteProfile("local");
 defaultSettings.profiles.tailspace = createEmptySiteProfile("tailspace");
 defaultSettings.profiles.furbooru = createEmptySiteProfile("furbooru");
 defaultSettings.profiles.inkbunny = createEmptySiteProfile("inkbunny");
+defaultSettings.profiles.furaffinity = createEmptySiteProfile("furaffinity");
 defaultSettings.profiles.unified = createEmptySiteProfile("unified");

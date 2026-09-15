@@ -251,7 +251,7 @@ router.beforeEach((to) => {
       return { name: "Posts" };
     }
     if (
-      (mode === "furbooru" || mode === "inkbunny" || mode === "local" || mode === "unified") &&
+      (mode === "furbooru" || mode === "inkbunny" || mode === "furaffinity" || mode === "local" || mode === "unified") &&
       ["Pools", "Pool", "Suggester", "SuggesterResult", "FavoritesAnalyzer", "Dashboard", "DashboardResult"].includes(
         String(to.name),
       )

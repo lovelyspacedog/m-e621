@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Serve m-e621 dist/ + same-origin API proxies and optional git-pull control."""
+"""Serve m-e621 dist/ + same-origin API proxies and optional git-pull control.
+
+FurAffinity: install faapi (`uv venv .venv && uv pip install -r requirements.txt`).
+Optional FA_COOKIE_A / FA_COOKIE_B for host-wide login.
+"""
 from __future__ import annotations
 
 import json
@@ -7,6 +11,7 @@ import os
 import re
 import secrets
 import subprocess
+import sys
 import threading
 import time
 import urllib.error
@@ -14,6 +19,19 @@ import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse
+
+
+def _prepend_venv() -> None:
+    """Prefer a local .venv so faapi can be installed without system pip."""
+    root = Path(__file__).resolve().parent
+    for site in (root / ".venv").glob("lib/python*/site-packages"):
+        path = str(site)
+        if path not in sys.path:
+            sys.path.insert(0, path)
+        break
+
+
+_prepend_venv()
 
 
 def _load_dotenv(path: Path) -> None:
@@ -90,6 +108,9 @@ INKBUNNY_POST_ROUTES = {
 }
 INKBUNNY_KEYWORDS_PATH = re.compile(r"^/api/inkbunny/keywords$")
 INKBUNNY_MEDIA_HOSTS = frozenset({"inkbunny.net", "ib.metapix.net"})
+FURAFFINITY_PATH = re.compile(r"^/api/furaffinity/([a-z]+)$")
+FURAFFINITY_MEDIA_SUFFIXES = (".furaffinity.net", ".facdn.net")
+FURAFFINITY_MEDIA_HOSTS = frozenset({"furaffinity.net", "www.furaffinity.net", "facdn.net"})
 
 _pull_lock = threading.Lock()
 _state: dict = {
@@ -788,6 +809,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return parsed.geturl()
         if host in INKBUNNY_MEDIA_HOSTS or host.endswith(".metapix.net"):
             return parsed.geturl()
+        if host in FURAFFINITY_MEDIA_HOSTS or host.endswith(FURAFFINITY_MEDIA_SUFFIXES):
+            return parsed.geturl()
         return None
 
     def _proxy_media(self, raw_url: str) -> None:
@@ -810,6 +833,20 @@ class SpaHandler(SimpleHTTPRequestHandler):
             host = (urlparse(current).hostname or "").lower()
             if host in INKBUNNY_MEDIA_HOSTS or host.endswith(".metapix.net"):
                 req.add_header("Referer", "https://inkbunny.net")
+            if host in FURAFFINITY_MEDIA_HOSTS or host.endswith(FURAFFINITY_MEDIA_SUFFIXES):
+                req.add_header("Referer", "https://www.furaffinity.net")
+                fa_cookies = (parse_qs(urlparse(self.path).query).get("fa") or [""])[0]
+                if not fa_cookies:
+                    parts = []
+                    a = os.environ.get("FA_COOKIE_A", "").strip()
+                    b = os.environ.get("FA_COOKIE_B", "").strip()
+                    if a:
+                        parts.append(f"a={a}")
+                    if b:
+                        parts.append(f"b={b}")
+                    fa_cookies = "; ".join(parts)
+                if fa_cookies:
+                    req.add_header("Cookie", fa_cookies.replace(";", "; "))
             try:
                 with urllib.request.urlopen(req, timeout=120) as resp:
                     final = resp.geturl() if hasattr(resp, "geturl") else current
@@ -1216,6 +1253,32 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _proxy_furaffinity(self, action: str, body: bytes) -> None:
+        try:
+            import fa_proxy
+        except ImportError as exc:
+            self._json(
+                501,
+                {
+                    "ok": False,
+                    "message": (
+                        "FurAffinity support needs faapi. "
+                        "From the app directory: uv venv .venv && uv pip install -r requirements.txt "
+                        f"({exc})"
+                    ),
+                },
+            )
+            return
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}") if body else {}
+            if not isinstance(payload, dict):
+                raise ValueError("object required")
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+            self._json(400, {"ok": False, "message": f"invalid json: {exc}"})
+            return
+        status, result = fa_proxy.handle(action, payload)
+        self._json(status, result)
+
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
@@ -1334,6 +1397,11 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 "Content-Type", "application/x-www-form-urlencoded"
             )
             self._proxy_inkbunny_post(php, body, content_type)
+            return
+
+        fa_match = FURAFFINITY_PATH.match(path)
+        if fa_match:
+            self._proxy_furaffinity(fa_match.group(1), body)
             return
 
         if path != "/api/git/pull":

@@ -1,0 +1,531 @@
+"""Fur Affinity JSON API used by serve.py (/api/furaffinity/*).
+
+Embeds faapi for gallery/submission/favorites/journals/watchlist/me.
+Scrapes /search/ and /browse/ directly (robots Disallow: /search is ignored
+on purpose). Cookies come from the request body, then FA_COOKIE_A/B env.
+"""
+from __future__ import annotations
+
+import html as html_lib
+import json
+import os
+import threading
+from typing import Any
+from urllib.parse import urljoin, urlparse
+
+import faapi
+from faapi.comment import flatten_comments
+from faapi.connection import root as FA_ROOT
+from faapi.parse import parse_page, parse_submission_figure, parse_submission_figures
+
+_LOCK = threading.Lock()
+_APIS: dict[str, faapi.FAAPI] = {}
+_GUEST_COOKIES: list[dict[str, str]] | None = None
+
+ACTIONS = frozenset(
+    {
+        "login",
+        "me",
+        "frontpage",
+        "browse",
+        "search",
+        "gallery",
+        "scraps",
+        "favorites",
+        "journals",
+        "submission",
+        "journal",
+        "watchlist",
+        "favorite",
+        "unfavorite",
+        "comment",
+    }
+)
+
+
+class FaProxyError(Exception):
+    def __init__(self, message: str, status: int = 400):
+        super().__init__(message)
+        self.status = status
+
+
+def _env_cookies() -> list[dict[str, str]]:
+    cookies: list[dict[str, str]] = []
+    a = os.environ.get("FA_COOKIE_A", "").strip()
+    b = os.environ.get("FA_COOKIE_B", "").strip()
+    if a:
+        cookies.append({"name": "a", "value": a})
+    if b:
+        cookies.append({"name": "b", "value": b})
+    return cookies
+
+
+def parse_cookie_string(raw: str | None) -> list[dict[str, str]]:
+    if not raw or not str(raw).strip():
+        return []
+    out: list[dict[str, str]] = []
+    for part in str(raw).split(";"):
+        part = part.strip()
+        if not part or "=" not in part:
+            continue
+        name, _, value = part.partition("=")
+        name = name.strip()
+        value = value.strip()
+        if name and value:
+            out.append({"name": name, "value": value})
+    return out
+
+
+def cookie_string(cookies: list[dict[str, str]]) -> str:
+    return ";".join(f"{c['name']}={c['value']}" for c in cookies if c.get("name") and c.get("value"))
+
+
+def _guest_cookies() -> list[dict[str, str]]:
+    global _GUEST_COOKIES
+    if _GUEST_COOKIES:
+        return _GUEST_COOKIES
+    import requests
+
+    session = requests.Session()
+    session.headers["User-Agent"] = (
+        f"faapi/{getattr(faapi, '__version__', '3.12.7')} m-e621-furaffinity-proxy"
+    )
+    session.get(FA_ROOT + "/", timeout=30)
+    cookies = [
+        {"name": c.name, "value": c.value or ""}
+        for c in session.cookies
+        if c.name in {"a", "b"} and c.value
+    ]
+    if not cookies:
+        raise FaProxyError(
+            "Could not establish a guest FurAffinity session",
+            502,
+        )
+    _GUEST_COOKIES = cookies
+    return cookies
+
+
+def resolve_cookies(payload: dict[str, Any]) -> list[dict[str, str]]:
+    cookies = parse_cookie_string(payload.get("cookies"))
+    if cookies:
+        return cookies
+    env = _env_cookies()
+    if env:
+        return env
+    return _guest_cookies()
+
+
+def _api_for(cookies: list[dict[str, str]]) -> faapi.FAAPI:
+    key = cookie_string(cookies)
+    api = _APIS.get(key)
+    if api is None:
+        api = faapi.FAAPI(cookies)
+        api.timeout = 45
+        _APIS[key] = api
+    return api
+
+
+def _abs_url(url: str | None) -> str:
+    if not url:
+        return ""
+    if url.startswith("//"):
+        return "https:" + url
+    if url.startswith("/"):
+        return urljoin(FA_ROOT + "/", url.lstrip("/"))
+    return url
+
+
+def _iso(value: Any) -> str:
+    if value is None:
+        return ""
+    iso = getattr(value, "isoformat", None)
+    if callable(iso):
+        try:
+            return iso()
+        except Exception:
+            return str(value)
+    return str(value)
+
+
+def _html_text(raw: str | None) -> str:
+    if not raw:
+        return ""
+    try:
+        from bs4 import BeautifulSoup
+
+        text = BeautifulSoup(raw, "lxml").get_text("\n", strip=True)
+    except Exception:
+        text = raw
+    return html_lib.unescape(text).strip()
+
+
+def _user_partial(user: Any) -> dict[str, Any]:
+    if not user:
+        return {"name": "", "status": "", "title": "", "avatar_url": ""}
+    return {
+        "name": getattr(user, "name", "") or "",
+        "status": getattr(user, "status", "") or "",
+        "title": getattr(user, "title", "") or "",
+        "avatar_url": _abs_url(getattr(user, "avatar_url", "") or ""),
+    }
+
+
+def serialize_partial(sub: Any) -> dict[str, Any]:
+    if isinstance(sub, dict):
+        raw_author = sub.get("author")
+        if isinstance(raw_author, dict):
+            author = {
+                "name": raw_author.get("name") or "",
+                "status": raw_author.get("status") or "",
+                "title": raw_author.get("title") or "",
+                "avatar_url": _abs_url(raw_author.get("avatar_url") or ""),
+            }
+        else:
+            author = {"name": raw_author or "", "status": "", "title": "", "avatar_url": ""}
+        return {
+            "id": int(sub.get("id") or 0),
+            "title": sub.get("title") or "",
+            "author": author,
+            "rating": (sub.get("rating") or "general").lower(),
+            "type": (sub.get("type") or "image").lower(),
+            "thumbnail_url": _abs_url(sub.get("thumbnail_url") or ""),
+            "kind": sub.get("kind") or "submission",
+        }
+    return {
+        "id": int(getattr(sub, "id", 0) or 0),
+        "title": getattr(sub, "title", "") or "",
+        "author": _user_partial(getattr(sub, "author", None)),
+        "rating": (getattr(sub, "rating", "") or "general").lower(),
+        "type": (getattr(sub, "type", "") or "image").lower(),
+        "thumbnail_url": _abs_url(getattr(sub, "thumbnail_url", "") or ""),
+        "kind": "submission",
+    }
+
+
+def serialize_submission(sub: Any) -> dict[str, Any]:
+    stats = getattr(sub, "stats", None)
+    comments = []
+    try:
+        comments = [
+            {
+                "id": int(c.id),
+                "created_at": _iso(c.date),
+                "post_id": int(sub.id),
+                "creator_id": 0,
+                "body": _html_text(c.text),
+                "score": 0,
+                "updated_at": _iso(c.date),
+                "updater_id": 0,
+                "do_not_bump_post": False,
+                "is_hidden": bool(getattr(c, "hidden", False)),
+                "is_sticky": False,
+                "creator_name": getattr(getattr(c, "author", None), "name", "") or "",
+                "updater_name": getattr(getattr(c, "author", None), "name", "") or "",
+            }
+            for c in flatten_comments(list(getattr(sub, "comments", None) or []))
+        ]
+    except Exception:
+        comments = []
+    return {
+        **serialize_partial(sub),
+        "date": _iso(getattr(sub, "date", None)),
+        "tags": list(getattr(sub, "tags", None) or []),
+        "category": getattr(sub, "category", "") or "",
+        "species": getattr(sub, "species", "") or "",
+        "description": _html_text(getattr(sub, "description", "") or ""),
+        "file_url": _abs_url(getattr(sub, "file_url", "") or ""),
+        "thumbnail_url": _abs_url(getattr(sub, "thumbnail_url", "") or ""),
+        "views": int(getattr(stats, "views", 0) or 0),
+        "comment_count": int(getattr(stats, "comments", 0) or 0),
+        "favorites": int(getattr(stats, "favorites", 0) or 0),
+        "favorite": bool(getattr(sub, "favorite", False)),
+        "favorite_toggle_link": getattr(sub, "favorite_toggle_link", "") or "",
+        "comments": comments,
+        "details": True,
+    }
+
+
+def serialize_journal(journal: Any) -> dict[str, Any]:
+    stats = getattr(journal, "stats", None)
+    comments_n = int(getattr(stats, "comments", 0) or 0)
+    return {
+        "id": int(getattr(journal, "id", 0) or 0),
+        "title": getattr(journal, "title", "") or "",
+        "author": _user_partial(getattr(journal, "author", None)),
+        "rating": (getattr(journal, "rating", "") or "general").lower(),
+        "type": "text",
+        "thumbnail_url": "",
+        "kind": "journal",
+        "date": _iso(getattr(journal, "date", None)),
+        "description": _html_text(getattr(journal, "content", "") or ""),
+        "comment_count": comments_n,
+        "details": True,
+    }
+
+
+def _figures_from_html(text: str) -> tuple[list[dict[str, Any]], bool]:
+    page = parse_page(text)
+    out: list[dict[str, Any]] = []
+    for figure in parse_submission_figures(page):
+        try:
+            parsed = parse_submission_figure(figure)
+            out.append(
+                serialize_partial(
+                    {
+                        "id": parsed["id"],
+                        "title": parsed["title"],
+                        "author": {"name": parsed["author"]},
+                        "rating": parsed["rating"],
+                        "type": parsed["type"],
+                        "thumbnail_url": parsed["thumbnail_url"],
+                    }
+                )
+            )
+        except Exception:
+            continue
+    has_next = any(
+        (b.text or "").strip().lower() == "next"
+        for b in page.select("form button.button, a.button")
+    )
+    return out, has_next
+
+
+def _session_get(api: faapi.FAAPI, path: str, **params: Any):
+    api.handle_delay()
+    url = path if path.startswith("http") else f"{FA_ROOT}/{path.lstrip('/')}"
+    return api.session.get(url, params=params or None, timeout=api.timeout)
+
+
+def _session_post(api: faapi.FAAPI, path: str, data: dict[str, Any]):
+    api.handle_delay()
+    url = path if path.startswith("http") else f"{FA_ROOT}/{path.lstrip('/')}"
+    return api.session.post(url, data=data, timeout=api.timeout)
+
+
+def _login(username: str, password: str) -> dict[str, Any]:
+    import requests
+
+    if not username or not password:
+        raise FaProxyError("username and password required", 400)
+    session = requests.Session()
+    session.headers["User-Agent"] = (
+        f"faapi/{getattr(faapi, '__version__', '3.12.7')} m-e621-furaffinity-proxy"
+    )
+    session.get(f"{FA_ROOT}/login/", timeout=45)
+    resp = session.post(
+        f"{FA_ROOT}/login/",
+        data={
+            "action": "login",
+            "name": username,
+            "pass": password,
+            "retard_protection": "1",
+        },
+        timeout=45,
+        allow_redirects=True,
+    )
+    text = resp.text.lower()
+    if "captcha" in text or "cloudflare" in text and "challenge" in text:
+        raise FaProxyError(
+            "FurAffinity login needs a captcha/challenge. Set FA_COOKIE_A and FA_COOKIE_B on the server instead.",
+            403,
+        )
+    cookies = [
+        {"name": c.name, "value": c.value or ""}
+        for c in session.cookies
+        if c.name in {"a", "b"} and c.value
+    ]
+    if not any(c["name"] == "b" for c in cookies):
+        raise FaProxyError("FurAffinity login failed (check username/password)", 401)
+    api = _api_for(cookies)
+    me = api.me()
+    name = getattr(me, "name", None) or username
+    return {"username": name, "cookies": cookie_string(cookies)}
+
+
+def _me(api: faapi.FAAPI) -> dict[str, Any]:
+    user = api.me()
+    if user is None:
+        raise FaProxyError("Not logged in to FurAffinity", 401)
+    return {
+        "username": user.name,
+        "title": user.title,
+        "avatar_url": _abs_url(user.avatar_url),
+        "env": bool(_env_cookies()),
+    }
+
+
+def _search(api: faapi.FAAPI, payload: dict[str, Any]) -> dict[str, Any]:
+    q = str(payload.get("q") or "").strip()
+    page = max(1, int(payload.get("page") or 1))
+    order_by = str(payload.get("order_by") or "date")
+    if order_by not in {"date", "relevancy", "popularity"}:
+        order_by = "date"
+    order_direction = str(payload.get("order_direction") or "desc")
+    if order_direction not in {"asc", "desc"}:
+        order_direction = "desc"
+    ratings = payload.get("ratings") or ["general", "mature", "adult"]
+    if not isinstance(ratings, list) or not ratings:
+        ratings = ["general", "mature", "adult"]
+    data: dict[str, Any] = {
+        "q": q,
+        "page": str(page),
+        "perpage": "72",
+        "order-by": order_by,
+        "order-direction": order_direction,
+        "range": "all",
+        "mode": "extended",
+        "do_search": "Search",
+    }
+    for rating in ratings:
+        data[f"rating-{rating}"] = "on"
+    for kind in ("art", "music", "flash", "story", "photo", "poetry"):
+        data[f"type-{kind}"] = "on"
+    resp = _session_post(api, "search/", data)
+    if resp.status_code >= 400:
+        raise FaProxyError(f"FurAffinity search failed ({resp.status_code})", resp.status_code)
+    results, has_next = _figures_from_html(resp.text)
+    return {"results": results, "next": page + 1 if has_next else None, "page": page}
+
+
+def _browse(api: faapi.FAAPI, payload: dict[str, Any]) -> dict[str, Any]:
+    page = max(1, int(payload.get("page") or 1))
+    resp = _session_get(api, f"browse/{page}/")
+    if resp.status_code >= 400:
+        if page == 1:
+            results = [serialize_partial(s) for s in api.frontpage()]
+            return {"results": results, "next": None, "page": 1}
+        raise FaProxyError(f"FurAffinity browse failed ({resp.status_code})", resp.status_code)
+    results, has_next = _figures_from_html(resp.text)
+    return {"results": results, "next": page + 1 if has_next else None, "page": page}
+
+
+def _folder(api: faapi.FAAPI, kind: str, payload: dict[str, Any]) -> dict[str, Any]:
+    username = str(payload.get("username") or "").strip()
+    if not username:
+        raise FaProxyError("username required", 400)
+    page = payload.get("page") or 1
+    if kind == "favorites":
+        token = "" if page in (1, "1", None, "") else str(page)
+        items, nxt = api.favorites(username, token)
+        return {
+            "results": [serialize_partial(s) for s in items],
+            "next": nxt,
+            "page": token or "",
+        }
+    page_n = max(1, int(page or 1))
+    if kind == "gallery":
+        items, nxt = api.gallery(username, page_n)
+    elif kind == "scraps":
+        items, nxt = api.scraps(username, page_n)
+    else:
+        items, nxt = api.journals(username, page_n)
+        return {
+            "results": [serialize_journal(j) for j in items],
+            "next": nxt,
+            "page": page_n,
+        }
+    return {
+        "results": [serialize_partial(s) for s in items],
+        "next": nxt,
+        "page": page_n,
+    }
+
+
+def _set_favorite(api: faapi.FAAPI, payload: dict[str, Any], want: bool) -> dict[str, Any]:
+    sid = int(payload.get("id") or 0)
+    if not sid:
+        raise FaProxyError("id required", 400)
+    sub, _ = api.submission(sid)
+    if bool(sub.favorite) == want:
+        return {"ok": True, "favorite": bool(sub.favorite)}
+    link = sub.favorite_toggle_link or ""
+    if not link:
+        raise FaProxyError("No favorite toggle link (login required?)", 401)
+    path = urlparse(link).path.lstrip("/")
+    api.get(path)
+    return {"ok": True, "favorite": want}
+
+
+def _comment(api: faapi.FAAPI, payload: dict[str, Any]) -> dict[str, Any]:
+    sid = int(payload.get("id") or 0)
+    body = str(payload.get("body") or "").strip()
+    if not sid or not body:
+        raise FaProxyError("id and body required", 400)
+    page = api.get_parsed(f"view/{sid}")
+    textarea = page.select_one("textarea[name='reply']")
+    form = textarea.find_parent("form") if textarea else None
+    if form is None:
+        raise FaProxyError("Could not find FurAffinity comment form", 502)
+    data: dict[str, str] = {}
+    for inp in form.select("input"):
+        name = inp.get("name")
+        if name:
+            data[str(name)] = str(inp.get("value") or "")
+    data["reply"] = body
+    action = str(form.get("action") or f"/view/{sid}/")
+    resp = _session_post(api, action, data)
+    if resp.status_code >= 400:
+        raise FaProxyError(f"Comment failed ({resp.status_code})", resp.status_code)
+    return {"ok": True}
+
+
+def handle(action: str, payload: dict[str, Any] | None = None) -> tuple[int, dict[str, Any]]:
+    payload = payload or {}
+    if action not in ACTIONS:
+        return 404, {"ok": False, "message": "not found"}
+    try:
+        with _LOCK:
+            if action == "login":
+                return 200, _login(str(payload.get("username") or ""), str(payload.get("password") or ""))
+            cookies = resolve_cookies(payload)
+            api = _api_for(cookies)
+            if action == "me":
+                return 200, _me(api)
+            if action == "frontpage":
+                return 200, {"results": [serialize_partial(s) for s in api.frontpage()], "next": None}
+            if action == "browse":
+                return 200, _browse(api, payload)
+            if action == "search":
+                return 200, _search(api, payload)
+            if action in {"gallery", "scraps", "favorites", "journals"}:
+                return 200, _folder(api, action, payload)
+            if action == "submission":
+                sid = int(payload.get("id") or 0)
+                if not sid:
+                    raise FaProxyError("id required", 400)
+                sub, _ = api.submission(sid)
+                return 200, serialize_submission(sub)
+            if action == "journal":
+                jid = int(payload.get("id") or 0)
+                if not jid:
+                    raise FaProxyError("id required", 400)
+                return 200, serialize_journal(api.journal(jid))
+            if action == "watchlist":
+                username = str(payload.get("username") or "").strip()
+                if not username:
+                    me = api.me()
+                    if me is None:
+                        raise FaProxyError("username required", 400)
+                    username = me.name
+                page = max(1, int(payload.get("page") or 1))
+                users, nxt = api.watchlist_by(username, page)
+                return 200, {
+                    "results": [{"name": u.name, "status": u.status} for u in users],
+                    "next": nxt,
+                }
+            if action == "favorite":
+                return 200, _set_favorite(api, payload, True)
+            if action == "unfavorite":
+                return 200, _set_favorite(api, payload, False)
+            if action == "comment":
+                return 200, _comment(api, payload)
+            return 404, {"ok": False, "message": "not found"}
+    except FaProxyError as exc:
+        return exc.status, {"ok": False, "message": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        name = type(exc).__name__
+        return 502, {"ok": False, "message": f"{name}: {exc}"}
+
+
+def dumps(payload: dict[str, Any]) -> bytes:
+    return json.dumps(payload).encode("utf-8")

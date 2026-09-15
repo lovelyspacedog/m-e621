@@ -372,6 +372,7 @@ class PersistanceService {
         tailspace: createEmptySiteProfile("tailspace"),
         furbooru: createEmptySiteProfile("furbooru"),
         inkbunny: createEmptySiteProfile("inkbunny"),
+        furaffinity: createEmptySiteProfile("furaffinity"),
         unified: createEmptySiteProfile("unified"),
       };
       // Current flat fields become the active mode's profile (usually e621).
@@ -398,6 +399,7 @@ class PersistanceService {
           tailspace: createEmptySiteProfile("tailspace"),
           furbooru: createEmptySiteProfile("furbooru"),
           inkbunny: createEmptySiteProfile("inkbunny"),
+          furaffinity: createEmptySiteProfile("furaffinity"),
           unified: createEmptySiteProfile("unified"),
         };
       } else {
@@ -486,6 +488,17 @@ class PersistanceService {
       }
       newState.configVersion = 26;
     }
+    if (newState.configVersion < 27) {
+      if (newState.profiles && !newState.profiles.furaffinity) {
+        newState.profiles.furaffinity = createEmptySiteProfile("furaffinity");
+      }
+      if (newState.profiles?.unified?.unifiedSites) {
+        if (newState.profiles.unified.unifiedSites.furaffinity === undefined) {
+          newState.profiles.unified.unifiedSites.furaffinity = true;
+        }
+      }
+      newState.configVersion = 27;
+    }
 
     // Ensure profiles exist even if a partial export skipped them.
     if (!newState.profiles) {
@@ -496,6 +509,7 @@ class PersistanceService {
         tailspace: createEmptySiteProfile("tailspace"),
         furbooru: createEmptySiteProfile("furbooru"),
         inkbunny: createEmptySiteProfile("inkbunny"),
+        furaffinity: createEmptySiteProfile("furaffinity"),
         unified: createEmptySiteProfile("unified"),
       };
     }
@@ -511,6 +525,8 @@ class PersistanceService {
       newState.profiles.furbooru || createEmptySiteProfile("furbooru");
     newState.profiles.inkbunny =
       newState.profiles.inkbunny || createEmptySiteProfile("inkbunny");
+    newState.profiles.furaffinity =
+      newState.profiles.furaffinity || createEmptySiteProfile("furaffinity");
     newState.profiles.unified =
       newState.profiles.unified || createEmptySiteProfile("unified");
     if (!newState.profiles.unified.unifiedSites) {
@@ -519,7 +535,10 @@ class PersistanceService {
         e6ai: true,
         furbooru: true,
         inkbunny: true,
+        furaffinity: true,
       };
+    } else if (newState.profiles.unified.unifiedSites.furaffinity === undefined) {
+      newState.profiles.unified.unifiedSites.furaffinity = true;
     }
     if (!newState.profiles.e621.account) {
       // Do NOT copy active-mode mirrors here: account/blacklist/etc. may
@@ -537,6 +556,7 @@ class PersistanceService {
       newState.activeMode !== "tailspace" &&
       newState.activeMode !== "furbooru" &&
       newState.activeMode !== "inkbunny" &&
+      newState.activeMode !== "furaffinity" &&
       newState.activeMode !== "unified"
     ) {
       newState.activeMode = "e621";
@@ -555,6 +575,8 @@ class PersistanceService {
       newState.profiles.furbooru.baseUrl || SITE_MODE_URLS.furbooru;
     newState.profiles.inkbunny.baseUrl =
       newState.profiles.inkbunny.baseUrl || SITE_MODE_URLS.inkbunny;
+    newState.profiles.furaffinity.baseUrl =
+      newState.profiles.furaffinity.baseUrl || SITE_MODE_URLS.furaffinity;
     if (!newState.profiles.tailspace) {
       newState.profiles.tailspace = createEmptySiteProfile("tailspace");
     }

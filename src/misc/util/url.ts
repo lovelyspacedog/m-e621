@@ -12,6 +12,9 @@ export const getE6PostUrl = (id: number) => {
   if (siteMode.isInkbunny) {
     return `${base}s/${id}`;
   }
+  if (siteMode.isFurAffinity) {
+    return `${base}view/${id}`;
+  }
   return `${base}posts/${id}`;
 };
 

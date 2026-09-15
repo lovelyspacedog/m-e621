@@ -120,6 +120,9 @@ export default defineComponent({
       if (props.post.__meta?.originMode === "inkbunny") {
         list = list.filter((button) => button !== "favorite");
       }
+      if (props.post.__meta?.furaffinity?.kind === "journal") {
+        list = list.filter((button) => button !== "favorite");
+      }
       return list;
     });
     const originLabel = computed(() =>

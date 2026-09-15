@@ -19,11 +19,20 @@ export default defineComponent({
         }
     },
     setup(props, context) {
-        const date = computed(() => parseISO(props.value));
+        const date = computed(() => {
+            const raw = (props.value || "").trim();
+            if (!raw) return null;
+            const parsed = parseISO(raw);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+        });
         const relativeDate = computed(() =>
-            formatDistanceToNow(date.value, { addSuffix: true }),
+            date.value
+                ? formatDistanceToNow(date.value, { addSuffix: true })
+                : "Unknown date",
         );
-        const absoluteDate = computed(() => format(date.value, "PP p"));
+        const absoluteDate = computed(() =>
+            date.value ? format(date.value, "PP p") : "Unknown date",
+        );
         return {
             relativeDate,
             absoluteDate,

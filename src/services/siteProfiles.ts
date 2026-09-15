@@ -74,6 +74,69 @@ export const syncMirrorsToActiveProfile = (state: ISettingsServiceState) => {
   state.profiles[state.activeMode] = profileFromMirrors(state);
 };
 
+export const ensureSiteProfile = (
+  state: ISettingsServiceState,
+  mode: SiteMode,
+): SiteProfile => {
+  if (!state.profiles[mode]) {
+    state.profiles[mode] = createEmptySiteProfile(mode);
+  }
+  return state.profiles[mode];
+};
+
+/** Active site uses live mirrors; others read their stored profile. */
+export const liveAccount = (
+  state: ISettingsServiceState,
+  mode: SiteMode,
+): SiteProfile["account"] => {
+  if (state.activeMode === mode) return state.account;
+  return ensureSiteProfile(state, mode).account;
+};
+
+export const setLiveAccount = (
+  state: ISettingsServiceState,
+  mode: SiteMode,
+  patch: Partial<SiteProfile["account"]>,
+) => {
+  const profile = ensureSiteProfile(state, mode);
+  Object.assign(profile.account, patch);
+  if (state.activeMode === mode) {
+    Object.assign(state.account, patch);
+  }
+};
+
+export const liveBaseUrl = (state: ISettingsServiceState, mode: SiteMode) => {
+  if (state.activeMode === mode) {
+    return state.misc?.urls?.e621 || ensureSiteProfile(state, mode).baseUrl || SITE_MODE_URLS[mode];
+  }
+  return ensureSiteProfile(state, mode).baseUrl || SITE_MODE_URLS[mode];
+};
+
+export const setLiveBaseUrl = (
+  state: ISettingsServiceState,
+  mode: SiteMode,
+  value: string,
+) => {
+  const profile = ensureSiteProfile(state, mode);
+  profile.baseUrl = value;
+  if (
+    state.activeMode === mode ||
+    (state.activeMode === "unified" && mode === "e621")
+  ) {
+    if (!state.misc) state.misc = { urls: { e621: "", proxy: "" } };
+    if (!state.misc.urls) state.misc.urls = { e621: "", proxy: "" };
+    state.misc.urls.e621 = value;
+  }
+};
+
+export const liveSearches = (
+  state: ISettingsServiceState,
+  mode: SiteMode,
+): SiteProfile["searches"] => {
+  if (state.activeMode === mode) return state.searches;
+  return ensureSiteProfile(state, mode).searches;
+};
+
 /** Load profiles[activeMode] into top-level mirrors used by existing stores. */
 export const applyActiveProfileToMirrors = (state: ISettingsServiceState) => {
   if (!state.profiles || !state.activeMode) return;

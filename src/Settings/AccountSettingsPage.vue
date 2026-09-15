@@ -3,209 +3,295 @@
     <v-row align-center>
       <v-col class="text-center" cols="12" sm="10" offset-sm="1" lg="6" offset-lg="3">
         <settings-page-title section="account" title="API & Account" color="yellow-darken-3" />
-        <settings-page-item title="Site" select>
-          <v-btn-toggle
-            :model-value="siteMode.activeMode"
-            color="accent"
-            density="comfortable"
-            mandatory
-            class="mb-2"
-            @update:model-value="onModeChange"
-          >
-            <v-btn value="unified">Unified</v-btn>
-            <v-btn value="e621">e621</v-btn>
-            <v-btn value="e6ai">e6ai</v-btn>
-            <v-btn v-if="siteMode.supportsLocalMode" value="local">local</v-btn>
-            <v-btn value="furbooru">Furbooru</v-btn>
-            <v-btn value="inkbunny">Inkbunny</v-btn>
-            <v-btn value="tailspace">Tailspace</v-btn>
-          </v-btn-toggle>
+        <settings-page-item title="Sites" select>
           <p class="text-left">
             Each site keeps its own username, API key, starred tags, blacklist, saved searches, and history.
-            Unified searches e621, e6ai, Furbooru, and Inkbunny in one feed.
+            Pick what you are browsing in the sidebar. Unified mixes the sites you enable below.
             <template v-if="siteMode.supportsLocalMode">
               Local mode reads a browse folder you pick (not the Save Locally folder).
             </template>
-            Switching clears the current post search.
+            Tailspace has no login.
           </p>
         </settings-page-item>
-        <settings-page-item title="Unified sites" select v-if="siteMode.isUnified">
+        <settings-page-item title="Unified feed" select>
           <p class="text-left">
-            Sign in on each site below (switch site, then come back). Unified uses those logins when present, otherwise guest search.
+            Unified uses each site's login when present, otherwise guest search.
           </p>
           <v-switch
-            :model-value="siteMode.unifiedSites.e621"
+            v-for="child in unifiedChildren"
+            :key="child"
+            :model-value="siteMode.unifiedSites[child]"
             color="accent"
             hide-details
-            label="e621"
-            @update:model-value="siteMode.setUnifiedChild('e621', !!$event)"
-          />
-          <v-switch
-            :model-value="siteMode.unifiedSites.e6ai"
-            color="accent"
-            hide-details
-            label="e6ai"
-            @update:model-value="siteMode.setUnifiedChild('e6ai', !!$event)"
-          />
-          <v-switch
-            :model-value="siteMode.unifiedSites.furbooru"
-            color="accent"
-            hide-details
-            label="Furbooru"
-            @update:model-value="siteMode.setUnifiedChild('furbooru', !!$event)"
-          />
-          <v-switch
-            :model-value="siteMode.unifiedSites.inkbunny"
-            color="accent"
-            hide-details
-            label="Inkbunny"
-            @update:model-value="siteMode.setUnifiedChild('inkbunny', !!$event)"
+            :label="unifiedChildLabel(child)"
+            @update:model-value="siteMode.setUnifiedChild(child, !!$event)"
           />
         </settings-page-item>
-        <settings-page-item title="Local folder" select v-if="siteMode.isLocal && siteMode.supportsLocalMode">
+        <settings-page-item title="Accounts" select>
+          <v-expansion-panels v-model="openAccounts" multiple variant="accordion" class="account-panels">
+            <v-expansion-panel v-for="site in keySites" :key="site.mode" :value="site.mode">
+              <v-expansion-panel-title>
+                <div class="text-left">
+                  <div>{{ site.label }}</div>
+                  <div class="text-caption text-medium-emphasis">{{ keySiteStatus(site) }}</div>
+                </div>
+              </v-expansion-panel-title>
+              <v-expansion-panel-text>
+                <v-text-field
+                  v-if="site.showUsername"
+                  variant="filled"
+                  :label="`${site.label} username`"
+                  type="text"
+                  v-model="fields[site.mode].username"
+                  autocomplete="username"
+                />
+                <v-text-field
+                  variant="filled"
+                  :append-icon="showSecret[site.mode] ? 'mdi-eye-off' : 'mdi-eye'"
+                  :type="showSecret[site.mode] ? 'text' : 'password'"
+                  :label="`${site.label} API key`"
+                  v-model="fields[site.mode].apiKey"
+                  @click:append="showSecret[site.mode] = !showSecret[site.mode]"
+                  autocomplete="password"
+                  :counter="site.showUsername ? 24 : undefined"
+                />
+                <p class="text-left">
+                  <template v-if="site.mode === 'furbooru'">
+                    Go to <external-link href="https://furbooru.org/registration/edit" /> > API Key to generate your key.
+                    No username is required — the key identifies your account automatically.
+                  </template>
+                  <template v-else>
+                    Go to <external-link :href="`${fields[site.mode].baseUrl}users/home`" /> > Manage API Access to get the API key
+                  </template>
+                </p>
+                <v-select
+                  v-if="site.apiItems"
+                  variant="filled"
+                  :label="`${site.label} API`"
+                  v-model="fields[site.mode].baseUrl"
+                  :items="site.apiItems"
+                />
+                <v-text-field
+                  v-if="site.apiItems"
+                  variant="filled"
+                  :label="`Custom ${site.label} URL`"
+                  type="text"
+                  v-model="fields[site.mode].baseUrl"
+                  autocomplete="url"
+                  hint="You might want to change your username/API key if you switch instances"
+                  persistent-hint
+                />
+                <div>
+                  <v-btn
+                    :disabled="site.showUsername ? (!fields[site.mode].username || !fields[site.mode].apiKey) : !fields[site.mode].apiKey"
+                    :loading="verification[site.mode].loading"
+                    :color="verification[site.mode].success ? 'success' : verification[site.mode].message ? 'error' : 'accent'"
+                    variant="text"
+                    @click="verifyKeySite(site.mode)"
+                  >
+                    Verify credentials
+                  </v-btn>
+                  <p v-if="verification[site.mode].message">
+                    {{ verification[site.mode].message }}
+                  </p>
+                  <p class="text-left" v-if="!verification[site.mode].success && verification[site.mode].message">
+                    A network error means that <i>something</i> did not work.
+                    Most likely, this was an authentication error.
+                    <template v-if="site.mode === 'furbooru'">
+                      Make sure you copied the Furbooru API key from
+                      <external-link href="https://furbooru.org/registration/edit" /> correctly.
+                    </template>
+                    <template v-else>
+                      Double check if the username is exactly the same as on
+                      <external-link :href="`${fields[site.mode].baseUrl}users/home`" /> and make sure you copied the API key correctly - it
+                      should be 24 characters long.
+                      <br />
+                      Due to a security policy (CORS), m-e621 cannot determine the cause of the error. There might be a
+                      general error with the network or {{ site.label }}.
+                    </template>
+                  </p>
+                </div>
+                <v-btn
+                  class="mt-4"
+                  :disabled="site.showUsername ? !fields[site.mode].username : !fields[site.mode].apiKey"
+                  color="accent"
+                  variant="text"
+                  @click="toggleKeySiteFavs(site)"
+                >
+                  {{ keySiteFavsExists(site) ? `Remove "${site.favsName}" saved search` : `Add "${site.favsName}" saved search` }}
+                </v-btn>
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+
+            <v-expansion-panel value="inkbunny">
+              <v-expansion-panel-title>
+                <div class="text-left">
+                  <div>Inkbunny</div>
+                  <div class="text-caption text-medium-emphasis">{{ inkbunnyStatus }}</div>
+                </div>
+              </v-expansion-panel-title>
+              <v-expansion-panel-text>
+                <v-text-field
+                  variant="filled"
+                  label="Inkbunny username"
+                  type="text"
+                  v-model="fields.inkbunny.username"
+                  autocomplete="username"
+                  :disabled="inkbunnyLoggedIn"
+                />
+                <v-text-field
+                  v-if="!inkbunnyLoggedIn"
+                  variant="filled"
+                  :append-icon="showSecret.inkbunny ? 'mdi-eye-off' : 'mdi-eye'"
+                  :type="showSecret.inkbunny ? 'text' : 'password'"
+                  label="Inkbunny password"
+                  v-model="inkbunnyPassword"
+                  @click:append="showSecret.inkbunny = !showSecret.inkbunny"
+                  autocomplete="current-password"
+                />
+                <p class="text-left">
+                  Enable API Access at <external-link href="https://inkbunny.net/account.php" />.
+                  If you set an Allowed IP Range, the server IP must be included
+                  (<external-link href="https://inkbunny.net/iprange.php" />).
+                  The password is used only to log in and is not saved.
+                </p>
+                <div>
+                  <v-btn
+                    v-if="!inkbunnyLoggedIn"
+                    :disabled="!fields.inkbunny.username || !inkbunnyPassword"
+                    :loading="inkbunnyAuth.loading"
+                    :color="inkbunnyAuth.success ? 'success' : inkbunnyAuth.message ? 'error' : 'accent'"
+                    variant="text"
+                    @click="loginInkbunny"
+                  >
+                    Log in
+                  </v-btn>
+                  <v-btn
+                    v-else
+                    :loading="inkbunnyAuth.loading"
+                    color="accent"
+                    variant="text"
+                    @click="logoutInkbunny"
+                  >
+                    Log out
+                  </v-btn>
+                  <p v-if="inkbunnyAuth.message">{{ inkbunnyAuth.message }}</p>
+                </div>
+                <v-btn
+                  class="mt-4"
+                  :disabled="!inkbunnyLoggedIn"
+                  color="accent"
+                  variant="text"
+                  @click="toggleInkbunnyUnreadSearch"
+                >
+                  {{ inkbunnyUnreadExists ? `Remove "Unread" saved search` : `Add "Unread" saved search` }}
+                </v-btn>
+                <v-btn
+                  class="mt-2"
+                  :disabled="!inkbunnyLoggedIn"
+                  color="accent"
+                  variant="text"
+                  @click="toggleInkbunnyFavsSearch"
+                >
+                  {{ inkbunnyFavsExists ? `Remove "My Favs" saved search` : `Add "My Favs" saved search` }}
+                </v-btn>
+                <v-btn
+                  class="mt-2"
+                  :disabled="!inkbunnyLoggedIn"
+                  :loading="inkbunnyWatchlistLoading"
+                  color="accent"
+                  variant="text"
+                  @click="addWatchlistSearches"
+                >
+                  Add watchlist artists as saved searches
+                </v-btn>
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+
+            <v-expansion-panel value="furaffinity">
+              <v-expansion-panel-title>
+                <div class="text-left">
+                  <div>FurAffinity</div>
+                  <div class="text-caption text-medium-emphasis">{{ faStatus }}</div>
+                </div>
+              </v-expansion-panel-title>
+              <v-expansion-panel-text>
+                <v-text-field
+                  variant="filled"
+                  label="FurAffinity username"
+                  type="text"
+                  v-model="fields.furaffinity.username"
+                  autocomplete="username"
+                  :disabled="faLoggedIn"
+                />
+                <v-text-field
+                  v-if="!faLoggedIn"
+                  variant="filled"
+                  :append-icon="showSecret.furaffinity ? 'mdi-eye-off' : 'mdi-eye'"
+                  :type="showSecret.furaffinity ? 'text' : 'password'"
+                  label="FurAffinity password"
+                  v-model="faPassword"
+                  @click:append="showSecret.furaffinity = !showSecret.furaffinity"
+                  autocomplete="current-password"
+                />
+                <p class="text-left">
+                  Prefer setting <code>FA_COOKIE_A</code> and <code>FA_COOKIE_B</code> on the host
+                  so every browser is already logged in. Password login is a fallback; the password
+                  is not saved. Do not log out of the FurAffinity session those cookies belong to.
+                  See <external-link href="https://www.furaffinity.net/" />.
+                </p>
+                <div>
+                  <v-btn
+                    v-if="!faLoggedIn"
+                    :disabled="!fields.furaffinity.username || !faPassword"
+                    :loading="faAuth.loading"
+                    :color="faAuth.success ? 'success' : faAuth.message ? 'error' : 'accent'"
+                    variant="text"
+                    @click="loginFurAffinity"
+                  >
+                    Log in
+                  </v-btn>
+                  <v-btn
+                    v-else
+                    :loading="faAuth.loading"
+                    color="accent"
+                    variant="text"
+                    @click="logoutFurAffinity"
+                  >
+                    Log out
+                  </v-btn>
+                  <p v-if="faAuth.message">{{ faAuth.message }}</p>
+                </div>
+                <v-btn
+                  class="mt-4"
+                  :disabled="!faLoggedIn && !fields.furaffinity.username"
+                  color="accent"
+                  variant="text"
+                  @click="toggleFaFavsSearch"
+                >
+                  {{ faFavsExists ? `Remove "My Favs" saved search` : `Add "My Favs" saved search` }}
+                </v-btn>
+                <v-btn
+                  class="mt-2"
+                  :disabled="!faLoggedIn"
+                  :loading="faWatchlistLoading"
+                  color="accent"
+                  variant="text"
+                  @click="addFaWatchlistSearches"
+                >
+                  Add watchlist artists as saved searches
+                </v-btn>
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+          </v-expansion-panels>
+        </settings-page-item>
+        <settings-page-item title="Local folder" select v-if="siteMode.supportsLocalMode">
           <p class="text-left">
             Local mode shows images and videos from this folder. Save Locally still uses its own folder in Post settings.
           </p>
           <local-folder-picker purpose="local" />
         </settings-page-item>
-        <settings-page-item title="Credentials" select v-if="!siteMode.isLocal && !siteMode.isInkbunny && !siteMode.isTailspace && !siteMode.isUnified">
-          <!-- Username: hidden for Furbooru (API key only) -->
-          <v-text-field
-            v-if="!siteMode.isFurbooru"
-            variant="filled"
-            :label="`${siteLabel} username`"
-            type="text"
-            v-model="username"
-            autocomplete="username"
-          />
-          <v-text-field variant="filled" :append-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
-            :type="showPassword ? 'text' : 'password'" :label="`${siteLabel} API key`" v-model="apiKey"
-            @click:append="showPassword = !showPassword" autocomplete="password" :counter="siteMode.isFurbooru ? undefined : 24" />
-          <p class="text-left" v-if="!siteMode.isFurbooru">
-            Go to <external-link :href="`${e621Url}users/home`" /> > Manage API Access to get the API key
-          </p>
-          <p class="text-left" v-else>
-            Go to <external-link href="https://furbooru.org/registration/edit" /> > API Key to generate your key.
-            No username is required — the key identifies your account automatically.
-          </p>
-          <div>
-            <v-btn
-              :disabled="siteMode.isFurbooru ? !apiKey : (!username || !apiKey)"
-              :loading="verification.loading"
-              :color="verification.success ? 'success' : verification.message ? 'error' : 'accent'"
-              variant="text"
-              @click="verifyCredentials"
-            >
-              Verify credentials
-            </v-btn>
-            <p v-if="verification.message">
-              {{ verification.message }}
-            </p>
-            <p class="text-left" v-if="!verification.success && verification.message">
-              A network error means that <i>something</i> did not work.
-              Most likely, this was an authentication error.
-              <template v-if="!siteMode.isFurbooru">
-                Double check if the username is exactly the same as on
-                <external-link :href="`${e621Url}users/home`" /> and make sure you copied the API key correctly - it
-                should be 24 characters long.
-                <br />
-                Due to a security policy (CORS), m-e621 cannot determine the cause of the error. There might be a
-                general error with the network or {{ siteLabel }}.
-              </template>
-              <template v-else>
-                Make sure you copied the Furbooru API key from
-                <external-link href="https://furbooru.org/registration/edit" /> correctly.
-              </template>
-            </p>
-          </div>
-          <v-btn v-if="!siteMode.isFurbooru" class="mt-4" :disabled="!username" color="accent" variant="text" @click="toggleFavoritesMenuItem">
-            {{ usernameSavedSearchExists ? `Remove "Favorites" saved search` : `Add "Favorites" saved search` }}
-          </v-btn>
-          <v-btn v-else class="mt-4" :disabled="!apiKey" color="accent" variant="text" @click="toggleFurbooruFavoritesMenuItem">
-            {{ furbooruFavsSearchExists ? `Remove "My Faves" saved search` : `Add "My Faves" saved search` }}
-          </v-btn>
-        </settings-page-item>
-        <settings-page-item title="Credentials" select v-else-if="siteMode.isInkbunny">
-          <v-text-field
-            variant="filled"
-            label="Inkbunny username"
-            type="text"
-            v-model="username"
-            autocomplete="username"
-            :disabled="inkbunnyLoggedIn"
-          />
-          <v-text-field
-            v-if="!inkbunnyLoggedIn"
-            variant="filled"
-            :append-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
-            :type="showPassword ? 'text' : 'password'"
-            label="Inkbunny password"
-            v-model="inkbunnyPassword"
-            @click:append="showPassword = !showPassword"
-            autocomplete="current-password"
-          />
-          <p class="text-left">
-            Enable API Access at <external-link href="https://inkbunny.net/account.php" />.
-            If you set an Allowed IP Range, the server IP must be included
-            (<external-link href="https://inkbunny.net/iprange.php" />).
-            The password is used only to log in and is not saved.
-          </p>
-          <div>
-            <v-btn
-              v-if="!inkbunnyLoggedIn"
-              :disabled="!username || !inkbunnyPassword"
-              :loading="inkbunnyAuth.loading"
-              :color="inkbunnyAuth.success ? 'success' : inkbunnyAuth.message ? 'error' : 'accent'"
-              variant="text"
-              @click="loginInkbunny"
-            >
-              Log in
-            </v-btn>
-            <v-btn
-              v-else
-              :loading="inkbunnyAuth.loading"
-              color="accent"
-              variant="text"
-              @click="logoutInkbunny"
-            >
-              Log out
-            </v-btn>
-            <p v-if="inkbunnyAuth.message">{{ inkbunnyAuth.message }}</p>
-          </div>
-          <v-btn
-            class="mt-4"
-            :disabled="!inkbunnyLoggedIn"
-            color="accent"
-            variant="text"
-            @click="toggleInkbunnyUnreadSearch"
-          >
-            {{ inkbunnyUnreadExists ? `Remove "Unread" saved search` : `Add "Unread" saved search` }}
-          </v-btn>
-          <v-btn
-            class="mt-2"
-            :disabled="!inkbunnyLoggedIn"
-            color="accent"
-            variant="text"
-            @click="toggleInkbunnyFavsSearch"
-          >
-            {{ inkbunnyFavsExists ? `Remove "My Favs" saved search` : `Add "My Favs" saved search` }}
-          </v-btn>
-          <v-btn
-            class="mt-2"
-            :disabled="!inkbunnyLoggedIn"
-            :loading="inkbunnyWatchlistLoading"
-            color="accent"
-            variant="text"
-            @click="addWatchlistSearches"
-          >
-            Add watchlist artists as saved searches
-          </v-btn>
-        </settings-page-item>
-        <settings-page-item title="API" select v-if="!siteMode.isLocal && !siteMode.isFurbooru && !siteMode.isInkbunny && !siteMode.isUnified && !siteMode.isTailspace">
-          <v-select variant="filled" :label="`${siteLabel} API`" type="text" v-model="e621Url"
-            :items="apiUrlItems" />
-          <v-text-field variant="filled" :label="`Custom ${siteLabel} URL`" type="text" v-model="e621Url" autocomplete="url"
-            hint="You might want to change your username/API key if you switch instances" persistent-hint />
+        <settings-page-item title="Favorites proxy" select>
           <v-text-field variant="filled" label="Favorites API" type="text" v-model="proxyUrl" autocomplete="url" />
           <p class="text-left">
             Favorites are proxied through this app's <code>/api/</code> so they
@@ -222,147 +308,214 @@
 <script setup lang="ts">
 import SettingsPageTitle from "./SettingsPageTitle.vue";
 import SettingsPageItem from "./SettingsPageItem.vue";
-import { computed, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { computed, reactive, ref, watch } from "vue";
 import ExternalLink from "@/App/ExternalLink.vue";
 import LocalFolderPicker from "./LocalFolderPicker.vue";
-import { useAccountStore, useSavedSearchStore, useSiteModeStore, useUrlStore } from "@/services";
-import type { SavedSearchEntry, SiteMode } from "@/services/types";
+import { useMainStore, useSiteModeStore, useUrlStore } from "@/services";
+import { UNIFIED_CHILD_MODES, type SiteMode } from "@/services/types";
+import {
+  liveAccount,
+  liveSearches,
+  setLiveAccount,
+  liveBaseUrl,
+  setLiveBaseUrl,
+} from "@/services/siteProfiles";
+import {
+  addSearchTag,
+  searchesHaveTag,
+  toggleSearchTag,
+} from "@/services/savedSearchNormalize";
+import { unifiedChildLabel } from "@/misc/util/postOrigin";
 import { getApiService } from "@/worker/services";
 import { useHead } from "@unhead/vue";
 
-useHead({ title: "Account Settings", });
+useHead({ title: "Account Settings" });
 
-const account = useAccountStore();
+const main = useMainStore();
 const url = useUrlStore();
 const siteMode = useSiteModeStore();
-const router = useRouter();
-const showPassword = ref(false);
+const unifiedChildren = UNIFIED_CHILD_MODES;
 
-const siteLabel = computed(() => siteMode.activeLabel);
-const apiUrlItems = computed(() =>
-  siteMode.activeMode === "e6ai"
-    ? ["https://e6ai.net/"]
-    : ["https://e621.net/", "https://e926.net/", "https://e6ai.net/"],
-);
+type KeySiteMode = "e621" | "e6ai" | "furbooru";
+type AccountMode = KeySiteMode | "inkbunny" | "furaffinity";
 
-const onModeChange = async (mode: SiteMode | null) => {
-  if (!mode || mode === siteMode.activeMode) return;
-  if (mode === "tailspace") {
-    await router.push({ name: "TailspacePosts" });
-    siteMode.setMode(mode);
-    return;
-  }
-  siteMode.setMode(mode);
-  await router.push({ name: "Posts", query: {} });
+type KeySite = {
+  mode: KeySiteMode;
+  label: string;
+  showUsername: boolean;
+  apiItems?: string[];
+  favsName: string;
+  favsTag: (username: string) => string;
 };
 
-const username = computed<string>({
-  get() {
-    return account.username || "";
+const keySites: KeySite[] = [
+  {
+    mode: "e621",
+    label: "e621",
+    showUsername: true,
+    apiItems: ["https://e621.net/", "https://e926.net/", "https://e6ai.net/"],
+    favsName: "Favorites",
+    favsTag: (username) => `fav:${username}`,
   },
-  set(value) {
-    account.username = value ? value : null;
+  {
+    mode: "e6ai",
+    label: "e6ai",
+    showUsername: true,
+    apiItems: ["https://e6ai.net/"],
+    favsName: "Favorites",
+    favsTag: (username) => `fav:${username}`,
   },
-});
+  {
+    mode: "furbooru",
+    label: "Furbooru",
+    showUsername: false,
+    favsName: "My Faves",
+    favsTag: () => "my:faves",
+  },
+];
 
-const apiKey = computed<string>({
-  get() {
-    return account.apiKey || "";
-  },
-  set(value) {
-    account.apiKey = value ? value : null;
-  },
-});
+const accountFields = (mode: SiteMode) =>
+  reactive({
+    username: computed({
+      get: () => liveAccount(main.$state, mode).username || "",
+      set: (value: string) =>
+        setLiveAccount(main.$state, mode, { username: value || null }),
+    }),
+    apiKey: computed({
+      get: () => liveAccount(main.$state, mode).apiKey || "",
+      set: (value: string) =>
+        setLiveAccount(main.$state, mode, { apiKey: value || null }),
+    }),
+    baseUrl: computed({
+      get: () => liveBaseUrl(main.$state, mode),
+      set: (value: string) => setLiveBaseUrl(main.$state, mode, value),
+    }),
+  });
 
-const e621Url = computed<string>({
-  get() {
-    return url.e621Url
-  },
-  set(value) {
-    url.e621Url = value;
-  },
+const fields = {
+  e621: accountFields("e621"),
+  e6ai: accountFields("e6ai"),
+  furbooru: accountFields("furbooru"),
+  inkbunny: accountFields("inkbunny"),
+  furaffinity: accountFields("furaffinity"),
+};
+
+const signedInModes = (): AccountMode[] => {
+  const modes: AccountMode[] = ["e621", "e6ai", "furbooru", "inkbunny", "furaffinity"];
+  return modes.filter((mode) => {
+    const account = liveAccount(main.$state, mode);
+    return !!(account.username || account.apiKey);
+  });
+};
+
+const openAccounts = ref<AccountMode[]>(signedInModes());
+const showSecret = reactive<Record<AccountMode, boolean>>({
+  e621: false,
+  e6ai: false,
+  furbooru: false,
+  inkbunny: false,
+  furaffinity: false,
 });
 
 const proxyUrl = computed<string>({
   get() {
-    return url.proxyUrl
+    return url.proxyUrl;
   },
   set(value) {
     url.proxyUrl = value;
   },
 });
 
-const findSavedSearch = (e: SavedSearchEntry) => e.tags.length === 1 && e.tags[0] === usernameSavedSearchTag.value;
-const savedSearches = useSavedSearchStore();
-const usernameSavedSearchTag = computed(() => `fav:${username.value}`);
-const usernameSavedSearchExists = computed(() =>
-  !!savedSearches.entries.find(findSavedSearch)
-)
+const emptyAuth = () => ({ success: false, loading: false, message: "" });
+const verification = reactive<Record<KeySiteMode, ReturnType<typeof emptyAuth>>>({
+  e621: emptyAuth(),
+  e6ai: emptyAuth(),
+  furbooru: emptyAuth(),
+});
 
-const toggleFavoritesMenuItem = () => {
-  if (usernameSavedSearchExists.value) {
-    savedSearches.deleteEntry(savedSearches.entries.findIndex(findSavedSearch))
-  } else {
-    savedSearches.addEntry([usernameSavedSearchTag.value], `Favorites (${username.value})`)
-  }
-}
+const keySiteStatus = (site: KeySite) => {
+  const account = fields[site.mode];
+  if (site.mode === "furbooru") return account.apiKey ? "API key saved" : "Not signed in";
+  return account.username ? `Signed in as ${account.username}` : "Not signed in";
+};
 
-// Furbooru: "my:faves" saved search
-const FURBOORU_FAVES_TAG = "my:faves";
-const furbooruFavsSearchExists = computed(() =>
-  !!savedSearches.entries.find((e) => e.tags.length === 1 && e.tags[0] === FURBOORU_FAVES_TAG)
-);
-const toggleFurbooruFavoritesMenuItem = () => {
-  const idx = savedSearches.entries.findIndex((e) => e.tags.length === 1 && e.tags[0] === FURBOORU_FAVES_TAG);
-  if (idx >= 0) {
-    savedSearches.deleteEntry(idx);
-  } else {
-    savedSearches.addEntry([FURBOORU_FAVES_TAG], "My Faves");
+const keySiteFavsTag = (site: KeySite) => site.favsTag(fields[site.mode].username);
+const keySiteFavsExists = (site: KeySite) =>
+  searchesHaveTag(liveSearches(main.$state, site.mode), keySiteFavsTag(site));
+const keySiteFavsLabel = (site: KeySite) =>
+  site.mode === "furbooru"
+    ? site.favsName
+    : `${site.favsName} (${fields[site.mode].username})`;
+
+const toggleKeySiteFavs = (site: KeySite) => {
+  const tag = keySiteFavsTag(site);
+  if (!tag) return;
+  toggleSearchTag(liveSearches(main.$state, site.mode), tag, keySiteFavsLabel(site));
+};
+
+const verifyKeySite = async (mode: KeySiteMode) => {
+  const site = fields[mode];
+  verification[mode].loading = true;
+  try {
+    const service = await getApiService();
+    await service.verifyAccount({
+      username: site.username,
+      apiKey: site.apiKey,
+      baseUrl: site.baseUrl,
+      mode,
+    });
+    verification[mode].success = true;
+    verification[mode].message = "Credentials are valid";
+  } catch (e: any) {
+    console.dir(e);
+    verification[mode].success = false;
+    verification[mode].message = `Credentials are invalid: ${e.message || e}`;
+  } finally {
+    verification[mode].loading = false;
   }
 };
+
+for (const mode of ["e621", "e6ai", "furbooru"] as const) {
+  watch(
+    () => [fields[mode].username, fields[mode].apiKey],
+    () => {
+      verification[mode].message = "";
+      verification[mode].success = false;
+    },
+  );
+}
 
 const inkbunnyPassword = ref("");
 const inkbunnyWatchlistLoading = ref(false);
-const inkbunnyAuth = ref({
-  success: false,
-  loading: false,
-  message: "",
-});
+const inkbunnyAuth = ref(emptyAuth());
 const inkbunnyLoggedIn = computed(
   () =>
-    !!account.apiKey &&
-    !!account.username &&
-    account.username.toLowerCase() !== "guest",
+    !!fields.inkbunny.apiKey &&
+    !!fields.inkbunny.username &&
+    fields.inkbunny.username.toLowerCase() !== "guest",
 );
-
-const hasSingleTagSearch = (tag: string) =>
-  !!savedSearches.entries.find((e) => e.tags.length === 1 && e.tags[0] === tag);
-
-const upsertSingleTagSearch = (tag: string, name: string) => {
-  if (!hasSingleTagSearch(tag)) savedSearches.addEntry([tag], name);
-};
-
-const toggleSingleTagSearch = (tag: string, name: string) => {
-  const idx = savedSearches.entries.findIndex(
-    (e) => e.tags.length === 1 && e.tags[0] === tag,
-  );
-  if (idx >= 0) savedSearches.deleteEntry(idx);
-  else savedSearches.addEntry([tag], name);
-};
+const inkbunnyStatus = computed(() =>
+  inkbunnyLoggedIn.value
+    ? `Signed in as ${fields.inkbunny.username}`
+    : "Guest",
+);
 
 const INKBUNNY_UNREAD_TAG = "unread:yes";
 const INKBUNNY_FAVS_TAG = "favs:me";
-const inkbunnyUnreadExists = computed(() => hasSingleTagSearch(INKBUNNY_UNREAD_TAG));
-const inkbunnyFavsExists = computed(() => hasSingleTagSearch(INKBUNNY_FAVS_TAG));
+const inkbunnyUnreadExists = computed(() =>
+  searchesHaveTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_UNREAD_TAG),
+);
+const inkbunnyFavsExists = computed(() =>
+  searchesHaveTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_FAVS_TAG),
+);
 const toggleInkbunnyUnreadSearch = () =>
-  toggleSingleTagSearch(INKBUNNY_UNREAD_TAG, "Unread");
+  toggleSearchTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_UNREAD_TAG, "Unread");
 const toggleInkbunnyFavsSearch = () =>
-  toggleSingleTagSearch(INKBUNNY_FAVS_TAG, "My Favs");
+  toggleSearchTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_FAVS_TAG, "My Favs");
 
 const loginInkbunny = async () => {
-  if (!username.value || !inkbunnyPassword.value) return;
-  if (username.value.toLowerCase() === "guest") {
+  if (!fields.inkbunny.username || !inkbunnyPassword.value) return;
+  if (fields.inkbunny.username.toLowerCase() === "guest") {
     inkbunnyAuth.value.success = false;
     inkbunnyAuth.value.message = "Use a member account. Guest browsing needs no login.";
     return;
@@ -372,15 +525,17 @@ const loginInkbunny = async () => {
   try {
     const service = await getApiService();
     const result = await service.loginInkbunny({
-      username: username.value,
+      username: fields.inkbunny.username,
       password: inkbunnyPassword.value,
     });
-    account.username = result.username;
-    account.apiKey = result.sid;
-    account.userId = result.userId;
+    setLiveAccount(main.$state, "inkbunny", {
+      username: result.username,
+      apiKey: result.sid,
+      userId: result.userId,
+    });
     inkbunnyPassword.value = "";
-    upsertSingleTagSearch(INKBUNNY_UNREAD_TAG, "Unread");
-    upsertSingleTagSearch(INKBUNNY_FAVS_TAG, "My Favs");
+    addSearchTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_UNREAD_TAG, "Unread");
+    addSearchTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_FAVS_TAG, "My Favs");
     inkbunnyAuth.value.success = true;
     inkbunnyAuth.value.message = `Logged in as ${result.username}`;
   } catch (e: any) {
@@ -395,15 +550,17 @@ const logoutInkbunny = async () => {
   inkbunnyAuth.value.loading = true;
   try {
     const service = await getApiService();
-    if (account.apiKey) {
-      await service.logoutInkbunny({ sid: account.apiKey });
+    if (fields.inkbunny.apiKey) {
+      await service.logoutInkbunny({ sid: fields.inkbunny.apiKey });
     }
   } catch {
     // SID may already be dead; still clear local credentials
   } finally {
-    account.username = null;
-    account.apiKey = null;
-    account.userId = null;
+    setLiveAccount(main.$state, "inkbunny", {
+      username: null,
+      apiKey: null,
+      userId: null,
+    });
     inkbunnyPassword.value = "";
     inkbunnyAuth.value.loading = false;
     inkbunnyAuth.value.success = false;
@@ -412,16 +569,14 @@ const logoutInkbunny = async () => {
 };
 
 const addWatchlistSearches = async () => {
-  if (!account.apiKey) return;
+  if (!fields.inkbunny.apiKey) return;
   inkbunnyWatchlistLoading.value = true;
   try {
     const service = await getApiService();
-    const watches = await service.getInkbunnyWatchlist({ sid: account.apiKey });
+    const watches = await service.getInkbunnyWatchlist({ sid: fields.inkbunny.apiKey });
     let added = 0;
     for (const watch of watches) {
-      const tag = `user:${watch.username}`;
-      if (!hasSingleTagSearch(tag)) {
-        savedSearches.addEntry([tag], watch.username);
+      if (addSearchTag(liveSearches(main.$state, "inkbunny"), `user:${watch.username}`, watch.username)) {
         added += 1;
       }
     }
@@ -436,43 +591,110 @@ const addWatchlistSearches = async () => {
   }
 };
 
-const verification = ref({
-  success: false,
-  loading: false,
-  message: "",
-});
-const verifyCredentials = async () => {
-  verification.value.loading = true;
-  try {
-    const service = await getApiService();
-    await service.verifyAccount({
-      username: username.value,
-      apiKey: apiKey.value,
-      baseUrl: url.e621Url,
-      mode: siteMode.activeMode,
-    });
-    verification.value.success = true;
-    verification.value.message = "Credentials are valid";
-  } catch (e: any) {
-    console.dir(e);
-    verification.value.success = false;
-    verification.value.message = `Credentials are invalid: ${e.message || e}`;
-  } finally {
-    verification.value.loading = false;
-  }
-};
-
-watch(username, () => {
-  verification.value.message = "";
-  verification.value.success = false;
-});
-watch(apiKey, () => {
-  verification.value.message = "";
-  verification.value.success = false;
-});
 watch(inkbunnyPassword, () => {
   inkbunnyAuth.value.message = "";
   inkbunnyAuth.value.success = false;
 });
 
+const faPassword = ref("");
+const faWatchlistLoading = ref(false);
+const faAuth = ref(emptyAuth());
+const faLoggedIn = computed(
+  () => !!fields.furaffinity.apiKey && !!fields.furaffinity.username,
+);
+const faStatus = computed(() =>
+  faLoggedIn.value
+    ? `Signed in as ${fields.furaffinity.username}`
+    : "Host cookies or password login",
+);
+const FA_FAVS_TAG = "favs:me";
+const faFavsExists = computed(() =>
+  searchesHaveTag(liveSearches(main.$state, "furaffinity"), FA_FAVS_TAG),
+);
+const toggleFaFavsSearch = () =>
+  toggleSearchTag(liveSearches(main.$state, "furaffinity"), FA_FAVS_TAG, "My Favs");
+
+const loginFurAffinity = async () => {
+  if (!fields.furaffinity.username || !faPassword.value) return;
+  faAuth.value.loading = true;
+  faAuth.value.message = "";
+  try {
+    const service = await getApiService();
+    const result = await service.loginFurAffinity({
+      username: fields.furaffinity.username,
+      password: faPassword.value,
+    });
+    setLiveAccount(main.$state, "furaffinity", {
+      username: result.username,
+      apiKey: result.cookies,
+    });
+    faPassword.value = "";
+    addSearchTag(liveSearches(main.$state, "furaffinity"), FA_FAVS_TAG, "My Favs");
+    faAuth.value.success = true;
+    faAuth.value.message = `Logged in as ${result.username}`;
+  } catch (e: any) {
+    faAuth.value.success = false;
+    faAuth.value.message = e?.message || String(e);
+  } finally {
+    faAuth.value.loading = false;
+  }
+};
+
+const logoutFurAffinity = async () => {
+  faAuth.value.loading = true;
+  try {
+    const service = await getApiService();
+    await service.logoutFurAffinity();
+  } catch {
+    // cookies may already be dead
+  } finally {
+    setLiveAccount(main.$state, "furaffinity", {
+      username: null,
+      apiKey: null,
+    });
+    faPassword.value = "";
+    faAuth.value.loading = false;
+    faAuth.value.success = false;
+    faAuth.value.message = "Logged out. Host FA_COOKIE_A/B still apply if set.";
+  }
+};
+
+const addFaWatchlistSearches = async () => {
+  faWatchlistLoading.value = true;
+  try {
+    const service = await getApiService();
+    const watches = await service.getFurAffinityWatchlist({
+      cookies: fields.furaffinity.apiKey,
+      username: fields.furaffinity.username,
+    });
+    let added = 0;
+    for (const watch of watches) {
+      if (addSearchTag(liveSearches(main.$state, "furaffinity"), `artist:${watch.name}`, watch.name)) {
+        added += 1;
+      }
+    }
+    faAuth.value.message =
+      added > 0
+        ? `Added ${added} watchlist artist search${added === 1 ? "" : "es"}`
+        : "No new watchlist artists to add";
+  } catch (e: any) {
+    faAuth.value.message = e?.message || String(e);
+  } finally {
+    faWatchlistLoading.value = false;
+  }
+};
+
+watch(faPassword, () => {
+  faAuth.value.message = "";
+  faAuth.value.success = false;
+});
 </script>
+
+<style scoped>
+.account-panels {
+  width: 100%;
+}
+.account-panels :deep(.v-expansion-panel) {
+  background: transparent;
+}
+</style>

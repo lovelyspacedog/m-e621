@@ -97,6 +97,7 @@ const {
       page <= 1 &&
       !siteMode.isFurbooru &&
       !siteMode.isInkbunny &&
+      !siteMode.isFurAffinity &&
       !siteMode.isTailspace
     ) {
       const built = buildTagQuery(

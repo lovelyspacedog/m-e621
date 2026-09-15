@@ -26,6 +26,7 @@ const ALL_SITE_MODES: SiteMode[] = [
   "e6ai",
   "furbooru",
   "inkbunny",
+  "furaffinity",
   "local",
   "tailspace",
 ];
@@ -47,6 +48,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const isTailspace = computed(() => main.activeMode === "tailspace");
   const isFurbooru = computed(() => main.activeMode === "furbooru");
   const isInkbunny = computed(() => main.activeMode === "inkbunny");
+  const isFurAffinity = computed(() => main.activeMode === "furaffinity");
   const isUnified = computed(() => main.activeMode === "unified");
   const siteModes = computed(() =>
     ALL_SITE_MODES.filter((mode) => isModeSupported(mode)),
@@ -58,6 +60,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       case "tailspace": return "tailspace";
       case "furbooru": return "Furbooru";
       case "inkbunny": return "Inkbunny";
+      case "furaffinity": return "FurAffinity";
       case "unified": return "Unified";
       default: return "e621";
     }
@@ -134,6 +137,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     isTailspace,
     isFurbooru,
     isInkbunny,
+    isFurAffinity,
     isUnified,
     unifiedSites,
     setUnifiedChild,

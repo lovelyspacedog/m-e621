@@ -3,6 +3,7 @@
   "include": [
     "env.node.d.ts",
     "vite.config.*",
+    "vite-furaffinity-proxy.ts",
     "vitest.config.*",
     "cypress.config.*",
     "nightwatch.conf.*",

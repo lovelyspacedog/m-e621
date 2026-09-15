@@ -40,17 +40,17 @@
         </td>
       </tr>
       <tr v-if="!isLocal">
-        <th>{{ isInkbunny ? "Views" : "Score" }}</th>
+        <th>{{ isInkbunny || isFurAffinity ? "Views" : "Score" }}</th>
         <td class="post-info-value">
           <div class="d-flex align-center justify-end ga-1 flex-wrap">
-            <span v-if="isInkbunny">
+            <span v-if="isInkbunny || isFurAffinity">
               {{ post.score.total || "—" }}
             </span>
             <span v-else>
               {{ post.score.total }}
               ({{ post.score.up }} up − {{ post.score.down }} down)
             </span>
-            <template v-if="!isInkbunny">
+            <template v-if="!isInkbunny && !isFurAffinity">
               <v-btn
                 size="x-small"
                 variant="text"
@@ -73,7 +73,7 @@
         <th>Comments</th>
         <td class="post-info-value">{{ post.comment_count }}</td>
       </tr>
-      <tr v-if="!isLocal && !isFurbooru && !isInkbunny">
+      <tr v-if="!isLocal && !isFurbooru && !isInkbunny && !isFurAffinity">
         <th>Notes</th>
         <td class="post-info-value">{{ post.has_notes ? "Yes" : "No" }}</td>
       </tr>
@@ -169,6 +169,7 @@ const originMode = computed(() =>
 const isLocal = computed(() => siteMode.isLocal);
 const isFurbooru = computed(() => originMode.value === "furbooru");
 const isInkbunny = computed(() => originMode.value === "inkbunny");
+const isFurAffinity = computed(() => originMode.value === "furaffinity");
 const originLabel = computed(() =>
   (props.post as EnhancedPost).__meta?.originMode
     ? unifiedChildLabel((props.post as EnhancedPost).__meta.originMode!)
@@ -185,11 +186,11 @@ const hashLabel = computed(() => (isFurbooru.value ? "SHA-512" : "Hash"));
 const ratingLabel = computed(() => {
   switch (props.post.rating) {
     case "s":
-      return isInkbunny.value ? "General" : "Safe";
+      return isInkbunny.value || isFurAffinity.value ? "General" : "Safe";
     case "q":
-      return isInkbunny.value ? "Mature" : "Questionable";
+      return isInkbunny.value || isFurAffinity.value ? "Mature" : "Questionable";
     case "e":
-      return isInkbunny.value ? "Adult" : "Explicit";
+      return isInkbunny.value || isFurAffinity.value ? "Adult" : "Explicit";
     default:
       return props.post.rating || "—";
   }

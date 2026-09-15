@@ -16,6 +16,8 @@ import {
 import * as furbooru from "./furbooru/api";
 import * as inkbunny from "./inkbunny/api";
 import type { InkbunnyMeta } from "./inkbunny/api";
+import * as furaffinity from "./furaffinity/api";
+import type { FaMeta } from "./furaffinity/api";
 import { isPostBlacklisted } from "./blacklist";
 import { BlacklistMode, type SiteMode } from "@/services/types";
 import type { UnifiedChildMode } from "@/services/types";
@@ -28,19 +30,23 @@ import {
 
 const isFurbooruUrl = (baseUrl: string) => baseUrl.includes("furbooru.org");
 const isInkbunnyUrl = (baseUrl: string) => baseUrl.includes("inkbunny.net");
+const isFurAffinityUrl = (baseUrl: string) =>
+  /(?:^|\.)furaffinity\.net(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
 const isTailspaceUrl = (baseUrl: string) =>
   /(?:^|\.)tailspace\.com(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
 
 /** Prefer explicit mode; fall back to hostname only when mode omitted (M17). */
-type ApiBackend = "e621" | "furbooru" | "inkbunny" | "tailspace";
+type ApiBackend = "e621" | "furbooru" | "inkbunny" | "tailspace" | "furaffinity";
 
 const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
   if (mode === "furbooru") return "furbooru";
   if (mode === "inkbunny") return "inkbunny";
+  if (mode === "furaffinity") return "furaffinity";
   if (mode === "tailspace") return "tailspace";
   if (mode === "e621" || mode === "e6ai" || mode === "local") return "e621";
   if (isFurbooruUrl(baseUrl)) return "furbooru";
   if (isInkbunnyUrl(baseUrl)) return "inkbunny";
+  if (isFurAffinityUrl(baseUrl)) return "furaffinity";
   if (isTailspaceUrl(baseUrl)) return "tailspace";
   return "e621";
 };
@@ -73,6 +79,7 @@ export interface EnhancedPost extends Post {
     localPlayable?: boolean;
     localKind?: "image" | "video";
     inkbunny?: InkbunnyMeta;
+    furaffinity?: FaMeta;
     originMode?: UnifiedChildMode;
     originBaseUrl?: string;
   };
@@ -253,6 +260,30 @@ export class ApiService {
       }));
     }
 
+    if (backend === "furaffinity") {
+      const hideNegations =
+        args.blacklistMode === BlacklistMode.hide
+          ? (args.blacklist || [])
+              .filter((line) => line.length === 1 && line[0] && !line[0].startsWith("~") && !line[0].startsWith("-"))
+              .map((line) => `-${line[0]}`)
+          : [];
+      const result = await furaffinity.searchSubmissions({
+        tags: [...args.tags.filter(Boolean), ...hideNegations],
+        page: args.page,
+        limit: args.limit,
+        cookies: args.auth?.api_key ?? null,
+        username: args.auth?.login ?? null,
+      });
+      return result.posts.map<EnhancedPost>((post, index) => ({
+        ...post,
+        __meta: {
+          isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
+          pageNumber: args.page,
+          furaffinity: furaffinity.faMetaFrom(result.hits[index] || {}),
+        },
+      }));
+    }
+
     const posts = (
       await e621.posts.list({
         ...args,
@@ -294,6 +325,9 @@ export class ApiService {
         sid: null,
       });
     }
+    if (backend === "furaffinity") {
+      return furaffinity.searchKeywords(args.query ?? args.name ?? "");
+    }
     const data = await e621.tags.list(args);
     if (Array.isArray(data)) {
       return data;
@@ -305,7 +339,7 @@ export class ApiService {
   async getPools(args: IPoolsArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotTailspace(args.baseUrl, "getPools", args.mode);
-    if (backend === "furbooru" || backend === "inkbunny") {
+    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity") {
       return [];
     }
     return (await e621.pools.list(args));
@@ -314,7 +348,7 @@ export class ApiService {
   async getPool(args: IGetPoolArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotTailspace(args.baseUrl, "getPool", args.mode);
-    if (backend === "furbooru" || backend === "inkbunny") {
+    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity") {
       throw new Error("Pools are not supported on this site");
     }
     return (await e621.pools.get(args));
@@ -325,6 +359,9 @@ export class ApiService {
     assertNotTailspace(args.baseUrl, "getComments", args.mode);
     if (backend === "inkbunny") {
       return [];
+    }
+    if (backend === "furaffinity") {
+      return furaffinity.getComments(args.postId, args.auth?.api_key ?? null);
     }
     if (backend === "furbooru") {
       return furbooru.getComments({
@@ -338,7 +375,7 @@ export class ApiService {
 
   async getNotes(args: INotesListArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    if (backend === "furbooru" || backend === "inkbunny") {
+    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity") {
       return [];
     }
     return e621.notes.list(args);
@@ -348,6 +385,10 @@ export class ApiService {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     if (backend === "inkbunny") {
       return false;
+    }
+    if (backend === "furaffinity") {
+      await furaffinity.favoriteSubmission(args.postId, args.auth?.api_key ?? null);
+      return true;
     }
     if (backend === "furbooru") {
       await furbooru.favoriteImage({
@@ -373,6 +414,10 @@ export class ApiService {
     if (backend === "inkbunny") {
       return false;
     }
+    if (backend === "furaffinity") {
+      await furaffinity.unfavoriteSubmission(args.postId, args.auth?.api_key ?? null);
+      return true;
+    }
     if (backend === "furbooru") {
       await furbooru.unfavoriteImage({
         postId: args.postId,
@@ -394,7 +439,7 @@ export class ApiService {
 
   async votePost(args: IPostVoteArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    if (backend === "inkbunny") {
+    if (backend === "inkbunny" || backend === "furaffinity") {
       return { score: 0, up: 0, down: 0 };
     }
     if (backend === "furbooru") {
@@ -426,6 +471,24 @@ export class ApiService {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     if (backend === "inkbunny") {
       throw new Error("Inkbunny does not support posting comments via API");
+    }
+    if (backend === "furaffinity") {
+      await furaffinity.createComment(args.postId, args.body, args.auth?.api_key ?? null);
+      return {
+        id: Date.now(),
+        created_at: new Date().toISOString(),
+        post_id: args.postId,
+        creator_id: 0,
+        body: args.body,
+        score: 0,
+        updated_at: new Date().toISOString(),
+        updater_id: 0,
+        do_not_bump_post: false,
+        is_hidden: false,
+        is_sticky: false,
+        creator_name: args.auth?.login || "",
+        updater_name: args.auth?.login || "",
+      };
     }
     if (backend === "furbooru") {
       return furbooru.createComment({
@@ -463,6 +526,10 @@ export class ApiService {
       }
       return true;
     }
+    if (backend === "furaffinity") {
+      await furaffinity.me(args.apiKey || null);
+      return true;
+    }
     if (backend === "furbooru") {
       // Furbooru uses API key only — no username needed
       await furbooru.verifyApiKey({ apiKey: args.apiKey });
@@ -497,6 +564,49 @@ export class ApiService {
 
   async getInkbunnyWatchlist(args: { sid: string }) {
     return inkbunny.getWatchlist(args.sid);
+  }
+
+  async loginFurAffinity(args: { username: string; password: string }) {
+    return furaffinity.login(args.username, args.password);
+  }
+
+  async logoutFurAffinity() {
+    await furaffinity.logoutLocal();
+  }
+
+  async getFurAffinityWatchlist(args: { cookies?: string | null; username?: string | null }) {
+    return furaffinity.getWatchlist(args.cookies ?? null, args.username ?? null);
+  }
+
+  async enrichFurAffinityPost(
+    post: EnhancedPost,
+    args: { cookies?: string | null; blacklist?: string[][] },
+  ) {
+    const meta = post.__meta.furaffinity;
+    if (meta?.kind === "journal") {
+      const journal = await furaffinity.getJournal(post.id, args.cookies ?? null);
+      const adapted = furaffinity.adaptPartial(journal, args.cookies ?? null);
+      const merged = { ...post, ...adapted };
+      return {
+        ...merged,
+        __meta: {
+          ...post.__meta,
+          isBlacklisted: isPostBlacklisted(merged, args.blacklist || []),
+          furaffinity: furaffinity.faMetaFrom(journal, true),
+        },
+      } satisfies EnhancedPost;
+    }
+    const sub = await furaffinity.getSubmission(post.id, args.cookies ?? null);
+    const adapted = furaffinity.adaptPartial(sub, args.cookies ?? null);
+    const merged = { ...post, ...adapted };
+    return {
+      ...merged,
+      __meta: {
+        ...post.__meta,
+        isBlacklisted: isPostBlacklisted(merged, args.blacklist || []),
+        furaffinity: furaffinity.faMetaFrom(sub, true),
+      },
+    } satisfies EnhancedPost;
   }
 
   async enrichInkbunnyPost(

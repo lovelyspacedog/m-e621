@@ -26,6 +26,8 @@ export const unifiedChildLabel = (mode: SiteMode | UnifiedChildMode): string => 
       return "Furbooru";
     case "inkbunny":
       return "Inkbunny";
+    case "furaffinity":
+      return "FurAffinity";
     case "unified":
       return "Unified";
     case "local":
@@ -68,6 +70,9 @@ export const authFromAccount = (
     userId?: number | null;
   },
 ): { login: string; api_key: string } | undefined => {
+  if (mode === "furaffinity") {
+    return { login: account.username || "", api_key: account.apiKey || "" };
+  }
   if (!account.apiKey) return undefined;
   if (mode === "furbooru") {
     return { login: account.username || "", api_key: account.apiKey };
@@ -87,7 +92,7 @@ export const originModeOf = (
 export const postPageUrl = (
   post: {
     id: number;
-    __meta?: { originMode?: UnifiedChildMode; originBaseUrl?: string };
+    __meta?: { originMode?: UnifiedChildMode; originBaseUrl?: string; furaffinity?: { kind?: string } };
   },
   fallbackMode: SiteMode,
   fallbackBaseUrl: string,
@@ -101,6 +106,10 @@ export const postPageUrl = (
   const base = raw.endsWith("/") ? raw : `${raw}/`;
   if (mode === "furbooru") return `${base}images/${post.id}`;
   if (mode === "inkbunny") return `${base}s/${post.id}`;
+  if (mode === "furaffinity") {
+    if (post.__meta?.furaffinity?.kind === "journal") return `${base}journal/${post.id}`;
+    return `${base}view/${post.id}`;
+  }
   return `${base}posts/${post.id}`;
 };
 

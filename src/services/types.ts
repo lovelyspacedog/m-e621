@@ -54,15 +54,16 @@ export interface SavedSearchEntry {
 export const UNGROUPED_FAVORITE_GROUP_ID = "ungrouped";
 export const UNGROUPED_SAVED_SEARCH_GROUP_ID = "ungrouped";
 
-export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "furbooru" | "inkbunny" | "unified";
+export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "furbooru" | "inkbunny" | "furaffinity" | "unified";
 
-export type UnifiedChildMode = "e621" | "e6ai" | "furbooru" | "inkbunny";
+export type UnifiedChildMode = "e621" | "e6ai" | "furbooru" | "inkbunny" | "furaffinity";
 
 export const UNIFIED_CHILD_MODES: UnifiedChildMode[] = [
   "e621",
   "e6ai",
   "furbooru",
   "inkbunny",
+  "furaffinity",
 ];
 
 export type UnifiedSites = Record<UnifiedChildMode, boolean>;
@@ -72,6 +73,7 @@ export const defaultUnifiedSites = (): UnifiedSites => ({
   e6ai: true,
   furbooru: true,
   inkbunny: true,
+  furaffinity: true,
 });
 
 export const SITE_MODE_URLS: Record<SiteMode, string> = {
@@ -81,6 +83,7 @@ export const SITE_MODE_URLS: Record<SiteMode, string> = {
   tailspace: "https://tailspace.com/",
   furbooru: "https://furbooru.org/",
   inkbunny: "https://inkbunny.net/",
+  furaffinity: "https://www.furaffinity.net/",
   unified: "",
 };
 
@@ -104,6 +107,7 @@ export interface SiteProfile {
   baseUrl: string;
   account: {
     username: string | null;
+    /** FurAffinity stores cookies as `a=…;b=…`. Other sites store API key / session. */
     apiKey: string | null;
     /** Inkbunny member user_id (not used on other sites). */
     userId?: number | null;
@@ -135,7 +139,7 @@ export interface SiteProfile {
 // }
 
 export interface ISettingsServiceState {
-  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26;
+  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];

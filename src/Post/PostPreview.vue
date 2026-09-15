@@ -41,6 +41,10 @@
         </p>
       </div>
     </template>
+    <div v-else-if="isDocument" class="centered clickable">
+      <v-icon size="100">mdi-text-box-outline</v-icon>
+      <div>{{ file.ext === "txt" ? "Journal / story" : file.ext.toUpperCase() }}</div>
+    </div>
     <img :loading="loading" v-else-if="(isImage || isVideo) && imageSrc" :src="imageSrc" class="clickable" />
     <div v-else-if="isImage || isVideo" class="centered clickable play-button">
       <v-chip color="red" text-color="white">Global Blacklist</v-chip>
@@ -105,7 +109,10 @@ export default defineComponent({
     const remuxError = ref("");
     const isSwf = computed(() => props.file.ext === "swf");
     const isVideo = computed(() => VIDEO_EXTS.has(props.file.ext));
-    const isImage = computed(() => !isSwf.value && !isVideo.value);
+    const isDocument = computed(() =>
+      ["txt", "pdf", "html", "doc", "rtf"].includes(props.file.ext),
+    );
+    const isImage = computed(() => !isSwf.value && !isVideo.value && !isDocument.value);
     const playableUrl = computed(() =>
       !props.unplayable && isVideo.value && props.file.url
         ? proxyDownloadUrl(props.file.url)
@@ -161,7 +168,7 @@ export default defineComponent({
       if (canPlayInline.value || props.unplayable) {
         return;
       }
-      if (imageSrc.value) {
+      if (imageSrc.value || isDocument.value) {
         context.emit("open-post");
       } else {
         router.push({ name: "AccountSettings" });
@@ -252,6 +259,7 @@ export default defineComponent({
     return {
       isSwf,
       isVideo,
+      isDocument,
       isImage,
       canPlayInline,
       playableUrl,

@@ -14,11 +14,11 @@ Upstream remains the better choice if you want a stable, e621-focused client:
 
 ## What this fork adds
 
-Compared to upstream Material e621, m-e621 expands the client into a **multi-site browser** with local media tools and self-host plumbing.
+Compared to upstream Material e621 (e621-only), m-e621 expands the client into a **multi-site browser** with local media tools and self-host plumbing.
 
 ### Multi-site modes
 
-Switch sites from the sidebar. Each mode keeps its **own profile** (auth, blacklist, saved searches, history, favorites where applicable):
+Switch sites from the sidebar or landing-page chips. Each mode keeps its **own profile** (auth, blacklist, starred tags, saved searches, history, favorites where applicable):
 
 | Mode | What you get |
 |------|----------------|
@@ -26,18 +26,26 @@ Switch sites from the sidebar. Each mode keeps its **own profile** (auth, blackl
 | **e6ai** | e6ai browsing with mode-aware labels (e.g. directors instead of artists) |
 | **Furbooru** | Site mode with API-key auth, tags, comments, faves/votes |
 | **Inkbunny** | Hybrid site mode; Flash/SWF playback via [Ruffle](https://ruffle.rs/) |
-| **Tailspace** | Posts + in-app comic reader (page chunks, scroll reading, comments) |
-| **Local** | Browse a folder on disk (File System Access API); fuzzy search, random order, posters, resume, favorites |
+| **FurAffinity** | Site mode via embedded [faapi](https://github.com/FurryCoders/faapi) + `/search` scrape; host cookies (`FA_COOKIE_A`/`FA_COOKIE_B`) or username/password login |
+| **Tailspace** | Posts + in-app comic reader (page chunks, scroll / full-width reading, comments) |
+| **Local** | Browse a folder on disk (File System Access API); fuzzy search, random order, posters, resume, favorites, remux helpers |
+| **Unified** | Federated Posts feed across e621 + e6ai + Furbooru + Inkbunny + FurAffinity (toggle children in Account settings; origin badges; merge by created time) |
+
+Tailspace and Local are **not** included in Unified.
 
 ### Feed & browsing UX
 
-- Full-width feed layout
-- Starred-tag folders in the sidebar
-- Fullscreen slideshow + card auto-next
-- Inline video playback on post cards
-- Score / Favs quick actions on the search bar
-- Manage saved searches from the sidebar
-- Collapsed long artist tag lists on cards
+- Full-width feed + list / grid layout; optional compact cards (tags/buttons on hover)
+- Fullscreen slideshow + timed card auto-next
+- Inline video on post cards (remembered mute / volume / playback rate)
+- Same-origin media proxy (`/api/download`) so video plays in Firefox / Zen
+- **Score / Favs / Random** always on the Posts toolbar (unsupported sorts disabled per mode; Local adds Newest / Name / Size / Duration / Video / Stills)
+- Saved-search **groups** in the sidebar (create, rename, reorder, collapse, drag-and-drop)
+- Starred-tag folders / groups
+- Dedicated **Pools** browse pages (`/pools`, `/pools/:id`)
+- Notes tab in post details + notes overlay in fullscreen
+- Collapsed long artist / creator tag lists on cards
+- Landing-page site-mode chips (active chip opens Posts)
 
 ### Local save & remux
 
@@ -50,15 +58,18 @@ Switch sites from the sidebar. Each mode keeps its **own profile** (auth, blackl
 Upstream’s static Docker image is still fine for e621-only hosting. This fork also ships a Python `serve.py` that:
 
 - Serves the built `dist/`
-- Proxies favorites / votes / comments / downloads (avoids origin-locked Vercel workarounds)
-- Proxies Tailspace, Furbooru, and Inkbunny APIs for the multi-site modes
+- Proxies favorites / votes / comments / media downloads (avoids origin-locked Vercel workarounds; helps Firefox / Zen playback)
+- Proxies Tailspace, Furbooru, Inkbunny, and FurAffinity APIs for the multi-site modes
 - Optional git-pull control for a managed self-hosted instance
+
+Companion scripts: `start` (launcher), `sync` (pull + build + restart), `deploy.sh` + `deploy.env.example` for remote deploy. Config belongs in `~/.config/m-e621/env` or a gitignored `deploy.env`.
 
 ### Other
 
 - Zen Browser / Transparent Zen CSS compatibility (`public/zen-browser.css`)
-- PWA update banner improvements (periodic poll + clearer update text)
+- PWA update banner improvements (10-minute poll + clearer update text)
 - Dual commit timelines on the landing page (fork vs upstream)
+- Rebranded as **m-e621** (titles, icons, package name)
 
 ---
 
@@ -89,7 +100,7 @@ Fresh captures from this fork (site switcher, m-e621 branding). Content in posts
 ## Before you use this
 
 - **AI-first development.** Large chunks of code, refactors, and bugfix passes were written by AI agents. The human owner directs intent, tests what they use, and merges — this is not “hand-crafted artisan frontend.”
-- **Personal scope.** Features exist because the maintainer wanted them (Tailspace comics, Local folder, Inkbunny SWF, etc.). Unsupported site quirks may stay broken until they matter to that workflow.
+- **Personal scope.** Features exist because the maintainer wanted them (Unified federation, Tailspace comics, Local folder, Inkbunny SWF, etc.). Unsupported site quirks may stay broken until they matter to that workflow.
 - **Not affiliated** with e621, e6ai, Furbooru, Inkbunny, Tailspace, or the upstream Material e621 maintainers beyond being an AGPL fork.
 - **Content warning.** This client talks to adult imageboards. You are responsible for following each site’s rules, age requirements, and API terms.
 
@@ -132,6 +143,25 @@ python3 serve.py
 
 Open `http://127.0.0.1:18621`. Environment variables are documented at the top of `serve.py`.
 
+FurAffinity mode needs [faapi](https://github.com/FurryCoders/faapi) on the server:
+
+```bash
+uv venv .venv
+uv pip install -r requirements.txt
+# or: .venv/bin/pip install -r requirements.txt
+```
+
+`serve.py` loads `.venv` automatically. Optional host-wide login (every browser on this host):
+
+```bash
+export FA_COOKIE_A='…'
+export FA_COOKIE_B='…'
+```
+
+Those cookies are `a` and `b` from a logged-in FurAffinity session. Do not log out of that session. Username/password in Account settings is a fallback (password is not stored).
+
+Search uses FurAffinity’s HTML `/search/` (not an official JSON API). Expect ~1s crawl delay between FA requests.
+
 Optional helpers (`start`, `sync`, `deploy.sh`, `serve.py`) support a reverse-proxied self-host. Personal hostnames and secrets belong in **`~/.config/m-e621/env`** or a gitignored **`deploy.env`** — see [`deploy.env.example`](./deploy.env.example). Committed scripts default to `localhost` / public HTTPS clone URLs only.
 
 ### Docker (upstream-style static host)
@@ -142,7 +172,7 @@ sudo docker run -d -p 8080:80 ghcr.io/avoonix/material-e621:latest
 
 Or `docker compose up` with the included [`docker-compose.yml`](./docker-compose.yml).
 
-> **Note:** The published GHCR image is upstream’s. It will not include this fork’s multi-site proxy layer. For Furbooru / Inkbunny / Tailspace / Local remux helpers, use a local `npm run build` + `serve.py` (or build your own image from this tree).
+> **Note:** The published GHCR image is upstream’s. It will not include this fork’s multi-site proxy layer. For Furbooru / Inkbunny / FurAffinity / Tailspace / Local remux helpers, use a local `npm run build` + `serve.py` (or build your own image from this tree).
 
 ### Desktop (Tauri)
 

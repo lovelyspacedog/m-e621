@@ -233,6 +233,7 @@ const unifiedChildIcon = (mode: UnifiedChildMode) => {
     case "e6ai": return "mdi-robot";
     case "furbooru": return "mdi-dog";
     case "inkbunny": return "mdi-rabbit";
+    case "furaffinity": return "mdi-paw-outline";
     default: return "mdi-paw";
   }
 };
@@ -298,6 +299,7 @@ const {
       page <= 1 &&
       !siteMode.isFurbooru &&
       !siteMode.isInkbunny &&
+      !siteMode.isFurAffinity &&
       !siteMode.isTailspace &&
       !siteMode.isUnified
     ) {
@@ -582,7 +584,7 @@ const toolbarActions = computed((): ToolbarAction[] => {
     unified("favs", "order:favcount", "Favs"),
     unified("random", "order:random", "Random"),
   ];
-  if (siteMode.isInkbunny) {
+  if (siteMode.isInkbunny || siteMode.isFurAffinity) {
     actions.push({
       key: "newest",
       label: "Newest",

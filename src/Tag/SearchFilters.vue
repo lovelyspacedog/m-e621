@@ -92,6 +92,12 @@ const inkbunnySortTags = [
   { tag: "order:random", name: "Random" },
 ];
 
+const furaffinitySortTags = [
+  { tag: null, name: "Date (newest first) - Default" },
+  { tag: "order:score", name: "Popularity" },
+  { tag: "order:random", name: "Random" },
+];
+
 const localSortTags = [
   { tag: null, name: "Date (newest first) - Default" },
   { tag: "order:random", name: "Random" },
@@ -114,6 +120,12 @@ const furbooruRatingTags = [
   { tag: "questionable", name: "Questionable" },
   { tag: "explicit", name: "Explicit" },
 ];
+
+const furaffinityRatingTags = [
+  { tag: "rating:general", name: "General" },
+  { tag: "rating:mature", name: "Mature" },
+  { tag: "rating:adult", name: "Adult" },
+];
 </script>
 
 <script setup lang="ts">
@@ -130,6 +142,8 @@ const sortTagItems = computed(() => {
     ? furbooruSortTags
     : siteMode.isInkbunny
       ? inkbunnySortTags
+      : siteMode.isFurAffinity
+        ? furaffinitySortTags
       : siteMode.isLocal
         ? localSortTags
         : siteMode.isUnified
@@ -148,7 +162,11 @@ const sortTagItems = computed(() => {
 
 const showRatingFilter = computed(() => !siteMode.isInkbunny && !siteMode.isLocal);
 const ratingTagItems = computed(() =>
-  siteMode.isFurbooru ? furbooruRatingTags : e621RatingTags,
+  siteMode.isFurbooru
+    ? furbooruRatingTags
+    : siteMode.isFurAffinity
+      ? furaffinityRatingTags
+      : e621RatingTags,
 );
 
 const emit = defineEmits<{

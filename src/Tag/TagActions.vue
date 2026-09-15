@@ -42,7 +42,7 @@ export default defineComponent({
         const router = useRouter();
         const { creatorLabel } = useSiteLabels();
         const isE621Family = computed(
-          () => !siteMode.isFurbooru && !siteMode.isInkbunny && !siteMode.isLocal && !siteMode.isTailspace,
+          () => !siteMode.isFurbooru && !siteMode.isInkbunny && !siteMode.isFurAffinity && !siteMode.isLocal && !siteMode.isTailspace,
         );
         const pool = computed(() => {
             if(props.category === "pool") {
@@ -148,13 +148,19 @@ export default defineComponent({
             {
                 text: siteMode.isFurbooru
                   ? "Search on Furbooru"
+                  : siteMode.isFurAffinity
+                    ? "Search on FurAffinity"
                   : `Search on ${siteMode.activeLabel}`,
                 action: () => {
                     openUrlInNewTab(
-                      siteMode.isFurbooru ? furbooruSearchUrl.value : e621Url.value,
+                      siteMode.isFurbooru
+                        ? furbooruSearchUrl.value
+                        : siteMode.isFurAffinity
+                          ? `https://www.furaffinity.net/search/?q=${encodeURIComponent(props.name)}`
+                          : e621Url.value,
                     );
                 },
-                visible: isE621Family.value || siteMode.isFurbooru,
+                visible: isE621Family.value || siteMode.isFurbooru || siteMode.isFurAffinity,
             },
             {
                 text: `View in ${creatorLabel.value} Dashboard`,

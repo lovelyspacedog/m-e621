@@ -22,6 +22,16 @@
               @ratechange="onFullscreenRateChange">
               Video type not supported by your browser
             </video>
+            <div
+              v-else-if="isTextPost"
+              class="overflow pa-8 text-body-1"
+              style="max-width: 800px; margin: 0 auto; white-space: pre-wrap"
+            >
+              <div v-if="current.__meta?.furaffinity?.title" class="text-h5 mb-4">
+                {{ current.__meta.furaffinity.title }}
+              </div>
+              {{ current.description }}
+            </div>
             <div v-else class="overflow">
               <div class="zoom-container text-center" style="position: relative">
                 <transition :enter-active-class="enterTransitionName" :leave-active-class="leaveTransitionName"
@@ -180,10 +190,22 @@ const buttons = computed(() => {
   if (props.current?.__meta?.originMode === "inkbunny") {
     list = list.filter((button) => button !== "favorite");
   }
+  if (props.current?.__meta?.furaffinity?.kind === "journal") {
+    list = list.filter((button) => button !== "favorite");
+  }
   return list;
 });
 const isVideoExt = (ext?: string) => ext === "webm" || ext === "mp4";
 const isVideoPost = computed(() => isVideoExt(props.current?.file.ext));
+const isTextPost = computed(() => {
+  const ext = props.current?.file.ext || "";
+  return (
+    ext === "txt" ||
+    ext === "pdf" ||
+    ext === "html" ||
+    props.current?.__meta?.furaffinity?.kind === "journal"
+  );
+});
 const open = computed(() => !!props.current);
 
 watch(
@@ -202,7 +224,9 @@ const loadNotesForCurrent = async () => {
   const post = props.current;
   const originInkbunny =
     siteMode.isInkbunny || post?.__meta?.originMode === "inkbunny";
-  if (!post?.has_notes || isVideoExt(post.file.ext) || siteMode.isLocal || originInkbunny) {
+  const originFa =
+    siteMode.isFurAffinity || post?.__meta?.originMode === "furaffinity";
+  if (!post?.has_notes || isVideoExt(post.file.ext) || siteMode.isLocal || originInkbunny || originFa) {
     notes.value = [];
     return;
   }
@@ -473,6 +497,13 @@ watch(
         } else if (isVideoExt(val.file.ext)) {
           await nextTick();
           applyFullscreenPlaybackPrefs();
+          loadEnd();
+        } else if (
+          val.file.ext === "txt" ||
+          val.file.ext === "pdf" ||
+          val.file.ext === "html" ||
+          val.__meta?.furaffinity?.kind === "journal"
+        ) {
           loadEnd();
         } else {
           // Cached images may not re-fire @load after remount (M19).

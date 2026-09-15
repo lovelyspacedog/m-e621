@@ -60,18 +60,30 @@ export const usePostListManager = ({
   const indexOfPost = (target: PostPointer) =>
     findPostIndex(posts.value, pointerOf(target));
 
-  const enrichInkbunny = async (post: EnhancedPost) => {
+  const enrichRemote = async (post: EnhancedPost) => {
     const originInkbunny =
       post.__meta.originMode === "inkbunny" || siteMode.isInkbunny;
-    if (!originInkbunny) return post;
-    if (post.__meta.inkbunny?.detailsLoaded) return post;
+    const originFa =
+      post.__meta.originMode === "furaffinity" || siteMode.isFurAffinity;
+    if (originInkbunny) {
+      if (post.__meta.inkbunny?.detailsLoaded) return post;
+    } else if (originFa) {
+      if (post.__meta.furaffinity?.detailsLoaded) return post;
+    } else {
+      return post;
+    }
     try {
       const origin = originAuthForPost(post, main.$state, siteMode.activeMode);
       const service = await getApiService();
-      const updated = await service.enrichInkbunnyPost(toRaw(post), {
-        sid: origin.auth?.api_key ?? null,
-        blacklist: toRaw(origin.blacklist),
-      });
+      const updated = originInkbunny
+        ? await service.enrichInkbunnyPost(toRaw(post), {
+            sid: origin.auth?.api_key ?? null,
+            blacklist: toRaw(origin.blacklist),
+          })
+        : await service.enrichFurAffinityPost(toRaw(post), {
+            cookies: origin.auth?.api_key ?? null,
+            blacklist: toRaw(origin.blacklist),
+          });
       const idx = posts.value.findIndex((p) => postFeedKey(p) === postFeedKey(updated));
       if (idx >= 0) posts.value[idx] = updated;
       if (detailsPost.value && postFeedKey(detailsPost.value) === postFeedKey(updated)) {
@@ -294,7 +306,7 @@ export const usePostListManager = ({
   const openPostDetails = async (target: PostPointer) => {
     const idx = indexOfPost(target);
     const found = idx >= 0 ? posts.value[idx] : null;
-    detailsPost.value = found ? await enrichInkbunny(found) : null;
+    detailsPost.value = found ? await enrichRemote(found) : null;
   };
   const isValidNextPost = (post: EnhancedPost) => {
     return !!post.file.url && !post.__meta.isBlacklisted;
@@ -314,7 +326,7 @@ export const usePostListManager = ({
         );
         const nextPost = posts.value[nextPostIdx];
         if (nextPost) {
-          fullscreenPost.value = await enrichInkbunny(nextPost);
+          fullscreenPost.value = await enrichRemote(nextPost);
           return true;
         } else {
           if (loading.value) {

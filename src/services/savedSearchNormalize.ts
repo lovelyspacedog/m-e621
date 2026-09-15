@@ -67,3 +67,51 @@ export const normalizeSavedSearches = (raw: unknown): {
   }
   return { groups, entries };
 };
+
+export const searchesHaveTag = (
+  searches: { entries: SavedSearchEntry[] },
+  tag: string,
+) => searches.entries.some((e) => e.tags.length === 1 && e.tags[0] === tag);
+
+export const addSearchTag = (
+  searches: { groups: SavedSearchGroup[]; entries: SavedSearchEntry[] },
+  tag: string,
+  name: string,
+) => {
+  if (searchesHaveTag(searches, tag)) return false;
+  const destId = UNGROUPED_SAVED_SEARCH_GROUP_ID;
+  const siblings = searches.entries.filter((e) => e.groupId === destId);
+  searches.entries.push({
+    id: makeId("search"),
+    name,
+    tags: [tag],
+    groupId: destId,
+    order: siblings.length ? Math.max(...siblings.map((e) => e.order)) + 1 : 0,
+  });
+  return true;
+};
+
+export const removeSearchTag = (
+  searches: { entries: SavedSearchEntry[] },
+  tag: string,
+) => {
+  const idx = searches.entries.findIndex(
+    (e) => e.tags.length === 1 && e.tags[0] === tag,
+  );
+  if (idx < 0) return false;
+  searches.entries.splice(idx, 1);
+  return true;
+};
+
+export const toggleSearchTag = (
+  searches: { groups: SavedSearchGroup[]; entries: SavedSearchEntry[] },
+  tag: string,
+  name: string,
+) => {
+  if (searchesHaveTag(searches, tag)) {
+    removeSearchTag(searches, tag);
+    return false;
+  }
+  addSearchTag(searches, tag, name);
+  return true;
+};
