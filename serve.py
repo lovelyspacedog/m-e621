@@ -11,6 +11,7 @@ import os
 import re
 import secrets
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -102,6 +103,12 @@ TAILSPACE_AUTH_POSTS = {
 TAILSPACE_SESSION_HEADER = "X-Tailspace-Session"
 
 FURBOORU_BASE = "https://furbooru.org"
+FURBOORU_UA = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36"
+)
+# Serialize getaddrinfo patch used to prefer IPv4 for Furbooru.
+_FURBOORU_IPV4_LOCK = threading.Lock()
 FURBOORU_IMAGES_PATH = re.compile(r"^/api/furbooru/images$")
 FURBOORU_TAGS_PATH = re.compile(r"^/api/furbooru/tags$")
 FURBOORU_COMMENTS_GET_PATH = re.compile(r"^/api/furbooru/comments$")
@@ -2404,26 +2411,47 @@ class SpaHandler(SimpleHTTPRequestHandler):
         content_type: str = "application/json",
         timeout: int = 30,
     ) -> tuple[bytes, int, str]:
-        """Make a request to Furbooru and return (body, status, content_type)."""
+        """Request Furbooru with a browser UA, preferring IPv4 DNS.
+
+        Cloudflare 501-challenges the old custom proxy UA. Furbooru's IPv6/CF
+        path also 520s from some hosts while IPv4 works — force AF_INET for
+        the duration of the request (hostname TLS, not bare-IP connect).
+        """
         req = urllib.request.Request(url, method=method)
         req.add_header("Accept", "application/json")
-        req.add_header(
-            "User-Agent",
-            f"me621-furbooru-proxy/1.0 (https://{DOMAIN}; browser proxy)",
-        )
+        req.add_header("Accept-Language", "en-US,en;q=0.9")
+        req.add_header("User-Agent", FURBOORU_UA)
+        req.add_header("Referer", f"{FURBOORU_BASE}/")
+        req.add_header("Origin", FURBOORU_BASE)
         if body:
             req.add_header("Content-Type", content_type)
             req.data = body
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                data = resp.read()
-                status = getattr(resp, "status", 200)
-                ct = resp.headers.get("Content-Type", "application/json")
-            return data, status, ct
-        except urllib.error.HTTPError as exc:
-            return exc.read(), exc.code, "application/json"
-        except Exception as exc:  # noqa: BLE001
-            return json.dumps({"ok": False, "message": str(exc)}).encode(), 502, "application/json"
+
+        original_getaddrinfo = socket.getaddrinfo
+
+        def ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+            return original_getaddrinfo(
+                host, port, socket.AF_INET, type, proto, flags
+            )
+
+        with _FURBOORU_IPV4_LOCK:
+            socket.getaddrinfo = ipv4_getaddrinfo  # type: ignore[assignment]
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    data = resp.read()
+                    status = getattr(resp, "status", 200)
+                    ct = resp.headers.get("Content-Type", "application/json")
+                return data, status, ct
+            except urllib.error.HTTPError as exc:
+                return exc.read(), exc.code, "application/json"
+            except Exception as exc:  # noqa: BLE001
+                return (
+                    json.dumps({"ok": False, "message": str(exc)}).encode(),
+                    502,
+                    "application/json",
+                )
+            finally:
+                socket.getaddrinfo = original_getaddrinfo  # type: ignore[assignment]
 
     def _furbooru_respond(self, data: bytes, status: int, content_type: str) -> None:
         self.send_response(status)

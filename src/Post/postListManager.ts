@@ -69,25 +69,46 @@ export const usePostListManager = ({
       post.__meta.originMode === "inkbunny" || siteMode.isInkbunny;
     const originFa =
       post.__meta.originMode === "furaffinity" || siteMode.isFurAffinity;
+    const originSofurry =
+      post.__meta.originMode === "sofurry" || siteMode.isSofurry;
+    const originWeasyl =
+      post.__meta.originMode === "weasyl" || siteMode.isWeasyl;
     if (originInkbunny) {
       if (post.__meta.inkbunny?.detailsLoaded) return post;
     } else if (originFa) {
       if (post.__meta.furaffinity?.detailsLoaded) return post;
+    } else if (originSofurry) {
+      if (post.__meta.sofurry?.detailsLoaded) return post;
+    } else if (originWeasyl) {
+      if (post.__meta.weasyl?.detailsLoaded) return post;
     } else {
       return post;
     }
     try {
       const origin = originAuthForPost(post, main.$state, siteMode.activeMode);
       const service = await getApiService();
-      const updated = originInkbunny
-        ? await service.enrichInkbunnyPost(toRaw(post), {
-            sid: origin.auth?.api_key ?? null,
-            blacklist: toRaw(origin.blacklist),
-          })
-        : await service.enrichFurAffinityPost(toRaw(post), {
-            cookies: origin.auth?.api_key ?? null,
-            blacklist: toRaw(origin.blacklist),
-          });
+      let updated: EnhancedPost;
+      if (originInkbunny) {
+        updated = await service.enrichInkbunnyPost(toRaw(post), {
+          sid: origin.auth?.api_key ?? null,
+          blacklist: toRaw(origin.blacklist),
+        });
+      } else if (originFa) {
+        updated = await service.enrichFurAffinityPost(toRaw(post), {
+          cookies: origin.auth?.api_key ?? null,
+          blacklist: toRaw(origin.blacklist),
+        });
+      } else if (originSofurry) {
+        updated = await service.enrichSofurryPost(toRaw(post), {
+          cookies: origin.auth?.api_key ?? null,
+          blacklist: toRaw(origin.blacklist),
+        });
+      } else {
+        updated = await service.enrichWeasylPost(toRaw(post), {
+          apiKey: origin.auth?.api_key ?? null,
+          blacklist: toRaw(origin.blacklist),
+        });
+      }
       const idx = posts.value.findIndex((p) => postFeedKey(p) === postFeedKey(updated));
       if (idx >= 0) posts.value[idx] = updated;
       if (detailsPost.value && postFeedKey(detailsPost.value) === postFeedKey(updated)) {

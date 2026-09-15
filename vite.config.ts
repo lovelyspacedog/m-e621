@@ -9,11 +9,27 @@ import { execSync } from "child_process";
 import { VitePWA } from 'vite-plugin-pwa'
 import fs from 'fs';
 import path from 'path';
+import dns from 'node:dns';
 import { furaffinityProxy } from './vite-furaffinity-proxy'
 import { tailspaceProxy } from './vite-tailspace-proxy'
 import { weasylProxy } from './vite-weasyl-proxy'
 import { itakuProxy } from './vite-itaku-proxy'
 import { sofurryProxy } from './vite-sofurry-proxy'
+
+// Furbooru's Cloudflare IPv6 path 520s from some hosts; prefer IPv4.
+dns.setDefaultResultOrder('ipv4first');
+
+const FURBOORU_UA =
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) ' +
+  'Chrome/124.0.0.0 Safari/537.36';
+
+const furbooruUpstreamHeaders = (): Record<string, string> => ({
+  Accept: 'application/json',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'User-Agent': FURBOORU_UA,
+  Referer: 'https://furbooru.org/',
+  Origin: 'https://furbooru.org',
+});
 
 const MEDIA_HOST_OK = (host: string) =>
   ['.e621.net', '.e926.net', '.e6ai.net', '.furaffinity.net', '.facdn.net'].some((s) => host.endsWith(s)) ||
@@ -431,7 +447,7 @@ function furbooruProxy(): Plugin {
         const url = `${FURBOORU_BASE}/api/v1/json/search/images?${fwd}`;
         try {
           const remote = await fetch(url, {
-            headers: { Accept: 'application/json', 'User-Agent': 'me621-furbooru-proxy/1.0' },
+            headers: furbooruUpstreamHeaders(),
           });
           res.statusCode = remote.ok ? 200 : remote.status;
           setResponseHeaders(res, remote);
@@ -459,7 +475,7 @@ function furbooruProxy(): Plugin {
         const url = `${FURBOORU_BASE}/api/v1/json/search/tags?${fwd}`;
         try {
           const remote = await fetch(url, {
-            headers: { Accept: 'application/json', 'User-Agent': 'me621-furbooru-proxy/1.0' },
+            headers: furbooruUpstreamHeaders(),
           });
           res.statusCode = remote.ok ? 200 : remote.status;
           setResponseHeaders(res, remote);
@@ -492,7 +508,7 @@ function furbooruProxy(): Plugin {
         const url = `${FURBOORU_BASE}/api/v1/json/search/comments?${fwd}`;
         try {
           const remote = await fetch(url, {
-            headers: { Accept: 'application/json', 'User-Agent': 'me621-furbooru-proxy/1.0' },
+            headers: furbooruUpstreamHeaders(),
           });
           res.statusCode = remote.ok ? 200 : remote.status;
           setResponseHeaders(res, remote);
@@ -522,7 +538,7 @@ function furbooruProxy(): Plugin {
         const url = `${FURBOORU_BASE}/api/v1/json/filters/user?key=${encodeURIComponent(key)}`;
         try {
           const remote = await fetch(url, {
-            headers: { Accept: 'application/json', 'User-Agent': 'me621-furbooru-proxy/1.0' },
+            headers: furbooruUpstreamHeaders(),
           });
           res.statusCode = remote.ok ? 200 : remote.status;
           setResponseHeaders(res, remote);
@@ -549,7 +565,7 @@ function furbooruProxy(): Plugin {
         try {
           const remote = await fetch(url, {
             method: req.method,
-            headers: { Accept: 'application/json', 'User-Agent': 'me621-furbooru-proxy/1.0' },
+            headers: furbooruUpstreamHeaders(),
           });
           res.statusCode = remote.status;
           setResponseHeaders(res, remote);
@@ -582,7 +598,7 @@ function furbooruProxy(): Plugin {
         try {
           const remote = await fetch(url, {
             method: req.method,
-            headers: { Accept: 'application/json', 'User-Agent': 'me621-furbooru-proxy/1.0' },
+            headers: furbooruUpstreamHeaders(),
           });
           res.statusCode = remote.ok ? 200 : remote.status;
           setResponseHeaders(res, remote);
@@ -613,9 +629,8 @@ function furbooruProxy(): Plugin {
           const remote = await fetch(url, {
             method: 'POST',
             headers: {
+              ...furbooruUpstreamHeaders(),
               'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'User-Agent': 'me621-furbooru-proxy/1.0',
             },
             body,
           });

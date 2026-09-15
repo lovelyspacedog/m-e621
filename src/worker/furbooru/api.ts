@@ -135,6 +135,16 @@ async function fetchJson<T>(url: string, options: RequestInit = {}, retries = 2)
     lastError = new Error(
       `Furbooru proxy error: ${response.status} ${response.statusText}`,
     );
+    try {
+      const text = await response.clone().text();
+      if (/Attention Required|cf-browser-verification|Just a moment/i.test(text)) {
+        lastError = new Error(
+          `Furbooru blocked by Cloudflare (${response.status}). Retry shortly.`,
+        );
+      }
+    } catch {
+      /* keep status error */
+    }
     break;
   }
   throw lastError || new Error("Furbooru proxy error");

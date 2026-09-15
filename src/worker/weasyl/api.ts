@@ -71,6 +71,14 @@ export interface WeasylUserView {
   };
 }
 
+export type WeasylMeta = {
+  detailsLoaded?: boolean;
+};
+
+export function weasylMeta(detailsLoaded = false): WeasylMeta {
+  return { detailsLoaded };
+}
+
 // ---------------------------------------------------------------------------
 // Proxy helpers
 // ---------------------------------------------------------------------------

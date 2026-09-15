@@ -149,6 +149,19 @@ function rewriteMediaUrl(url?: string | null): string | null {
   return url;
 }
 
+type SoftContentItem = {
+  id?: string;
+  type?: string | null;
+  extension?: string | null;
+  displayUrl?: string | null;
+  meta?: {
+    width?: number | null;
+    height?: number | null;
+    wordCount?: number | null;
+    duration?: number | null;
+  } | null;
+};
+
 type SoftSubmission = {
   id?: string;
   title?: string;
@@ -158,9 +171,19 @@ type SoftSubmission = {
   thumbUrl?: string | null;
   coverUrl?: string | null;
   contentUrl?: string | null;
+  content?: SoftContentItem[] | string | null;
   publishedAt?: string | null;
   created_at?: string | null;
-  author?: string | null;
+  author?:
+    | string
+    | {
+        name?: string;
+        username?: string;
+        handle?: string;
+        avatar?: string | null;
+        avatarUrl?: string | null;
+      }
+    | null;
   authorName?: string | null;
   authorAvatar?: string | null;
   user?: { name?: string; avatar?: string | null; id?: string | number } | null;
@@ -169,9 +192,34 @@ type SoftSubmission = {
   favorite_count?: number | null;
   views?: number | null;
   isNsfw?: boolean | null;
-  content?: string | null;
+  rating?: number | string | null;
   body?: string | null;
 };
+
+export type SofurryMeta = {
+  id: string;
+  type: string;
+  author: string;
+  contentUrl?: string | null;
+  detailsLoaded?: boolean;
+};
+
+function authorNameOf(raw: SoftSubmission): string {
+  if (typeof raw.author === "string" && raw.author.trim()) return raw.author.trim();
+  if (raw.author && typeof raw.author === "object") {
+    const n =
+      raw.author.username || raw.author.handle || raw.author.name || "";
+    if (n.trim()) return n.trim();
+  }
+  if (raw.authorName?.trim()) return raw.authorName.trim();
+  if (raw.user?.name?.trim()) return raw.user.name.trim();
+  return "unknown";
+}
+
+function primaryContent(raw: SoftSubmission): SoftContentItem | null {
+  if (!Array.isArray(raw.content) || !raw.content.length) return null;
+  return raw.content[0] || null;
+}
 
 function submissionType(raw: SoftSubmission): string {
   return String(raw.type || raw.category || "artwork").toLowerCase();
@@ -182,7 +230,7 @@ function isStoryType(t: string): boolean {
 }
 
 function isArtworkType(t: string): boolean {
-  return /^(artwork|image|photography|photo)$/i.test(t) || !isStoryType(t);
+  return /^(artwork|image|photography|photo|drawing)$/i.test(t) || !isStoryType(t);
 }
 
 /** Prefer artwork + stories; allow unknown types through as best-effort. */
@@ -190,29 +238,32 @@ function includeSubmission(raw: SoftSubmission): boolean {
   const t = submissionType(raw);
   if (!t) return true;
   if (isStoryType(t) || isArtworkType(t)) return true;
-  // Music/video/etc.: include if we have a displayable thumb or content URL.
-  return !!(raw.thumbUrl || raw.contentUrl || raw.coverUrl);
+  const item = primaryContent(raw);
+  return !!(raw.thumbUrl || raw.contentUrl || raw.coverUrl || item?.displayUrl);
 }
 
-function adaptSubmission(raw: SoftSubmission): Post | null {
+function adaptSubmission(raw: SoftSubmission, detailsLoaded = false): Post | null {
   const softId = String(raw.id || "").trim();
   if (!softId) return null;
   if (!includeSubmission(raw)) return null;
 
   const t = submissionType(raw);
   const story = isStoryType(t);
-  const author =
-    raw.authorName ||
-    raw.author ||
-    raw.user?.name ||
-    "unknown";
+  const author = authorNameOf(raw);
+  const item = primaryContent(raw);
+  const contentDisplay = item?.displayUrl || null;
   const thumb = rewriteMediaUrl(raw.thumbUrl || raw.coverUrl || null);
-  let fileUrl = rewriteMediaUrl(raw.contentUrl || raw.coverUrl || raw.thumbUrl || null);
-  let ext = extFromUrl(raw.contentUrl || raw.thumbUrl || "");
+  let fileUrl = rewriteMediaUrl(
+    contentDisplay || raw.contentUrl || raw.coverUrl || raw.thumbUrl || null,
+  );
+  let ext =
+    (item?.extension || "").replace(/^\./, "").toLowerCase() ||
+    extFromUrl(contentDisplay || raw.contentUrl || raw.thumbUrl || "");
+  const width = Number(item?.meta?.width) || 0;
+  const height = Number(item?.meta?.height) || 0;
 
-  if (story) {
+  if (story || ext === "txt") {
     ext = "txt";
-    // Prefer content URL; FullscreenDialog loads text from file.url.
     if (!fileUrl) fileUrl = thumb;
   }
 
@@ -220,21 +271,30 @@ function adaptSubmission(raw: SoftSubmission): Post | null {
   const created = toEpoch(raw.publishedAt || raw.created_at);
   const score = Number(raw.likes ?? raw.favorite_count ?? 0) || 0;
   const favCount = Number(raw.favorite_count ?? raw.likes ?? 0) || 0;
+  const nsfw =
+    !!raw.isNsfw ||
+    (typeof raw.rating === "number" && raw.rating > 0) ||
+    (typeof raw.rating === "string" && /^(e|explicit|nsfw|[1-9])/i.test(raw.rating));
 
   const post = {
     id: hashidToNumericId(softId),
     created_at: String(raw.publishedAt || raw.created_at || created),
     updated_at: String(raw.publishedAt || raw.created_at || created),
     file: {
-      width: 0,
-      height: 0,
-      ext,
+      width,
+      height,
+      ext: ext || "jpg",
       size: 0,
       md5: softId,
       url: fileUrl,
     },
     preview: { width: 0, height: 0, url: thumb },
-    sample: { width: 0, height: 0, url: fileUrl || thumb, has: true },
+    sample: {
+      width,
+      height,
+      url: fileUrl || thumb,
+      has: true,
+    },
     score: { up: score, down: 0, total: score },
     tags: {
       general: tags,
@@ -243,7 +303,7 @@ function adaptSubmission(raw: SoftSubmission): Post | null {
       character: [],
       species: [],
       invalid: [],
-      meta: story ? ["story"] : [],
+      meta: story || ext === "txt" ? ["story"] : [],
       lore: [],
     },
     locked_tags: [],
@@ -256,7 +316,7 @@ function adaptSubmission(raw: SoftSubmission): Post | null {
       rating_locked: false,
       deleted: false,
     },
-    rating: raw.isNsfw ? "e" : "s",
+    rating: nsfw ? "e" : "s",
     fav_count: favCount,
     sources: [`${SOFURRY_ORIGIN}/s/${softId}`],
     pools: [],
@@ -268,18 +328,24 @@ function adaptSubmission(raw: SoftSubmission): Post | null {
     },
     approver_id: undefined,
     uploader_id: 0,
-    description: String(raw.description || raw.content || raw.body || ""),
+    description: String(
+      raw.description ||
+        (typeof raw.content === "string" ? raw.content : "") ||
+        raw.body ||
+        "",
+    ),
     comment_count: 0,
     is_favorited: false,
     has_notes: false,
     __meta: {
-      kind: story ? "story" : undefined,
+      kind: story || ext === "txt" ? "story" : undefined,
       sofurry: {
         id: softId,
         type: t,
         author,
-        contentUrl: raw.contentUrl || null,
-      },
+        contentUrl: contentDisplay || raw.contentUrl || null,
+        detailsLoaded,
+      } satisfies SofurryMeta,
     },
   } as unknown as Post;
 
@@ -400,7 +466,7 @@ function postsResponseFromSubs(
   lastPage: number,
   total: number,
 ): SoftPostsResult {
-  const posts = data.map(adaptSubmission).filter((p): p is Post => !!p);
+  const posts = data.map((raw) => adaptSubmission(raw)).filter((p): p is Post => !!p);
   return {
     posts,
     total: total || posts.length,
@@ -556,30 +622,24 @@ export async function fetchSubmission(args: {
   const softId =
     typeof args.id === "string" && /[A-Za-z]/.test(args.id)
       ? args.id
-      : null;
+      : softIdForNumeric(Number(args.id)) || String(args.id);
+  if (!softId) return null;
 
-  // Numeric id: search is impractical; try as hashid string anyway, else fail.
-  const idParam = softId || String(args.id);
-  const response = await sofurryFetch(`/s/${encodeURIComponent(idParam)}.data`);
+  const response = await sofurryFetch(`/s/${encodeURIComponent(softId)}.data`);
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`SoFurry submission failed (${response.status})`);
   const raw = await response.text();
   const unpacked = unpackSofurryData(raw) as Record<string, unknown> | null;
   if (!unpacked || typeof unpacked !== "object") return null;
 
-  // Detail root typically { submission: {...} } or nested under data.
-  const sub =
-    (unpacked.submission as SoftSubmission | undefined) ||
-    ((unpacked.data as Record<string, unknown> | undefined)?.submission as
-      | SoftSubmission
-      | undefined) ||
-    (unpacked as SoftSubmission);
+  const sub = digSubmission(unpacked);
+  if (!sub) return null;
 
-  const post = adaptSubmission(sub);
+  const post = adaptSubmission(sub, true);
   if (!post) return null;
 
   // Stories: hydrate description from content .txt when needed.
-  const meta = (post as Post & { __meta?: { kind?: string; sofurry?: { contentUrl?: string } } })
+  const meta = (post as Post & { __meta?: { kind?: string; sofurry?: SofurryMeta } })
     .__meta;
   if (meta?.kind === "story") {
     const contentUrl = meta.sofurry?.contentUrl || post.file?.url;
@@ -601,6 +661,46 @@ export async function fetchSubmission(args: {
     }
   }
   return post;
+}
+
+function digSubmission(unpacked: Record<string, unknown>): SoftSubmission | null {
+  const direct = unpacked.submission;
+  if (direct && typeof direct === "object") return direct as SoftSubmission;
+
+  const data = unpacked.data;
+  if (data && typeof data === "object") {
+    const nested = (data as Record<string, unknown>).submission;
+    if (nested && typeof nested === "object") return nested as SoftSubmission;
+  }
+
+  // Inertia single-fetch root: { root, "routes/submission.$id": { data: { submission } } }
+  for (const [key, value] of Object.entries(unpacked)) {
+    if (!/submission/i.test(key) || !value || typeof value !== "object") continue;
+    const route = value as Record<string, unknown>;
+    const routeData = route.data;
+    if (routeData && typeof routeData === "object") {
+      const sub = (routeData as Record<string, unknown>).submission;
+      if (sub && typeof sub === "object") return sub as SoftSubmission;
+    }
+    if (route.submission && typeof route.submission === "object") {
+      return route.submission as SoftSubmission;
+    }
+  }
+
+  if (unpacked.id && (unpacked.thumbUrl || unpacked.content || unpacked.contentUrl)) {
+    return unpacked as SoftSubmission;
+  }
+  return null;
+}
+
+export function sofurryMetaFromPost(post: Post): SofurryMeta | null {
+  const meta = (post as Post & { __meta?: { sofurry?: SofurryMeta } }).__meta?.sofurry;
+  return meta || null;
+}
+
+/** Merge detail into a list hit (keeps feed pageNumber / origin meta from the caller). */
+export function adaptDetails(raw: SoftSubmission): Post | null {
+  return adaptSubmission(raw, true);
 }
 
 export async function fetchSubmissionByNumericId(id: number): Promise<Post | null> {

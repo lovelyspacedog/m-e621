@@ -97,6 +97,9 @@ export interface EnhancedPost extends Post {
     localKind?: "image" | "video";
     inkbunny?: InkbunnyMeta;
     furaffinity?: FaMeta;
+    sofurry?: sofurry.SofurryMeta;
+    weasyl?: weasyl.WeasylMeta;
+    kind?: string;
     originMode?: UnifiedChildMode;
     originBaseUrl?: string;
   };
@@ -380,6 +383,7 @@ export class ApiService {
               __meta: {
                 isBlacklisted: isPostBlacklisted(post, child.blacklist),
                 pageNumber: 1,
+                weasyl: weasyl.weasylMeta(true),
               },
             });
           } catch {
@@ -585,6 +589,7 @@ export class ApiService {
         __meta: {
           isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
           pageNumber: args.page,
+          weasyl: weasyl.weasylMeta(false),
         },
       }));
     }
@@ -1121,6 +1126,83 @@ export class ApiService {
         // Recompute after keywords load — search hits lack tags (H10).
         isBlacklisted: isPostBlacklisted(merged, args.blacklist || []),
         inkbunny: inkbunny.inkbunnyMetaFromHit(sub, sid, true),
+      },
+    } satisfies EnhancedPost;
+  }
+
+  async enrichSofurryPost(
+    post: EnhancedPost,
+    args: { cookies?: string | null; blacklist?: string[][] },
+  ) {
+    if (args.cookies) sofurry.setActiveSofurryCookies(args.cookies);
+    const softId =
+      post.__meta.sofurry?.id ||
+      sofurry.softIdForNumeric(post.id) ||
+      post.file?.md5 ||
+      null;
+    if (!softId) return post;
+    const adapted = await sofurry.fetchSubmission({ id: softId });
+    if (!adapted) return post;
+    const adaptedMeta = (adapted as EnhancedPost).__meta || {};
+    const merged = {
+      ...post,
+      ...adapted,
+      file: adapted.file,
+      sample: adapted.sample,
+      preview: adapted.preview?.url ? adapted.preview : post.preview,
+      description: adapted.description || post.description,
+      tags: adapted.tags,
+    };
+    return {
+      ...merged,
+      __meta: {
+        ...post.__meta,
+        ...adaptedMeta,
+        isBlacklisted: isPostBlacklisted(merged, args.blacklist || []),
+        pageNumber: post.__meta.pageNumber,
+        originMode: post.__meta.originMode,
+        originBaseUrl: post.__meta.originBaseUrl,
+        sofurry: {
+          ...(adaptedMeta.sofurry || post.__meta.sofurry || {
+            id: softId,
+            type: "artwork",
+            author: "unknown",
+          }),
+          detailsLoaded: true,
+        },
+      },
+    } satisfies EnhancedPost;
+  }
+
+  async enrichWeasylPost(
+    post: EnhancedPost,
+    args: { apiKey?: string | null; blacklist?: string[][] },
+  ) {
+    const adapted = await weasyl.fetchSubmission({
+      id: post.id,
+      apiKey: args.apiKey ?? null,
+    });
+    const merged = {
+      ...post,
+      ...adapted,
+      file: adapted.file,
+      sample: adapted.sample,
+      preview: adapted.preview?.url ? adapted.preview : post.preview,
+      description: adapted.description || post.description,
+      tags: adapted.tags,
+      fav_count: adapted.fav_count || post.fav_count,
+      comment_count: adapted.comment_count || post.comment_count,
+      is_favorited: adapted.is_favorited,
+    };
+    return {
+      ...merged,
+      __meta: {
+        ...post.__meta,
+        isBlacklisted: isPostBlacklisted(merged, args.blacklist || []),
+        pageNumber: post.__meta.pageNumber,
+        originMode: post.__meta.originMode,
+        originBaseUrl: post.__meta.originBaseUrl,
+        weasyl: weasyl.weasylMeta(true),
       },
     } satisfies EnhancedPost;
   }
