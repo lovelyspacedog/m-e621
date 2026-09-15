@@ -57,7 +57,7 @@ const modeIcon = (mode: SiteMode) => {
     case "tailspace": return "mdi-rocket-launch";
     case "furbooru": return "mdi-dog";
     case "inkbunny": return "mdi-rabbit";
-    case "furaffinity": return "mdi-fox";
+    case "furaffinity": return "$fox";
     case "unified": return "mdi-earth";
     default: return "mdi-paw";
   }

@@ -4,6 +4,7 @@ import '@fontsource/roboto/latin.css'
 import "@mdi/font/css/materialdesignicons.min.css";
 import { defaultSettings } from "@/services/defaultSettings";
 import { md3 } from 'vuetify/blueprints'
+import { FoxIcon } from "@/misc/icons/FoxIcon";
 
 export const vuetify = createVuetify({
   blueprint: md3,
@@ -28,6 +29,10 @@ export const vuetify = createVuetify({
   },
   icons: {
     defaultSet: "mdi", // Icon sets changed
+    aliases: {
+      // @mdi/font has no fox; used for FurAffinity site mode
+      fox: FoxIcon,
+    },
   },
   defaults: {
     global: {
