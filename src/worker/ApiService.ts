@@ -18,6 +18,7 @@ import * as inkbunny from "./inkbunny/api";
 import type { InkbunnyMeta } from "./inkbunny/api";
 import * as furaffinity from "./furaffinity/api";
 import type { FaMeta } from "./furaffinity/api";
+import * as tailspace from "./tailspace/api";
 import { isPostBlacklisted } from "./blacklist";
 import { BlacklistMode, type SiteMode, type SavedPostEntry } from "@/services/types";
 import type { UnifiedChildMode } from "@/services/types";
@@ -769,6 +770,18 @@ export class ApiService {
 
   async logoutFurAffinity() {
     await furaffinity.logoutLocal();
+  }
+
+  async loginTailspace(args: { username: string; password: string }) {
+    return tailspace.login(args.username, args.password);
+  }
+
+  async loginTailspaceCookies(args: { cookies: string }) {
+    return tailspace.loginWithCookies(args.cookies);
+  }
+
+  async logoutTailspace(args?: { cookies?: string | null }) {
+    await tailspace.logoutLocal(args?.cookies);
   }
 
   async getFurAffinityWatchlist(args: { cookies?: string | null; username?: string | null }) {

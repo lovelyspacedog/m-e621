@@ -3,13 +3,31 @@
  *
  * All Tailspace calls go through our local proxy (/api/tailspace/*)
  * because tailspace.com returns no CORS headers.
+ *
+ * Protocol (Remix / React Router single-fetch, discovered 2026-09):
+ * - Session cookie: `tailspace_session=<value>` (also clears `yiffer-act-as` on logout)
+ * - Login: POST /login.data  fields: username, password, redirect
+ * - Logout: POST /logout.data
+ * - Me / verify: GET /browse-feed.data with Cookie (root.user / isLoggedIn+username)
+ * - Feed: GET /api/get-feed-paginated?page=N (auth required)
+ * - Like: POST /api/post-toggle-like.data  fields: postId
+ * - Stars: POST /api/update-your-stars.data  fields: comicId, stars
+ * - Comment (post): POST /api/post-add-comment.data  fields: postId, comment
+ * - Comment (comic): POST /api/add-comment.data  fields: comicId, comment
+ * - Follow: POST /api/follow-artist.data  fields: creatorUserId, action=follow|unfollow
+ *
+ * Client sends the session as `X-Tailspace-Session`; the proxy forwards Cookie.
  */
 import type {
   TailspacePostsResponse,
   TailspaceComicsResponse,
   TailspaceCommentsResponse,
   TailspaceComicDetail,
+  TailspaceAuthResult,
+  TailspaceLikeResult,
 } from "./types";
+import { useMainStore } from "@/services";
+import { liveAccount } from "@/services/siteProfiles";
 
 export * from "./types";
 
@@ -22,22 +40,105 @@ function proxyBase(): string {
   return `${origin}/api/tailspace`;
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
+/** Current profile session cookie string (`tailspace_session=…`), if any. */
+export function currentTailspaceSession(): string | null {
+  try {
+    const main = useMainStore();
+    const key = liveAccount(main.$state, "tailspace").apiKey;
+    return key?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+export function isTailspaceLoggedIn(): boolean {
+  return !!currentTailspaceSession();
+}
+
+function sessionHeaders(extra?: HeadersInit): HeadersInit {
+  const session = currentTailspaceSession();
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+  };
+  if (session) headers["X-Tailspace-Session"] = session;
+  if (extra) {
+    const e = new Headers(extra);
+    e.forEach((v, k) => {
+      headers[k] = v;
+    });
+  }
+  return headers;
+}
+
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    headers: sessionHeaders(init?.headers),
+  });
   if (!response.ok) {
-    throw new Error(`Tailspace proxy error: ${response.status} ${response.statusText}`);
+    let message = `${response.status} ${response.statusText}`;
+    try {
+      const err = (await response.json()) as { message?: string };
+      if (err?.message) message = err.message;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(`Tailspace proxy error: ${message}`);
   }
   return response.json() as Promise<T>;
 }
 
+async function postJson<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  return fetchJson<T>(`${proxyBase()}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 // ---------------------------------------------------------------------------
-// Posts
+// Auth
+// ---------------------------------------------------------------------------
+
+export async function login(
+  username: string,
+  password: string,
+): Promise<TailspaceAuthResult> {
+  return postJson<TailspaceAuthResult>("/login", { username, password, redirect: "" });
+}
+
+export async function loginWithCookies(cookies: string): Promise<TailspaceAuthResult> {
+  return postJson<TailspaceAuthResult>("/login-cookies", { cookies });
+}
+
+export async function me(): Promise<TailspaceAuthResult> {
+  return postJson<TailspaceAuthResult>("/me", {});
+}
+
+export async function logoutLocal(cookies?: string | null): Promise<void> {
+  try {
+    await postJson("/logout", cookies ? { cookies } : {});
+  } catch {
+    /* local clear still happens in UI */
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Posts / feed
 // ---------------------------------------------------------------------------
 
 export async function getPosts(page: number): Promise<TailspacePostsResponse> {
   const url = `${proxyBase()}/posts?page=${page}`;
   const raw = await fetchJson<TailspacePostsResponse & { data?: TailspacePostsResponse }>(url);
-  // Defensive: accept either flat {posts,hasNextPage} or wrapped {data:{...}}
+  if (raw && Array.isArray(raw.posts)) return raw;
+  if (raw?.data && Array.isArray(raw.data.posts)) return raw.data;
+  return { posts: [], hasNextPage: false };
+}
+
+/** Following / updates feed (requires login). */
+export async function getFeed(page: number): Promise<TailspacePostsResponse> {
+  const url = `${proxyBase()}/feed?page=${page}`;
+  const raw = await fetchJson<TailspacePostsResponse & { data?: TailspacePostsResponse }>(url);
   if (raw && Array.isArray(raw.posts)) return raw;
   if (raw?.data && Array.isArray(raw.data.posts)) return raw.data;
   return { posts: [], hasNextPage: false };
@@ -92,6 +193,33 @@ export function getComics(params: ComicsParams = {}): Promise<TailspaceComicsRes
 export function getComic(name: string): Promise<TailspaceComicDetail> {
   const q = new URLSearchParams({ name });
   return fetchJson<TailspaceComicDetail>(`${proxyBase()}/comic?${q}`);
+}
+
+// ---------------------------------------------------------------------------
+// Mutations
+// ---------------------------------------------------------------------------
+
+export function toggleLike(postId: number): Promise<TailspaceLikeResult> {
+  return postJson<TailspaceLikeResult>("/like", { postId });
+}
+
+export function updateStars(comicId: number, stars: number): Promise<{ ok: boolean; stars: number }> {
+  return postJson("/star", { comicId, stars });
+}
+
+export function addComment(args: {
+  comment: string;
+  postId?: number;
+  comicId?: number;
+}): Promise<{ ok: boolean }> {
+  return postJson("/comment", args);
+}
+
+export function followArtist(
+  creatorUserId: number,
+  action: "follow" | "unfollow",
+): Promise<{ ok: boolean; following: boolean }> {
+  return postJson("/follow", { creatorUserId, action });
 }
 
 // ---------------------------------------------------------------------------

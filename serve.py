@@ -88,6 +88,18 @@ TAILSPACE_POSTS_PATH = re.compile(r"^/api/tailspace/posts$")
 TAILSPACE_COMICS_PATH = re.compile(r"^/api/tailspace/comics$")
 TAILSPACE_COMIC_PATH = re.compile(r"^/api/tailspace/comic$")
 TAILSPACE_COMMENTS_PATH = re.compile(r"^/api/tailspace/comments$")
+TAILSPACE_FEED_PATH = re.compile(r"^/api/tailspace/feed$")
+TAILSPACE_AUTH_POSTS = {
+    "/api/tailspace/login",
+    "/api/tailspace/login-cookies",
+    "/api/tailspace/me",
+    "/api/tailspace/logout",
+    "/api/tailspace/like",
+    "/api/tailspace/star",
+    "/api/tailspace/comment",
+    "/api/tailspace/follow",
+}
+TAILSPACE_SESSION_HEADER = "X-Tailspace-Session"
 
 FURBOORU_BASE = "https://furbooru.org"
 FURBOORU_IMAGES_PATH = re.compile(r"^/api/furbooru/images$")
@@ -556,6 +568,26 @@ def _parse_tailspace_comic_detail(raw: bytes) -> dict:
     artist = comic.get("artist") if isinstance(comic.get("artist"), dict) else {}
     raw_comments = comic.get("comments") if isinstance(comic.get("comments"), list) else []
     comments = _normalize_comments(raw_comments)
+    decoded = data
+    if isinstance(data, list):
+        decoded = _ts_decode_pool(data)
+    route_stars = _find_key(decoded, "yourStars")
+    route_bookmarked = _find_key(decoded, "isBookmarked")
+    if route_bookmarked is None:
+        route_bookmarked = _find_key(decoded, "bookmarked")
+    your_stars = comic.get("yourStars")
+    if not isinstance(your_stars, (int, float)):
+        your_stars = route_stars if isinstance(route_stars, (int, float)) else None
+    bookmarked = bool(
+        comic.get("isBookmarked")
+        if comic.get("isBookmarked") is not None
+        else comic.get("bookmarked")
+        if comic.get("bookmarked") is not None
+        else route_bookmarked
+        if route_bookmarked is not None
+        else False
+    )
+    creator_user_id = artist.get("creatorUserId")
     return {
         "id": comic.get("id"),
         "name": comic.get("name"),
@@ -564,10 +596,13 @@ def _parse_tailspace_comic_detail(raw: bytes) -> dict:
         "numberOfPages": int(comic.get("numberOfPages") or len(pages)),
         "description": comic.get("description"),
         "avgStars": comic.get("avgStars"),
+        "yourStars": your_stars,
+        "bookmarked": bookmarked,
         "commentCount": len(comments),
         "thumbnailVersion": comic.get("thumbnailVersion") or 0,
         "artistName": artist.get("name") or artist.get("creatorUsername") or "",
         "artistDisplayName": artist.get("name") or artist.get("creatorUsername") or "",
+        "creatorUserId": creator_user_id if isinstance(creator_user_id, int) else None,
         "pages": pages,
         "comments": comments,
         "previousComic": (
@@ -936,31 +971,46 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 return
         self._json(502, {"ok": False, "message": "too many redirects"})
 
+    def _tailspace_session(self) -> str:
+        raw = (self.headers.get(TAILSPACE_SESSION_HEADER) or "").strip()
+        return _normalize_tailspace_session(raw)
+
     def _tailspace_request(
         self,
         url: str,
         *,
         accept: str = "application/json, */*",
         timeout: int = 30,
-    ) -> tuple[bytes, int, str]:
-        """Fetch a Tailspace URL and return (body, status, content_type)."""
-        req = urllib.request.Request(url, method="GET")
+        method: str = "GET",
+        body: bytes | None = None,
+        cookie: str | None = None,
+        content_type: str | None = None,
+        referer: str | None = None,
+    ) -> tuple[bytes, int, str, list[str]]:
+        """Fetch a Tailspace URL and return (body, status, content_type, set_cookie_lines)."""
+        req = urllib.request.Request(url, data=body, method=method)
         req.add_header("Accept", accept)
         req.add_header("Accept-Language", "en-US,en;q=0.9")
         req.add_header(
             "User-Agent",
-            f"me621-tailspace-proxy/1.0 (https://{DOMAIN}; read-only browser proxy)",
+            f"me621-tailspace-proxy/1.0 (https://{DOMAIN}; browser proxy)",
         )
-        # Tailspace expects the referer / sec-fetch headers for data endpoints
-        req.add_header("Referer", TAILSPACE_BASE + "/")
+        req.add_header("Referer", referer or (TAILSPACE_BASE + "/"))
+        req.add_header("Origin", TAILSPACE_BASE)
+        if content_type:
+            req.add_header("Content-Type", content_type)
+        if cookie:
+            req.add_header("Cookie", cookie)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
-                body = resp.read()
+                resp_body = resp.read()
                 status = getattr(resp, "status", 200)
                 ct = resp.headers.get("Content-Type", "application/json")
-            return body, status, ct
+                set_cookies = resp.headers.get_all("Set-Cookie") or []
+            return resp_body, status, ct, set_cookies
         except urllib.error.HTTPError as exc:
-            return exc.read(), exc.code, "application/json"
+            set_cookies = exc.headers.get_all("Set-Cookie") if exc.headers else []
+            return exc.read(), exc.code, "application/json", set_cookies or []
 
     def _proxy_tailspace_posts(self, parsed) -> None:
         params = parse_qs(parsed.query)
@@ -970,7 +1020,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
         except ValueError:
             page_n = 1
         url = f"{TAILSPACE_BASE}/api/get-browse-posts-paginated?page={page_n}"
-        body, status, ct = self._tailspace_request(url)
+        body, status, ct, _sc = self._tailspace_request(url, cookie=self._tailspace_session())
         if status == 200:
             try:
                 data = _normalize_tailspace_posts(json.loads(body))
@@ -998,9 +1048,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
         qs = urlencode(fwd)
         url = f"{TAILSPACE_BASE}/browse.data" + (f"?{qs}" if qs else "")
-        body, status, _ct = self._tailspace_request(
+        body, status, _ct, _sc = self._tailspace_request(
             url,
             accept="text/x-turbo-stream, application/json, */*",
+            cookie=self._tailspace_session(),
         )
         if status != 200:
             self._json(status, {"ok": False, "message": f"upstream returned {status}"})
@@ -1019,9 +1070,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return
 
         url = f"{TAILSPACE_BASE}/c/{quote(name, safe='')}.data"
-        body, status, _ct = self._tailspace_request(
+        body, status, _ct, _sc = self._tailspace_request(
             url,
             accept="text/x-turbo-stream, application/json, */*",
+            cookie=self._tailspace_session(),
         )
         if status != 200:
             self._json(status, {"ok": False, "message": f"upstream returned {status}"})
@@ -1044,9 +1096,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
             self._json(400, {"ok": False, "message": "invalid username"})
             return
         url = f"{TAILSPACE_BASE}/artist/{quote(username, safe='')}/post/{post_id}.data"
-        body, status, _ct = self._tailspace_request(
+        body, status, _ct, _sc = self._tailspace_request(
             url,
             accept="text/x-turbo-stream, application/json, */*",
+            cookie=self._tailspace_session(),
         )
         if status != 200:
             self._json(status, {"ok": False, "message": f"upstream returned {status}"})
@@ -1056,6 +1109,241 @@ class SpaHandler(SimpleHTTPRequestHandler):
             self._json(200, {"comments": comments})
         except Exception as exc:  # noqa: BLE001
             self._json(502, {"ok": False, "message": f"parse error: {exc}"})
+
+
+    def _tailspace_remix_action(self, path: str, fields: dict, cookie: str = "") -> tuple[bytes, int, list[str]]:
+        body = urlencode(fields).encode("utf-8")
+        raw, status, _ct, set_cookies = self._tailspace_request(
+            f"{TAILSPACE_BASE}{path}",
+            method="POST",
+            body=body,
+            cookie=cookie or None,
+            accept="text/x-script",
+            content_type="application/x-www-form-urlencoded;charset=UTF-8",
+        )
+        return raw, status, set_cookies
+
+    def _tailspace_fetch_me(self, cookie: str) -> dict | None:
+        raw, status, _ct, _sc = self._tailspace_request(
+            f"{TAILSPACE_BASE}/browse-feed.data",
+            accept="text/x-script",
+            cookie=cookie,
+            referer=f"{TAILSPACE_BASE}/browse-feed",
+        )
+        text = raw.decode("utf-8", errors="replace")
+        if '"redirect"' in text and "/login" in text:
+            return None
+        decoded = _decode_remix_payload(text)
+        user = _extract_tailspace_user(decoded)
+        if user:
+            return user
+        logged_in = _find_key(decoded, "isLoggedIn")
+        username = _find_key(decoded, "username")
+        if logged_in is True and isinstance(username, str) and username.strip():
+            return {"username": username.strip(), "userId": None}
+        return None
+
+    def _proxy_tailspace_feed(self, parsed) -> None:
+        cookie = self._tailspace_session()
+        if not cookie:
+            self._json(401, {"ok": False, "message": "Tailspace login required"})
+            return
+        params = parse_qs(parsed.query)
+        try:
+            page_n = max(1, int((params.get("page") or ["1"])[0]))
+        except ValueError:
+            page_n = 1
+        url = f"{TAILSPACE_BASE}/api/get-feed-paginated?page={page_n}"
+        body, status, _ct, _sc = self._tailspace_request(url, cookie=cookie)
+        if status != 200:
+            self._json(status, {"ok": False, "message": f"upstream returned {status}"})
+            return
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            decoded = _decode_remix_payload(body.decode("utf-8", errors="replace"))
+            payload = decoded if isinstance(decoded, dict) else {}
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+        if not isinstance(data, dict):
+            data = {}
+        self._json(
+            200,
+            {
+                "posts": data.get("posts") or [],
+                "hasNextPage": bool(data.get("hasNextPage") or data.get("hasMorePosts")),
+            },
+        )
+
+    def _proxy_tailspace_auth_post(self, path: str, body: bytes) -> None:
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}") if body else {}
+            if not isinstance(payload, dict):
+                raise ValueError("object required")
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+            self._json(400, {"ok": False, "message": f"invalid json: {exc}"})
+            return
+
+        cookie_body = _normalize_tailspace_session(str(payload.get("cookies") or ""))
+        cookie = cookie_body or self._tailspace_session()
+
+        if path == "/api/tailspace/login":
+            username = str(payload.get("username") or "").strip()
+            password = str(payload.get("password") or "")
+            if not username or not password:
+                self._json(400, {"ok": False, "message": "username and password required"})
+                return
+            raw, _status, set_cookies = self._tailspace_remix_action(
+                "/login.data",
+                {
+                    "username": username,
+                    "password": password,
+                    "redirect": str(payload.get("redirect") or ""),
+                },
+            )
+            data = _remix_action_data(_decode_remix_payload(raw.decode("utf-8", errors="replace")))
+            if data.get("success") is False or data.get("error"):
+                self._json(401, {"ok": False, "message": str(data.get("error") or "Login failed")})
+                return
+            session = _extract_tailspace_session_cookie(set_cookies)
+            if not session:
+                self._json(
+                    401,
+                    {"ok": False, "message": "Login did not return a session cookie (captcha or blocked?)"},
+                )
+                return
+            me = self._tailspace_fetch_me(session)
+            if not me:
+                self._json(401, {"ok": False, "message": "Session could not be verified"})
+                return
+            self._json(200, {"ok": True, "username": me["username"], "userId": me.get("userId"), "cookies": session})
+            return
+
+        if path == "/api/tailspace/login-cookies":
+            session = _normalize_tailspace_session(
+                str(payload.get("cookies") or payload.get("cookie") or payload.get("session") or "")
+            )
+            if not session:
+                self._json(400, {"ok": False, "message": "cookies required"})
+                return
+            me = self._tailspace_fetch_me(session)
+            if not me:
+                self._json(401, {"ok": False, "message": "Invalid or expired Tailspace session cookie"})
+                return
+            self._json(200, {"ok": True, "username": me["username"], "userId": me.get("userId"), "cookies": session})
+            return
+
+        if path == "/api/tailspace/me":
+            if not cookie:
+                self._json(401, {"ok": False, "message": "not logged in"})
+                return
+            me = self._tailspace_fetch_me(cookie)
+            if not me:
+                self._json(401, {"ok": False, "message": "Invalid or expired Tailspace session"})
+                return
+            self._json(200, {"ok": True, **me, "cookies": cookie})
+            return
+
+        if path == "/api/tailspace/logout":
+            if cookie:
+                self._tailspace_remix_action("/logout.data", {}, cookie)
+            self._json(200, {"ok": True})
+            return
+
+        if not cookie:
+            self._json(401, {"ok": False, "message": "Tailspace login required"})
+            return
+
+        if path == "/api/tailspace/like":
+            post_id = str(payload.get("postId") or "")
+            if not post_id.isdigit():
+                self._json(400, {"ok": False, "message": "postId required"})
+                return
+            raw, _status, _sc = self._tailspace_remix_action(
+                "/api/post-toggle-like.data", {"postId": post_id}, cookie
+            )
+            data = _remix_action_data(_decode_remix_payload(raw.decode("utf-8", errors="replace")))
+            if data.get("error"):
+                self._json(400, {"ok": False, "message": str(data.get("error"))})
+                return
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "liked": bool(data.get("liked")),
+                    "likeCount": int(data.get("likeCount") or 0),
+                },
+            )
+            return
+
+        if path == "/api/tailspace/star":
+            comic_id = str(payload.get("comicId") or "")
+            stars = str(payload.get("stars") or "")
+            if not comic_id.isdigit() or not stars.isdigit():
+                self._json(400, {"ok": False, "message": "comicId and stars required"})
+                return
+            raw, _status, _sc = self._tailspace_remix_action(
+                "/api/update-your-stars.data",
+                {"comicId": comic_id, "stars": stars},
+                cookie,
+            )
+            data = _remix_action_data(_decode_remix_payload(raw.decode("utf-8", errors="replace")))
+            if data.get("error"):
+                self._json(400, {"ok": False, "message": str(data.get("error"))})
+                return
+            self._json(200, {"ok": True, "stars": int(stars), "data": data})
+            return
+
+        if path == "/api/tailspace/comment":
+            comment = str(payload.get("comment") or "").strip()
+            post_id = str(payload.get("postId") or "")
+            comic_id = str(payload.get("comicId") or "")
+            if not comment:
+                self._json(400, {"ok": False, "message": "comment required"})
+                return
+            if post_id.isdigit():
+                raw, _status, _sc = self._tailspace_remix_action(
+                    "/api/post-add-comment.data",
+                    {"postId": post_id, "comment": comment},
+                    cookie,
+                )
+            elif comic_id.isdigit():
+                raw, _status, _sc = self._tailspace_remix_action(
+                    "/api/add-comment.data",
+                    {"comicId": comic_id, "comment": comment},
+                    cookie,
+                )
+            else:
+                self._json(400, {"ok": False, "message": "postId or comicId required"})
+                return
+            data = _remix_action_data(_decode_remix_payload(raw.decode("utf-8", errors="replace")))
+            if data.get("error") or data.get("success") is False:
+                self._json(400, {"ok": False, "message": str(data.get("error") or "Comment failed")})
+                return
+            self._json(200, {"ok": True, "data": data})
+            return
+
+        if path == "/api/tailspace/follow":
+            creator_user_id = str(payload.get("creatorUserId") or "")
+            action = str(payload.get("action") or "").lower()
+            if not creator_user_id.isdigit() or action not in ("follow", "unfollow"):
+                self._json(
+                    400,
+                    {"ok": False, "message": "creatorUserId and action=follow|unfollow required"},
+                )
+                return
+            raw, _status, _sc = self._tailspace_remix_action(
+                "/api/follow-artist.data",
+                {"creatorUserId": creator_user_id, "action": action},
+                cookie,
+            )
+            data = _remix_action_data(_decode_remix_payload(raw.decode("utf-8", errors="replace")))
+            if data.get("error") or data.get("success") is False:
+                self._json(400, {"ok": False, "message": str(data.get("error") or "Follow failed")})
+                return
+            self._json(200, {"ok": True, "following": action == "follow", "data": data})
+            return
+
+        self._json(404, {"ok": False, "message": "not found"})
 
     # ------------------------------------------------------------------
     # Furbooru proxy helpers
@@ -1324,6 +1612,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if TAILSPACE_COMMENTS_PATH.match(path):
             self._proxy_tailspace_comments(parsed)
             return
+        if TAILSPACE_FEED_PATH.match(path):
+            self._proxy_tailspace_feed(parsed)
+            return
         if FURBOORU_IMAGES_PATH.match(path):
             self._proxy_furbooru_images(parsed)
             return
@@ -1417,6 +1708,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
         fa_match = FURAFFINITY_PATH.match(path)
         if fa_match:
             self._proxy_furaffinity(fa_match.group(1), body)
+            return
+
+        if path in TAILSPACE_AUTH_POSTS:
+            self._proxy_tailspace_auth_post(path, body)
             return
 
         if path != "/api/git/pull":

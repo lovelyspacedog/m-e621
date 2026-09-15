@@ -218,6 +218,12 @@ const router = createRouter({
         import(/* webpackChunkName: "tailspace" */ "@/Tailspace/TailspaceComicsPage.vue"),
     },
     {
+      path: "/tailspace/following",
+      name: "TailspaceFollowing",
+      component: () =>
+        import(/* webpackChunkName: "tailspace" */ "@/Tailspace/TailspaceFollowingPage.vue"),
+    },
+    {
       path: "/tailspace/comic/:name+",
       name: "TailspaceComic",
       component: () =>
@@ -240,6 +246,7 @@ router.beforeEach((to) => {
       "TailspacePosts",
       "TailspaceComics",
       "TailspaceComic",
+      "TailspaceFollowing",
     ]);
     const e621ShapedRoutes = new Set([
       "Posts",

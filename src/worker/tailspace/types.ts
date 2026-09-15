@@ -122,12 +122,31 @@ export interface TailspaceComicDetail {
   numberOfPages: number;
   description: string | null;
   avgStars: number | null;
+  /** Viewer rating 0–3 when logged in; null otherwise. */
+  yourStars?: number | null;
+  bookmarked?: boolean;
   commentCount: number;
   thumbnailVersion: number;
   artistName: string;
   artistDisplayName: string;
+  /** Present when the comic artist is linked to a Tailspace creator account. */
+  creatorUserId?: number | null;
   pages: TailspaceComicPage[];
   comments: TailspaceComment[];
   previousComic: TailspaceComicNeighbor | null;
   nextComic: TailspaceComicNeighbor | null;
+}
+
+export interface TailspaceAuthResult {
+  ok: boolean;
+  username: string;
+  userId?: number | null;
+  cookies: string;
+  message?: string;
+}
+
+export interface TailspaceLikeResult {
+  ok: boolean;
+  liked: boolean;
+  likeCount: number;
 }

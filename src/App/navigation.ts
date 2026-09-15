@@ -57,7 +57,7 @@ export const useTrailingNavigationItems = () => {
       },
     };
 
-    // Tailspace mode: only Posts + Comics + Settings
+    // Tailspace mode: only Posts + Comics + Following + Settings
     if (siteMode.isTailspace) {
       return [
         {
@@ -71,6 +71,12 @@ export const useTrailingNavigationItems = () => {
           name: "Comics",
           exact: false,
           to: { name: "TailspaceComics" },
+        },
+        {
+          icon: "mdi-account-heart",
+          name: "Following",
+          exact: false,
+          to: { name: "TailspaceFollowing" },
         },
         settings,
       ].map((item) => resolveItem(router, item));

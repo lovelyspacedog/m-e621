@@ -27,7 +27,7 @@ Switch sites from the sidebar or landing-page chips. Each mode keeps its **own p
 | **Furbooru** | Site mode with API-key auth, tags, comments, faves/votes |
 | **Inkbunny** | Hybrid site mode; Flash/SWF playback via [Ruffle](https://ruffle.rs/) |
 | **FurAffinity** | Site mode via embedded [faapi](https://github.com/FurryCoders/faapi) + `/search` scrape; host cookies (`FA_COOKIE_A`/`FA_COOKIE_B`) or username/password login |
-| **Tailspace** | Posts + in-app comic reader (page chunks, scroll / full-width reading, comments) |
+| **Tailspace** | Posts + in-app comic reader (page chunks, scroll / full-width reading, comments); optional account login for likes, stars, comments, follow / Following feed |
 | **Local** | Browse a folder on disk (File System Access API); fuzzy search, random order, posters, resume, favorites, remux helpers |
 | **Unified** | Federated Posts feed across e621 + e6ai + Furbooru + Inkbunny + FurAffinity (toggle children in Account settings; origin badges; merge by created time) |
 
@@ -159,6 +159,8 @@ export FA_COOKIE_B='…'
 ```
 
 Those cookies are `a` and `b` from a logged-in FurAffinity session. Do not log out of that session. Username/password in Account settings is a fallback (password is not stored).
+
+Tailspace login is profile-only (Account settings): password or a pasted `tailspace_session` cookie. The password is not stored; the session cookie is kept in the Tailspace profile like other site credentials.
 
 Search uses FurAffinity’s HTML `/search/` (not an official JSON API). Expect ~1s crawl delay between FA requests.
 

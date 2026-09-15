@@ -18,10 +18,34 @@
           <div class="ts-reader-meta">
             <span v-if="comic.artistDisplayName">{{ comic.artistDisplayName }}</span>
             <span>{{ comic.numberOfPages }} pages</span>
-            <span v-if="comic.avgStars != null">
+            <span v-if="comic.avgStars != null" class="ts-stars-avg">
               <v-icon size="12">mdi-star</v-icon>
               {{ Number(comic.avgStars).toFixed(1) }}
             </span>
+            <span class="ts-stars-rate" :title="loggedIn ? 'Your rating' : 'Log in under Account to rate'">
+              <button
+                v-for="n in 3"
+                :key="n"
+                type="button"
+                class="ts-star-btn"
+                :class="{ 'ts-star-btn--on': yourStars >= n }"
+                :disabled="!loggedIn || starLoading"
+                @click="onRate(n)"
+              >
+                <v-icon size="16">{{ yourStars >= n ? "mdi-star" : "mdi-star-outline" }}</v-icon>
+              </button>
+            </span>
+            <v-btn
+              v-if="comic.creatorUserId"
+              size="x-small"
+              variant="tonal"
+              :color="following ? 'primary' : undefined"
+              :loading="followLoading"
+              :disabled="!loggedIn"
+              @click="onToggleFollow"
+            >
+              {{ following ? "Following" : "Follow" }}
+            </v-btn>
             <button
               type="button"
               class="ts-reader-comments-link"
@@ -31,6 +55,10 @@
               {{ comic.comments?.length ?? comic.commentCount ?? 0 }}
             </button>
           </div>
+          <div v-if="!loggedIn" class="text-caption text-medium-emphasis mt-1">
+            Log in under Account to rate, follow, or comment.
+          </div>
+          <div v-else-if="actionError" class="text-caption text-error mt-1">{{ actionError }}</div>
         </div>
         <div class="ts-reader-actions">
           <v-btn-toggle
@@ -263,6 +291,29 @@
           </div>
         </div>
       </div>
+      <div class="ts-comment-composer mt-4">
+        <v-textarea
+          v-model="commentDraft"
+          variant="filled"
+          density="compact"
+          rows="2"
+          auto-grow
+          hide-details
+          :disabled="!loggedIn || commentSending"
+          :placeholder="loggedIn ? 'Write a comment…' : 'Log in under Account to comment'"
+        />
+        <v-btn
+          class="mt-2"
+          size="small"
+          color="accent"
+          variant="tonal"
+          :disabled="!loggedIn || !commentDraft.trim()"
+          :loading="commentSending"
+          @click="onSendComment"
+        >
+          Post comment
+        </v-btn>
+      </div>
     </div>
 
     <!-- Fullscreen page viewer -->
@@ -347,13 +398,17 @@
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
+  addComment,
+  followArtist,
   getComic,
   comicUrl,
   comicPageFull,
   comicPageThumb,
   profilePhoto,
+  updateStars,
   type TailspaceComicDetail,
 } from "@/worker/tailspace/api";
+import { useTailspaceSession } from "./useTailspaceSession";
 
 type ViewMode = "gallery" | "scroll";
 const VIEW_MODE_KEY = "tailspace-comic-view-mode";
@@ -381,6 +436,8 @@ function loadFullWidthScroll(): boolean {
 
 const route = useRoute();
 const router = useRouter();
+const { isLoggedIn } = useTailspaceSession();
+const loggedIn = computed(() => isLoggedIn());
 
 const comic = ref<TailspaceComicDetail | null>(null);
 const loading = ref(false);
@@ -392,6 +449,13 @@ const viewMode = ref<ViewMode>(loadViewMode());
 const fullWidthScroll = ref(loadFullWidthScroll());
 /** 1-based chunk within gallery/scroll (not the comic page number). */
 const chunkPage = ref(Number(route.query.chunk) || 1);
+const yourStars = ref(0);
+const starLoading = ref(false);
+const following = ref(false);
+const followLoading = ref(false);
+const commentDraft = ref("");
+const commentSending = ref(false);
+const actionError = ref<string | null>(null);
 
 watch(viewMode, (mode) => {
   try { localStorage.setItem(VIEW_MODE_KEY, mode); } catch { /* ignore */ }
@@ -547,6 +611,10 @@ async function loadComic(name: string) {
   viewerOpen.value = false;
   try {
     comic.value = await getComic(name);
+    yourStars.value = Number(comic.value.yourStars ?? 0);
+    following.value = false;
+    actionError.value = null;
+    commentDraft.value = "";
     const qPage = Number(route.query.page);
     const qChunk = Number(route.query.chunk);
     if (qPage > 0) {
@@ -570,6 +638,65 @@ async function loadComic(name: string) {
     loading.value = false;
   }
 }
+
+const onRate = async (n: number) => {
+  if (!loggedIn.value || !comic.value || starLoading.value) {
+    if (!loggedIn.value) actionError.value = "Log in under Account to rate.";
+    return;
+  }
+  const next = yourStars.value === n ? 0 : n;
+  starLoading.value = true;
+  actionError.value = null;
+  const prev = yourStars.value;
+  yourStars.value = next;
+  try {
+    await updateStars(comic.value.id, next);
+    if (comic.value) comic.value.yourStars = next;
+  } catch (e) {
+    yourStars.value = prev;
+    actionError.value = e instanceof Error ? e.message : "Rating failed.";
+  } finally {
+    starLoading.value = false;
+  }
+};
+
+const onToggleFollow = async () => {
+  const id = comic.value?.creatorUserId;
+  if (!loggedIn.value || !id || followLoading.value) {
+    if (!loggedIn.value) actionError.value = "Log in under Account to follow.";
+    return;
+  }
+  followLoading.value = true;
+  actionError.value = null;
+  const next = !following.value;
+  following.value = next;
+  try {
+    const res = await followArtist(id, next ? "follow" : "unfollow");
+    following.value = res.following;
+  } catch (e) {
+    following.value = !next;
+    actionError.value = e instanceof Error ? e.message : "Follow failed.";
+  } finally {
+    followLoading.value = false;
+  }
+};
+
+const onSendComment = async () => {
+  const text = commentDraft.value.trim();
+  if (!loggedIn.value || !comic.value || !text || commentSending.value) return;
+  commentSending.value = true;
+  actionError.value = null;
+  try {
+    await addComment({ comicId: comic.value.id, comment: text });
+    commentDraft.value = "";
+    comic.value = await getComic(comicName.value);
+    yourStars.value = Number(comic.value.yourStars ?? yourStars.value);
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : "Comment failed.";
+  } finally {
+    commentSending.value = false;
+  }
+};
 
 function openPage(pageNumber: number) {
   if (!comic.value) return;
@@ -721,6 +848,27 @@ watch(chunkCount, (n) => {
 .ts-reader-comments-link:hover {
   opacity: 1;
   text-decoration: underline;
+}
+.ts-stars-rate {
+  display: inline-flex;
+  align-items: center;
+}
+.ts-star-btn {
+  background: transparent;
+  border: 0;
+  padding: 0 1px;
+  color: inherit;
+  cursor: pointer;
+  line-height: 1;
+  opacity: 0.85;
+}
+.ts-star-btn--on {
+  color: #ffc107;
+  opacity: 1;
+}
+.ts-star-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .ts-reader-actions {

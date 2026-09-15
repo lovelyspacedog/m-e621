@@ -134,10 +134,17 @@
 
         <!-- Stats row -->
         <div class="ts-info-stats">
-          <span title="Likes">
-            <v-icon size="14">mdi-heart-outline</v-icon>
-            {{ post.likeCount }}
-          </span>
+          <button
+            type="button"
+            class="ts-stat-btn"
+            :class="{ 'ts-stat-btn--active': liked }"
+            :disabled="likeLoading"
+            :title="loggedIn ? (liked ? 'Unlike' : 'Like') : 'Log in under Account to like'"
+            @click="onToggleLike"
+          >
+            <v-icon size="14">{{ liked ? "mdi-heart" : "mdi-heart-outline" }}</v-icon>
+            {{ likeCount }}
+          </button>
           <span title="Comments">
             <v-icon size="14">mdi-comment-outline</v-icon>
             {{ post.commentCount }}
@@ -150,6 +157,24 @@
             <v-icon size="14">mdi-image-multiple</v-icon>
             {{ mediaIndex + 1 }} / {{ post.media.length }}
           </span>
+        </div>
+
+        <div class="ts-info-actions-row">
+          <v-btn
+            v-if="post.creator.userId"
+            size="x-small"
+            variant="tonal"
+            :color="following ? 'primary' : undefined"
+            :loading="followLoading"
+            :disabled="!loggedIn"
+            @click="onToggleFollow"
+          >
+            {{ following ? "Following" : "Follow" }}
+          </v-btn>
+          <span v-if="!loggedIn" class="text-caption text-medium-emphasis">
+            Log in under Account to like, follow, or comment.
+          </span>
+          <span v-else-if="actionError" class="text-caption text-error">{{ actionError }}</span>
         </div>
 
         <!-- Tags -->
@@ -210,6 +235,30 @@
               </div>
             </div>
           </div>
+
+          <div v-if="post.allowComments" class="ts-comment-composer">
+            <v-textarea
+              v-model="commentDraft"
+              variant="filled"
+              density="compact"
+              rows="2"
+              auto-grow
+              hide-details
+              :disabled="!loggedIn || commentSending"
+              :placeholder="loggedIn ? 'Write a comment…' : 'Log in under Account to comment'"
+            />
+            <v-btn
+              class="mt-2"
+              size="small"
+              color="accent"
+              variant="tonal"
+              :disabled="!loggedIn || !commentDraft.trim()"
+              :loading="commentSending"
+              @click="onSendComment"
+            >
+              Post comment
+            </v-btn>
+          </div>
         </div>
       </div>
     </div>
@@ -219,15 +268,19 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import {
+  addComment,
+  followArtist,
   getPostComments,
   postMediaFull,
   postMediaThumb,
   postUrl,
   profilePhoto,
+  toggleLike,
   TAILSPACE_CDN,
   type TailspaceComment,
   type TailspacePost,
 } from "@/worker/tailspace/api";
+import { useTailspaceSession } from "./useTailspaceSession";
 
 const props = defineProps<{
   post: TailspacePost;
@@ -239,17 +292,39 @@ const emit = defineEmits<{
   navigate: [post: TailspacePost];
 }>();
 
+const { isLoggedIn } = useTailspaceSession();
+const loggedIn = computed(() => isLoggedIn());
+
 const open = ref(true);
 const mediaIndex = ref(0);
 const comments = ref<TailspaceComment[]>([]);
 const commentsLoading = ref(false);
 const commentsError = ref<string | null>(null);
+const liked = ref(false);
+const likeCount = ref(0);
+const likeLoading = ref(false);
+const following = ref(false);
+const followLoading = ref(false);
+const commentDraft = ref("");
+const commentSending = ref(false);
+const actionError = ref<string | null>(null);
 
-watch(() => props.post, () => {
-  mediaIndex.value = 0;
-  loadComments();
-}, { immediate: true });
-watch(open, (v) => { if (!v) emit("close"); });
+watch(
+  () => props.post,
+  (post) => {
+    mediaIndex.value = 0;
+    liked.value = !!post.yourLike;
+    likeCount.value = post.likeCount;
+    following.value = false;
+    actionError.value = null;
+    commentDraft.value = "";
+    loadComments();
+  },
+  { immediate: true },
+);
+watch(open, (v) => {
+  if (!v) emit("close");
+});
 
 const currentMedia = computed(() => props.post.media[mediaIndex.value] ?? null);
 
@@ -266,6 +341,68 @@ const nextPost = computed(() =>
 );
 const hasPrevPost = computed(() => prevPost.value !== null);
 const hasNextPost = computed(() => nextPost.value !== null);
+
+const onToggleLike = async () => {
+  if (!loggedIn.value || likeLoading.value) {
+    if (!loggedIn.value) actionError.value = "Log in under Account to like.";
+    return;
+  }
+  likeLoading.value = true;
+  actionError.value = null;
+  const prevLiked = liked.value;
+  const prevCount = likeCount.value;
+  liked.value = !prevLiked;
+  likeCount.value = prevLiked ? Math.max(0, prevCount - 1) : prevCount + 1;
+  try {
+    const res = await toggleLike(props.post.id);
+    liked.value = res.liked;
+    likeCount.value = res.likeCount;
+    props.post.yourLike = res.liked;
+    props.post.likeCount = res.likeCount;
+  } catch (e) {
+    liked.value = prevLiked;
+    likeCount.value = prevCount;
+    actionError.value = e instanceof Error ? e.message : "Like failed.";
+  } finally {
+    likeLoading.value = false;
+  }
+};
+
+const onToggleFollow = async () => {
+  if (!loggedIn.value || !props.post.creator.userId || followLoading.value) {
+    if (!loggedIn.value) actionError.value = "Log in under Account to follow.";
+    return;
+  }
+  followLoading.value = true;
+  actionError.value = null;
+  const next = !following.value;
+  following.value = next;
+  try {
+    const res = await followArtist(props.post.creator.userId, next ? "follow" : "unfollow");
+    following.value = res.following;
+  } catch (e) {
+    following.value = !next;
+    actionError.value = e instanceof Error ? e.message : "Follow failed.";
+  } finally {
+    followLoading.value = false;
+  }
+};
+
+const onSendComment = async () => {
+  const text = commentDraft.value.trim();
+  if (!loggedIn.value || !text || commentSending.value) return;
+  commentSending.value = true;
+  actionError.value = null;
+  try {
+    await addComment({ postId: props.post.id, comment: text });
+    commentDraft.value = "";
+    await loadComments();
+  } catch (e) {
+    actionError.value = e instanceof Error ? e.message : "Comment failed.";
+  } finally {
+    commentSending.value = false;
+  }
+};
 
 async function loadComments() {
   comments.value = [];
@@ -462,10 +599,37 @@ function formatCommentTime(ts: number) {
   color: rgba(255,255,255,0.65);
   margin-bottom: 6px;
 }
-.ts-info-stats span {
+.ts-info-stats span,
+.ts-stat-btn {
   display: flex;
   align-items: center;
   gap: 3px;
+}
+.ts-stat-btn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.ts-stat-btn--active {
+  color: #f48fb1;
+}
+.ts-stat-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.ts-info-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.ts-comment-composer {
+  margin-top: 12px;
+  flex-shrink: 0;
 }
 .ts-info-tags {
   display: flex;
