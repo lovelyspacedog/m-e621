@@ -35,6 +35,7 @@
       class="card-video"
       controls
       playsinline
+      loop
       preload="metadata"
       :src="playableUrl"
       :poster="preview.url || undefined"
@@ -165,6 +166,8 @@ export default defineComponent({
     const mediaFailed = ref(false);
     const isSwf = computed(() => props.file.ext === "swf");
     const isVideo = computed(() => VIDEO_EXTS.has(props.file.ext));
+    // e621-style preview/sample URLs are static frames; only the full file animates.
+    const isAnimatedImage = computed(() => props.file.ext === "gif");
     const fileUrlExt = computed(() => {
       const url = props.file.url || "";
       try {
@@ -245,6 +248,18 @@ export default defineComponent({
       el.muted = posts.videoMuted;
       el.volume = Math.min(1, Math.max(0, posts.videoVolume));
       el.playbackRate = posts.videoPlaybackRate || 1;
+      // Loop so feed previews keep moving; card auto-next uses a dwell timer when looped.
+      el.loop = true;
+    };
+
+    const playWhenVisible = (el: HTMLVideoElement) => {
+      applyPlaybackPrefs(el);
+      const playResult = el.play();
+      if (playResult && typeof playResult.then === "function") {
+        playResult.catch(() => {
+          /* autoplay can fail until the user interacts; ignore */
+        });
+      }
     };
 
     const setVideoEl = (el: unknown) => {
@@ -254,17 +269,29 @@ export default defineComponent({
       if (!(el instanceof HTMLVideoElement)) return;
       boundVideo = el;
       applyPlaybackPrefs(el);
-      if (typeof IntersectionObserver === "undefined") return;
+      if (typeof IntersectionObserver === "undefined") {
+        playWhenVisible(el);
+        return;
+      }
       visibilityObserver = new IntersectionObserver(
         ([entry]) => {
           if (!entry?.isIntersecting) {
             el.pause();
+            return;
           }
+          playWhenVisible(el);
         },
         { threshold: 0.15 },
       );
       visibilityObserver.observe(el);
     };
+
+    watch(
+      () => [posts.videoMuted, posts.videoVolume, posts.videoPlaybackRate] as const,
+      () => {
+        if (boundVideo) applyPlaybackPrefs(boundVideo);
+      },
+    );
 
     const onVolumeChange = () => {
       if (!boundVideo) return;
@@ -328,6 +355,11 @@ export default defineComponent({
           medium: props.sample.url || props.preview.url,
           low: props.preview.url,
         };
+      }
+      // GIFs must use file.url — sample/preview are usually still frames.
+      if (isAnimatedImage.value && props.file.url) {
+        const animated = props.file.url;
+        return { high: animated, medium: animated, low: animated };
       }
       return {
         high: props.file.url || props.sample.url || props.preview.url,

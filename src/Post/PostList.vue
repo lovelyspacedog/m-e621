@@ -473,7 +473,8 @@ export default defineComponent({
       }
       lastDwellIndex = index;
       const video = cardEl(index)?.querySelector("video");
-      if (video && !video.ended) {
+      // Looped feed videos never fire `ended` — dwell like a still/GIF instead.
+      if (video && !video.ended && !video.loop) {
         autoNextProgress.value = 0;
         let cancelled = false;
         const onEnded = () => {
