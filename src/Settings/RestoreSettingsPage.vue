@@ -2,28 +2,34 @@
   <v-container class="fill-height">
     <v-row align-center>
       <v-col class="text-center" cols="12" sm="10" offset-sm="1" lg="6" offset-lg="3">
-        <settings-page-title section="restore" title="Backup and Restore" color="blue-darken-1" />
-        <settings-page-item title="Backup settings"
-          description="Download your settings as JSON. Includes starred tags, blacklist, saved searches, and credentials for every site (e621/e6ai API keys, Furbooru key, Inkbunny SID, FurAffinity a/b cookies) — do not share it."
-          switch>
-          <v-btn variant="text" color="accent" class="mb-3" @click="download">
-            download
-          </v-btn>
-        </settings-page-item>
+        <settings-page-title
+          section="restore"
+          title="Backup and Restore"
+          color="blue-darken-1"
+          :chips="navChips"
+        />
 
-        <form>
-          <settings-page-item title="Restore settings" switch>
-            <!-- description="Upload your settings from a JSON file." -->
-            <!-- <v-btn flat color="accent" class="mb-3">upload</v-btn> -->
-            <input ref="fileInput" class="file-btn" name="file" type="file" @change="restore()" />
-            <v-btn variant="text" color="accent" class="mb-3" @click="openFileInput">
-              upload
-            </v-btn>
-            <v-btn variant="text" color="accent" class="mb-3" @click="reset">
-              reset to default
-            </v-btn>
-          </settings-page-item>
-        </form>
+        <settings-group
+          title="Backup"
+          description="Download your settings as JSON. Includes starred tags, blacklist, saved searches, and credentials for every site — do not share it."
+          anchor="backup"
+        >
+          <settings-row>
+            <v-spacer />
+            <v-btn variant="text" color="accent" @click="download"> download </v-btn>
+          </settings-row>
+        </settings-group>
+
+        <settings-group title="Restore" anchor="restore">
+          <form>
+            <settings-row>
+              <v-spacer />
+              <input ref="fileInput" class="file-btn" name="file" type="file" @change="restore()" />
+              <v-btn variant="text" color="accent" @click="openFileInput"> upload </v-btn>
+              <v-btn variant="text" color="accent" @click="reset"> reset to default </v-btn>
+            </settings-row>
+          </form>
+        </settings-group>
       </v-col>
     </v-row>
   </v-container>
@@ -31,15 +37,21 @@
 
 <script setup lang="ts">
 import { usePersistanceService, useSnackbarStore } from "@/services";
-import { defineComponent, ref } from "vue";
-import SettingsPageItem from "./SettingsPageItem.vue";
-import SettingsPageTitle from "./SettingsPageTitle.vue";
+import { ref } from "vue";
+import SettingsGroup from "./SettingsGroup.vue";
+import SettingsPageTitle, { type SettingsNavChip } from "./SettingsPageTitle.vue";
+import SettingsRow from "./SettingsRow.vue";
 import { downloadjs } from "./download";
 import { useHead } from "@unhead/vue";
 
 useHead({
   title: "Backup and Restore",
 });
+
+const navChips: SettingsNavChip[] = [
+  { label: "Backup", anchor: "backup" },
+  { label: "Restore", anchor: "restore" },
+];
 
 const snackbar = useSnackbarStore();
 const persistanceService = usePersistanceService();

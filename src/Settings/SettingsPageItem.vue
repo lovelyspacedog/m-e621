@@ -1,60 +1,41 @@
 <template>
-  <v-card class="ma-3" color="secondary">
-    <v-card-title>{{ title }}</v-card-title>
-    <v-card-text class="text-left text-grey" v-if="description">
-      {{ description }}
-      <slot name="description" />
-    </v-card-text>
-    <v-col class="d-flex" v-if="isSwitch">
-      <v-spacer style="flex-grow: 999 !important" />
-      <span class="mr-3">
-        <slot />
-      </span>
-    </v-col>
-    <v-col class="d-flex" v-else-if="isSelect">
-      <div class="ma-3 fill-width">
-        <slot />
-      </div>
-    </v-col>
-    <span v-else>
+  <settings-group>
+    <settings-row
+      :title="title"
+      :description="description"
+      :switch="isSwitch"
+      :stack="isSelect || (!isSwitch && !isSelect)"
+    >
+      <template v-if="$slots.description" #label>
+        <div v-if="title" class="text-body-1">{{ title }}</div>
+        <div v-if="description || $slots.description" class="text-caption text-medium-emphasis">
+          {{ description }}
+          <slot name="description" />
+        </div>
+      </template>
       <slot />
-    </span>
-  </v-card>
+    </settings-row>
+  </settings-group>
 </template>
 
-<script lang="ts">
-import { computed, defineComponent } from "vue";
+<script setup lang="ts">
+import { computed } from "vue";
+import SettingsGroup from "./SettingsGroup.vue";
+import SettingsRow from "./SettingsRow.vue";
 
-export default defineComponent({
-  props: {
-    title: {
-      type: String,
-    },
-    description: {
-      type: String,
-    },
-    switch: {
-      type: Boolean,
-      default: false,
-    },
-    select: {
-      type: Boolean,
-      default: false,
-    },
+const props = withDefaults(
+  defineProps<{
+    title?: string;
+    description?: string;
+    switch?: boolean;
+    select?: boolean;
+  }>(),
+  {
+    switch: false,
+    select: false,
   },
-  setup(props) {
-    const isSwitch = computed(() => props.switch);
-    const isSelect = computed(() => props.select);
-    return {
-      isSwitch,
-      isSelect,
-    };
-  },
-});
+);
+
+const isSwitch = computed(() => props.switch);
+const isSelect = computed(() => props.select);
 </script>
-
-<style scoped>
-.fill-width {
-  width: 100%;
-}
-</style>

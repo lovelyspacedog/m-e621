@@ -2,53 +2,96 @@
   <v-container class="fill-height">
     <v-row align-center>
       <v-col class="text-center" cols="12" sm="10" offset-sm="1" lg="6" offset-lg="3">
-        <settings-page-title section="account" title="API & Account" color="yellow-darken-3" />
-        <settings-page-item title="Sites" select>
-          <p class="text-left">
-            Each site keeps its own username, API key, starred tags, blacklist, saved searches, and history.
-            Pick what you are browsing in the sidebar. Unified mixes the sites you enable below.
-            <template v-if="siteMode.supportsLocalMode">
-              Local mode reads a browse folder you pick (not the Save Locally folder).
-            </template>
-            Tailspace login uses a password or a pasted <code>tailspace_session</code> cookie
-            (password is not stored).
-          </p>
-        </settings-page-item>
-        <settings-page-item title="Copy starred tags / blacklist" select>
-          <p class="text-left text-caption text-medium-emphasis mb-3">
-            One-shot copy into the <strong>currently active</strong> site mode
-            ({{ activeModeLabel }}).
-          </p>
-          <div class="text-left mb-4">
-            <div class="text-subtitle-2 mb-1">Starred tags</div>
-            <profile-list-sync kind="favorites" />
-          </div>
-          <div class="text-left">
-            <div class="text-subtitle-2 mb-1">Blacklist</div>
-            <profile-list-sync kind="blacklist" />
-          </div>
-        </settings-page-item>
-        <settings-page-item title="Unified feed" select>
-          <p class="text-left">
-            Unified uses each site's login when present, otherwise guest search.
-          </p>
-          <v-switch
+        <settings-page-title
+          section="account"
+          title="API & Account"
+          color="yellow-darken-3"
+          :chips="navChips"
+        />
+
+        <settings-group title="Sites" anchor="sites">
+          <settings-row stack>
+            <p class="text-left text-body-2 mb-0">
+              Each site keeps its own credentials, starred tags, blacklist, saved searches, and history.
+              Pick a site in the sidebar; Unified mixes the children you enable below.
+            </p>
+            <v-btn
+              class="mt-2 px-0"
+              variant="text"
+              color="accent"
+              size="small"
+              @click="showSitesMore = !showSitesMore"
+            >
+              {{ showSitesMore ? "Less" : "More" }}
+            </v-btn>
+            <v-expand-transition>
+              <p v-if="showSitesMore" class="text-left text-caption text-medium-emphasis mt-1 mb-0">
+                <template v-if="siteMode.supportsLocalMode">
+                  Local browse folder is under Posts → Save &amp; Local (separate from Save Locally).
+                </template>
+                Tailspace login uses a password or a pasted <code>tailspace_session</code> cookie
+                (password is not stored).
+              </p>
+            </v-expand-transition>
+          </settings-row>
+        </settings-group>
+
+        <settings-group
+          title="Copy starred tags / blacklist"
+          description="One-shot copy into the currently active site mode."
+          anchor="sync"
+        >
+          <settings-row :title="`Into ${activeModeLabel}`" stack>
+            <div class="text-left mb-4">
+              <div class="text-subtitle-2 mb-1">Starred tags</div>
+              <profile-list-sync kind="favorites" />
+            </div>
+            <div class="text-left">
+              <div class="text-subtitle-2 mb-1">Blacklist</div>
+              <profile-list-sync kind="blacklist" />
+            </div>
+          </settings-row>
+        </settings-group>
+
+        <settings-group
+          title="Unified feed"
+          description="Uses each site's login when present, otherwise guest search."
+          anchor="unified"
+        >
+          <settings-row
             v-for="child in unifiedChildren"
             :key="child"
-            :model-value="siteMode.unifiedSites[child]"
-            color="accent"
-            hide-details
-            :label="unifiedChildLabel(child)"
-            @update:model-value="siteMode.setUnifiedChild(child, !!$event)"
-          />
-        </settings-page-item>
-        <settings-page-item title="Accounts" select>
-          <v-expansion-panels v-model="openAccounts" multiple variant="accordion" class="account-panels">
+            :title="unifiedChildLabel(child)"
+            switch
+          >
+            <v-switch
+              :model-value="siteMode.unifiedSites[child]"
+              color="accent"
+              hide-details
+              density="compact"
+              @update:model-value="siteMode.setUnifiedChild(child, !!$event)"
+            />
+          </settings-row>
+        </settings-group>
+
+        <settings-group title="Accounts" anchor="accounts">
+          <settings-row stack>
+          <v-expansion-panels v-model="openAccounts" variant="accordion" class="account-panels">
             <v-expansion-panel v-for="site in keySites" :key="site.mode" :value="site.mode">
               <v-expansion-panel-title>
-                <div class="text-left">
-                  <div>{{ site.label }}</div>
-                  <div class="text-caption text-medium-emphasis">{{ keySiteStatus(site) }}</div>
+                <div class="d-flex align-center fill-width pr-2">
+                  <div class="text-left flex-grow-1">
+                    <div>{{ site.label }}</div>
+                    <div class="text-caption text-medium-emphasis">{{ keySiteStatus(site) }}</div>
+                  </div>
+                  <v-chip
+                    size="x-small"
+                    label
+                    :color="keySiteConnected(site) ? 'success' : undefined"
+                    :variant="keySiteConnected(site) ? 'tonal' : 'outlined'"
+                  >
+                    {{ keySiteConnected(site) ? "Connected" : "Guest" }}
+                  </v-chip>
                 </div>
               </v-expansion-panel-title>
               <v-expansion-panel-text>
@@ -70,15 +113,20 @@
                   autocomplete="password"
                   :counter="site.showUsername ? 24 : undefined"
                 />
-                <p class="text-left">
-                  <template v-if="site.mode === 'furbooru'">
-                    Go to <external-link href="https://furbooru.org/registration/edit" /> > API Key to generate your key.
-                    No username is required — the key identifies your account automatically.
-                  </template>
-                  <template v-else>
-                    Go to <external-link :href="`${fields[site.mode].baseUrl}users/home`" /> > Manage API Access to get the API key
-                  </template>
-                </p>
+                <details class="text-left mb-2">
+                  <summary class="text-caption text-medium-emphasis account-help-summary">
+                    How to get an API key
+                  </summary>
+                  <p class="text-left text-caption mt-1 mb-0">
+                    <template v-if="site.mode === 'furbooru'">
+                      Go to <external-link href="https://furbooru.org/registration/edit" /> > API Key to generate your key.
+                      No username is required — the key identifies your account automatically.
+                    </template>
+                    <template v-else>
+                      Go to <external-link :href="`${fields[site.mode].baseUrl}users/home`" /> > Manage API Access to get the API key
+                    </template>
+                  </p>
+                </details>
                 <v-select
                   v-if="site.apiItems"
                   variant="filled"
@@ -109,22 +157,30 @@
                   <p v-if="verification[site.mode].message">
                     {{ verification[site.mode].message }}
                   </p>
-                  <p class="text-left" v-if="!verification[site.mode].success && verification[site.mode].message">
-                    A network error means that <i>something</i> did not work.
-                    Most likely, this was an authentication error.
-                    <template v-if="site.mode === 'furbooru'">
-                      Make sure you copied the Furbooru API key from
-                      <external-link href="https://furbooru.org/registration/edit" /> correctly.
-                    </template>
-                    <template v-else>
-                      Double check if the username is exactly the same as on
-                      <external-link :href="`${fields[site.mode].baseUrl}users/home`" /> and make sure you copied the API key correctly - it
-                      should be 24 characters long.
-                      <br />
-                      Due to a security policy (CORS), m-e621 cannot determine the cause of the error. There might be a
-                      general error with the network or {{ site.label }}.
-                    </template>
-                  </p>
+                  <details
+                    v-if="!verification[site.mode].success && verification[site.mode].message"
+                    class="text-left mt-1"
+                  >
+                    <summary class="text-caption text-medium-emphasis account-help-summary">
+                      Troubleshooting
+                    </summary>
+                    <p class="text-left text-caption mt-1 mb-0">
+                      A network error means that <i>something</i> did not work.
+                      Most likely, this was an authentication error.
+                      <template v-if="site.mode === 'furbooru'">
+                        Make sure you copied the Furbooru API key from
+                        <external-link href="https://furbooru.org/registration/edit" /> correctly.
+                      </template>
+                      <template v-else>
+                        Double check if the username is exactly the same as on
+                        <external-link :href="`${fields[site.mode].baseUrl}users/home`" /> and make sure you copied the API key correctly - it
+                        should be 24 characters long.
+                        <br />
+                        Due to a security policy (CORS), m-e621 cannot determine the cause of the error. There might be a
+                        general error with the network or {{ site.label }}.
+                      </template>
+                    </p>
+                  </details>
                 </div>
                 <v-btn
                   class="mt-4"
@@ -140,9 +196,19 @@
 
             <v-expansion-panel value="inkbunny">
               <v-expansion-panel-title>
-                <div class="text-left">
-                  <div>Inkbunny</div>
-                  <div class="text-caption text-medium-emphasis">{{ inkbunnyStatus }}</div>
+                <div class="d-flex align-center fill-width pr-2">
+                  <div class="text-left flex-grow-1">
+                    <div>Inkbunny</div>
+                    <div class="text-caption text-medium-emphasis">{{ inkbunnyStatus }}</div>
+                  </div>
+                  <v-chip
+                    size="x-small"
+                    label
+                    :color="inkbunnyLoggedIn ? 'success' : undefined"
+                    :variant="inkbunnyLoggedIn ? 'tonal' : 'outlined'"
+                  >
+                    {{ inkbunnyLoggedIn ? "Connected" : "Guest" }}
+                  </v-chip>
                 </div>
               </v-expansion-panel-title>
               <v-expansion-panel-text>
@@ -164,12 +230,17 @@
                   @click:append="showSecret.inkbunny = !showSecret.inkbunny"
                   autocomplete="current-password"
                 />
-                <p class="text-left">
-                  Enable API Access at <external-link href="https://inkbunny.net/account.php" />.
-                  If you set an Allowed IP Range, the server IP must be included
-                  (<external-link href="https://inkbunny.net/iprange.php" />).
-                  The password is used only to log in and is not saved.
-                </p>
+                <details class="text-left mb-2">
+                  <summary class="text-caption text-medium-emphasis account-help-summary">
+                    Login help
+                  </summary>
+                  <p class="text-left text-caption mt-1 mb-0">
+                    Enable API Access at <external-link href="https://inkbunny.net/account.php" />.
+                    If you set an Allowed IP Range, the server IP must be included
+                    (<external-link href="https://inkbunny.net/iprange.php" />).
+                    The password is used only to log in and is not saved.
+                  </p>
+                </details>
                 <div>
                   <v-btn
                     v-if="!inkbunnyLoggedIn"
@@ -234,9 +305,19 @@
 
             <v-expansion-panel value="furaffinity">
               <v-expansion-panel-title>
-                <div class="text-left">
-                  <div>FurAffinity</div>
-                  <div class="text-caption text-medium-emphasis">{{ faStatus }}</div>
+                <div class="d-flex align-center fill-width pr-2">
+                  <div class="text-left flex-grow-1">
+                    <div>FurAffinity</div>
+                    <div class="text-caption text-medium-emphasis">{{ faStatus }}</div>
+                  </div>
+                  <v-chip
+                    size="x-small"
+                    label
+                    :color="faLoggedIn ? 'success' : undefined"
+                    :variant="faLoggedIn ? 'tonal' : 'outlined'"
+                  >
+                    {{ faLoggedIn ? "Connected" : "Guest" }}
+                  </v-chip>
                 </div>
               </v-expansion-panel-title>
               <v-expansion-panel-text>
@@ -278,29 +359,34 @@
                   @click:append="showFaCookies = !showFaCookies"
                   autocomplete="off"
                 />
-                <p class="text-left">
-                  Paste <code>a</code>/<code>b</code> cookies here to sign in — they are stored in
-                  settings and included in Backup JSON. Host <code>FA_COOKIE_A</code> /
-                  <code>FA_COOKIE_B</code> still work for every browser on the server without
-                  pasting per client. Password login is a fallback; the password is not saved.
-                  Do not log out of the FurAffinity session those cookies belong to. Open
-                  <external-link href="https://www.furaffinity.net/login/">
-                    FurAffinity login
-                  </external-link>
-                  if you need to sign in first.
-                </p>
-                <p class="text-left mt-2">
-                  <strong>Chrome / Chromium:</strong>
-                  log in on furaffinity.net → F12 → Application → Cookies →
-                  <code>https://www.furaffinity.net</code> → copy the Values for
-                  <code>a</code> and <code>b</code> into the fields above (or host env).
-                </p>
-                <p class="text-left mt-2">
-                  <strong>Firefox:</strong>
-                  log in on furaffinity.net → F12 → Storage → Cookies →
-                  <code>https://www.furaffinity.net</code> → copy the Values for
-                  <code>a</code> and <code>b</code> the same way.
-                </p>
+                <details class="text-left mb-2">
+                  <summary class="text-caption text-medium-emphasis account-help-summary">
+                    Cookie / login help
+                  </summary>
+                  <p class="text-left text-caption mt-1 mb-0">
+                    Paste <code>a</code>/<code>b</code> cookies here to sign in — they are stored in
+                    settings and included in Backup JSON. Host <code>FA_COOKIE_A</code> /
+                    <code>FA_COOKIE_B</code> still work for every browser on the server without
+                    pasting per client. Password login is a fallback; the password is not saved.
+                    Do not log out of the FurAffinity session those cookies belong to. Open
+                    <external-link href="https://www.furaffinity.net/login/">
+                      FurAffinity login
+                    </external-link>
+                    if you need to sign in first.
+                  </p>
+                  <p class="text-left text-caption mt-2 mb-0">
+                    <strong>Chrome / Chromium:</strong>
+                    log in on furaffinity.net → F12 → Application → Cookies →
+                    <code>https://www.furaffinity.net</code> → copy the Values for
+                    <code>a</code> and <code>b</code> into the fields above (or host env).
+                  </p>
+                  <p class="text-left text-caption mt-2 mb-0">
+                    <strong>Firefox:</strong>
+                    log in on furaffinity.net → F12 → Storage → Cookies →
+                    <code>https://www.furaffinity.net</code> → copy the Values for
+                    <code>a</code> and <code>b</code> the same way.
+                  </p>
+                </details>
                 <div>
                   <v-btn
                     v-if="!faLoggedIn"
@@ -364,9 +450,19 @@
 
             <v-expansion-panel value="weasyl">
               <v-expansion-panel-title>
-                <div class="text-left">
-                  <div>Weasyl</div>
-                  <div class="text-caption text-medium-emphasis">{{ weasylStatus }}</div>
+                <div class="d-flex align-center fill-width pr-2">
+                  <div class="text-left flex-grow-1">
+                    <div>Weasyl</div>
+                    <div class="text-caption text-medium-emphasis">{{ weasylStatus }}</div>
+                  </div>
+                  <v-chip
+                    size="x-small"
+                    label
+                    :color="weasylConnected ? 'success' : undefined"
+                    :variant="weasylConnected ? 'tonal' : 'outlined'"
+                  >
+                    {{ weasylConnected ? "Connected" : "Guest" }}
+                  </v-chip>
                 </div>
               </v-expansion-panel-title>
               <v-expansion-panel-text>
@@ -386,10 +482,15 @@
                   @click:append="showSecret.weasyl = !showSecret.weasyl"
                   autocomplete="off"
                 />
-                <p class="text-left">
-                  Go to <external-link href="https://www.weasyl.com/control/apikeys" /> to generate an API key.
-                  Without a key, only SFW/general content is shown. The username is used to browse your favorites.
-                </p>
+                <details class="text-left mb-2">
+                  <summary class="text-caption text-medium-emphasis account-help-summary">
+                    How to get an API key
+                  </summary>
+                  <p class="text-left text-caption mt-1 mb-0">
+                    Go to <external-link href="https://www.weasyl.com/control/apikeys" /> to generate an API key.
+                    Without a key, only SFW/general content is shown. The username is used to browse your favorites.
+                  </p>
+                </details>
                 <div>
                   <v-btn
                     :disabled="!fields.weasyl.apiKey"
@@ -416,9 +517,19 @@
 
             <v-expansion-panel value="itaku">
               <v-expansion-panel-title>
-                <div class="text-left">
-                  <div>Itaku</div>
-                  <div class="text-caption text-medium-emphasis">{{ itakuStatus }}</div>
+                <div class="d-flex align-center fill-width pr-2">
+                  <div class="text-left flex-grow-1">
+                    <div>Itaku</div>
+                    <div class="text-caption text-medium-emphasis">{{ itakuStatus }}</div>
+                  </div>
+                  <v-chip
+                    size="x-small"
+                    label
+                    :color="itakuConnected ? 'success' : undefined"
+                    :variant="itakuConnected ? 'tonal' : 'outlined'"
+                  >
+                    {{ itakuConnected ? "Connected" : "Guest" }}
+                  </v-chip>
                 </div>
               </v-expansion-panel-title>
               <v-expansion-panel-text>
@@ -439,13 +550,18 @@
                   @click:append="showSecret.itaku = !showSecret.itaku"
                   autocomplete="off"
                 />
-                <p class="text-left">
-                  In a logged-in Itaku browser tab, open DevTools → Network → any
-                  <code>/api/</code> request → copy the
-                  <code>Authorization: Token …</code> value (with or without the
-                  <code>Token</code> prefix). Guest browse works without a token;
-                  login unlocks stars and following.
-                </p>
+                <details class="text-left mb-2">
+                  <summary class="text-caption text-medium-emphasis account-help-summary">
+                    How to get a token
+                  </summary>
+                  <p class="text-left text-caption mt-1 mb-0">
+                    In a logged-in Itaku browser tab, open DevTools → Network → any
+                    <code>/api/</code> request → copy the
+                    <code>Authorization: Token …</code> value (with or without the
+                    <code>Token</code> prefix). Guest browse works without a token;
+                    login unlocks stars and following.
+                  </p>
+                </details>
                 <div>
                   <v-btn
                     :disabled="!fields.itaku.apiKey"
@@ -481,9 +597,19 @@
 
             <v-expansion-panel value="sofurry">
               <v-expansion-panel-title>
-                <div class="text-left">
-                  <div>SoFurry</div>
-                  <div class="text-caption text-medium-emphasis">{{ sofurryStatus }}</div>
+                <div class="d-flex align-center fill-width pr-2">
+                  <div class="text-left flex-grow-1">
+                    <div>SoFurry</div>
+                    <div class="text-caption text-medium-emphasis">{{ sofurryStatus }}</div>
+                  </div>
+                  <v-chip
+                    size="x-small"
+                    label
+                    :color="sofurryLoggedIn ? 'success' : undefined"
+                    :variant="sofurryLoggedIn ? 'tonal' : 'outlined'"
+                  >
+                    {{ sofurryLoggedIn ? "Connected" : "Guest" }}
+                  </v-chip>
                 </div>
               </v-expansion-panel-title>
               <v-expansion-panel-text>
@@ -523,18 +649,23 @@
                   @click:append="showSofurryCookies = !showSofurryCookies"
                   autocomplete="off"
                 />
-                <p class="text-left">
-                  Sign in with email/password, or paste the SoFurry cookie header
-                  (<code>laravel_session</code> + <code>XSRF-TOKEN</code>). Cookies are stored in
-                  settings and included in Backup JSON. The password is not saved.
-                </p>
-                <p class="text-left mt-2">
-                  <strong>Chrome / Firefox:</strong>
-                  log in on
-                  <external-link href="https://sofurry.com/login">sofurry.com</external-link>
-                  → F12 → Application/Storage → Cookies →
-                  <code>https://sofurry.com</code> → copy session cookies.
-                </p>
+                <details class="text-left mb-2">
+                  <summary class="text-caption text-medium-emphasis account-help-summary">
+                    Cookie / login help
+                  </summary>
+                  <p class="text-left text-caption mt-1 mb-0">
+                    Sign in with email/password, or paste the SoFurry cookie header
+                    (<code>laravel_session</code> + <code>XSRF-TOKEN</code>). Cookies are stored in
+                    settings and included in Backup JSON. The password is not saved.
+                  </p>
+                  <p class="text-left text-caption mt-2 mb-0">
+                    <strong>Chrome / Firefox:</strong>
+                    log in on
+                    <external-link href="https://sofurry.com/login">sofurry.com</external-link>
+                    → F12 → Application/Storage → Cookies →
+                    <code>https://sofurry.com</code> → copy session cookies.
+                  </p>
+                </details>
                 <div>
                   <v-btn
                     v-if="!sofurryLoggedIn"
@@ -580,9 +711,19 @@
 
             <v-expansion-panel value="tailspace">
               <v-expansion-panel-title>
-                <div class="text-left">
-                  <div>Tailspace</div>
-                  <div class="text-caption text-medium-emphasis">{{ tsStatus }}</div>
+                <div class="d-flex align-center fill-width pr-2">
+                  <div class="text-left flex-grow-1">
+                    <div>Tailspace</div>
+                    <div class="text-caption text-medium-emphasis">{{ tsStatus }}</div>
+                  </div>
+                  <v-chip
+                    size="x-small"
+                    label
+                    :color="tsLoggedIn ? 'success' : undefined"
+                    :variant="tsLoggedIn ? 'tonal' : 'outlined'"
+                  >
+                    {{ tsLoggedIn ? "Connected" : "Guest" }}
+                  </v-chip>
                 </div>
               </v-expansion-panel-title>
               <v-expansion-panel-text>
@@ -614,20 +755,25 @@
                   @click:append="showTsCookie = !showTsCookie"
                   autocomplete="off"
                 />
-                <p class="text-left">
-                  Paste the <code>tailspace_session</code> cookie value (or
-                  <code>tailspace_session=…</code>) to sign in — it is stored in settings and
-                  included in Backup JSON. Password login is a fallback; the password is not
-                  saved. Do not log out of the Tailspace session that cookie belongs to.
-                </p>
-                <p class="text-left mt-2">
-                  <strong>Chrome / Firefox:</strong>
-                  log in on
-                  <external-link href="https://tailspace.com/login">tailspace.com</external-link>
-                  → F12 → Application/Storage → Cookies →
-                  <code>https://tailspace.com</code> → copy the Value for
-                  <code>tailspace_session</code>.
-                </p>
+                <details class="text-left mb-2">
+                  <summary class="text-caption text-medium-emphasis account-help-summary">
+                    Cookie / login help
+                  </summary>
+                  <p class="text-left text-caption mt-1 mb-0">
+                    Paste the <code>tailspace_session</code> cookie value (or
+                    <code>tailspace_session=…</code>) to sign in — it is stored in settings and
+                    included in Backup JSON. Password login is a fallback; the password is not
+                    saved. Do not log out of the Tailspace session that cookie belongs to.
+                  </p>
+                  <p class="text-left text-caption mt-2 mb-0">
+                    <strong>Chrome / Firefox:</strong>
+                    log in on
+                    <external-link href="https://tailspace.com/login">tailspace.com</external-link>
+                    → F12 → Application/Storage → Cookies →
+                    <code>https://tailspace.com</code> → copy the Value for
+                    <code>tailspace_session</code>.
+                  </p>
+                </details>
                 <div>
                   <v-btn
                     v-if="!tsLoggedIn"
@@ -653,34 +799,41 @@
               </v-expansion-panel-text>
             </v-expansion-panel>
           </v-expansion-panels>
-        </settings-page-item>
-        <settings-page-item title="Local folder" select v-if="siteMode.supportsLocalMode">
-          <p class="text-left">
-            Local mode shows images and videos from this folder. Save Locally still uses its own folder in Post settings.
-          </p>
-          <local-folder-picker purpose="local" />
-        </settings-page-item>
-        <settings-page-item title="Favorites proxy" select>
-          <v-text-field variant="filled" label="Favorites API" type="text" v-model="proxyUrl" autocomplete="url" />
-          <p class="text-left">
-            Favorites are proxied through this app's <code>/api/</code> so they
-            work on this host. The old public Vercel proxy only allows the
-            original m-e621 websites, which is why it returns
-            “Failed to fetch” here.
-          </p>
-        </settings-page-item>
+          </settings-row>
+        </settings-group>
+
+        <settings-group
+          title="Favorites proxy"
+          description="Favorites are proxied through this app's /api/ so they work on this host."
+          anchor="proxy"
+        >
+          <settings-row stack>
+            <v-text-field
+              variant="filled"
+              label="Favorites API"
+              type="text"
+              v-model="proxyUrl"
+              autocomplete="url"
+              hide-details="auto"
+            />
+            <p class="text-left text-caption text-medium-emphasis mt-2 mb-0">
+              The old public Vercel proxy only allows the original m-e621 websites, which is why it
+              returns “Failed to fetch” here.
+            </p>
+          </settings-row>
+        </settings-group>
       </v-col>
     </v-row>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import SettingsPageTitle from "./SettingsPageTitle.vue";
-import SettingsPageItem from "./SettingsPageItem.vue";
+import SettingsPageTitle, { type SettingsNavChip } from "./SettingsPageTitle.vue";
+import SettingsGroup from "./SettingsGroup.vue";
+import SettingsRow from "./SettingsRow.vue";
 import ProfileListSync from "./ProfileListSync.vue";
 import { computed, reactive, ref, watch } from "vue";
 import ExternalLink from "@/App/ExternalLink.vue";
-import LocalFolderPicker from "./LocalFolderPicker.vue";
 import { useMainStore, useSiteModeStore, useUrlStore } from "@/services";
 import { UNIFIED_CHILD_MODES, type SiteMode } from "@/services/types";
 import {
@@ -709,6 +862,15 @@ const url = useUrlStore();
 const siteMode = useSiteModeStore();
 const unifiedChildren = UNIFIED_CHILD_MODES;
 const activeModeLabel = computed(() => unifiedChildLabel(siteMode.activeMode));
+const showSitesMore = ref(false);
+
+const navChips: SettingsNavChip[] = [
+  { label: "Sites", anchor: "sites" },
+  { label: "Sync", anchor: "sync" },
+  { label: "Unified", anchor: "unified" },
+  { label: "Accounts", anchor: "accounts" },
+  { label: "Proxy", anchor: "proxy" },
+];
 
 type KeySiteMode = "e621" | "e6ai" | "furbooru";
 type AccountMode = KeySiteMode | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "tailspace";
@@ -786,7 +948,7 @@ const signedInModes = (): AccountMode[] => {
   });
 };
 
-const openAccounts = ref<AccountMode[]>(signedInModes());
+const openAccounts = ref<AccountMode | undefined>(signedInModes()[0]);
 const showSecret = reactive<Record<AccountMode, boolean>>({
   e621: false,
   e6ai: false,
@@ -814,6 +976,12 @@ const verification = reactive<Record<KeySiteMode, ReturnType<typeof emptyAuth>>>
   e6ai: emptyAuth(),
   furbooru: emptyAuth(),
 });
+
+const keySiteConnected = (site: KeySite) => {
+  const account = fields[site.mode];
+  if (site.mode === "furbooru") return !!account.apiKey;
+  return !!account.username && !!account.apiKey;
+};
 
 const keySiteStatus = (site: KeySite) => {
   const account = fields[site.mode];
@@ -1097,6 +1265,7 @@ const logoutFurAffinity = async () => {
 
 // Weasyl auth
 const weasylAuth = ref(emptyAuth());
+const weasylConnected = computed(() => !!fields.weasyl.apiKey);
 const weasylStatus = computed(() =>
   fields.weasyl.apiKey
     ? fields.weasyl.username
@@ -1143,6 +1312,7 @@ watch(
 
 // Itaku auth
 const itakuAuth = ref(emptyAuth());
+const itakuConnected = computed(() => !!fields.itaku.apiKey);
 const itakuStatus = computed(() =>
   fields.itaku.apiKey
     ? fields.itaku.username
@@ -1447,5 +1617,12 @@ watch(faPassword, () => {
 }
 .account-panels :deep(.v-expansion-panel) {
   background: transparent;
+}
+.account-help-summary {
+  cursor: pointer;
+  user-select: none;
+}
+.fill-width {
+  width: 100%;
 }
 </style>

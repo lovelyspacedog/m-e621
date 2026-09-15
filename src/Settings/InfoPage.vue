@@ -3,55 +3,81 @@
     <v-row align-center>
       <v-col class="text-center" cols="12" sm="10" offset-sm="1" lg="6" offset-lg="3">
         <settings-page-title section="info" title="Info" color="teal-darken-2" />
-        <settings-page-item title="Version Info" select>
-          You are running {{ appName }}, which was last changed with commit
-          <a :href="`https://github.com/lovelyspacedog/m-e621/commit/${commit.hash}`" target="_blank">{{
-            commit.hash.substring(0, 7) }}</a>
-          on <b>{{ commitDate }}</b> (this was <b>{{ commitDateRelative }}</b>) from branch <b>{{ branch }}</b>.
-          <v-btn color="accent" variant="text" @click="forceUpdate" block>
-            Force Update
-          </v-btn>
-          <v-btn color="accent" variant="text" to="/about" block> View Commits </v-btn>
-        </settings-page-item>
-        <settings-page-item
+
+        <settings-group title="Version" anchor="version">
+          <settings-row stack>
+            <p class="text-left mb-2">
+              You are running {{ appName }}, which was last changed with commit
+              <a
+                :href="`https://github.com/lovelyspacedog/m-e621/commit/${commit.hash}`"
+                target="_blank"
+                >{{ commit.hash.substring(0, 7) }}</a
+              >
+              on <b>{{ commitDate }}</b> (this was <b>{{ commitDateRelative }}</b>) from branch
+              <b>{{ branch }}</b>.
+            </p>
+            <v-btn color="accent" variant="text" @click="forceUpdate" block> Force Update </v-btn>
+            <v-btn color="accent" variant="text" to="/about" block> View Commits </v-btn>
+          </settings-row>
+        </settings-group>
+
+        <settings-group
           v-if="gitPullEnabled"
           title="Pull from Git"
           description="Fetch origin, rebuild this instance, then reload. Requires the pull token from ~/.config/m-e621/pull_token on the host."
-          select
+          anchor="git"
         >
-          <div class="text-left px-1 mb-2">
-            Server HEAD:
-            <code>{{ serverHeadShort }}</code>
-            <span v-if="pullStatus"> — {{ pullStatus }}</span>
-          </div>
-          <v-btn
-            color="accent"
-            variant="text"
-            block
-            :loading="pullRunning"
-            :disabled="pullRunning"
-            @click="pullFromGit"
-          >
-            {{ pullRunning ? "Pulling / building…" : "Pull from Git" }}
-          </v-btn>
-          <v-btn color="accent" variant="text" block :disabled="pullRunning" @click="clearPullToken">
-            Clear saved pull token
-          </v-btn>
-        </settings-page-item>
-        <settings-page-item :title="`Storage`"
-          description="Shows the storage used for cached files, settings and cached tags." select>
-          <div class="text-left px-1">
-            Persistence: permission {{ persistence ? "granted" : "not granted" }}
-            <br />
-            Used: {{ usageStr }}
-          </div>
-          <v-progress-linear color="accent" class="ma-1" indeterminante :model-value="usagePercentage" />
-          <v-btn v-if="!persistence" variant="text" block color="accent" @click="requestPersistence">Request
-            Persistence</v-btn>
-        </settings-page-item>
-        <settings-page-item title="Bookmarklet">
-          <install />
-        </settings-page-item>
+          <settings-row stack>
+            <div class="text-left mb-2">
+              Server HEAD:
+              <code>{{ serverHeadShort }}</code>
+              <span v-if="pullStatus"> — {{ pullStatus }}</span>
+            </div>
+            <v-btn
+              color="accent"
+              variant="text"
+              block
+              :loading="pullRunning"
+              :disabled="pullRunning"
+              @click="pullFromGit"
+            >
+              {{ pullRunning ? "Pulling / building…" : "Pull from Git" }}
+            </v-btn>
+            <v-btn color="accent" variant="text" block :disabled="pullRunning" @click="clearPullToken">
+              Clear saved pull token
+            </v-btn>
+          </settings-row>
+        </settings-group>
+
+        <settings-group
+          title="Storage"
+          description="Shows the storage used for cached files, settings and cached tags."
+          anchor="storage"
+        >
+          <settings-row stack>
+            <div class="text-left mb-2">
+              Persistence: permission {{ persistence ? "granted" : "not granted" }}
+              <br />
+              Used: {{ usageStr }}
+            </div>
+            <v-progress-linear color="accent" class="ma-1" indeterminante :model-value="usagePercentage" />
+            <v-btn
+              v-if="!persistence"
+              variant="text"
+              block
+              color="accent"
+              @click="requestPersistence"
+            >
+              Request Persistence
+            </v-btn>
+          </settings-row>
+        </settings-group>
+
+        <settings-group title="Bookmarklet" anchor="bookmarklet">
+          <settings-row stack>
+            <install />
+          </settings-row>
+        </settings-group>
       </v-col>
     </v-row>
   </v-container>
@@ -59,7 +85,8 @@
 
 <script setup lang="ts">
 import SettingsPageTitle from "./SettingsPageTitle.vue";
-import SettingsPageItem from "./SettingsPageItem.vue";
+import SettingsGroup from "./SettingsGroup.vue";
+import SettingsRow from "./SettingsRow.vue";
 import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import Install from "@/Settings/Install.vue";
 import { getGitInfo, getGitBranchInfo } from "@/misc/util/git";
