@@ -233,7 +233,7 @@ const unifiedChildIcon = (mode: UnifiedChildMode) => {
     case "e6ai": return "mdi-robot";
     case "furbooru": return "mdi-dog";
     case "inkbunny": return "mdi-rabbit";
-    case "furaffinity": return "mdi-paw-outline";
+    case "furaffinity": return "mdi-fox";
     default: return "mdi-paw";
   }
 };
