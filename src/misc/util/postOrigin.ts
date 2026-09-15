@@ -43,6 +43,27 @@ export const unifiedChildLabel = (mode: SiteMode | UnifiedChildMode): string => 
   }
 };
 
+export const unifiedChildIcon = (mode: SiteMode | UnifiedChildMode): string => {
+  switch (mode) {
+    case "e6ai":
+      return "$tanukiAi";
+    case "furbooru":
+      return "mdi-dog";
+    case "inkbunny":
+      return "mdi-rabbit";
+    case "furaffinity":
+      return "$fox";
+    case "unified":
+      return "mdi-earth";
+    case "local":
+      return "mdi-harddisk";
+    case "tailspace":
+      return "mdi-rocket-launch";
+    default:
+      return "mdi-paw";
+  }
+};
+
 export const postFeedKey = (post: {
   id: number;
   __meta?: { originMode?: string };

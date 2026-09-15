@@ -201,8 +201,12 @@ import {
   tagQueryTruncationMessage,
 } from "../misc/util/createTagQuery";
 import { orderSupport, type UnifiedOrderKind } from "../misc/util/orderSupport";
-import { buildUnifiedFetchArgs, unifiedChildLabel } from "../misc/util/postOrigin";
-import { UNIFIED_CHILD_MODES, type UnifiedChildMode } from "@/services/types";
+import {
+  buildUnifiedFetchArgs,
+  unifiedChildIcon,
+  unifiedChildLabel,
+} from "../misc/util/postOrigin";
+import { UNIFIED_CHILD_MODES } from "@/services/types";
 import {
   findLocalResumeTarget,
   getLocalPostsPage,
@@ -230,15 +234,6 @@ const siteMode = useSiteModeStore();
 const snackbar = useSnackbarStore();
 const main = useMainStore();
 const unifiedChildModes = UNIFIED_CHILD_MODES;
-const unifiedChildIcon = (mode: UnifiedChildMode) => {
-  switch (mode) {
-    case "e6ai": return "$tanukiAi";
-    case "furbooru": return "mdi-dog";
-    case "inkbunny": return "mdi-rabbit";
-    case "furaffinity": return "$fox";
-    default: return "mdi-paw";
-  }
-};
 const localEmptyMessage = ref(localStatusMessage("no-folder"));
 const restorePath = ref<string | null>(null);
 const restoreVideoTime = ref<number | undefined>(undefined);

@@ -9,13 +9,15 @@
   >
     <div :class="[blacklistClasses]" class="post-preview-wrap">
       <v-chip
-        v-if="originLabel"
+        v-if="originIcon"
         class="origin-badge"
         size="x-small"
         color="secondary"
         variant="flat"
+        :aria-label="originLabel"
+        :title="originLabel"
       >
-        {{ originLabel }}
+        <v-icon size="16" :icon="originIcon" />
       </v-chip>
       <post-preview
         :file="post.file"
@@ -58,7 +60,11 @@
 
 <script lang="ts">
 import { useBlacklistClasses } from "@/misc/util/blacklist";
-import { postFeedKey, unifiedChildLabel } from "@/misc/util/postOrigin";
+import {
+  postFeedKey,
+  unifiedChildIcon,
+  unifiedChildLabel,
+} from "@/misc/util/postOrigin";
 import { useBlacklistStore, usePostsStore, useSiteModeStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { INKBUNNY_SUBMISSION_TYPE_WRITING } from "@/worker/inkbunny/api";
@@ -125,10 +131,12 @@ export default defineComponent({
       }
       return list;
     });
+    const originMode = computed(() => props.post.__meta?.originMode || "");
     const originLabel = computed(() =>
-      props.post.__meta?.originMode
-        ? unifiedChildLabel(props.post.__meta.originMode)
-        : "",
+      originMode.value ? unifiedChildLabel(originMode.value) : "",
+    );
+    const originIcon = computed(() =>
+      originMode.value ? unifiedChildIcon(originMode.value) : "",
     );
     const feedKey = computed(() =>
       postFeedKey(props.post).replace(":", "-"),
@@ -182,6 +190,7 @@ export default defineComponent({
       forceExpanded,
       onCardActivate,
       originLabel,
+      originIcon,
       feedKey,
     };
   },
@@ -220,5 +229,7 @@ export default defineComponent({
   top: 8px;
   left: 8px;
   z-index: 2;
+  padding: 0 4px;
+  min-width: 0;
 }
 </style>
