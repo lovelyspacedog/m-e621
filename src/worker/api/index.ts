@@ -128,6 +128,7 @@ export const e621 = {
         page: args.page,
         "search[order]": order,
         "search[name_matches]": args.query,
+        "search[description_matches]": args.descriptionMatches,
         "search[category]": args.category,
       });
       return fetchJson<Pool[]>(url);

@@ -35,6 +35,8 @@ export interface IPoolsArgs extends IBaseArgs {
   page?: number;
   /** e621 pool category filter; omit or leave unset for all */
   category?: "series" | "collection";
+  /** e621 search[description_matches] */
+  descriptionMatches?: string;
 }
 
 export interface IGetPoolArgs extends IBaseArgs {

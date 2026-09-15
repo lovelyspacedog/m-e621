@@ -17,30 +17,37 @@
     >
       This pool has no posts.
     </div>
-    <posts
-      v-else-if="poolMeta"
-      :posts="posts"
-      :loading="loading"
-      :has-previous="hasPrevious"
-      @load-previous="loadPreviousPage()"
-      @load-next="loadNextPage()"
-      @open-post="openFullscreenPost"
-      :fullscreen-post="fullscreenPost || undefined"
-      @exit-fullscreen="fullscreenPost = null"
-      @next-fullscreen-post="openNextFullscreenPost()"
-      @previous-fullscreen-post="openPreviousFullscreenPost()"
-      :has-previous-fullscreen-post="hasPreviousFullscreenPost"
-      :has-next-fullscreen-post="hasNextFullscreenPost"
-      :details-post="detailsPost || undefined"
-      @open-post-details="openPostDetails"
-      @close-details="detailsPost = null"
-      @set-post-favorite="setPostFavorite($event)"
-      @set-post-vote="setPostVote($event)"
-    />
-    <div
-      v-if="sequenceLabel"
-      class="pool-sequence-caption text-caption"
-    >
+    <template v-else-if="poolMeta">
+      <PoolReader
+        :posts="posts"
+        :loading="loading"
+        :chunk="chunk"
+        :chunk-count="chunkCount"
+        :total-count="poolMeta.post_count || poolMeta.post_ids.length"
+        :post-ids="poolMeta.post_ids"
+        @open-post="openFullscreenPost"
+        @change-chunk="setChunk"
+        @view-mode-change="onViewModeChange"
+      />
+      <fullscreen-dialog
+        :has-previous-fullscreen-post="hasPreviousFullscreenPost"
+        :has-next-fullscreen-post="hasNextFullscreenPost"
+        :current="fullscreenPost || null"
+        @close="fullscreenPost = null"
+        @next-post="openNextFullscreenPost()"
+        @previous-post="openPreviousFullscreenPost()"
+        @open-post-details="onOpenDetails"
+        @set-post-favorite="onSetFavorite"
+      />
+      <details-dialog
+        :current="detailsPost || undefined"
+        @close="detailsPost = null"
+        @open-post-fullscreen="onOpenFullscreen"
+        @set-post-favorite="onSetFavorite"
+        @set-post-vote="onSetVote"
+      />
+    </template>
+    <div v-if="sequenceLabel" class="pool-sequence-caption text-caption">
       {{ sequenceLabel }}
     </div>
   </div>
@@ -51,13 +58,14 @@ import { computed, ref, toRaw, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useHead } from "@unhead/vue";
 import PoolInfo from "@/Pool/PoolInfo.vue";
-import Posts from "@/Post/Posts.vue";
+import PoolReader, { type PoolViewMode } from "@/Pool/PoolReader.vue";
+import FullscreenDialog from "@/Post/FullscreenDialog.vue";
+import DetailsDialog from "@/Post/DetailsDialog.vue";
 import { usePostListManager } from "@/Post/postListManager";
 import { useRouterQueryHelpers } from "@/misc/util/utilities";
 import {
   useAccountStore,
   useBlacklistStore,
-  usePostsStore,
   useSiteModeStore,
   useSnackbarStore,
   useUrlStore,
@@ -70,10 +78,12 @@ import {
 import type { Pool } from "@/worker/api";
 import type { EnhancedPost } from "@/worker/ApiService";
 
+const GALLERY_CHUNK_SIZE = 24;
+const SCROLL_CHUNK_SIZE = 10;
+
 const route = useRoute();
 const account = useAccountStore();
 const blacklist = useBlacklistStore();
-const postsStore = usePostsStore();
 const urlStore = useUrlStore();
 const siteMode = useSiteModeStore();
 const snackbar = useSnackbarStore();
@@ -82,6 +92,8 @@ const { removeRouterQuery, updateRouterQuery } = useRouterQueryHelpers();
 const poolId = computed(() => Number(route.params.id) || 0);
 const poolMeta = ref<Pool | null>(null);
 const poolError = ref<string | null>(null);
+const viewMode = ref<PoolViewMode>("gallery");
+const chunkLoading = ref(false);
 
 const displayPoolName = computed(() =>
   (poolMeta.value?.name || "").replace(/_/g, " "),
@@ -94,45 +106,93 @@ useHead({
   }),
 });
 
+const chunkSize = computed(() =>
+  viewMode.value === "scroll" ? SCROLL_CHUNK_SIZE : GALLERY_CHUNK_SIZE,
+);
+
+const chunkCount = computed(() => {
+  const total = poolMeta.value?.post_ids?.length || 0;
+  if (!total) return 1;
+  return Math.max(1, Math.ceil(total / chunkSize.value));
+});
+
+const chunk = computed(() => {
+  const raw = Number(route.query.chunk) || 1;
+  return Math.min(Math.max(1, raw), chunkCount.value);
+});
+
 const {
-  loadPreviousPage,
-  loadNextPage,
   visiblePosts: posts,
   clearPosts,
+  replacePosts,
   fullscreenPost,
   detailsPost,
-  loading,
+  loading: managerLoading,
   openPostDetails,
   openFullscreenPost,
   openNextFullscreenPost,
   openPreviousFullscreenPost,
   setPostFavorite,
   setPostVote,
-  hasPrevious,
   hasPreviousFullscreenPost,
   hasNextFullscreenPost,
 } = usePostListManager({
   getSavedPageNumber() {
-    return Number(route.query.page) || 0;
+    return chunk.value;
   },
-  savePageNumber(page) {
-    if (page === 1 || !page) {
-      removeRouterQuery(["page"]);
-    } else {
-      updateRouterQuery({
-        page: String(page),
-      });
-    }
+  savePageNumber() {
+    // Chunk is owned by ?chunk=; do not write ?page=.
   },
-  async loadPosts(page) {
-    const ids = poolMeta.value?.post_ids || [];
-    const limit = toRaw(postsStore.postListFetchLimit) || 40;
-    const start = (page - 1) * limit;
-    const slice = ids.slice(start, start + limit);
-    if (!slice.length) return [];
+  async loadPosts() {
+    return [];
+  },
+});
 
+const loading = computed(() => chunkLoading.value || managerLoading.value);
+
+const onOpenDetails = (payload: any) => openPostDetails(payload);
+const onOpenFullscreen = (payload: any) => openFullscreenPost(payload);
+const onSetFavorite = (payload: any) => setPostFavorite(payload);
+const onSetVote = (payload: any) => setPostVote(payload);
+
+const sequenceLabel = computed(() => {
+  const post = fullscreenPost.value;
+  const meta = poolMeta.value;
+  if (!post || !meta?.post_ids?.length) return null;
+  const index = meta.post_ids.indexOf(post.id);
+  if (index < 0) return null;
+  const total = meta.post_count || meta.post_ids.length;
+  return `${index + 1} / ${total}`;
+});
+
+const setChunk = (next: number) => {
+  const clamped = Math.min(Math.max(1, next), chunkCount.value);
+  if (clamped <= 1) {
+    void removeRouterQuery(["chunk"]);
+  } else {
+    void updateRouterQuery({ chunk: String(clamped) });
+  }
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
+
+const fetchChunk = async () => {
+  const ids = poolMeta.value?.post_ids || [];
+  if (!ids.length) {
+    replacePosts([]);
+    return;
+  }
+  const size = chunkSize.value;
+  const start = (chunk.value - 1) * size;
+  const slice = ids.slice(start, start + size);
+  if (!slice.length) {
+    replacePosts([]);
+    return;
+  }
+
+  chunkLoading.value = true;
+  try {
     if (
-      page <= 1 &&
+      chunk.value <= 1 &&
       !siteMode.isFurbooru &&
       !siteMode.isInkbunny &&
       !siteMode.isFurAffinity &&
@@ -149,8 +209,6 @@ const {
     }
 
     const service = await getApiService();
-    // API page is always 1 for id: batches; stamp the pool page onto __meta
-    // so postListManager pagination (lastPageNumber + 1) keeps working.
     const { posts: fetched } = await service.getPosts(
       toRaw({
         limit: slice.length,
@@ -166,35 +224,49 @@ const {
     const byId = new Map<number, EnhancedPost>(
       fetched.map((post) => [post.id, post]),
     );
-    return slice
+    const ordered = slice
       .map((id) => byId.get(id))
       .filter((post): post is EnhancedPost => !!post)
       .map((post) => ({
         ...post,
         __meta: {
           ...post.__meta,
-          pageNumber: page,
+          pageNumber: chunk.value,
         },
       }));
-  },
-});
+    replacePosts(ordered);
+  } catch (err: any) {
+    snackbar.addMessage(err?.message || String(err));
+    replacePosts([]);
+  } finally {
+    chunkLoading.value = false;
+  }
+};
 
-const sequenceLabel = computed(() => {
-  const post = fullscreenPost.value;
-  const meta = poolMeta.value;
-  if (!post || !meta?.post_ids?.length) return null;
-  const index = meta.post_ids.indexOf(post.id);
-  if (index < 0) return null;
-  const total = meta.post_count || meta.post_ids.length;
-  return `${index + 1} / ${total}`;
-});
+const onViewModeChange = (mode: PoolViewMode) => {
+  if (viewMode.value === mode) return;
+  viewMode.value = mode;
+  // Keep absolute position roughly stable when chunk size changes.
+  const firstId = posts.value[0]?.id;
+  if (firstId && poolMeta.value?.post_ids) {
+    const index = poolMeta.value.post_ids.indexOf(firstId);
+    if (index >= 0) {
+      const nextChunk = Math.floor(index / chunkSize.value) + 1;
+      if (nextChunk !== chunk.value) {
+        setChunk(nextChunk);
+        return;
+      }
+    }
+  }
+  void fetchChunk();
+};
 
 const onPoolLoaded = (pool: Pool) => {
   poolError.value = null;
   poolMeta.value = pool;
   clearPosts();
   if (pool.post_ids?.length) {
-    void loadNextPage();
+    void fetchChunk();
   }
 };
 
@@ -208,6 +280,12 @@ watch(poolId, () => {
   poolMeta.value = null;
   poolError.value = null;
   clearPosts();
+});
+
+watch(chunk, (next, prev) => {
+  if (!poolMeta.value?.post_ids?.length) return;
+  if (next === prev) return;
+  void fetchChunk();
 });
 </script>
 
