@@ -461,7 +461,7 @@ const fetchPoolsByName = async (pageNumber: number, append: boolean) => {
 };
 
 /**
- * Discover pools from posts matching tags (+ pool:>0). Advances posts pages
+ * Discover pools from posts matching tags (+ inpool:true). Advances posts pages
  * until we collect `browseLimit` new pools or posts run out.
  */
 const fetchPoolsByTags = async (reset: boolean) => {
@@ -498,7 +498,7 @@ const fetchPoolsByTags = async (reset: boolean) => {
       const { posts } = await service.getPosts({
         page: postsPage,
         limit: postPageSize,
-        tags: [...toRaw(tags.value), "pool:>0"],
+        tags: [...toRaw(tags.value), "inpool:true"],
         blacklist: toRaw(blacklist.tags),
         blacklistMode: toRaw(blacklist.mode),
         auth: toRaw(account.auth),
