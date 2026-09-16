@@ -8,10 +8,6 @@
 import { openPostOnSourceSite } from "@/misc/util/url";
 import { savePostLocally } from "@/misc/util/saveLocal";
 import { fluffleImageUrl, isFluffleStillPost } from "@/misc/util/fluffleSearch";
-import {
-  findPostOnE621ByMd5,
-  postCanMd5Lookup,
-} from "@/misc/util/md5Lookup";
 import { useSavedPostsStore, useSnackbarStore } from "@/services";
 import type { ButtonType } from "@/services/types";
 import type { EnhancedPost } from "@/worker/ApiService";
@@ -39,19 +35,12 @@ export default defineComponent({
   },
   setup(props, context) {
     const saving = ref(false);
-    const findingMd5 = ref(false);
     const snackbar = useSnackbarStore();
     const savedPosts = useSavedPostsStore();
 
     const bookmarked = computed(() => savedPosts.isSaved(props.post));
     const fluffleImageOk = computed(
       () => !!props.post && isFluffleStillPost(props.post) && !!fluffleImageUrl(props.post),
-    );
-    const md5LookupOk = computed(
-      () => !!props.post && postCanMd5Lookup(props.post),
-    );
-    const fluffleEnabled = computed(
-      () => fluffleImageOk.value || md5LookupOk.value,
     );
 
     const buttons = computed<{ [key in ButtonType]: IButton }>(() => ({
@@ -129,31 +118,12 @@ export default defineComponent({
       },
       fluffle: {
         color: "",
-        icon: fluffleImageOk.value
-          ? "mdi-image-search"
-          : "mdi-fingerprint",
-        loading: findingMd5.value,
+        icon: "mdi-image-search",
         // No post = settings palette; keep enabled so drag-and-drop works.
-        disabled: props.post ? !fluffleEnabled.value || findingMd5.value : false,
-        onClick: async () => {
-          if (!props.post || !fluffleEnabled.value) return;
-          // Prefer Fluffle when a searchable still exists; MD5 for videos / no-image.
-          if (fluffleImageOk.value) {
-            context.emit("open-fluffle-search", props.post);
-            return;
-          }
-          if (!md5LookupOk.value) return;
-          findingMd5.value = true;
-          try {
-            const md5 = await findPostOnE621ByMd5(props.post);
-            snackbar.addMessage(`Opened e621 md5:${md5}`);
-          } catch (err) {
-            const message =
-              err instanceof Error ? err.message : "MD5 lookup failed";
-            snackbar.addMessage(message);
-          } finally {
-            findingMd5.value = false;
-          }
+        disabled: props.post ? !fluffleImageOk.value : false,
+        onClick: () => {
+          if (!props.post || !fluffleImageOk.value) return;
+          context.emit("open-fluffle-search", props.post);
         },
       },
     }));

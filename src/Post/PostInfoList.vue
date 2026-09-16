@@ -125,29 +125,7 @@
       </tr>
       <tr v-if="showHashRow">
         <th>{{ hashLabel }}</th>
-        <td class="post-info-value post-info-hash">
-          <button
-            v-if="hasValidMd5"
-            type="button"
-            class="post-info-hash-btn"
-            title="Find on e621 by MD5"
-            @click="openMd5Lookup"
-          >
-            {{ post.file.md5 }}
-          </button>
-          <template v-else-if="post.file.md5">{{ post.file.md5 }}</template>
-          <template v-else>—</template>
-          <v-btn
-            v-if="canComputeMd5"
-            class="ml-1"
-            size="x-small"
-            variant="text"
-            :loading="hashing"
-            :icon="hasValidMd5 ? 'mdi-open-in-new' : 'mdi-fingerprint'"
-            :title="hasValidMd5 ? 'Find on e621' : 'Compute MD5 and find on e621'"
-            @click="openMd5Lookup"
-          />
-        </td>
+        <td class="post-info-value post-info-hash">{{ post.file.md5 }}</td>
       </tr>
       <tr v-if="!isLocal">
         <th>Rating</th>
@@ -182,12 +160,6 @@ import {
   modeSupportsNotes,
   modeSupportsVotes,
 } from "@/misc/util/siteCapabilities";
-import {
-  findPostOnE621ByMd5,
-  isE621Md5Hex,
-  postCanMd5Lookup,
-} from "@/misc/util/md5Lookup";
-import { useSnackbarStore } from "@/services";
 
 const props = defineProps({
   post: {
@@ -200,8 +172,6 @@ const emit = defineEmits<{
   "set-post-vote": [{ postId: number; score: 1 | -1 | 0; originMode?: string }];
 }>();
 
-const snackbar = useSnackbarStore();
-const hashing = ref(false);
 const { creatorLabel, creatorCategory } = useSiteLabels();
 const siteMode = useSiteModeStore();
 const originMode = computed(() =>
@@ -240,16 +210,7 @@ const poolEntries = computed(() => {
     name: byId.get(id) || "",
   }));
 });
-const hasValidMd5 = computed(() => isE621Md5Hex(props.post.file?.md5));
-const canComputeMd5 = computed(() =>
-  postCanMd5Lookup(props.post as EnhancedPost),
-);
-const showHashRow = computed(
-  () =>
-    isLocal.value ||
-    !!props.post.file?.md5 ||
-    canComputeMd5.value,
-);
+const showHashRow = computed(() => !!props.post.file?.md5);
 const hashLabel = computed(() => (isFurbooru.value ? "SHA-512" : "MD5"));
 const ratingLabel = computed(() => {
   switch (props.post.rating) {
@@ -273,21 +234,6 @@ watch(
     voteScore.value = 0;
   },
 );
-
-const openMd5Lookup = async () => {
-  if (hashing.value || !canComputeMd5.value) return;
-  hashing.value = true;
-  try {
-    const md5 = await findPostOnE621ByMd5(props.post as EnhancedPost);
-    snackbar.addMessage(`Opened e621 md5:${md5}`);
-  } catch (err) {
-    snackbar.addMessage(
-      err instanceof Error ? err.message : "MD5 lookup failed",
-    );
-  } finally {
-    hashing.value = false;
-  }
-};
 
 const castVote = (score: 1 | -1 | 0) => {
   const prevScore = voteScore.value;
@@ -331,17 +277,7 @@ const castVote = (score: 1 | -1 | 0) => {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.7rem;
   line-height: 1.35;
-}
-.post-info-hash-btn {
-  all: unset;
-  cursor: pointer;
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 2px;
   word-break: break-all;
-}
-.post-info-hash-btn:hover {
-  opacity: 0.85;
 }
 .post-info-source + .post-info-source {
   margin-top: 4px;

@@ -22,7 +22,7 @@ Personal fork priorities. Prefer “works for me” over general polish. Check i
 - [x] **Firefox Local** via Tauri — pick/list/read FS bridge (`pick_local_folder` / `list_local_media` / `read_local_file`); Local mode enabled in Tauri shell
   - [ ] Tauri writes still missing (remux / on-disk sidecar / Save-into-folder) — Chromium FSA keeps those
 - [x] **Bulk remux** — Local toolbar “Remux unplayable” (current tag filter); sequential ffmpeg.wasm; cancel mid-run
-- [x] **MD5 / reverse lookup** — Fluffle button prefers visual search when a still is available; MD5→e621 (`spark-md5`) is the fallback for videos / no-image; Details hash click / Compute opens `md5:` search
+- [x] **Fluffle reverse image search** — still-image Fluffle button on post cards / details (no MD5→e621 fallback)
 - [x] **Save Locally → open in Local** — snackbar “Open in Local” (or auto via Post settings) reuses save folder as browse root and focuses the file
 - [x] Sidecar tags / more formats (audio, archives) if that library use case matters
   - [x] **Save Locally → `.me621-tags.json`** — folder saves merge post tags into the sidecar (+ localforage) for Local search
@@ -129,11 +129,10 @@ Personal fork priorities. Prefer “works for me” over general polish. Check i
 - Snackbar action after folder saves; optional “Open in Local after save” in Post settings.
 - Reuses Save Locally directory handle as Local browse root and focuses the saved path.
 
-### 2026-09-15 — MD5 → e621 reverse lookup
+### 2026-09-15 — Drop MD5 → e621 lookup
 
-- `md5Lookup.ts` (+ spark-md5): compute/reuse 32-hex MD5, open e621 `md5:` search.
-- Local keeps the Fluffle button (fingerprint when hashing); prefers Fluffle over MD5 when a searchable still exists.
-- Details hash row: clickable MD5 + Compute/find control; Local shows the row too.
+- Removed `md5Lookup.ts` / spark-md5; Fluffle reverse image search remains for stills.
+- Details hash row is display-only again (no compute / e621 open).
 
 ### 2026-09-15 — Bulk remux unplayable
 

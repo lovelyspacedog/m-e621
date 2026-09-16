@@ -31,7 +31,7 @@ Switch sites from the sidebar or landing-page chips. Each mode keeps its **own p
 | **Itaku** | Gallery images + flattened multi-image posts; Token auth for stars / following / star toggle / comments; Unified child (off by default) |
 | **SoFurry** | Artwork + stories (fullscreen `.txt` reader); email/password or session-cookie login; My Likes / Following feed; likes toggle; **no** Pools / Suggester / Analyzer / Dashboard or comments/notes; Unified child (on by default) |
 | **Tailspace** | Posts + in-app comic reader (page chunks, scroll / full-width reading, comments); client-side `?tags=` filter + saved searches; optional account login for likes, stars, comments, follow / Following feed |
-| **Local** | Browse a folder on disk (Chromium File System Access API, or **Tauri desktop** read/browse on Firefox); fuzzy search, random order, posters, resume, favorites; audio (`type:audio`); `.me621-tags.json` sidecar tags; MD5 / Fluffle reverse lookup; per-file + bulk remux |
+| **Local** | Browse a folder on disk (Chromium File System Access API, or **Tauri desktop** read/browse on Firefox); fuzzy search, random order, posters, resume, favorites; audio (`type:audio`); `.me621-tags.json` sidecar tags; Fluffle reverse image search; per-file + bulk remux |
 | **Unified** | Federated Posts feed across e621 + e6ai + Furbooru + Inkbunny + FurAffinity + Weasyl + Itaku + SoFurry (toggle children in Account settings; origin badges; origin-aware actions/comments/favorites; per-child metatag remap; merge by created time) |
 
 Tailspace and Local are **not** included in Unified.
@@ -223,7 +223,7 @@ Bundle id is `com.lovelyspacedog.me621`. Tauri enables **Local mode** via a read
 - Comlink workers for API / analyze / dashboard work
 - `@ffmpeg/ffmpeg` for Local remux helpers
 - `@ruffle-rs/ruffle` for Flash/SWF
-- `spark-md5` for Local MD5 → e621 reverse lookup; `mammoth` for `.docx` story preview
+- `mammoth` for `.docx` story preview
 - Python 3 stdlib HTTP server (`serve.py`) for self-host proxies
 
 ---

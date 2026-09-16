@@ -26,7 +26,7 @@ export const modeSupportsNotes = (mode: SiteMode): boolean =>
   isE621FamilyMode(mode);
 
 export const modeSupportsFluffle = (mode: SiteMode): boolean =>
-  mode !== "tailspace"; // Local keeps the button for MD5→e621 lookup
+  mode !== "tailspace"; // Local keeps Fluffle reverse image search
 
 type PostMetaLike = {
   __meta?: {
@@ -62,7 +62,7 @@ export const hiddenButtonsForMode = (mode: SiteMode): Set<ButtonType> => {
     hidden.add("external");
     hidden.add("save_local");
     hidden.add("bookmark");
-    // Keep fluffle — Local uses it for MD5 reverse lookup.
+    // Keep fluffle — Local uses reverse image search.
   }
   return hidden;
 };
