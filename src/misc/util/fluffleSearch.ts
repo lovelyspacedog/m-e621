@@ -1,4 +1,5 @@
 import type { EnhancedPost } from "@/worker/ApiService";
+import { unwrapProxyDownloadUrl } from "@/misc/util/mediaProxy";
 
 export type FluffleMatch = "exact" | "probable" | "unlikely";
 
@@ -46,7 +47,9 @@ export function fluffleImageUrl(post: EnhancedPost): string | null {
   const preview = post.preview?.url || "";
   const file = post.file?.url || "";
   for (const url of [sample, preview, file]) {
-    if (url && /^https?:\/\//i.test(url)) return url;
+    // Accept absolute CDN URLs, or unwrap /api/download?url=… (FA / IB / Weasyl).
+    const resolved = unwrapProxyDownloadUrl(url);
+    if (resolved) return resolved;
   }
   return null;
 }

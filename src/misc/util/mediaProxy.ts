@@ -22,3 +22,21 @@ export function proxyDownloadUrl(url?: string | null): string | null {
   }
   return `/api/download?url=${encodeURIComponent(url)}`;
 }
+
+/**
+ * Recover the upstream https URL from a same-origin `/api/download?url=…`
+ * rewrite (FA / Inkbunny / Weasyl). Leaves absolute http(s) URLs alone.
+ */
+export function unwrapProxyDownloadUrl(url?: string | null): string | null {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  try {
+    const parsed = new URL(url, "https://local.invalid");
+    if (!parsed.pathname.startsWith("/api/download")) return null;
+    const upstream = parsed.searchParams.get("url");
+    if (!upstream || !/^https?:\/\//i.test(upstream)) return null;
+    return upstream;
+  } catch {
+    return null;
+  }
+}
