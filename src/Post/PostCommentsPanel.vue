@@ -1,6 +1,6 @@
 <template>
   <div class="post-comments-panel">
-    <div v-if="!isFurbooru" class="mb-4">
+    <div class="mb-4">
       <v-textarea
         v-model="draftComment"
         label="Write a comment"
@@ -57,7 +57,7 @@ import {
   useSnackbarStore,
   useUrlStore,
 } from "@/services";
-import { originAuthForPost, originModeOf, postFeedKey } from "@/misc/util/postOrigin";
+import { originAuthForPost, postFeedKey } from "@/misc/util/postOrigin";
 import { getApiService } from "@/worker/services";
 
 const props = defineProps<{
@@ -77,10 +77,6 @@ const commentsLoadedFor = ref<string | null>(null);
 const draftComment = ref("");
 const postingComment = ref(false);
 
-const originMode = computed(() =>
-  originModeOf(props.post, siteMode.activeMode),
-);
-const isFurbooru = computed(() => originMode.value === "furbooru");
 const feedKey = computed(() => postFeedKey(props.post));
 
 const loadComments = async (key: string) => {
