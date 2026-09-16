@@ -2,14 +2,7 @@
   <div>
     <portal to="toolbar">
       <div class="pools-toolbar">
-        <v-btn-toggle
-          v-model="searchMode"
-          mandatory
-          density="compact"
-          variant="outlined"
-          divided
-          class="pools-mode-toggle"
-        >
+        <v-btn-toggle v-model="searchMode" mandatory density="compact" variant="outlined" divided class="pools-mode-toggle">
           <v-btn value="name" size="small">Name</v-btn>
           <v-btn value="tags" size="small">Tags</v-btn>
         </v-btn-toggle>
@@ -37,16 +30,7 @@
           @confirm-search="runTagSearch"
         />
 
-        <v-select
-          v-model="order"
-          class="pools-toolbar-select"
-          density="compact"
-          hide-details
-          variant="solo"
-          :items="orderItems"
-          :disabled="searchMode === 'tags'"
-          label="Sort"
-        />
+        <v-select v-model="order" class="pools-toolbar-select" density="compact" hide-details variant="solo" :items="orderItems" :disabled="searchMode === 'tags'" label="Sort" />
         <v-select
           v-model="category"
           class="pools-toolbar-select"
@@ -58,14 +42,7 @@
           label="Category"
         />
 
-        <v-btn-toggle
-          v-model="browseLayout"
-          mandatory
-          density="compact"
-          variant="outlined"
-          divided
-          class="pools-layout-toggle"
-        >
+        <v-btn-toggle v-model="browseLayout" mandatory density="compact" variant="outlined" divided class="pools-layout-toggle">
           <v-btn value="grid" size="small" title="Grid">
             <v-icon size="18">mdi-view-grid</v-icon>
           </v-btn>
@@ -81,101 +58,48 @@
     </portal>
 
     <v-container>
-      <div v-if="searchMode === 'tags'" class="text-caption text-medium-emphasis mb-3">
-        Pools discovered from posts matching your tags (sort/category disabled).
-      </div>
+      <section class="mb-8">
+        <div class="d-flex align-center ga-2 mb-3">
+          <v-icon color="accent">mdi-eye</v-icon>
+          <h2 class="text-h6">Watched Pools</h2>
+          <v-progress-circular v-if="watchedLoading" indeterminate size="18" width="2" />
+        </div>
+        <div v-if="!watchedLoading && !watchedEntries.length" class="text-body-2 text-medium-emphasis">No watched pools for this site.</div>
+        <PoolCollection
+          v-else-if="watchedPoolResults.length"
+          :pools="watchedPoolResults"
+          :layout="browseLayout"
+          :covers="covers"
+          :watched-ids="watchedIds"
+          @toggle-watch="toggleWatch"
+        />
+        <v-list v-if="unavailableWatchedIds.length" class="mt-2" bg-color="transparent" density="compact">
+          <v-list-item v-for="id in unavailableWatchedIds" :key="id" :title="`Pool ${id}`" subtitle="Pool details are unavailable">
+            <template #append>
+              <v-btn icon size="small" variant="text" title="Unwatch pool" aria-label="Unwatch pool" @click="removeUnavailableWatch(id)">
+                <v-icon>mdi-eye-off-outline</v-icon>
+              </v-btn>
+            </template>
+          </v-list-item>
+        </v-list>
+      </section>
+
+      <v-divider class="mb-6" />
+
+      <div v-if="searchMode === 'tags'" class="text-caption text-medium-emphasis mb-3">Pools discovered from posts matching your tags (sort/category disabled).</div>
       <div v-if="error" class="text-medium-emphasis mb-4">{{ error }}</div>
       <div v-else-if="loading && !pools.length" class="text-center py-8">
         <v-progress-circular indeterminate color="accent" />
       </div>
-      <div
-        v-else-if="!pools.length && searched && searchMode === 'tags' && !tags.length"
-        class="text-medium-emphasis"
-      >
+      <div v-else-if="!pools.length && searched && searchMode === 'tags' && !tags.length" class="text-medium-emphasis">
         Add post tags to find pools that contain matching posts.
       </div>
-      <div v-else-if="!pools.length && searched" class="text-medium-emphasis">
-        No pools found
-      </div>
+      <div v-else-if="!pools.length && searched" class="text-medium-emphasis">No pools found</div>
 
-      <div v-else-if="browseLayout === 'grid'" class="pools-grid">
-        <router-link
-          v-for="pool in pools"
-          :key="pool.id"
-          class="pools-card"
-          :to="{ name: 'Pool', params: { id: pool.id } }"
-          :title="displayName(pool.name)"
-        >
-          <div class="pools-card-thumb">
-            <img
-              v-if="coverUrl(pool)"
-              class="pools-card-img"
-              :src="coverUrl(pool)!"
-              :alt="displayName(pool.name)"
-              loading="lazy"
-            />
-            <div v-else class="pools-card-placeholder">
-              <v-icon size="36" class="text-medium-emphasis">
-                mdi-image-off-outline
-              </v-icon>
-            </div>
-            <div class="pools-badge pools-badge--pages">
-              <v-icon size="12">mdi-image-multiple</v-icon>
-              {{ pool.post_count }}
-            </div>
-            <div v-if="pool.category" class="pools-badge pools-badge--cat">
-              {{ pool.category }}
-            </div>
-            <div v-if="!pool.is_active" class="pools-badge pools-badge--inactive">
-              inactive
-            </div>
-          </div>
-          <div class="pools-card-info">
-            <div class="pools-card-title">{{ displayName(pool.name) }}</div>
-            <div class="pools-card-meta">{{ pool.creator_name }}</div>
-          </div>
-        </router-link>
-      </div>
-
-      <v-list v-else bg-color="transparent">
-        <v-list-item
-          v-for="pool in pools"
-          :key="pool.id"
-          :to="{ name: 'Pool', params: { id: pool.id } }"
-          rounded="lg"
-          class="mb-1 pool-row"
-        >
-          <template #prepend>
-            <div class="pool-cover">
-              <img
-                v-if="coverUrl(pool)"
-                :src="coverUrl(pool)!"
-                :alt="displayName(pool.name)"
-                class="pool-cover-img"
-                loading="lazy"
-              />
-              <v-icon v-else size="32" class="text-medium-emphasis">
-                mdi-image-off-outline
-              </v-icon>
-            </div>
-          </template>
-          <v-list-item-title>{{ displayName(pool.name) }}</v-list-item-title>
-          <v-list-item-subtitle>
-            {{ pool.post_count }} posts · {{ pool.creator_name }}
-            <span v-if="pool.category"> · {{ pool.category }}</span>
-            <span v-if="!pool.is_active"> · inactive</span>
-          </v-list-item-subtitle>
-        </v-list-item>
-      </v-list>
+      <PoolCollection v-else :pools="pools" :layout="browseLayout" :covers="covers" :watched-ids="watchedIds" @toggle-watch="toggleWatch" />
 
       <div v-if="pools.length" class="text-center mt-4">
-        <v-btn
-          variant="text"
-          color="accent"
-          :loading="loading"
-          :disabled="!hasMore"
-          @click="loadMore"
-        >
+        <v-btn variant="text" color="accent" :loading="loading" :disabled="!hasMore" @click="loadMore">
           {{ hasMore ? "Load more" : "End of results" }}
         </v-btn>
       </div>
@@ -184,20 +108,16 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, toRaw, watch } from "vue";
+import { computed, onMounted, ref, toRaw, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useHead } from "@unhead/vue";
 import { debounce } from "lodash";
 import type { Pool } from "@/worker/api";
 import TagSearch from "@/Tag/TagSearch.vue";
+import PoolCollection from "@/Pool/PoolCollection.vue";
 import { useRouterTagManager } from "@/Post/routerTagManager";
-import {
-  useAccountStore,
-  useBlacklistStore,
-  usePostsStore,
-  useSiteModeStore,
-  useUrlStore,
-} from "@/services";
+import { useAccountStore, useBlacklistStore, usePostsStore, useSiteModeStore, useUrlStore, useWatchedPoolsStore } from "@/services";
+import type { PoolOriginMode } from "@/services/types";
 import { BlacklistMode } from "@/services/types";
 import { useRouterQueryHelpers } from "@/misc/util/utilities";
 import { getApiService } from "@/worker/services";
@@ -209,17 +129,8 @@ type PoolCategoryFilter = "all" | "series" | "collection";
 type SearchMode = "name" | "tags";
 type BrowseLayout = "grid" | "list";
 
-const ORDER_VALUES: PoolOrder[] = [
-  "post_count",
-  "updated_at",
-  "created_at",
-  "name",
-];
-const CATEGORY_VALUES: PoolCategoryFilter[] = [
-  "all",
-  "series",
-  "collection",
-];
+const ORDER_VALUES: PoolOrder[] = ["post_count", "updated_at", "created_at", "name"];
+const CATEGORY_VALUES: PoolCategoryFilter[] = ["all", "series", "collection"];
 const LAYOUT_KEY = "pools-browse-layout";
 const TAG_FETCH_CONCURRENCY = 8;
 
@@ -229,6 +140,7 @@ const siteMode = useSiteModeStore();
 const postsStore = usePostsStore();
 const account = useAccountStore();
 const blacklist = useBlacklistStore();
+const watchedPoolStore = useWatchedPoolsStore();
 const { updateRouterQuery, removeRouterQuery } = useRouterQueryHelpers();
 const { tags, addTag, removeTag } = useRouterTagManager();
 
@@ -246,15 +158,11 @@ const categoryItems = [
 
 const parseOrder = (raw: unknown): PoolOrder => {
   const value = Array.isArray(raw) ? raw[0] : raw;
-  return ORDER_VALUES.includes(value as PoolOrder)
-    ? (value as PoolOrder)
-    : "post_count";
+  return ORDER_VALUES.includes(value as PoolOrder) ? (value as PoolOrder) : "post_count";
 };
 const parseCategory = (raw: unknown): PoolCategoryFilter => {
   const value = Array.isArray(raw) ? raw[0] : raw;
-  return CATEGORY_VALUES.includes(value as PoolCategoryFilter)
-    ? (value as PoolCategoryFilter)
-    : "all";
+  return CATEGORY_VALUES.includes(value as PoolCategoryFilter) ? (value as PoolCategoryFilter) : "all";
 };
 const parseQuery = (raw: unknown): string => {
   const value = Array.isArray(raw) ? raw[0] : raw;
@@ -280,6 +188,8 @@ const category = ref<PoolCategoryFilter>(parseCategory(route.query.category));
 const searchMode = ref<SearchMode>(parseMode(route.query.mode));
 const browseLayout = ref<BrowseLayout>(loadBrowseLayout());
 const pools = ref<Pool[]>([]);
+const watchedPoolResults = ref<Pool[]>([]);
+const watchedLoading = ref(false);
 const covers = ref<Record<number, string>>({});
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -293,11 +203,14 @@ const seenPoolIds = ref<Set<number>>(new Set());
 /** Bumps on each tags fetch so overlapping resets cannot wipe results. */
 let tagsFetchGeneration = 0;
 
-const displayName = (name: string) => name.replace(/_/g, " ");
-const coverUrl = (pool: Pool) => {
-  const firstId = pool.post_ids?.[0];
-  return firstId ? covers.value[firstId] || null : null;
-};
+const poolOrigin = computed(() => siteMode.activeMode as PoolOriginMode);
+const watchedEntries = computed(() => watchedPoolStore.entriesFor(poolOrigin.value));
+const watchedIds = computed(() => new Set(watchedEntries.value.map((entry) => entry.id)));
+const unavailableWatchedIds = computed(() => {
+  if (watchedLoading.value) return [];
+  const loaded = new Set(watchedPoolResults.value.map((pool) => pool.id));
+  return watchedEntries.value.map((entry) => entry.id).filter((id) => !loaded.has(id));
+});
 const queryText = () => (query.value || "").trim();
 const browseLimit = () => postsStore.postListFetchLimit || 40;
 
@@ -340,13 +253,7 @@ const syncQueryToRoute = async () => {
 };
 
 const fetchCovers = async (list: Pool[]) => {
-  const ids = [
-    ...new Set(
-      list
-        .map((pool) => pool.post_ids?.[0])
-        .filter((id): id is number => typeof id === "number" && id > 0),
-    ),
-  ].filter((id) => !covers.value[id]);
+  const ids = [...new Set(list.map((pool) => pool.post_ids?.[0]).filter((id): id is number => typeof id === "number" && id > 0))].filter((id) => !covers.value[id]);
   if (!ids.length) return;
 
   try {
@@ -372,22 +279,15 @@ const fetchCovers = async (list: Pool[]) => {
   }
 };
 
-const mapWithConcurrency = async <T, R>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T) => Promise<R | null>,
-): Promise<R[]> => {
+const mapWithConcurrency = async <T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R | null>): Promise<R[]> => {
   const results: (R | null)[] = new Array(items.length).fill(null);
   let index = 0;
-  const workers = Array.from(
-    { length: Math.min(concurrency, Math.max(items.length, 1)) },
-    async () => {
-      while (index < items.length) {
-        const currentIndex = index++;
-        results[currentIndex] = await fn(items[currentIndex]);
-      }
-    },
-  );
+  const workers = Array.from({ length: Math.min(concurrency, Math.max(items.length, 1)) }, async () => {
+    while (index < items.length) {
+      const currentIndex = index++;
+      results[currentIndex] = await fn(items[currentIndex]);
+    }
+  });
   await Promise.all(workers);
   return results.filter((value): value is R => value != null);
 };
@@ -406,6 +306,32 @@ const hydratePools = async (ids: number[]): Promise<Pool[]> => {
       return null;
     }
   });
+};
+
+const loadWatchedPools = async () => {
+  watchedLoading.value = true;
+  try {
+    const hydrated = await hydratePools(watchedEntries.value.map((entry) => entry.id));
+    const byId = new Map(hydrated.map((pool) => [pool.id, pool]));
+    watchedPoolResults.value = watchedEntries.value.map((entry) => byId.get(entry.id)).filter((pool): pool is Pool => !!pool);
+    void fetchCovers(watchedPoolResults.value);
+  } finally {
+    watchedLoading.value = false;
+  }
+};
+
+const toggleWatch = (pool: Pool) => {
+  const watched = watchedPoolStore.toggle(poolOrigin.value, pool.id);
+  if (watched) {
+    watchedPoolResults.value = [pool, ...watchedPoolResults.value.filter((item) => item.id !== pool.id)];
+    void fetchCovers([pool]);
+  } else {
+    watchedPoolResults.value = watchedPoolResults.value.filter((item) => item.id !== pool.id);
+  }
+};
+
+const removeUnavailableWatch = (id: number) => {
+  watchedPoolStore.remove(poolOrigin.value, id);
 };
 
 const fetchPoolsByName = async (pageNumber: number, append: boolean) => {
@@ -437,10 +363,7 @@ const fetchPoolsByName = async (pageNumber: number, append: boolean) => {
       ]);
       const nameList = Array.isArray(byName) ? byName : [];
       const descList = Array.isArray(byDesc) ? byDesc : [];
-      list = mergePools(
-        [nameList, descList],
-        append ? new Set(pools.value.map((p) => p.id)) : undefined,
-      );
+      list = mergePools([nameList, descList], append ? new Set(pools.value.map((p) => p.id)) : undefined);
       hasMore.value = nameList.length >= limit || descList.length >= limit;
     } else {
       const result = await service.getPools(shared);
@@ -616,24 +539,13 @@ watch(browseLayout, (layout) => {
 });
 
 watch(
-  () =>
-    [
-      route.query.q,
-      route.query.order,
-      route.query.category,
-      route.query.mode,
-    ] as const,
+  () => [route.query.q, route.query.order, route.query.category, route.query.mode] as const,
   ([q, o, c, m]) => {
     const nextQuery = parseQuery(q);
     const nextOrder = parseOrder(o);
     const nextCategory = parseCategory(c);
     const nextMode = parseMode(m);
-    if (
-      nextQuery === (query.value || "") &&
-      nextOrder === order.value &&
-      nextCategory === category.value &&
-      nextMode === searchMode.value
-    ) {
+    if (nextQuery === (query.value || "") && nextOrder === order.value && nextCategory === category.value && nextMode === searchMode.value) {
       return;
     }
     syncingFromRoute.value = true;
@@ -657,9 +569,20 @@ watch(
 );
 
 onMounted(() => {
+  void loadWatchedPools();
   if (searchMode.value === "tags") void fetchPoolsByTags(true);
   else void fetchPoolsByName(1, false);
 });
+
+watch(
+  () => siteMode.activeMode,
+  () => {
+    watchedPoolResults.value = [];
+    void loadWatchedPools();
+    if (searchMode.value === "tags") void fetchPoolsByTags(true);
+    else void fetchPoolsByName(1, false);
+  },
+);
 </script>
 
 <style scoped>
@@ -686,137 +609,5 @@ onMounted(() => {
 .pools-mode-toggle,
 .pools-layout-toggle {
   flex-shrink: 0;
-}
-
-.pool-row :deep(.v-list-item__prepend) {
-  margin-inline-end: 12px;
-}
-
-.pool-cover {
-  width: 56px;
-  height: 56px;
-  border-radius: 8px;
-  overflow: hidden;
-  background: rgba(128, 128, 128, 0.15);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.pool-cover-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.pools-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 10px;
-  max-width: 1800px;
-  margin: 0 auto;
-}
-@media (min-width: 600px) {
-  .pools-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  }
-}
-@media (min-width: 960px) {
-  .pools-grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 12px;
-  }
-}
-
-.pools-card {
-  display: block;
-  text-decoration: none;
-  color: inherit;
-  border-radius: 8px;
-  overflow: hidden;
-  background: rgba(var(--v-theme-surface-variant), 0.4);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.pools-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-}
-
-.pools-card-thumb {
-  position: relative;
-  aspect-ratio: 2 / 3;
-  background: rgba(var(--v-border-color), 0.15);
-  overflow: hidden;
-}
-.pools-card-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: transform 0.2s ease;
-}
-.pools-card:hover .pools-card-img {
-  transform: scale(1.04);
-}
-.pools-card-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.pools-badge {
-  position: absolute;
-  border-radius: 4px;
-  padding: 2px 5px;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.2;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  backdrop-filter: blur(4px);
-}
-.pools-badge--pages {
-  bottom: 5px;
-  right: 5px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-}
-.pools-badge--cat {
-  top: 5px;
-  right: 5px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-}
-.pools-badge--inactive {
-  top: 5px;
-  left: 5px;
-  background: rgba(180, 0, 0, 0.75);
-  color: #fff;
-}
-
-.pools-card-info {
-  padding: 6px 8px 8px;
-}
-.pools-card-title {
-  font-size: 0.8rem;
-  font-weight: 600;
-  line-height: 1.3;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-.pools-card-meta {
-  font-size: 0.72rem;
-  opacity: 0.6;
-  margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 </style>

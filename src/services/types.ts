@@ -4,14 +4,7 @@ export enum BlacklistMode {
   blackout,
 }
 
-export type ButtonType =
-  | "info"
-  | "fullscreen"
-  | "external"
-  | "favorite"
-  | "bookmark"
-  | "save_local"
-  | "fluffle";
+export type ButtonType = "info" | "fullscreen" | "external" | "favorite" | "bookmark" | "save_local" | "fluffle";
 
 export enum FullscreenZoomUiMode {
   alwaysHide,
@@ -74,16 +67,15 @@ export interface SavedPostEntry {
   savedAt: number;
 }
 
-export const UNIFIED_CHILD_MODES: UnifiedChildMode[] = [
-  "e621",
-  "e6ai",
-  "furbooru",
-  "inkbunny",
-  "furaffinity",
-  "weasyl",
-  "itaku",
-  "sofurry",
-];
+export type PoolOriginMode = "e621" | "e6ai";
+
+export interface WatchedPoolEntry {
+  originMode: PoolOriginMode;
+  id: number;
+  watchedAt: number;
+}
+
+export const UNIFIED_CHILD_MODES: UnifiedChildMode[] = ["e621", "e6ai", "furbooru", "inkbunny", "furaffinity", "weasyl", "itaku", "sofurry"];
 
 export type UnifiedSites = Record<UnifiedChildMode, boolean>;
 
@@ -164,7 +156,41 @@ export interface SiteProfile {
 // }
 
 export interface ISettingsServiceState {
-  configVersion: undefined | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32;
+  configVersion:
+    | undefined
+    | 1
+    | 2
+    | 3
+    | 4
+    | 5
+    | 6
+    | 7
+    | 8
+    | 9
+    | 10
+    | 11
+    | 12
+    | 13
+    | 14
+    | 15
+    | 16
+    | 17
+    | 18
+    | 19
+    | 20
+    | 21
+    | 22
+    | 23
+    | 24
+    | 25
+    | 26
+    | 27
+    | 28
+    | 29
+    | 30
+    | 31
+    | 32
+    | 33;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];
@@ -242,6 +268,10 @@ export interface ISettingsServiceState {
   /** Mode-independent local bookmarks (federated child modes + Unified). Not under profiles. */
   savedPosts: {
     entries: SavedPostEntry[];
+  };
+  /** Mode-independent registry; views filter entries by their origin site. */
+  watchedPools: {
+    entries: WatchedPoolEntry[];
   };
   favorites: {
     groups: FavoriteTagGroup[];

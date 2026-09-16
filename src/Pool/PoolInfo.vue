@@ -14,23 +14,11 @@
           <DText :text="pool.description || 'No description'" />
         </v-card-text>
         <v-card-actions>
-          <v-btn
-            v-if="showBrowse"
-            color="accent"
-            variant="text"
-            :to="{ name: 'Pool', params: { id: poolId } }"
-          >
-            Browse pool
+          <v-btn v-if="showBrowse" color="accent" variant="text" :to="{ name: 'Pool', params: { id: poolId } }"> Browse pool </v-btn>
+          <v-btn color="accent" variant="text" :prepend-icon="watched ? 'mdi-eye' : 'mdi-eye-outline'" @click="toggleWatch">
+            {{ watched ? "Unwatch pool" : "Watch pool" }}
           </v-btn>
-          <v-btn
-            color="accent"
-            variant="text"
-            :href="siteUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Open on site
-          </v-btn>
+          <v-btn color="accent" variant="text" :href="siteUrl" target="_blank" rel="noopener noreferrer"> Open on site </v-btn>
         </v-card-actions>
       </v-card>
     </div>
@@ -46,7 +34,8 @@
 <script lang="ts">
 import AppLogo from "@/App/AppLogo.vue";
 import DText from "@/Parser/DText.vue";
-import { useSiteModeStore, useUrlStore } from "@/services";
+import { useSiteModeStore, useUrlStore, useWatchedPoolsStore } from "@/services";
+import type { PoolOriginMode } from "@/services/types";
 import type { Pool } from "@/worker/api";
 import { getApiService } from "@/worker/services";
 import { computed, defineComponent, onMounted, ref, watch } from "vue";
@@ -80,16 +69,19 @@ export default defineComponent({
   setup(props, { emit }) {
     const urlStore = useUrlStore();
     const siteMode = useSiteModeStore();
+    const watchedPools = useWatchedPoolsStore();
     const pool = ref<Pool>();
     const loading = ref(false);
     const error = ref<string | null>(null);
 
-    const displayName = computed(() =>
-      (pool.value?.name || "").replace(/_/g, " "),
-    );
-    const siteUrl = computed(
-      () => `${urlStore.e621Url}pools/${props.poolId}`,
-    );
+    const displayName = computed(() => (pool.value?.name || "").replace(/_/g, " "));
+    const siteUrl = computed(() => `${urlStore.e621Url}pools/${props.poolId}`);
+    const poolOrigin = computed(() => siteMode.activeMode as PoolOriginMode);
+    const watched = computed(() => watchedPools.isWatched(poolOrigin.value, props.poolId));
+    const toggleWatch = () => {
+      if (!pool.value) return;
+      watchedPools.toggle(poolOrigin.value, props.poolId);
+    };
     const datesCaption = computed(() => {
       if (!pool.value) return null;
       const created = formatDate(pool.value.created_at);
@@ -139,6 +131,8 @@ export default defineComponent({
       displayName,
       siteUrl,
       datesCaption,
+      watched,
+      toggleWatch,
     };
   },
   components: { DText, AppLogo },

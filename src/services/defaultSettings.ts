@@ -1,12 +1,5 @@
-import type {
-  ISettingsServiceState,
-  Shortcut
-} from "./types";
-import {
-  BlacklistMode,
-  DataSaverType,
-  FullscreenZoomUiMode
-} from "./types";
+import type { ISettingsServiceState, Shortcut } from "./types";
+import { BlacklistMode, DataSaverType, FullscreenZoomUiMode } from "./types";
 import { createEmptySiteProfile, profileFromMirrors } from "./siteProfiles";
 
 export const focusSearchShortcut: Shortcut = {
@@ -40,7 +33,7 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 32,
+  configVersion: 33,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -143,6 +136,9 @@ export const defaultSettings: ISettingsServiceState = {
     userId: null,
   },
   savedPosts: {
+    entries: [],
+  },
+  watchedPools: {
     entries: [],
   },
   posts: {

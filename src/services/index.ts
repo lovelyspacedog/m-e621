@@ -10,8 +10,8 @@ export * from "./ShortcutStore";
 export * from "./UrlStore";
 export * from "./SavedSearchStore";
 export * from "./SavedPostsStore";
+export * from "./WatchedPoolsStore";
 export * from "./SiteModeStore";
 export * from "./PwaUpdateStore";
 export * from "./UiStore";
 export * from "./state";
-
