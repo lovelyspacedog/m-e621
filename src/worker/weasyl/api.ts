@@ -9,6 +9,7 @@
  * Without a key, only SFW/general content is visible.
  */
 
+import { isAudioExt } from "@/misc/util/audioExts";
 import type { Post, PostTags, Tag } from "@/worker/api/returnTypes";
 
 // ---------------------------------------------------------------------------
@@ -145,6 +146,12 @@ function pickMediaUrl(items?: WeasylMediaItem[]): string | null {
   return items[0]?.url || null;
 }
 
+function proxyMediaUrl(url?: string | null): string | null {
+  if (!url) return null;
+  if (url.startsWith("/api/download")) return url;
+  return `/api/download?url=${encodeURIComponent(url)}`;
+}
+
 export function submissionUrl(sub: { submitid: number; owner_login: string; title?: string }): string {
   // Canonical Weasyl submission URL
   return `https://www.weasyl.com/~${sub.owner_login}/submissions/${sub.submitid}`;
@@ -161,18 +168,21 @@ export function adaptSubmission(sub: WeasylSubmission): Post {
   // Use submission file as full, cover as sample, thumbnail as preview
   const fullUrl = submissionUrl_ || coverUrl || thumbUrl;
   const sampleUrl = coverUrl || submissionUrl_ || thumbUrl;
-  const previewUrl = thumbUrl || sampleUrl;
+  const previewUrl = thumbUrl || coverUrl || sampleUrl;
 
   // Guess ext from URL
-  const ext = (fullUrl || "").split(".").pop()?.split("?")[0] || "";
-  const isMedia = /^(jpg|jpeg|png|gif|webp|mp4|webm|swf|pdf)$/i.test(ext);
+  const ext = (fullUrl || "").split(".").pop()?.split("?")[0]?.toLowerCase() || "";
+  const audio = isAudioExt(ext) || /^multimedia$/i.test(sub.subtype || "");
+  const isMedia =
+    /^(jpg|jpeg|png|gif|webp|mp4|webm|swf|pdf)$/i.test(ext) || isAudioExt(ext);
+  if (audio && isAudioExt(ext)) tags.meta.push("type:audio");
 
   const post: Post = {
     id: sub.submitid,
     created_at: sub.posted_at || "",
     updated_at: sub.posted_at || "",
     file: {
-      url: isMedia ? fullUrl : null,
+      url: isMedia ? proxyMediaUrl(fullUrl) : null,
       ext,
       width: 0,
       height: 0,
@@ -180,13 +190,14 @@ export function adaptSubmission(sub: WeasylSubmission): Post {
       md5: "",
     },
     preview: {
-      url: previewUrl || "",
+      url: proxyMediaUrl(previewUrl) || "",
       width: 0,
       height: 0,
     },
     sample: {
       has: !!sampleUrl,
-      url: sampleUrl || "",
+      // Keep cover/thumb for audio — never put the mp3 on sample.
+      url: proxyMediaUrl(isAudioExt(ext) ? coverUrl || thumbUrl || sampleUrl : sampleUrl) || "",
       width: 0,
       height: 0,
     },
@@ -267,6 +278,8 @@ export function mapSearchTags(tags: string[]): MappedWeasylSearch {
       // default is newest; no-op for other orders
       continue;
     }
+    // Client/meta tag — do not send to Weasyl HTML search.
+    if (lower === "type:audio") continue;
 
     // Translate e621-style tags to Weasyl search syntax
     // Weasyl uses same - prefix for negation, spaces between terms
@@ -352,6 +365,14 @@ export async function searchSubmissions(args: {
   const mapped = mapSearchTags(args.tags);
   const page = Math.max(1, args.page || 1);
   const limit = Math.min(100, Math.max(1, args.limit || 30));
+  const audioOnly = args.tags.some((t) => t.toLowerCase() === "type:audio");
+  const maybeFilterAudio = (posts: Post[]) =>
+    audioOnly
+      ? posts.filter(
+          (p) =>
+            p.tags.meta?.includes("type:audio") || isAudioExt(p.file.ext),
+        )
+      : posts;
   const maybeShuffle = (posts: Post[]) =>
     mapped.random ? [...posts].sort(() => Math.random() - 0.5) : posts;
 
@@ -367,7 +388,8 @@ export async function searchSubmissions(args: {
       nextid: prevNextid,
     });
     setCachedNextid(cacheKey, page, result.nextid);
-    return { posts: maybeShuffle(result.posts), total: result.posts.length };
+    const posts = maybeShuffle(maybeFilterAudio(result.posts));
+    return { posts, total: posts.length };
   }
 
   // user gallery
@@ -381,7 +403,9 @@ export async function searchSubmissions(args: {
     });
     const data = await fetchJson<WeasylGalleryResponse>(url);
     setCachedNextid(cacheKey, page, data.nextid);
-    const posts = maybeShuffle((data.submissions || []).map(adaptSubmission));
+    const posts = maybeShuffle(
+      maybeFilterAudio((data.submissions || []).map(adaptSubmission)),
+    );
     return { posts, total: posts.length };
   }
 
@@ -398,13 +422,15 @@ export async function searchSubmissions(args: {
     });
     const data = await fetchJson<{ submissions: WeasylSubmission[]; nextid: number | null }>(url);
     setCachedNextid(cacheKey, page, data.nextid);
-    const posts = maybeShuffle((data.submissions || []).map(adaptSubmission));
+    const posts = maybeShuffle(
+      maybeFilterAudio((data.submissions || []).map(adaptSubmission)),
+    );
     return { posts, total: posts.length };
   }
 
   // No tags — frontpage
   const posts = maybeShuffle(
-    await fetchFrontpage({ apiKey: args.apiKey, count: limit }),
+    maybeFilterAudio(await fetchFrontpage({ apiKey: args.apiKey, count: limit })),
   );
   return { posts, total: posts.length };
 }

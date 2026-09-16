@@ -72,8 +72,8 @@ export const usePostListManager = ({
     const meta = post.__meta?.furaffinity;
     if (!meta || meta.detailsLoaded || meta.unavailable) return false;
     if (meta.kind === "journal") return false;
-    // Covers are enough for non-image cards; skip the submission scrape.
-    if (/^(text|story|poetry|music|flash)$/i.test(meta.faType || "")) return false;
+    // Covers are enough for text/story/flash cards; music needs file_url for <audio>.
+    if (/^(text|story|poetry|flash)$/i.test(meta.faType || "")) return false;
     return true;
   };
 

@@ -680,6 +680,13 @@ const toolbarActions = computed((): ToolbarAction[] => {
       run: () => applyOrder("order:newest"),
     });
   }
+  const musicCapable =
+    siteMode.isLocal ||
+    siteMode.isFurAffinity ||
+    siteMode.isInkbunny ||
+    siteMode.isWeasyl ||
+    siteMode.isSofurry ||
+    siteMode.isUnified;
   if (siteMode.isLocal) {
     actions.push(
       {
@@ -742,6 +749,13 @@ const toolbarActions = computed((): ToolbarAction[] => {
         },
       },
     );
+  } else if (musicCapable) {
+    actions.push({
+      key: "audio",
+      label: "Audio",
+      active: hasTypeTag("type:audio"),
+      run: () => toggleTypeTag("type:audio"),
+    });
   }
   if (!siteMode.isLocal) {
     actions.push(

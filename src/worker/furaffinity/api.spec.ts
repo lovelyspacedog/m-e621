@@ -120,6 +120,20 @@ describe("adaptPartial favorite state", () => {
     expect(decodeURIComponent(post.file.url || "")).toContain("@600-");
   });
 
+  it("keeps music listing covers off file.url until enrich", () => {
+    const post = adaptPartial(listingHit({ type: "music" }));
+    expect(post.file.url).toBeNull();
+    expect(post.file.ext).toBe("mp3");
+    expect(post.tags.meta).toContain("type:audio");
+    expect(decodeURIComponent(post.preview.url)).toContain("@200-");
+    expect(decodeURIComponent(post.sample.url)).toContain("@600-");
+  });
+
+  it("maps type:audio to music-only FA search", () => {
+    expect(mapSearchTags(["type:audio"]).musicOnly).toBe(true);
+    expect(mapSearchTags(["type:audio", "fox"]).text).toBe("fox");
+  });
+
   it("keeps the real file_url when enrichment provided one", () => {
     const post = adaptPartial(
       listingHit({
@@ -128,5 +142,19 @@ describe("adaptPartial favorite state", () => {
     );
     expect(decodeURIComponent(post.file.url || "")).toContain("d.furaffinity.net");
     expect(decodeURIComponent(post.sample.url)).toContain("d.furaffinity.net");
+  });
+
+  it("keeps music cover on sample after enrich", () => {
+    const post = adaptPartial(
+      listingHit({
+        type: "music",
+        file_url: "https://d.furaffinity.net/art/artist/1/1.artist_song.mp3",
+        thumbnail_url: "https://t.furaffinity.net/123@200-1.jpg",
+      }),
+    );
+    expect(decodeURIComponent(post.file.url || "")).toContain(".mp3");
+    expect(post.file.ext).toBe("mp3");
+    expect(decodeURIComponent(post.sample.url)).toContain("@600-");
+    expect(post.tags.meta).toContain("type:audio");
   });
 });

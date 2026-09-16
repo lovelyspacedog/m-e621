@@ -80,7 +80,13 @@
               v-else-if="isAudioPost && currentFileUrl"
               class="overflow flash bg-black fullscreen-audio-wrap"
             >
-              <v-icon size="96" class="mb-4">mdi-music</v-icon>
+              <img
+                v-if="audioCoverUrl"
+                :src="audioCoverUrl"
+                class="fullscreen-audio-cover"
+                alt=""
+              />
+              <v-icon v-else size="96" class="mb-4">mdi-music</v-icon>
               <audio
                 class="fullscreen-audio"
                 controls
@@ -217,6 +223,7 @@ import ZoomPanImage from "./ZoomPanImage.vue";
 import NotesOverlay from "./NotesOverlay.vue";
 import PostCommentsPanel from "./PostCommentsPanel.vue";
 import { useBlacklistClasses } from "../misc/util/blacklist";
+import { isAudioExt } from "@/misc/util/audioExts";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
 import { isDocumentPost as postIsDocument } from "@/misc/util/documentPost";
 import { docxToText, isDocx } from "@/misc/util/docxToText";
@@ -424,8 +431,6 @@ const buttons = computed(() =>
   siteMode.filterButtonsForPost(posts.fullscreenButtons, props.current),
 );
 const isVideoExt = (ext?: string) => ext === "webm" || ext === "mp4";
-const AUDIO_EXTS = new Set(["flac", "mp3", "m4a", "ogg", "opus", "wav"]);
-const isAudioExt = (ext?: string) => !!ext && AUDIO_EXTS.has(ext);
 const isVideoPost = computed(() => isVideoExt(props.current?.file.ext));
 const isAudioPost = computed(() => isAudioExt(props.current?.file.ext));
 const IMAGE_EXTS = new Set([
@@ -907,8 +912,13 @@ const currentFileUrl = computed(() => {
   const url = props.current?.file.url;
   if (!url) return false;
   const ext = props.current?.file.ext;
-  // Firefox/Zen: same-origin proxy for video + PDF under COEP.
-  if (isVideoExt(ext) || ext === "pdf" || urlExt(url) === "pdf") {
+  // Firefox/Zen: same-origin proxy for video, audio, and PDF under COEP.
+  if (
+    isVideoExt(ext) ||
+    isAudioExt(ext) ||
+    ext === "pdf" ||
+    urlExt(url) === "pdf"
+  ) {
     return proxyDownloadUrl(url);
   }
   return url;
@@ -916,6 +926,12 @@ const currentFileUrl = computed(() => {
 const currentSampleFileUrl = computed(() =>
   switched.value ? false : props.current?.preview.url,
 );
+const audioCoverUrl = computed(() => {
+  if (!isAudioPost.value || switched.value) return "";
+  const preview = props.current?.preview?.url;
+  const sample = props.current?.sample?.url;
+  return proxyDownloadUrl(preview) || proxyDownloadUrl(sample) || "";
+});
 
 watch(
   () => props.current,
@@ -1255,11 +1271,20 @@ useHead({
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1rem;
   width: 100%;
   height: 100%;
   color: rgba(255, 255, 255, 0.9);
   padding: 1.5rem;
   box-sizing: border-box;
+}
+
+.fullscreen-audio-cover {
+  max-width: min(60vw, 28rem);
+  max-height: min(50vh, 28rem);
+  object-fit: contain;
+  border-radius: 0.5rem;
+  opacity: 0.95;
 }
 
 .fullscreen-audio {

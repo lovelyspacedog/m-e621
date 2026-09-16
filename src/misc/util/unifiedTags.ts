@@ -79,13 +79,18 @@ export const prepareUnifiedChildTags = (
   mode: UnifiedChildMode,
   tags: string[],
 ): PreparedChildTags => {
-  if (isE621Family(mode)) {
+    if (isE621Family(mode)) {
     const out: string[] = [];
     const stripped: string[] = [];
     for (const raw of tags.filter(Boolean)) {
       const tag = raw.trim();
       const lower = tag.toLowerCase().replace(/^-/, "");
-      if (lower === "following:me" || lower === "watch:me" || lower === "stars:me") {
+      if (
+        lower === "following:me" ||
+        lower === "watch:me" ||
+        lower === "stars:me" ||
+        lower === "type:audio"
+      ) {
         stripped.push(tag);
         continue;
       }
@@ -171,6 +176,21 @@ export const prepareUnifiedChildTags = (
         } else {
           stripped.push(tag);
         }
+      } else {
+        stripped.push(tag);
+      }
+      continue;
+    }
+
+    // --- type:audio (music-capable children only) ---
+    if (core === "type:audio") {
+      if (
+        mode === "furaffinity" ||
+        mode === "inkbunny" ||
+        mode === "weasyl" ||
+        mode === "sofurry"
+      ) {
+        out.push(tag);
       } else {
         stripped.push(tag);
       }

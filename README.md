@@ -26,8 +26,8 @@ Switch sites from the sidebar or landing-page chips. Each mode keeps its **own p
 | **e6ai** | e6ai browsing with mode-aware labels (e.g. directors instead of artists) |
 | **Furbooru** | Site mode with API-key auth, tags, comments, faves/votes |
 | **Inkbunny** | Hybrid site mode; multi-file submissions; `pool:N` / pool order; Following feed (`following:me` / `watch:me`); Flash/SWF via [Ruffle](https://ruffle.rs/); **no in-app fav toggle** |
-| **FurAffinity** | Site mode via embedded [faapi](https://github.com/FurryCoders/faapi) + `/search` scrape; Following feed (`following:me`); host cookies (`FA_COOKIE_A`/`FA_COOKIE_B`) or username/password login |
-| **Weasyl** | Site mode with API-key auth; guest is SFW-only; `favs:me` with username; **no in-app fav toggle** |
+| **FurAffinity** | Site mode via embedded [faapi](https://github.com/FurryCoders/faapi) + `/search` scrape; Following feed (`following:me`); host cookies (`FA_COOKIE_A`/`FA_COOKIE_B`) or username/password login; music posts enrich in the feed (cover + inline audio) |
+| **Weasyl** | Site mode with API-key auth; guest is SFW-only; `favs:me` with username; multimedia audio playable; **no in-app fav toggle** |
 | **Itaku** | Gallery images + flattened multi-image posts; Token auth for stars / following / star toggle / comments; Unified child (off by default) |
 | **SoFurry** | Artwork + stories (fullscreen `.txt` reader); email/password or session-cookie login; My Likes / Following feed; likes toggle; **no** Pools / Suggester / Analyzer / Dashboard or comments/notes; Unified child (on by default) |
 | **Tailspace** | Posts + in-app comic reader (page chunks, scroll / full-width reading, comments); client-side `?tags=` filter + saved searches; optional account login for likes, stars, comments, follow / Following feed |
@@ -42,7 +42,7 @@ Tailspace and Local are **not** included in Unified.
 - Fullscreen slideshow + timed card auto-next
 - Inline video on post cards (remembered mute / volume / playback rate)
 - Same-origin media proxy (`/api/download`) so video plays in Firefox / Zen
-- **Score / Favs / Random** always on the Posts toolbar (unsupported sorts disabled per mode; Local adds Newest / Name / Size / Duration / Video / Stills / Audio)
+- Score / Favs / Random always on the Posts toolbar (unsupported sorts disabled per mode; Local adds Newest / Name / Size / Duration / Video / Stills / Audio; FA / Inkbunny / Weasyl / SoFurry / Unified add Audio)
 - Saved-search **groups** in the sidebar (create, rename, reorder, collapse, drag-and-drop)
 - Starred-tag folders / groups; **copy favorites or blacklist** between site profiles (merge or replace)
 - Dedicated **Pools** browse pages (`/pools`, `/pools/:id`) + comic-style pool reader (gallery / scroll / full-width + numbered chunk pager)

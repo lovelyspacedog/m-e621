@@ -1,6 +1,7 @@
 import localforage from "localforage";
 import { downloadjs } from "@/Settings/download";
 import { usePostsStore, useSnackbarStore, useSiteModeStore, useUrlStore } from "@/services";
+import { audioMimeFromExt } from "@/misc/util/audioExts";
 import { getCreatorTags } from "@/misc/util/siteLabels";
 import {
   flattenPostTagsForSidecar,
@@ -8,6 +9,7 @@ import {
   setLocalDirectoryFromHandle,
   setPendingLocalFocusPath,
 } from "@/misc/util/localMedia";
+import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { getApiService } from "@/worker/services";
 import type { SiteMode } from "@/services/types";
@@ -227,10 +229,16 @@ const fetchPostBytes = async (post: EnhancedPost): Promise<{ data: ArrayBuffer; 
   if (!post.file?.url) {
     throw new Error("Post file URL is unavailable");
   }
-  // CDN has no CORS for this origin — go through same-host /api/download.
-  const response = await fetch(
-    `/api/download?url=${encodeURIComponent(post.file.url)}`,
-  );
+  const url = post.file.url;
+  // Already same-origin / blob / proxied — fetch as-is (avoid nested /api/download).
+  const fetchUrl =
+    url.startsWith("blob:") ||
+    url.startsWith("data:") ||
+    url.startsWith("/api/") ||
+    url.startsWith("/api/download")
+      ? url
+      : proxyDownloadUrl(url) || url;
+  const response = await fetch(fetchUrl);
   if (!response.ok) {
     throw new Error(`Download failed (${response.status})`);
   }
@@ -241,7 +249,7 @@ const fetchPostBytes = async (post: EnhancedPost): Promise<{ data: ArrayBuffer; 
       ? "video/webm"
       : post.file.ext === "gif"
         ? "image/gif"
-        : "application/octet-stream");
+        : audioMimeFromExt(post.file.ext) || "application/octet-stream");
   return { data, mimeType };
 };
 

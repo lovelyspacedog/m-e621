@@ -460,7 +460,10 @@ async function handleAction(action: string, payload: Record<string, unknown>) {
     form.set("do_search", "Search");
     const ratings = Array.isArray(payload.ratings) ? payload.ratings : ["general", "mature", "adult"];
     for (const rating of ratings) form.set(`rating-${rating}`, "on");
-    for (const kind of ["art", "music", "flash", "story", "photo", "poetry"]) form.set(`type-${kind}`, "on");
+    const types = Array.isArray(payload.types) && payload.types.length
+      ? payload.types.map((t: unknown) => String(t).toLowerCase())
+      : ["art", "music", "flash", "story", "photo", "poetry"];
+    for (const kind of types) form.set(`type-${kind}`, "on");
     const html = await (
       await faFetch("search/", cookies, {
         method: "POST",

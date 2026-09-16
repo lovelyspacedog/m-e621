@@ -1,3 +1,4 @@
+import { AUDIO_EXTS } from "@/misc/util/audioExts";
 import {
   ensurePermission,
   supportsDirectoryPicker,
@@ -142,7 +143,6 @@ export const findLocalPathTarget = async (
 
 const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
 const INDEX_VIDEO_EXTS = new Set(["webm", "mp4", "mkv", "mov"]);
-const AUDIO_EXTS = new Set(["flac", "mp3", "m4a", "ogg", "opus", "wav"]);
 const MEDIA_EXTS = new Set([...IMAGE_EXTS, ...INDEX_VIDEO_EXTS, ...AUDIO_EXTS]);
 
 export type LocalMediaKind = "image" | "video" | "audio";

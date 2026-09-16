@@ -440,7 +440,10 @@ def _search(api: faapi.FAAPI, payload: dict[str, Any]) -> dict[str, Any]:
     }
     for rating in ratings:
         data[f"rating-{rating}"] = "on"
-    for kind in ("art", "music", "flash", "story", "photo", "poetry"):
+    types = payload.get("types") or ["art", "music", "flash", "story", "photo", "poetry"]
+    if not isinstance(types, list) or not types:
+        types = ["art", "music", "flash", "story", "photo", "poetry"]
+    for kind in types:
         data[f"type-{kind}"] = "on"
     resp = _session_post(api, "search/", data)
     if resp.status_code >= 400:

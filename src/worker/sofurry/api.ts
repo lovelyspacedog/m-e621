@@ -7,6 +7,7 @@
  *
  * Client sends cookies as `X-Sofurry-Cookies`; the proxy forwards Cookie.
  */
+import { isAudioExt } from "@/misc/util/audioExts";
 import type { Post, Tag } from "@/worker/api/returnTypes";
 
 const SOFURRY_ORIGIN = "https://www.sofurry.com";
@@ -97,8 +98,8 @@ function hashString(s: string): number {
   return h;
 }
 
-function extFromUrl(url?: string | null): string {
-  if (!url) return "jpg";
+function extFromUrl(url?: string | null, fallback = "jpg"): string {
+  if (!url) return fallback;
   try {
     const path = new URL(url, SOFURRY_ORIGIN).pathname.toLowerCase();
     const ext = path.split(".").pop() || "";
@@ -106,7 +107,7 @@ function extFromUrl(url?: string | null): string {
   } catch {
     /* ignore */
   }
-  return "jpg";
+  return fallback;
 }
 
 function toEpoch(iso?: string | null): number {
@@ -262,8 +263,15 @@ function isStoryType(t: string): boolean {
   return /^(shortstory|writing|story|journal|document|text)$/i.test(t);
 }
 
+function isMusicType(t: string): boolean {
+  return /^(music|audio|song|track)$/i.test(t);
+}
+
 function isArtworkType(t: string): boolean {
-  return /^(artwork|image|photography|photo|drawing)$/i.test(t) || !isStoryType(t);
+  return (
+    /^(artwork|image|photography|photo|drawing)$/i.test(t) ||
+    (!isStoryType(t) && !isMusicType(t))
+  );
 }
 
 /** Prefer artwork + stories; allow unknown types through as best-effort. */
@@ -282,6 +290,7 @@ function adaptSubmission(raw: SoftSubmission, detailsLoaded = false): Post | nul
 
   const t = submissionType(raw);
   const story = isStoryType(t);
+  const music = isMusicType(t);
   const author = authorNameOf(raw);
   const item = primaryContent(raw);
   const contentDisplay = item?.displayUrl || null;
@@ -289,9 +298,16 @@ function adaptSubmission(raw: SoftSubmission, detailsLoaded = false): Post | nul
   let fileUrl = rewriteMediaUrl(
     contentDisplay || raw.contentUrl || raw.coverUrl || raw.thumbUrl || null,
   );
+  const itemExt = (item?.extension || "").replace(/^\./, "").toLowerCase();
   let ext =
-    (item?.extension || "").replace(/^\./, "").toLowerCase() ||
-    extFromUrl(contentDisplay || raw.contentUrl || raw.thumbUrl || "");
+    itemExt ||
+    extFromUrl(
+      contentDisplay || raw.contentUrl || null,
+      music ? "mp3" : "jpg",
+    );
+  if (music && !isAudioExt(ext) && !itemExt) {
+    ext = "mp3";
+  }
   const width = Number(item?.meta?.width) || 0;
   const height = Number(item?.meta?.height) || 0;
 
@@ -300,6 +316,11 @@ function adaptSubmission(raw: SoftSubmission, detailsLoaded = false): Post | nul
     // Prefer the signed story .txt URL; never fall back to the cover thumb as "file".
     const storyUrl = rewriteMediaUrl(contentDisplay || raw.contentUrl || null);
     fileUrl = storyUrl || fileUrl || null;
+  } else if (music || isAudioExt(ext)) {
+    // Keep cover on preview/sample; file is the audio content URL only.
+    const audioUrl = rewriteMediaUrl(contentDisplay || raw.contentUrl || null);
+    fileUrl = audioUrl || (isAudioExt(ext) ? fileUrl : null);
+    if (!isAudioExt(ext)) ext = itemExt && isAudioExt(itemExt) ? itemExt : "mp3";
   }
 
   const tags = asStringArray(raw.tags);
@@ -325,6 +346,10 @@ function adaptSubmission(raw: SoftSubmission, detailsLoaded = false): Post | nul
       "",
   );
 
+  const metaTags: string[] = [];
+  if (story || ext === "txt") metaTags.push("story");
+  if (music || isAudioExt(ext)) metaTags.push("type:audio");
+
   const post = {
     id: hashidToNumericId(softId),
     created_at: String(raw.publishedAt || raw.created_at || created),
@@ -341,7 +366,7 @@ function adaptSubmission(raw: SoftSubmission, detailsLoaded = false): Post | nul
     sample: {
       width,
       height,
-      url: fileUrl || thumb,
+      url: music || isAudioExt(ext) ? thumb || "" : fileUrl || thumb,
       has: true,
     },
     score: { up: score, down: 0, total: score },
@@ -352,7 +377,7 @@ function adaptSubmission(raw: SoftSubmission, detailsLoaded = false): Post | nul
       character: [],
       species: [],
       invalid: [],
-      meta: story || ext === "txt" ? ["story"] : [],
+      meta: metaTags,
       lore: [],
     },
     locked_tags: [],
@@ -622,28 +647,47 @@ export async function searchBrowse(args: {
 }): Promise<SoftPostsResult> {
   const page = Math.max(1, args.page || 1);
   const limit = Math.max(1, Math.min(100, args.limit || 24));
-  const tags = (args.tags || "").trim();
+  const rawTags = (args.tags || "").trim();
+  const tagParts = rawTags.split(/\s+/).filter(Boolean);
+  const audioOnly = tagParts.some((t) => t.toLowerCase() === "type:audio");
+  const tags = tagParts
+    .filter((t) => t.toLowerCase() !== "type:audio")
+    .join(" ")
+    .trim();
+
+  const filterAudio = (result: SoftPostsResult): SoftPostsResult => {
+    if (!audioOnly) return result;
+    const posts = result.posts.filter(
+      (p) =>
+        p.tags.meta?.includes("type:audio") || isAudioExt(p.file.ext),
+    );
+    return { ...result, posts, total: posts.length };
+  };
 
   // User gallery / likes via clean JSON API.
   if (args.user) {
-    return fetchProfileList({
-      username: args.user,
-      folder: args.favorites ? "likes" : "gallery",
-      page,
-      limit,
-    });
+    return filterAudio(
+      await fetchProfileList({
+        username: args.user,
+        folder: args.favorites ? "likes" : "gallery",
+        page,
+        limit,
+      }),
+    );
   }
 
   // Logged-in "My Likes" without username: resolve via whoami then profile likes.
   if (args.favorites && activeCookies) {
     const me = await whoami();
     if (me?.name) {
-      return fetchProfileList({
-        username: String(me.name),
-        folder: "likes",
-        page,
-        limit,
-      });
+      return filterAudio(
+        await fetchProfileList({
+          username: String(me.name),
+          folder: "likes",
+          page,
+          limit,
+        }),
+      );
     }
   }
 
@@ -660,7 +704,9 @@ export async function searchBrowse(args: {
   const { data, currentPage, lastPage, total } = digSubmissions(unpacked);
   // Client-side page size trim if server over-fetches.
   const sliced = data.slice(0, limit);
-  return postsResponseFromSubs(sliced, currentPage || page, limit, lastPage, total);
+  return filterAudio(
+    postsResponseFromSubs(sliced, currentPage || page, limit, lastPage, total),
+  );
 }
 
 export async function fetchSubmission(args: {

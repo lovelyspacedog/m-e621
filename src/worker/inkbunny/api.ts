@@ -9,6 +9,7 @@
  * Passwords are never stored here — callers pass them only to login().
  */
 
+import { isAudioExt } from "@/misc/util/audioExts";
 import type { Post, PostTags, Tag } from "@/worker/api/returnTypes";
 
 export interface InkbunnyFile {
@@ -217,6 +218,9 @@ export function submissionUrl(id: number): string {
 
 /** Inkbunny "Writing / Story" submission type (text body in `writing`, not an image file). */
 export const INKBUNNY_SUBMISSION_TYPE_WRITING = 12;
+/** Inkbunny music submission types. */
+export const INKBUNNY_SUBMISSION_TYPE_MUSIC_SINGLE = 10;
+export const INKBUNNY_SUBMISSION_TYPE_MUSIC_ALBUM = 11;
 
 function fileLooksDisplayable(mimetype?: string, fileName?: string): boolean {
   const mime = (mimetype || "").toLowerCase();
@@ -225,7 +229,11 @@ function fileLooksDisplayable(mimetype?: string, fileName?: string): boolean {
   }
   if (mime.includes("flash") || mime.includes("shockwave")) return true;
   const name = (fileName || "").toLowerCase();
-  if (/\.(jpe?g|png|gif|webp|bmp|swf|mp4|webm|mov|mkv|wav|mp3|ogg|flac)$/i.test(name)) {
+  if (
+    /\.(jpe?g|png|gif|webp|bmp|swf|mp4|webm|mov|mkv|wav|mp3|ogg|flac|m4a|opus)$/i.test(
+      name,
+    )
+  ) {
     return true;
   }
   if (
@@ -331,13 +339,21 @@ export function adaptSearchHit(hit: InkbunnySearchHit, sid?: string | null): Pos
   const full = pickFull(hit, sid);
   const hidden = yn(hit.hidden);
   const { width, height } = pickThumbSize(hit);
+  const ext = (hit.file_name || "").split(".").pop()?.toLowerCase() || "";
+  const typeId = num(hit.submission_type_id);
+  const isMusic =
+    typeId === INKBUNNY_SUBMISSION_TYPE_MUSIC_SINGLE ||
+    typeId === INKBUNNY_SUBMISSION_TYPE_MUSIC_ALBUM ||
+    isAudioExt(ext) ||
+    (hit.mimetype || "").toLowerCase().startsWith("audio/");
+  if (isMusic) tags.meta.push("type:audio");
   const post: Post = {
     id,
     created_at: hit.create_datetime || "",
     updated_at: hit.create_datetime || "",
     file: {
       url: hidden ? null : full,
-      ext: (hit.file_name || "").split(".").pop() || "",
+      ext,
       width,
       height,
       size: 0,
@@ -350,7 +366,8 @@ export function adaptSearchHit(hit: InkbunnySearchHit, sid?: string | null): Pos
     },
     sample: {
       has: !!sample,
-      url: sample || "",
+      // Prefer cover/thumb for audio cards — sample screen may be the audio file.
+      url: (isMusic ? preview || sample : sample) || "",
       width,
       height,
     },
@@ -484,6 +501,8 @@ export interface MappedInkbunnySearch {
   poolId?: number;
   random?: boolean;
   orderby?: string;
+  /** Comma-separated Inkbunny type IDs (e.g. "10,11" for music). */
+  typeIds?: string;
 }
 
 export function mapSearchTags(tags: string[]): MappedInkbunnySearch {
@@ -519,6 +538,10 @@ export function mapSearchTags(tags: string[]): MappedInkbunnySearch {
     if (lower.startsWith("pool:")) {
       const id = num(tag.slice(5));
       if (id) mapped.poolId = id;
+      continue;
+    }
+    if (lower === "type:audio") {
+      mapped.typeIds = `${INKBUNNY_SUBMISSION_TYPE_MUSIC_SINGLE},${INKBUNNY_SUBMISSION_TYPE_MUSIC_ALBUM}`;
       continue;
     }
     text.push(tag.replace(/_/g, " "));
@@ -655,6 +678,7 @@ export async function searchSubmissions(args: {
       if (mapped.poolId) fields.pool_id = mapped.poolId;
       if (mapped.orderby) fields.orderby = mapped.orderby;
       if (mapped.random) fields.random = "yes";
+      if (mapped.typeIds) fields.type = mapped.typeIds;
     }
 
     const data = await postForm<{

@@ -60,4 +60,25 @@ describe("prepareUnifiedChildTags", () => {
     ]);
     expect(tags).toEqual(["artist:someone", "order:score"]);
   });
+
+  it("keeps type:audio on music-capable children only", () => {
+    expect(prepareUnifiedChildTags("furaffinity", ["type:audio"]).tags).toEqual([
+      "type:audio",
+    ]);
+    expect(prepareUnifiedChildTags("inkbunny", ["type:audio"]).tags).toEqual([
+      "type:audio",
+    ]);
+    expect(prepareUnifiedChildTags("weasyl", ["type:audio"]).tags).toEqual([
+      "type:audio",
+    ]);
+    expect(prepareUnifiedChildTags("sofurry", ["type:audio"]).tags).toEqual([
+      "type:audio",
+    ]);
+    expect(prepareUnifiedChildTags("e621", ["type:audio"]).stripped).toContain(
+      "type:audio",
+    );
+    expect(prepareUnifiedChildTags("itaku", ["type:audio"]).stripped).toContain(
+      "type:audio",
+    );
+  });
 });

@@ -27,6 +27,7 @@ Personal fork priorities. Prefer “works for me” over general polish. Check i
 - [x] Sidecar tags / more formats (audio, archives) if that library use case matters
   - [x] **Save Locally → `.me621-tags.json`** — folder saves merge post tags into the sidecar (+ localforage) for Local search
   - [x] **Local audio** — index `flac/mp3/m4a/ogg/opus/wav` as `type:audio`; card + fullscreen players; toolbar Audio filter
+  - [x] **Remote audio UX** — cover + inline `<audio>` on cards; proxy audio like video; FA music feed enrich; Weasyl multimedia; Inkbunny/SoFurry `type:audio`; Audio toolbar on music-capable modes
   - [x] **RTF / DOCX story preview** — fullscreen fetches `.rtf` / `.docx` (mammoth) to plain text; legacy `.doc` still blocked
   - [ ] Archives in the Local index (zip/rar still skipped)
 
@@ -162,6 +163,15 @@ Personal fork priorities. Prefer “works for me” over general polish. Check i
 
 - Index flac/mp3/m4a/ogg/opus/wav as `type:audio`; card + fullscreen `<audio>` players; Local toolbar Audio filter.
 - Archives still out of scope.
+
+### 2026-09-15 — Remote audio UX
+
+- Shared cover + inline `<audio>` cards; audio proxied like video under COEP.
+- FA: music listings keep cover on preview/sample; feed enrich gets real `file_url`; `type:audio` search → music-only.
+- Weasyl: multimedia/audio exts keep `file.url` via `/api/download`; client `type:audio` filter.
+- Inkbunny: types 10/11 + m4a/opus; `type:audio` → API `type=10,11`.
+- SoFurry: music-aware adapt + `type:audio` tag; strip metatag from Soft query.
+- Audio toolbar on FA / Inkbunny / Weasyl / SoFurry / Unified (+ Local).
 
 ### 2026-09-15 — Tauri Local FS (read)
 

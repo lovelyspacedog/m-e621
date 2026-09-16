@@ -98,6 +98,8 @@ export interface MappedFaSearch {
   orderBy?: "date" | "relevancy" | "popularity";
   random?: boolean;
   ratings: string[];
+  /** Restrict FA search to music category only (`type:audio`). */
+  musicOnly?: boolean;
 }
 
 function proxyBase(): string {
@@ -269,6 +271,10 @@ export function mapSearchTags(tags: string[]): MappedFaSearch {
       mapped.journals = true;
       continue;
     }
+    if (lower === "type:audio") {
+      mapped.musicOnly = true;
+      continue;
+    }
     text.push(tag.replace(/_/g, " "));
   }
   mapped.text = text.join(" ");
@@ -314,14 +320,15 @@ export function adaptPartial(
       ? null
       : proxyMediaUrl(faThumbAtSize(hit.thumbnail_url, 600), cookies);
   const storyType = /^(text|story|poetry)$/i.test(hit.type || "");
-  // Stories/PDFs: never fall back to the cover thumbnail as file.url — that
-  // turns a document post into an image and fullscreen only shows the blurb.
+  const musicType = /^music$/i.test(hit.type || "");
+  // Stories/PDFs/music: never fall back to the cover thumbnail as file.url —
+  // that turns a document/audio post into an image and breaks players.
   const file =
     kind === "journal"
       ? null
       : hit.file_url
         ? proxyMediaUrl(hit.file_url, cookies)
-        : storyType
+        : storyType || musicType
           ? null
           : thumbLarge;
   const created = hit.date || dateFromFaUrl(hit.file_url || hit.thumbnail_url) || "";
@@ -329,13 +336,18 @@ export function adaptPartial(
   const ext =
     kind === "journal"
       ? "txt"
-      : extFromUrl(hit.file_url || (storyType ? "" : hit.thumbnail_url), hit.type);
+      : extFromUrl(
+          hit.file_url || (storyType || musicType ? "" : hit.thumbnail_url),
+          hit.type,
+        );
   // Prefer scraped/native dims; never invent a square — that stretches cards.
   const isJournal = kind === "journal";
   const width = isJournal ? 400 : num(hit.width) || 0;
   const height = isJournal ? 400 : num(hit.height) || 0;
   const dimW = width > 0 ? width : 0;
   const dimH = height > 0 ? height : 0;
+  if (musicType) tags.meta.push("type:audio");
+  const coverSample = thumbLarge || thumb || "";
   return {
     id,
     created_at: created,
@@ -354,8 +366,8 @@ export function adaptPartial(
       height: dimH,
     },
     sample: {
-      has: !!(file || thumbLarge),
-      url: file || thumbLarge || thumb || "",
+      has: !!(musicType ? coverSample : file || thumbLarge),
+      url: musicType ? coverSample : file || thumbLarge || thumb || "",
       width: dimW,
       height: dimH,
     },
@@ -500,13 +512,14 @@ export async function searchSubmissions(args: {
     data = await faRequest("scraps", { ...extra, username: mapped.username, page });
   } else if (mapped.username) {
     data = await faRequest("gallery", { ...extra, username: mapped.username, page });
-  } else if (mapped.text) {
+  } else if (mapped.text || mapped.musicOnly) {
     data = await faRequest("search", {
       ...extra,
-      q: mapped.text,
+      q: mapped.text || "",
       page,
       order_by: mapped.orderBy || "date",
       ratings: mapped.ratings.length ? mapped.ratings : undefined,
+      types: mapped.musicOnly ? ["music"] : undefined,
     });
   } else {
     data = await faRequest("browse", { ...extra, page });

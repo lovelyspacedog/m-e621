@@ -26,24 +26,44 @@
   </div>
   <div
     v-else-if="isAudio"
-    class="audio-card"
-    @click.stop
+    class="audio-card clickable"
+    v-ripple
+    @click="handleClick"
   >
-    <v-icon size="48" class="audio-card-icon">mdi-music</v-icon>
-    <div class="audio-card-name text-caption text-medium-emphasis">
-      .{{ file.ext }}
-    </div>
-    <audio
-      v-if="file.url"
-      class="audio-card-player"
-      controls
-      preload="metadata"
-      :src="file.url"
-      @click.stop
+    <img
+      v-if="audioCoverSrc"
+      :loading="loading"
+      :src="audioCoverSrc"
+      class="audio-card-cover"
+      alt=""
     />
-    <v-chip v-else class="mt-2" color="warning" variant="flat" size="small">
-      No playable URL
-    </v-chip>
+    <div class="audio-card-scrim" :class="{ 'audio-card-scrim--plain': !audioCoverSrc }" />
+    <div class="audio-card-body">
+      <v-icon size="40" class="audio-card-icon">mdi-music</v-icon>
+      <div class="audio-card-name text-caption">
+        .{{ file.ext }}
+      </div>
+      <audio
+        v-if="audioSrc"
+        class="audio-card-player"
+        controls
+        preload="metadata"
+        :src="audioSrc"
+        @click.stop
+      />
+      <v-chip
+        v-else-if="audioPending"
+        class="mt-2"
+        color="secondary"
+        variant="flat"
+        size="small"
+      >
+        Loading audio…
+      </v-chip>
+      <v-chip v-else class="mt-2" color="warning" variant="flat" size="small">
+        No playable URL
+      </v-chip>
+    </div>
   </div>
   <fixed-aspect-ratio-box
     v-else
@@ -148,6 +168,7 @@
 </template>
 
 <script lang="ts">
+import { isAudioExt } from "@/misc/util/audioExts";
 import { useDataSaverInfo } from "@/misc/util/dataSaver";
 import { remuxLocalPath } from "@/misc/util/localMedia";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
@@ -160,7 +181,6 @@ import FixedAspectRatioBox from "./FixedAspectRatioBox.vue";
 import { useRouter } from "vue-router";
 
 const VIDEO_EXTS = new Set(["webm", "mp4", "mkv", "mov"]);
-const AUDIO_EXTS = new Set(["flac", "mp3", "m4a", "ogg", "opus", "wav"]);
 
 export default defineComponent({
   components: { FixedAspectRatioBox },
@@ -213,7 +233,18 @@ export default defineComponent({
     const videoLoadFailed = ref(false);
     const isSwf = computed(() => props.file.ext === "swf");
     const isVideo = computed(() => VIDEO_EXTS.has(props.file.ext));
-    const isAudio = computed(() => AUDIO_EXTS.has(props.file.ext));
+    const isAudio = computed(() => isAudioExt(props.file.ext));
+    const audioCoverSrc = computed(
+      () =>
+        proxyDownloadUrl(props.preview.url) ||
+        proxyDownloadUrl(props.sample.url) ||
+        "",
+    );
+    const audioSrc = computed(() =>
+      props.file.url ? proxyDownloadUrl(props.file.url) || props.file.url : "",
+    );
+    // FA music listings enrich in the feed; show cover until file.url arrives.
+    const audioPending = computed(() => isAudio.value && !props.file.url);
     // e621-style preview/sample URLs are static frames; only the full file animates.
     const isAnimatedImage = computed(() => props.file.ext === "gif");
     const fileUrlExt = computed(() => {
@@ -589,6 +620,9 @@ export default defineComponent({
       isSwf,
       isVideo,
       isAudio,
+      audioCoverSrc,
+      audioSrc,
+      audioPending,
       isDocument,
       isImage,
       documentLabel,
@@ -671,19 +705,61 @@ export default defineComponent({
 	 box-sizing: border-box;
 }
  .audio-card {
+	 position: relative;
 	 display: flex;
 	 flex-direction: column;
 	 align-items: center;
-	 justify-content: center;
+	 justify-content: flex-end;
 	 gap: 0.5rem;
 	 width: 100%;
 	 min-height: 10rem;
 	 aspect-ratio: 4 / 3;
 	 padding: 1rem;
 	 box-sizing: border-box;
+	 overflow: hidden;
 	 background: #0d1117;
 }
+ .audio-card-cover {
+	 position: absolute;
+	 inset: 0;
+	 width: 100%;
+	 height: 100%;
+	 object-fit: cover;
+	 opacity: 0.55;
+	 filter: saturate(0.9);
+}
+ .audio-card-scrim {
+	 position: absolute;
+	 inset: 0;
+	 background: linear-gradient(
+		 180deg,
+		 rgba(8, 12, 20, 0.2) 0%,
+		 rgba(8, 12, 20, 0.55) 45%,
+		 rgba(8, 12, 20, 0.82) 100%
+	 );
+	 pointer-events: none;
+}
+ .audio-card-scrim--plain {
+	 background: radial-gradient(
+		 ellipse at center,
+		 rgba(30, 41, 59, 0.95) 0%,
+		 rgba(8, 12, 20, 1) 75%
+	 );
+}
+ .audio-card-body {
+	 position: relative;
+	 z-index: 1;
+	 display: flex;
+	 flex-direction: column;
+	 align-items: center;
+	 gap: 0.35rem;
+	 width: 100%;
+	 color: rgba(255, 255, 255, 0.92);
+}
  .audio-card-icon {
+	 opacity: 0.9;
+}
+ .audio-card-name {
 	 opacity: 0.85;
 }
  .audio-card-player {
