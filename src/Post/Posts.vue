@@ -35,6 +35,7 @@
       @close="$emit('exit-fullscreen')" @next-post="$emit('next-fullscreen-post', $event)"
       @previous-post="$emit('previous-fullscreen-post')" @open-post-details="$emit('open-post-details', $event)"
       @set-post-favorite="$emit('set-post-favorite', $event)"
+      @set-post-vote="$emit('set-post-vote', $event)"
       @open-fluffle-search="flufflePost = $event" />
     <inkbunny-submission-dialog
       v-else

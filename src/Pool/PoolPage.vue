@@ -38,6 +38,7 @@
         @previous-post="openPreviousFullscreenPost()"
         @open-post-details="onOpenDetails"
         @set-post-favorite="onSetFavorite"
+        @set-post-vote="onSetVote"
         @open-fluffle-search="flufflePost = $event"
       />
       <details-dialog

@@ -167,7 +167,34 @@
             </v-btn>
           </div>
           <div class="fullscreen-comments-body">
-            <post-comments-panel :post="current" />
+            <section class="fullscreen-comments-section">
+              <div class="text-caption text-medium-emphasis mb-2">Info</div>
+              <post-info-list
+                :post="current"
+                @set-post-vote="$emit('set-post-vote', $event)"
+              />
+            </section>
+            <section class="fullscreen-comments-section">
+              <div class="text-caption text-medium-emphasis mb-2">Description</div>
+              <div
+                v-if="isSofurryStory"
+                class="text-body-2 sofurry-story"
+              >
+                <div v-if="sofurryStoryTitle" class="text-subtitle-2 mb-2">
+                  {{ sofurryStoryTitle }}
+                </div>
+                <pre class="sofurry-story-text">{{
+                  current.description || "No story text"
+                }}</pre>
+              </div>
+              <div v-else class="text-body-2">
+                <d-text :text="current.description || 'No description'" />
+              </div>
+            </section>
+            <section class="fullscreen-comments-section fullscreen-comments-section--last">
+              <div class="text-caption text-medium-emphasis mb-2">Comments</div>
+              <post-comments-panel :post="current" />
+            </section>
           </div>
         </aside>
       </div>
@@ -222,6 +249,8 @@ import RufflePlayer from "./RufflePlayer.vue";
 import ZoomPanImage from "./ZoomPanImage.vue";
 import NotesOverlay from "./NotesOverlay.vue";
 import PostCommentsPanel from "./PostCommentsPanel.vue";
+import PostInfoList from "./PostInfoList.vue";
+import DText from "../Parser/DText.vue";
 import { useBlacklistClasses } from "../misc/util/blacklist";
 import { isAudioExt } from "@/misc/util/audioExts";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
@@ -269,6 +298,7 @@ const emit = defineEmits<{
   "next-post": [opts?: { skipDocuments?: boolean }];
   "previous-post": [];
   "set-post-favorite": [payload: unknown];
+  "set-post-vote": [payload: unknown];
   "open-post-details": [payload: unknown];
   "open-fluffle-search": [post: EnhancedPost];
 }>();
@@ -468,6 +498,16 @@ const documentTitle = computed(
     props.current?.__meta?.sofurry?.title ||
     props.current?.__meta?.furaffinity?.title ||
     "",
+);
+
+const isSofurryStory = computed(
+  () =>
+    props.current?.__meta?.kind === "story" &&
+    !!props.current?.__meta?.sofurry,
+);
+
+const sofurryStoryTitle = computed(
+  () => props.current?.__meta?.sofurry?.title || "",
 );
 
 const documentBody = ref("");
@@ -1100,6 +1140,26 @@ useHead({
   overflow-y: auto;
   padding: 12px 16px 24px;
   min-height: 0;
+}
+
+.fullscreen-comments-section {
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.fullscreen-comments-section--last {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.sofurry-story-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  margin: 0;
+  line-height: 1.55;
 }
 
 .fullscreen .flex {
