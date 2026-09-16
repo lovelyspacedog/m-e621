@@ -1,5 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { adaptDetails, hashidToNumericId } from "./api";
+import {
+  adaptDetails,
+  hashidToNumericId,
+  normalizeSofurryStoryText,
+} from "./api";
+
+describe("normalizeSofurryStoryText", () => {
+  it("turns HTML and malformed paragraph tags into readable plain text", () => {
+    expect(
+      normalizeSofurryStoryText(
+        "<p>First &amp; foremost.</ p><p>Second<br>line.</p>",
+      ),
+    ).toBe("First & foremost.\n\nSecond\nline.");
+  });
+
+  it("leaves genuine plain text unchanged", () => {
+    const text = "Chapter 1\n\nA value < 10 stays intact.";
+    expect(normalizeSofurryStoryText(text)).toBe(text);
+  });
+});
 
 describe("sofurry adaptDetails", () => {
   it("maps isLiked and likeCount onto favorited state", () => {

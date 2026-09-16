@@ -238,6 +238,54 @@ function stripHtmlBlurb(html: string): string {
     .trim();
 }
 
+function decodeHtmlEntities(text: string): string {
+  const named: Record<string, string> = {
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    lt: "<",
+    nbsp: " ",
+    quot: '"',
+  };
+  return text.replace(
+    /&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi,
+    (entity, decimal: string, hex: string, name: string) => {
+      const code = decimal
+        ? Number.parseInt(decimal, 10)
+        : hex
+          ? Number.parseInt(hex, 16)
+          : NaN;
+      if (Number.isFinite(code)) {
+        try {
+          return String.fromCodePoint(code);
+        } catch {
+          return entity;
+        }
+      }
+      return named[name?.toLowerCase()] ?? entity;
+    },
+  );
+}
+
+/** Convert HTML-formatted story payloads (including malformed `</ p>`) to plain prose. */
+export function normalizeSofurryStoryText(value: string): string {
+  const text = String(value || "").replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+  if (!/<\s*\/?\s*(?:p|br|div|li|h[1-6])\b/i.test(text)) return text;
+
+  return decodeHtmlEntities(
+    text
+      .replace(/<!--[\s\S]*?-->/g, "")
+      .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+      .replace(/<\s*\/\s*(?:p|div|li|h[1-6])\s*>/gi, "\n\n")
+      .replace(/<\s*li(?:\s[^>]*)?>/gi, "• ")
+      .replace(/<\s*(?:p|div|h[1-6])(?:\s[^>]*)?>/gi, "")
+      .replace(/<[^>]*>/g, ""),
+  )
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function authorNameOf(raw: SoftSubmission): string {
   if (typeof raw.author === "string" && raw.author.trim()) return raw.author.trim();
   if (raw.author && typeof raw.author === "object") {
@@ -745,7 +793,7 @@ export async function fetchSubmission(args: {
           headers: activeCookies ? { "X-Sofurry-Cookies": activeCookies } : {},
         });
         if (tr.ok) {
-          const text = (await tr.text()).replace(/^\uFEFF/, "");
+          const text = normalizeSofurryStoryText(await tr.text());
           if (text && !looksLikeBinarySoft(text)) {
             // Keep blurb on meta; put full story text in description for readers.
             if (!meta.sofurry?.blurb && post.description) {
