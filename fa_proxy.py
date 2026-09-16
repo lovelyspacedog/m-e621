@@ -140,8 +140,23 @@ def _abs_url(url: str | None) -> str:
 
 
 def _iso(value: Any) -> str:
+    """Serialize datetimes as UTC ISO with an offset.
+
+    faapi builds naive locals via ``datetime.fromtimestamp(unix)``. Emitting
+    those without a tz marker makes UTC hosts look ~4h in the future to EDT
+    clients (date-fns parseISO treats offset-less strings as local).
+    """
     if value is None:
         return ""
+    if isinstance(value, datetime):
+        try:
+            if value.tzinfo is None:
+                value = datetime.fromtimestamp(value.timestamp(), tz=timezone.utc)
+            else:
+                value = value.astimezone(timezone.utc)
+            return value.isoformat()
+        except (OverflowError, OSError, ValueError):
+            return str(value)
     iso = getattr(value, "isoformat", None)
     if callable(iso):
         try:
