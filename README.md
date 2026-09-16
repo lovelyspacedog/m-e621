@@ -20,33 +20,39 @@ m-e621 expands [Material e621](https://github.com/avoonix/material-e621) with ad
 
 ## Highlights
 
-- **Multi-site browsing** — nine remote sites, independent profiles, and one optional Unified feed.
-- **Local media library** — folder browsing, fuzzy search, tags, favorites, audio/video, and playback resume.
-- **Save Locally** — smart filenames, sidecar metadata, Open in Local, and automatic offline retries.
-- **FFmpeg remuxing** — repair one file or bulk-remux unplayable filtered results.
-- **Flexible feeds** — full-width lists, thumbnail grids, compact cards, and remembered media controls.
-- **Slideshow and auto-next** — hands-free navigation in fullscreen or the feed.
-- **Pool and comic readers** — gallery, scrolling, full-width, and chunked reading modes.
-- **Organized searches and tags** — collapsible, reorderable groups for saved searches and starred tags.
-- **Media tools** — Fluffle reverse-image search, fullscreen notes, and RTF/DOCX previews.
+- **Nine supported sites** — browse e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry, and Tailspace from one interface.
+- **Unified browsing** — merge supported sites into a date-sorted feed with per-site filters and origin-aware actions.
+- **Independent accounts** — configure authentication, blacklists, favorites, history, and preferences for each site.
+- **Community features** — view and post comments, vote, favorite, follow creators, and open posts at their source where supported.
+- **Flexible feeds** — switch between full-width lists, thumbnail grids, and compact cards with rich filtering and media controls.
+- **Powerful e621 tools** — browse pools, organize starred tags and saved searches, use the post suggester, analyze favorites, and explore artist dashboards.
+- **Comics and stories** — dedicated pool and Tailspace comic readers plus fullscreen SoFurry story and document previews.
+- **Immersive media** — fullscreen notes, slideshows, auto-next, reverse-image search, and remembered audio/video playback settings.
 
 ## Preview
 
 > Content shown in screenshots may be NSFW.
 
-[![m-e621 posts view](./screenshots/m-e621-posts.png)](./screenshots/m-e621-posts.png)
+[![m-e621 landing page](./screenshots/landing-page.png)](./screenshots/landing-page.png)
+
+[![Grid layout in Unified mode](./screenshots/grid-and-unified-mode.png)](./screenshots/grid-and-unified-mode.png)
 
 <details>
   <summary>More screenshots</summary>
 
-[Landing](./screenshots/m-e621-landing.png) ·
-[Fullscreen](./screenshots/m-e621-fullscreen.png) ·
-[Site modes](./screenshots/m-e621-site-modes.png) ·
-[Settings](./screenshots/m-e621-settings.png) ·
-[Starred tags](./screenshots/m-e621-starred.png) ·
-[Suggester](./screenshots/m-e621-suggester.png) ·
-[Artist dashboard](./screenshots/m-e621-dashboard.png) ·
-[Pools](./screenshots/m-e621-pools.png)
+[![e621 site home](./screenshots/e621-site-home.png)](./screenshots/e621-site-home.png)
+
+[![Per-site account login settings](./screenshots/accounts-login.png)](./screenshots/accounts-login.png)
+
+[![Fullscreen comments sidebar](./screenshots/comments-bar.png)](./screenshots/comments-bar.png)
+
+[![Universal saved-post bookmarks](./screenshots/universal-saved-posts-bookmarks.png)](./screenshots/universal-saved-posts-bookmarks.png)
+
+[![Fullscreen story mode](./screenshots/story-mode.png)](./screenshots/story-mode.png)
+
+[![Tailspace comics page](./screenshots/tailspace-comics-page.png)](./screenshots/tailspace-comics-page.png)
+
+[![Tailspace comic scroll reader](./screenshots/tailspace-comic-scroll.png)](./screenshots/tailspace-comic-scroll.png)
 
 </details>
 
