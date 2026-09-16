@@ -1,243 +1,85 @@
-# m-e621
-
-**m-e621** is a personal fork of [Material e621](https://github.com/avoonix/material-e621) — a Vue 3 / Vuetify web client for browsing imageboard posts.
-
-This is **not** a polished product with a roadmap and support team. It is a **personal, AI-first side project**: most features and fixes are built with heavy AI assistance (Cursor / coding agents), reviewed and steered by a human. Expect uneven edges, experimental site modes, and changes that prioritize “works for me” over general polish.
-
-Upstream remains the better choice if you want a stable, e621-focused client:
-
-- This fork: [github.com/lovelyspacedog/m-e621](https://github.com/lovelyspacedog/m-e621)
-- Upstream app: [material-e621.avoonix.com](https://material-e621.avoonix.com)
-- Upstream repo: [avoonix/material-e621](https://github.com/avoonix/material-e621)
-
----
-
-## What this fork adds
-
-Compared to upstream Material e621 (e621-only), m-e621 expands the client into a **multi-site browser** with local media tools and self-host plumbing.
-
-### Multi-site modes
-
-Switch sites from the sidebar or landing-page chips. Each mode keeps its **own profile** (auth, blacklist, starred tags, saved searches, history, favorites where applicable):
-
-| Mode | What you get |
-|------|----------------|
-| **e621** | Classic Material e621 experience (pools + comic-style reader, suggester, analyzer, dashboard, …) |
-| **e6ai** | e6ai browsing with mode-aware labels (e.g. directors instead of artists) |
-| **Furbooru** | Site mode with API-key auth, tags, comments, faves/votes |
-| **Inkbunny** | Hybrid site mode; multi-file submissions; `pool:N` / pool order; Following feed (`following:me` / `watch:me`); Flash/SWF via [Ruffle](https://ruffle.rs/); **no in-app fav toggle** |
-| **FurAffinity** | Site mode via embedded [faapi](https://github.com/FurryCoders/faapi) + `/search` scrape; Following feed (`following:me`); host cookies (`FA_COOKIE_A`/`FA_COOKIE_B`) or username/password login; music posts enrich in the feed (cover + inline audio) |
-| **Weasyl** | Site mode with API-key auth; guest is SFW-only; `favs:me` with username; multimedia audio playable; **no in-app fav toggle** |
-| **Itaku** | Gallery images + flattened multi-image posts; Token auth for stars / following / star toggle / comments; Unified child (off by default) |
-| **SoFurry** | Artwork + stories (fullscreen `.txt` reader); email/password or session-cookie login; My Likes / Following feed; likes toggle; **no** Pools / Suggester / Analyzer / Dashboard or comments/notes; Unified child (on by default) |
-| **Tailspace** | Posts + in-app comic reader (page chunks, scroll / full-width reading, comments); client-side `?tags=` filter + saved searches; optional account login for likes, stars, comments, follow / Following feed |
-| **Local** | Browse a folder on disk (Chromium File System Access API, or **Tauri desktop** read/browse on Firefox); fuzzy search, random order, posters, resume, favorites; audio (`type:audio`); `.me621-tags.json` sidecar tags; Fluffle reverse image search; per-file + bulk remux |
-| **Unified** | Federated Posts feed across e621 + e6ai + Furbooru + Inkbunny + FurAffinity + Weasyl + Itaku + SoFurry (toggle children in Account settings; origin badges; origin-aware actions/comments/favorites; per-child metatag remap; merge by created time) |
-
-Tailspace and Local are **not** included in Unified.
-
-### Feed & browsing UX
-
-- Full-width feed + list / grid layout; optional compact cards (tags/buttons on hover)
-- Fullscreen slideshow + timed card auto-next
-- Inline video on post cards (remembered mute / volume / playback rate)
-- Same-origin media proxy (`/api/download`) so video plays in Firefox / Zen
-- Score / Favs / Random always on the Posts toolbar (unsupported sorts disabled per mode; Local adds Newest / Name / Size / Duration / Video / Stills / Audio; FA / Inkbunny / Weasyl / SoFurry / Unified add Audio)
-- Saved-search **groups** in the sidebar (create, rename, reorder, collapse, drag-and-drop)
-- Starred-tag folders / groups; **copy favorites or blacklist** between site profiles (merge or replace)
-- Dedicated **Pools** browse pages (`/pools`, `/pools/:id`) + comic-style pool reader (gallery / scroll / full-width + numbered chunk pager)
-- Notes tab in post details + notes overlay in fullscreen (where the mode supports notes)
-- Following feeds via `following:me` / `watch:me` where supported (FurAffinity, Inkbunny, Itaku, SoFurry, Tailspace)
-- Fullscreen **`o`** opens the current post on its origin site
-- Collapsed long artist / creator tag lists on cards
-- Landing-page site-mode chips (active chip opens Posts)
-
-### Local save & remux
-
-- **Save Locally** — download posts to a chosen folder (or Downloads fallback), with smarter filenames (species + tags)
-- Folder saves merge tags into **`.me621-tags.json`** (+ localforage) for Local search
-- **Open in Local** — snackbar (and optional Post setting) reuses the save folder as the browse root and focuses the saved file
-- **Offline save queue** — failed / offline Save Locally jobs retry on `online` / app start (remux is not queued)
-- Same-origin ffmpeg worker for Local remux / playback helpers; Local toolbar **Remux unplayable** for the current tag filter (cancel mid-run)
-- Local browse folder is separate from the Save Locally folder (unless you open a save into Local)
-- Fullscreen story preview for `.rtf` / `.docx` (legacy `.doc` still blocked)
-
-### Self-host & proxy layer
-
-Upstream’s static Docker image is still fine for e621-only hosting. This fork also ships a Python `serve.py` that:
-
-- Serves the built `dist/`
-- Proxies favorites / votes / comments / media downloads (avoids origin-locked Vercel workarounds; helps Firefox / Zen playback)
-- Proxies Tailspace, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, and SoFurry APIs for the multi-site modes
-- Optional git-pull control for a managed self-hosted instance
-
-Companion scripts: `start` (launcher), `sync` (pull + build + restart), `deploy.sh` + `deploy.env.example` for remote deploy. Config belongs in `~/.config/m-e621/env` or a gitignored `deploy.env`.
-
-### Other
-
-- Zen Browser / Transparent Zen CSS compatibility (`public/zen-browser.css`)
-- PWA update banner improvements (10-minute poll + clearer update text)
-- Dual commit timelines on the landing page (fork vs upstream)
-- Rebranded as **m-e621** (titles, icons, package name)
+<div align="center">
+  <img src="./public/favicon.svg" width="88" alt="m-e621 logo">
+  <h1>m-e621</h1>
+  <p>A multi-site imageboard browser and local media library.</p>
+  <p>
+    <a href="./README-CONTINUED.md">Documentation</a>
+    ·
+    <a href="https://github.com/lovelyspacedog/m-e621">Repository</a>
+    ·
+    <a href="https://material-e621.avoonix.com">Upstream</a>
+  </p>
+</div>
 
 ---
 
-## Screenshots
+m-e621 expands [Material e621](https://github.com/avoonix/material-e621) with additional sites, a Unified feed, local media management, and richer browsing tools. It is built with Vue 3 and Vuetify.
 
-Fresh captures from this fork (site switcher, m-e621 branding). Content in posts may be NSFW — treat accordingly.
+> [!NOTE]
+> This is an experimental, AI-assisted personal project. For a stable e621-only client, use upstream Material e621.
 
-[![Landing](./screenshots/m-e621-landing.png)](./screenshots/m-e621-landing.png)
+## Highlights
 
-[![Posts](./screenshots/m-e621-posts.png)](./screenshots/m-e621-posts.png)
+- **Multi-site browsing** — nine remote sites, independent profiles, and one optional Unified feed.
+- **Local media library** — folder browsing, fuzzy search, tags, favorites, audio/video, and playback resume.
+- **Save Locally** — smart filenames, sidecar metadata, Open in Local, and automatic offline retries.
+- **FFmpeg remuxing** — repair one file or bulk-remux unplayable filtered results.
+- **Flexible feeds** — full-width lists, thumbnail grids, compact cards, and remembered media controls.
+- **Slideshow and auto-next** — hands-free navigation in fullscreen or the feed.
+- **Pool and comic readers** — gallery, scrolling, full-width, and chunked reading modes.
+- **Organized searches and tags** — collapsible, reorderable groups for saved searches and starred tags.
+- **Media tools** — Fluffle reverse-image search, fullscreen notes, and RTF/DOCX previews.
 
-[![Fullscreen](./screenshots/m-e621-fullscreen.png)](./screenshots/m-e621-fullscreen.png)
+## Preview
 
-[![Settings](./screenshots/m-e621-settings.png)](./screenshots/m-e621-settings.png)
+> Content shown in screenshots may be NSFW.
 
-[![Starred tags](./screenshots/m-e621-starred.png)](./screenshots/m-e621-starred.png)
+[![m-e621 posts view](./screenshots/m-e621-posts.png)](./screenshots/m-e621-posts.png)
 
-[![Suggester](./screenshots/m-e621-suggester.png)](./screenshots/m-e621-suggester.png)
+<details>
+  <summary>More screenshots</summary>
 
-[![Artist dashboard](./screenshots/m-e621-dashboard.png)](./screenshots/m-e621-dashboard.png)
+[Landing](./screenshots/m-e621-landing.png) ·
+[Fullscreen](./screenshots/m-e621-fullscreen.png) ·
+[Site modes](./screenshots/m-e621-site-modes.png) ·
+[Settings](./screenshots/m-e621-settings.png) ·
+[Starred tags](./screenshots/m-e621-starred.png) ·
+[Suggester](./screenshots/m-e621-suggester.png) ·
+[Artist dashboard](./screenshots/m-e621-dashboard.png) ·
+[Pools](./screenshots/m-e621-pools.png)
 
-[![Pools](./screenshots/m-e621-pools.png)](./screenshots/m-e621-pools.png)
+</details>
 
-[![Site modes](./screenshots/m-e621-site-modes.png)](./screenshots/m-e621-site-modes.png)
+## Get started
 
----
-
-## Before you use this
-
-- **AI-first development.** Large chunks of code, refactors, and bugfix passes were written by AI agents. The human owner directs intent, tests what they use, and merges — this is not “hand-crafted artisan frontend.”
-- **Personal scope.** Features exist because the maintainer wanted them (Unified federation, Tailspace comics, Local folder, Inkbunny SWF, etc.). Unsupported site quirks may stay broken until they matter to that workflow.
-- **Not affiliated** with e621, e6ai, Furbooru, Inkbunny, Tailspace, Weasyl, Itaku, SoFurry, or the upstream Material e621 maintainers beyond being an AGPL fork.
-- **Content warning.** This client talks to adult imageboards. You are responsible for following each site’s rules, age requirements, and API terms.
-
----
-
-## Usage
-
-### Development
-
-Requires **Node.js ≥ 20** and **npm** (yarn/pnpm are blocked in `package.json`).
+Requires **Node.js 20+** and **npm**.
 
 ```bash
 npm install
 npm run dev
 ```
 
-`npm run dev` includes Vite proxies for multi-site APIs during development. Production / self-host still needs `serve.py` (or Docker) for those proxies.
+### Self-host
 
-Useful scripts:
-
-```bash
-npm run build          # type-check + production build
-npm run type-check
-npm run lint
-npm run test:unit
-npm run test:e2e       # Playwright
-```
-
-### Self-host with `serve.py` (multi-site)
-
-Build, then serve `dist/` with the included proxy server:
+Build and run the included Python proxy:
 
 ```bash
-npm install
 npm run build
-export M_E621_ROOT="$(pwd)/dist"
-export M_E621_DIR="$(pwd)"
-export M_E621_HOST="127.0.0.1"
-export M_E621_PORT="18621"
-python3 serve.py
+M_E621_ROOT="$PWD/dist" M_E621_DIR="$PWD" python3 serve.py
 ```
 
-Open `http://127.0.0.1:18621`. Environment variables are documented at the top of `serve.py`.
-
-FurAffinity mode needs [faapi](https://github.com/FurryCoders/faapi) on the server:
-
-```bash
-uv venv .venv
-uv pip install -r requirements.txt
-# or: .venv/bin/pip install -r requirements.txt
-```
-
-`serve.py` loads `.venv` automatically. Optional host-wide login (every browser on this host):
-
-```bash
-export FA_COOKIE_A='…'
-export FA_COOKIE_B='…'
-```
-
-Those cookies are `a` and `b` from a logged-in FurAffinity session. Do not log out of that session. Username/password in Account settings is a fallback (password is not stored).
-
-Tailspace login is profile-only (Account settings): password or a pasted `tailspace_session` cookie. The password is not stored; the session cookie is kept in the Tailspace profile like other site credentials.
-
-Itaku login is profile-only (Account settings): paste the browser `Authorization: Token …` value. Verify stores username + user id for `stars:me` / star toggle / `following:me` / comments.
-
-SoFurry login is profile-only (Account settings): email/password form login or pasted session cookies. Stores cookies for `favs:me` (likes), `following:me` (feed), and best-effort like toggle.
-
-Search uses FurAffinity’s HTML `/search/` (not an official JSON API). Expect ~1s crawl delay between FA requests.
-
-Optional helpers (`start`, `sync`, `deploy.sh`, `serve.py`) support a reverse-proxied self-host. Personal hostnames and secrets belong in **`~/.config/m-e621/env`** or a gitignored **`deploy.env`** — see [`deploy.env.example`](./deploy.env.example). Committed scripts default to `localhost` / public HTTPS clone URLs only.
-
-### Docker (multi-site via `serve.py`)
-
-Build and run this fork’s proxy server (not upstream’s static nginx image):
+Or use Docker:
 
 ```bash
 docker compose up --build
-# → http://127.0.0.1:18621
 ```
 
-Or without Compose:
-
-```bash
-docker build -t m-e621 .
-docker run --rm -p 18621:18621 m-e621
-```
-
-Container env defaults: `M_E621_HOST=0.0.0.0`, `M_E621_PORT=18621`, `M_E621_ROOT=/app/dist`, `M_E621_CONFIG=/data/config`. Optional `FA_COOKIE_A` / `FA_COOKIE_B` for host-wide FurAffinity login.
-
-> **Note:** Upstream `ghcr.io/avoonix/material-e621` remains e621-static-only (no multi-site proxies). This repo’s Dockerfile uses **npm** + `serve.py`.
-
-### Desktop (Tauri)
-
-Install Rust + Node (≥20), then from the repo root:
-
-```bash
-npm install
-cargo install tauri-cli
-cd src-tauri
-cargo tauri dev    # or: cargo tauri build
-```
-
-Bundle id is `com.lovelyspacedog.me621`. Tauri enables **Local mode** via a read/browse FS bridge (`pick_local_folder` / `list_local_media` / `read_local_file`). Remux, sidecar writes, and Save-into-folder still need Chromium’s File System Access API.
-
----
-
-## Stack
-
-- Vue 3, Vue Router, Pinia, Vuetify 3
-- Vite + PWA
-- Comlink workers for API / analyze / dashboard work
-- `@ffmpeg/ffmpeg` for Local remux helpers
-- `@ruffle-rs/ruffle` for Flash/SWF
-- `mammoth` for `.docx` story preview
-- Python 3 stdlib HTTP server (`serve.py`) for self-host proxies
-
----
+For authentication, site support, Local mode, remuxing, Docker, Tauri, deployment, and limitations, read the **[complete guide](./README-CONTINUED.md)**.
 
 ## Project status
 
-Active personal fork. Breaking changes and incomplete site modes can land without ceremony. Contributions are welcome if you are comfortable with AI-authored diffs, incomplete docs, and “fix what you care about” review.
-
-If you only need e621 with Material Design polish, use [upstream](https://github.com/avoonix/material-e621).
-
----
+Active personal fork. Features may be incomplete or change without notice. This project is not affiliated with its supported sites or upstream maintainers. Follow each site's rules, age requirements, and API terms.
 
 ## License
 
-GNU Affero General Public License v3.0 — see [`LICENSE`](./LICENSE).
-
-This project inherits AGPL-3.0 from Material e621. Network use of a modified version requires offering corresponding source.
+[AGPL-3.0](./LICENSE). Network use of a modified version requires offering the corresponding source.
