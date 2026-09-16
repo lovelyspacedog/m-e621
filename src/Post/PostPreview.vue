@@ -770,7 +770,7 @@ export default defineComponent({
 	 position: absolute;
 	 left: 1rem;
 	 right: 1rem;
-	 bottom: 3.75rem;
+	 bottom: 5rem;
 	 z-index: 1;
 	 margin: 0;
 	 font-size: 0.9rem;
