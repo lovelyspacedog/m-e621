@@ -27,6 +27,7 @@
   <div
     v-else-if="isAudio"
     class="audio-card clickable"
+    :class="{ 'audio-card--with-title': !!title }"
     v-ripple
     @click="handleClick"
   >
@@ -38,29 +39,28 @@
       alt=""
     />
     <div class="audio-card-scrim" :class="{ 'audio-card-scrim--plain': !audioCoverSrc }" />
-    <div class="audio-card-body">
-      <v-icon size="40" class="audio-card-icon">mdi-music</v-icon>
-      <div class="audio-card-name text-caption">
-        .{{ file.ext }}
-      </div>
+    <div class="audio-badge">
+      <v-icon size="40">mdi-music</v-icon>
+      <span class="audio-label">Music</span>
+    </div>
+    <p v-if="title" class="audio-title">{{ title }}</p>
+    <div class="audio-card-controls" @click.stop>
       <audio
         v-if="audioSrc"
         class="audio-card-player"
         controls
         preload="metadata"
         :src="audioSrc"
-        @click.stop
       />
       <v-chip
         v-else-if="audioPending"
-        class="mt-2"
         color="secondary"
         variant="flat"
         size="small"
       >
         Loading audio…
       </v-chip>
-      <v-chip v-else class="mt-2" color="warning" variant="flat" size="small">
+      <v-chip v-else color="warning" variant="flat" size="small">
         No playable URL
       </v-chip>
     </div>
@@ -706,16 +706,9 @@ export default defineComponent({
 }
  .audio-card {
 	 position: relative;
-	 display: flex;
-	 flex-direction: column;
-	 align-items: center;
-	 justify-content: flex-end;
-	 gap: 0.5rem;
 	 width: 100%;
-	 min-height: 10rem;
+	 min-height: 14rem;
 	 aspect-ratio: 4 / 3;
-	 padding: 1rem;
-	 box-sizing: border-box;
 	 overflow: hidden;
 	 background: #0d1117;
 }
@@ -725,17 +718,17 @@ export default defineComponent({
 	 width: 100%;
 	 height: 100%;
 	 object-fit: cover;
-	 opacity: 0.55;
-	 filter: saturate(0.9);
+	 opacity: 0.5;
+	 filter: saturate(0.85);
 }
  .audio-card-scrim {
 	 position: absolute;
 	 inset: 0;
 	 background: linear-gradient(
 		 180deg,
-		 rgba(8, 12, 20, 0.2) 0%,
-		 rgba(8, 12, 20, 0.55) 45%,
-		 rgba(8, 12, 20, 0.82) 100%
+		 rgba(8, 12, 20, 0.25) 0%,
+		 rgba(8, 12, 20, 0.55) 55%,
+		 rgba(8, 12, 20, 0.78) 100%
 	 );
 	 pointer-events: none;
 }
@@ -746,21 +739,59 @@ export default defineComponent({
 		 rgba(8, 12, 20, 1) 75%
 	 );
 }
- .audio-card-body {
-	 position: relative;
+ .audio-badge {
+	 position: absolute;
+	 left: 50%;
+	 top: 42%;
+	 transform: translate(-50%, -50%);
 	 z-index: 1;
 	 display: flex;
 	 flex-direction: column;
 	 align-items: center;
 	 gap: 0.35rem;
-	 width: 100%;
+	 padding: 0.75rem 1rem;
+	 border-radius: 0.75rem;
+	 background: rgba(8, 12, 20, 0.72);
+	 border: 1px solid rgba(255, 255, 255, 0.14);
+	 color: #fff;
+	 pointer-events: none;
+}
+ .audio-card--with-title .audio-badge {
+	 top: 36%;
+}
+ .audio-label {
+	 font-size: 0.8rem;
+	 font-weight: 600;
+	 letter-spacing: 0.06em;
+	 text-transform: uppercase;
+	 line-height: 1;
+}
+ .audio-title {
+	 position: absolute;
+	 left: 1rem;
+	 right: 1rem;
+	 bottom: 3.75rem;
+	 z-index: 1;
+	 margin: 0;
+	 font-size: 0.9rem;
+	 font-weight: 600;
+	 line-height: 1.3;
 	 color: rgba(255, 255, 255, 0.92);
+	 text-align: center;
+	 display: -webkit-box;
+	 -webkit-line-clamp: 2;
+	 -webkit-box-orient: vertical;
+	 overflow: hidden;
+	 pointer-events: none;
 }
- .audio-card-icon {
-	 opacity: 0.9;
-}
- .audio-card-name {
-	 opacity: 0.85;
+ .audio-card-controls {
+	 position: absolute;
+	 left: 1rem;
+	 right: 1rem;
+	 bottom: 1rem;
+	 z-index: 1;
+	 display: flex;
+	 justify-content: center;
 }
  .audio-card-player {
 	 width: min(100%, 18rem);
