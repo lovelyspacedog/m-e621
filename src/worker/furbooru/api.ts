@@ -244,6 +244,19 @@ export function furbooruRatingTags(rating: "s" | "q" | "e", raw?: string): strin
   return tags;
 }
 
+const isVideoFormat = (format: string | undefined | null) =>
+  /^(webm|mp4)$/i.test(format || "");
+
+/**
+ * Philomena lists video representation URLs as .webm/.mp4, but card <img> and
+ * <video poster> need a still. FurryCDN serves matching .gif thumbs for the
+ * thumb* sizes (thumb.gif / thumb_small.gif / thumb_tiny.gif).
+ */
+export const stillRepUrl = (url: string | undefined | null): string => {
+  if (!url) return "";
+  return url.replace(/\.(webm|mp4)(?=\?|$)/i, ".gif");
+};
+
 /** Map a Philomena image to an e621-shaped Post. */
 export function adaptImage(img: PhilomenaImage): Post {
   const rep = img.representations;
@@ -253,6 +266,12 @@ export function adaptImage(img: PhilomenaImage): Post {
       ? [img.source_url]
       : []
   ).filter(Boolean) as string[];
+
+  const previewRaw = rep.thumb_small ?? rep.thumb;
+  // large/medium for videos often alias full.webm; full.gif 404s — prefer thumb GIF.
+  const sampleRaw = isVideoFormat(img.format)
+    ? rep.thumb ?? rep.thumb_small ?? rep.large ?? rep.medium
+    : rep.large ?? rep.medium;
 
   return {
     id: img.id,
@@ -268,13 +287,13 @@ export function adaptImage(img: PhilomenaImage): Post {
       md5: img.sha512_hash ?? "",
     },
     preview: {
-      url: rep.thumb_small ?? rep.thumb,
+      url: isVideoFormat(img.format) ? stillRepUrl(previewRaw) : previewRaw,
       width: 150,
       height: 150,
     },
     sample: {
       has: true,
-      url: rep.large ?? rep.medium,
+      url: isVideoFormat(img.format) ? stillRepUrl(sampleRaw) : sampleRaw,
       width: img.width,
       height: img.height,
     },
