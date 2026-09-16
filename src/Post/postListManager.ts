@@ -48,6 +48,10 @@ export const usePostListManager = ({
   let flushPendingFullscreenAdvance = () => {
     /* assigned after _openFullscreenPost exists */
   };
+  // FA search only ships CDN thumbs; pull real file_url for feed cards (capped).
+  const FA_FEED_ENRICH_LIMIT = 3;
+  const faEnrichPending = new Set<string>();
+  let faEnrichActive = 0;
   const urlStore = useUrlStore();
   const blacklistStore = useBlacklistStore();
   const postsStore = usePostsStore();
@@ -64,7 +68,43 @@ export const usePostListManager = ({
   const indexOfPost = (target: PostPointer) =>
     findPostIndex(posts.value, pointerOf(target));
 
-  const enrichRemote = async (post: EnhancedPost) => {
+  const needsFaFeedEnrich = (post: EnhancedPost) => {
+    const meta = post.__meta?.furaffinity;
+    if (!meta || meta.detailsLoaded || meta.unavailable) return false;
+    if (meta.kind === "journal") return false;
+    // Covers are enough for non-image cards; skip the submission scrape.
+    if (/^(text|story|poetry|music|flash)$/i.test(meta.faType || "")) return false;
+    return true;
+  };
+
+  const pumpFaFeedEnrich = () => {
+    const gen = generation.value;
+    while (faEnrichActive < FA_FEED_ENRICH_LIMIT && faEnrichPending.size) {
+      const key = faEnrichPending.values().next().value as string;
+      faEnrichPending.delete(key);
+      const post = posts.value.find((p) => postFeedKey(p) === key);
+      if (!post || !needsFaFeedEnrich(post)) continue;
+      faEnrichActive += 1;
+      void enrichRemote(post, { silent: true }).finally(() => {
+        faEnrichActive -= 1;
+        if (gen === generation.value) pumpFaFeedEnrich();
+      });
+    }
+  };
+
+  /** Upgrade FA listing thumbs to full file_url for feed preview cards. */
+  const scheduleFaFeedEnrich = (batch: EnhancedPost[]) => {
+    for (const post of batch) {
+      if (!needsFaFeedEnrich(post)) continue;
+      faEnrichPending.add(postFeedKey(post));
+    }
+    pumpFaFeedEnrich();
+  };
+
+  const enrichRemote = async (
+    post: EnhancedPost,
+    opts?: { silent?: boolean },
+  ) => {
     const originInkbunny =
       post.__meta.originMode === "inkbunny" || siteMode.isInkbunny;
     const originFa =
@@ -140,7 +180,11 @@ export const usePostListManager = ({
         }
         return updated;
       }
-      handleError(error);
+      if (opts?.silent) {
+        console.log(error);
+      } else {
+        handleError(error);
+      }
       return post;
     }
   };
@@ -291,6 +335,7 @@ export const usePostListManager = ({
         posts.value.length - postCountToRemove,
         postCountToRemove,
       );
+      scheduleFaFeedEnrich(newPostsFiltered);
     } catch (error) {
       if (thisGen === generation.value) handleError(error);
     } finally {
@@ -327,6 +372,7 @@ export const usePostListManager = ({
         const postCountToRemove = getPostCountToRemove();
         posts.value.push(...newPostsFiltered);
         posts.value.splice(0, postCountToRemove);
+        scheduleFaFeedEnrich(newPostsFiltered);
       }
     } catch (error) {
       if (thisGen === generation.value) handleError(error);
@@ -451,6 +497,7 @@ export const usePostListManager = ({
   const hiddenPostCount = computed(() => posts.value.length - visiblePosts.value.length);
   const clearPosts = () => {
     generation.value += 1;
+    faEnrichPending.clear();
     posts.value = [];
     reachedEnd.value = false;
     loading.value = false;
@@ -465,6 +512,7 @@ export const usePostListManager = ({
   /** Replace the in-memory list without page-window trimming (Saved posts). */
   const replacePosts = (next: EnhancedPost[]) => {
     generation.value += 1;
+    faEnrichPending.clear();
     posts.value = next;
     reachedEnd.value = true;
     loading.value = false;
@@ -473,6 +521,7 @@ export const usePostListManager = ({
     fullscreenPost.value = null;
     detailsPost.value = null;
     useUiStore().fullscreenOpen = false;
+    scheduleFaFeedEnrich(next);
   };
 
   const hasPrevious = computed(() => posts.value.length !== 0 && posts.value[0].__meta.pageNumber > 1);
