@@ -27,7 +27,7 @@
         <v-app-bar-nav-icon @click.stop="drawer = !drawer" class="hidden-lg-and-up"
           v-if="navMode == 'sidebar' && !minimalHeader" />
       </v-slide-x-transition>
-      <history-nav-buttons v-if="!minimalHeader" class="mr-1" />
+      <history-nav-buttons v-if="!minimalHeader && !mobile" class="mr-1" />
       <portal-target name="toolbar">
         <v-toolbar-title>{{ appName }}</v-toolbar-title>
       </portal-target>
