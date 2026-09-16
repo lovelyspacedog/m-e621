@@ -263,8 +263,10 @@ export default defineComponent({
       if (!text) return "";
       return text.length > 160 ? `${text.slice(0, 157)}…` : text;
     });
+    // Grid cells are thumbnails — never load/play full video from the card.
+    const isGrid = computed(() => posts.feedLayout === "grid");
     const playableUrl = computed(() =>
-      !props.unplayable && isVideo.value && props.file.url
+      !isGrid.value && !props.unplayable && isVideo.value && props.file.url
         ? proxyDownloadUrl(props.file.url)
         : null,
     );
@@ -508,14 +510,24 @@ export default defineComponent({
           low: props.preview.url,
         };
       }
-      // GIFs must use file.url — sample/preview are usually still frames.
-      if (isAnimatedImage.value && posts.animateFeedGifs && props.file.url) {
+      // GIFs must use file.url in list — sample/preview are usually still frames.
+      // Grid stays on still thumbs; full animated GIFs are too heavy for a dense grid.
+      if (
+        !isGrid.value &&
+        isAnimatedImage.value &&
+        posts.animateFeedGifs &&
+        props.file.url
+      ) {
         const animated = props.file.url;
         return { high: animated, medium: animated, low: animated };
       }
+      const sampleOrPreview = props.sample.url || props.preview.url;
       return {
-        high: props.file.url || props.sample.url || props.preview.url,
-        medium: props.sample.url || props.preview.url,
+        // Grid thumbnails never pull file.url (full res).
+        high: isGrid.value
+          ? sampleOrPreview || props.file.url
+          : props.file.url || sampleOrPreview,
+        medium: sampleOrPreview,
         low: props.preview.url,
       };
     });
