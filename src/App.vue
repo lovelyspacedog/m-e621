@@ -1,5 +1,5 @@
 <template>
-  <v-app>
+  <v-app :class="{ 'paw-cursor': appearance.pawCursor }">
     <v-navigation-drawer v-if="!minimalHeader" :color="theme.sidebar" :clipped="clipped" v-model="drawer" floating app
       width="400" class="pa-2">
       <router-link to="/">

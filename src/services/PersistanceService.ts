@@ -539,6 +539,10 @@ class PersistanceService {
       }
       newState.configVersion = 31;
     }
+    if (newState.configVersion < 32) {
+      newState.appearance.pawCursor = defaultSettings.appearance.pawCursor;
+      newState.configVersion = 32;
+    }
 
     // Ensure profiles exist even if a partial export skipped them.
     if (!newState.profiles) {

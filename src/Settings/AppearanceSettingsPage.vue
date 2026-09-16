@@ -79,6 +79,14 @@
               density="comfortable"
             />
           </settings-row>
+          <settings-row title="Paw cursor" description="Use the blue paw cursor throughout the app" switch>
+            <v-switch
+              v-model="appearance.pawCursor"
+              color="accent"
+              hide-details
+              density="compact"
+            />
+          </settings-row>
           <settings-row title="Hide install prompt" switch>
             <v-switch
               v-model="appearance.hideInstallPrompt"

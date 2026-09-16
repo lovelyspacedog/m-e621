@@ -23,6 +23,11 @@ body {
   background-color: rgb(var(--v-theme-secondary));
 }
 
+.paw-cursor,
+.paw-cursor * {
+  cursor: url("/cursors/paw.png") 0 0, auto !important;
+}
+
 html {
   overflow-y: auto !important;
 }

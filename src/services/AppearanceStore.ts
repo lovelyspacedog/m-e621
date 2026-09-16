@@ -138,6 +138,11 @@ export const useAppearanceStore = defineStore("appearance", () => {
     set(value) { main.appearance.hideMigrationInfo = value; },
   });
 
+  const pawCursor = computed({
+    get() { return main.appearance.pawCursor; },
+    set(value) { main.appearance.pawCursor = value; },
+  });
+
   const applyTheme = (theme: Theme) => {
     primaryColor.value = theme.primary;
     secondaryColor.value = theme.secondary;
@@ -177,6 +182,7 @@ export const useAppearanceStore = defineStore("appearance", () => {
     theme,
     hideGithubInfo,
     hideMigrationInfo,
+    pawCursor,
   };
 });
 
