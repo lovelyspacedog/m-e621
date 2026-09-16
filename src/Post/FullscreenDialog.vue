@@ -1,55 +1,29 @@
 <template>
-  <v-dialog dark :model-value="open" fullscreen :scrim="false" transition="dialog-bottom-transition" scrollable
-    persistent>
+  <v-dialog dark :model-value="open" fullscreen :scrim="false" transition="dialog-bottom-transition" scrollable persistent>
     <div class="fullscreen bg-grey-darken-4" :class="{ 'fullscreen--comments': commentsVisible && supportsComments }">
       <div class="flex">
         <div v-show="!hideUi" class="float-left" v-ripple="hasPreviousFullscreenPost" @click="showPreviousImage">
-          <v-icon size="50" v-if="hasPreviousFullscreenPost">
-            mdi-chevron-left
-          </v-icon>
+          <v-icon size="50" v-if="hasPreviousFullscreenPost"> mdi-chevron-left </v-icon>
         </div>
         <!-- Document / story viewers need native scroll; ZoomPanImage hijacks wheel for zoom. -->
-        <div
-          v-if="current && isUnavailablePost"
-          class="middle bg-black document-middle"
-          :class="blacklistClasses"
-        >
+        <div v-if="current && isUnavailablePost" class="middle bg-black document-middle" :class="blacklistClasses">
           <div class="unavailable-fullscreen">
             <v-icon size="72" color="white">mdi-image-off-outline</v-icon>
             <div class="text-h6 mt-4">Submission unavailable</div>
-            <p class="mt-2 text-medium-emphasis text-center">
-              This post is no longer on FurAffinity.
-            </p>
+            <p class="mt-2 text-medium-emphasis text-center">This post is no longer on FurAffinity.</p>
           </div>
         </div>
-        <div
-          v-else-if="current && isDocumentPost"
-          class="middle bg-black document-middle"
-          :class="blacklistClasses"
-        >
-          <iframe
-            v-if="showPdfFrame"
-            class="document-frame"
-            :src="pdfFrameUrl"
-            title="PDF document"
-          />
+        <div v-else-if="current && isDocumentPost" class="middle bg-black document-middle" :class="blacklistClasses">
+          <iframe v-if="showPdfFrame" class="document-frame" :src="pdfFrameUrl" title="PDF document" />
           <div v-else class="document-scroll">
             <div class="document-body text-body-1">
               <div v-if="documentTitle" class="text-h5 mb-4">
                 {{ documentTitle }}
               </div>
-              <div
-                v-if="documentBlurb"
-                class="document-blurb mb-6 text-medium-emphasis"
-              >
+              <div v-if="documentBlurb" class="document-blurb mb-6 text-medium-emphasis">
                 {{ documentBlurb }}
               </div>
-              <app-logo
-                v-if="documentLoading"
-                class="centered-in-container"
-                svg-margin-auto
-                type="loader"
-              />
+              <app-logo v-if="documentLoading" class="centered-in-container" svg-margin-auto type="loader" />
               <pre v-else class="document-text">{{ documentBodyText }}</pre>
               <div v-if="documentLoadError" class="mt-4 text-error">
                 {{ documentLoadError }}
@@ -66,48 +40,32 @@
         >
           <div v-if="current" style="height: 100%" class="middle bg-black" :class="blacklistClasses">
             <ruffle-player v-if="current.file.ext == 'swf'" class="overflow flash" :url="currentFileUrl || null" />
-            <video v-else-if="isVideoPost && currentFileUrl"
+            <video
+              v-else-if="isVideoPost && currentFileUrl"
               ref="videoEl"
-              class="overflow flash bg-black position-relative" controls
+              class="overflow flash bg-black position-relative"
+              controls
               :src="String(currentFileUrl)"
-              :loop="!slideshowPlaying" autoplay playsinline preload="metadata"
+              :loop="!slideshowPlaying"
+              autoplay
+              playsinline
+              preload="metadata"
               @ended="onVideoEnded"
               @volumechange="onFullscreenVolumeChange"
-              @ratechange="onFullscreenRateChange">
+              @ratechange="onFullscreenRateChange"
+            >
               Video type not supported by your browser
             </video>
-            <div
-              v-else-if="isAudioPost && currentFileUrl"
-              class="overflow flash bg-black fullscreen-audio-wrap"
-            >
-              <img
-                v-if="audioCoverUrl"
-                :src="audioCoverUrl"
-                class="fullscreen-audio-cover"
-                alt=""
-              />
+            <div v-else-if="isAudioPost && currentFileUrl" class="overflow flash bg-black fullscreen-audio-wrap">
+              <img v-if="audioCoverUrl" :src="audioCoverUrl" class="fullscreen-audio-cover" alt="" />
               <v-icon v-else size="96" class="mb-4">mdi-music</v-icon>
-              <audio
-                class="fullscreen-audio"
-                controls
-                autoplay
-                preload="metadata"
-                :src="String(currentFileUrl)"
-                @ended="onVideoEnded"
-              />
+              <audio class="fullscreen-audio" controls autoplay preload="metadata" :src="String(currentFileUrl)" @ended="onVideoEnded" />
             </div>
             <div v-else class="overflow">
               <div class="zoom-container text-center" style="position: relative">
-                <transition :enter-active-class="enterTransitionName" :leave-active-class="leaveTransitionName"
-                  mode="out-in">
-                  <div :key="currentFileUrl || 0" style="
-                      position: absolute;
-                      width: 100%;
-                      height: 100%;
-                      left: 0;
-                    ">
-                    <img v-if="currentSampleFileUrl" :class="{ grey: false, 'darken-3': false }"
-                      :src="currentSampleFileUrl" />
+                <transition :enter-active-class="enterTransitionName" :leave-active-class="leaveTransitionName" mode="out-in">
+                  <div :key="currentFileUrl || 0" style="position: absolute; width: 100%; height: 100%; left: 0">
+                    <img v-if="currentSampleFileUrl" :class="{ grey: false, 'darken-3': false }" :src="currentSampleFileUrl" />
                     <img
                       v-if="currentFileUrl"
                       ref="fullImageEl"
@@ -115,16 +73,13 @@
                       @load="onImageLoad"
                       @error="onImageError"
                       :class="{
-                      grey: false,
-                      'darken-3': false,
-                      hidden: loading,
-                    }" :src="currentFileUrl" />
-                    <notes-overlay
-                      v-if="showNotesOverlay && current"
-                      :notes="notes"
-                      :image-width="current.file.width"
-                      :image-height="current.file.height"
+                        grey: false,
+                        'darken-3': false,
+                        hidden: loading,
+                      }"
+                      :src="currentFileUrl"
                     />
+                    <notes-overlay v-if="showNotesOverlay && current" :notes="notes" :image-width="current.file.width" :image-height="current.file.height" />
                   </div>
                 </transition>
                 <app-logo class="centered-in-container" svg-margin-auto v-if="loading" type="loader" />
@@ -133,62 +88,56 @@
           </div>
         </zoom-pan-image>
         <div v-show="!hideUi" class="float-right" v-ripple="hasNextFullscreenPost" @click="showNextImage">
-          <v-icon size="50" v-if="hasNextFullscreenPost">
-            mdi-chevron-right
-          </v-icon>
+          <v-icon size="50" v-if="hasNextFullscreenPost"> mdi-chevron-right </v-icon>
         </div>
-        <aside
-          v-if="commentsVisible && supportsComments && current"
-          class="fullscreen-comments"
-          :style="{ width: `${commentsWidthPx}px` }"
-          @click.stop
-        >
-          <div
-            class="fullscreen-comments-resizer"
-            title="Drag to resize"
-            @pointerdown="startCommentsResize"
-          />
+        <aside v-if="commentsVisible && supportsComments && current" class="fullscreen-comments" :style="{ width: `${commentsWidthPx}px` }" @click.stop>
+          <div class="fullscreen-comments-resizer" title="Drag to resize" @pointerdown="startCommentsResize" />
           <div class="fullscreen-comments-header text-subtitle-2">
             <span>
               Comments
-              <span v-if="current.comment_count" class="text-medium-emphasis">
-                ({{ current.comment_count }})
-              </span>
+              <span v-if="current.comment_count" class="text-medium-emphasis"> ({{ current.comment_count }}) </span>
             </span>
-            <v-btn
-              icon
-              size="small"
-              variant="text"
-              color="white"
-              title="Hide comments"
-              @click="toggleComments"
-            >
+            <v-btn icon size="small" variant="text" color="white" title="Hide comments" @click="toggleComments">
               <v-icon>mdi-close</v-icon>
             </v-btn>
           </div>
           <div class="fullscreen-comments-body">
             <section class="fullscreen-comments-section">
-              <div class="text-caption text-medium-emphasis mb-2">Info</div>
-              <post-info-list
-                :post="current"
-                @set-post-vote="$emit('set-post-vote', $event)"
-              />
+              <button
+                class="fullscreen-comments-section-toggle text-caption text-medium-emphasis"
+                type="button"
+                :aria-expanded="infoExpanded"
+                @click="infoExpanded = !infoExpanded"
+              >
+                <span>Info</span>
+                <v-icon size="small">
+                  {{ infoExpanded ? "mdi-chevron-up" : "mdi-chevron-down" }}
+                </v-icon>
+              </button>
+              <post-info-list v-show="infoExpanded" :post="current" @set-post-vote="$emit('set-post-vote', $event)" />
             </section>
             <section class="fullscreen-comments-section">
-              <div class="text-caption text-medium-emphasis mb-2">Description</div>
-              <div
-                v-if="isSofurryStory"
-                class="text-body-2 sofurry-story"
+              <button
+                class="fullscreen-comments-section-toggle text-caption text-medium-emphasis"
+                type="button"
+                :aria-expanded="descriptionExpanded"
+                @click="descriptionExpanded = !descriptionExpanded"
               >
-                <div v-if="sofurryStoryTitle" class="text-subtitle-2 mb-2">
-                  {{ sofurryStoryTitle }}
+                <span>Description</span>
+                <v-icon size="small">
+                  {{ descriptionExpanded ? "mdi-chevron-up" : "mdi-chevron-down" }}
+                </v-icon>
+              </button>
+              <div v-show="descriptionExpanded">
+                <div v-if="isSofurryStory" class="text-body-2 sofurry-story">
+                  <div v-if="sofurryStoryTitle" class="text-subtitle-2 mb-2">
+                    {{ sofurryStoryTitle }}
+                  </div>
+                  <pre class="sofurry-story-text">{{ current.description || "No story text" }}</pre>
                 </div>
-                <pre class="sofurry-story-text">{{
-                  current.description || "No story text"
-                }}</pre>
-              </div>
-              <div v-else class="text-body-2">
-                <d-text :text="current.description || 'No description'" />
+                <div v-else class="text-body-2">
+                  <d-text :text="current.description || 'No description'" />
+                </div>
               </div>
             </section>
             <section class="fullscreen-comments-section fullscreen-comments-section--last">
@@ -198,45 +147,31 @@
           </div>
         </aside>
       </div>
-      <div
-        class="top-right"
-        :style="commentsChromeOffset"
-        v-ripple
-        @click.stop="exitFullscreen"
-      >
+      <div class="top-right" :style="commentsChromeOffset" v-ripple @click.stop="exitFullscreen">
         <v-icon size="40" class="ml-2 mt-2">mdi-close</v-icon>
       </div>
       <div class="bottom-left" v-show="!hideUi && !isDocumentPost && !isUnavailablePost">
         <v-btn icon size="large" color="white" variant="text" @click="toggleSlideshow">
           <v-icon size="36">{{ slideshowPlaying ? "mdi-pause" : "mdi-play" }}</v-icon>
         </v-btn>
-        <v-btn
-          v-if="current?.has_notes && !isVideoPost"
-          icon
-          size="large"
-          color="white"
-          variant="text"
-          @click="notesVisible = !notesVisible"
-        >
+        <v-btn v-if="current?.has_notes && !isVideoPost" icon size="large" color="white" variant="text" @click="notesVisible = !notesVisible">
           <v-icon size="36">{{ notesVisible ? "mdi-note-text" : "mdi-note-text-outline" }}</v-icon>
         </v-btn>
-        <v-btn
-          v-if="supportsComments"
-          icon
-          size="large"
-          color="white"
-          variant="text"
-          :title="commentsVisible ? 'Hide comments' : 'Show comments'"
-          @click="toggleComments"
-        >
+        <v-btn v-if="supportsComments" icon size="large" color="white" variant="text" :title="commentsVisible ? 'Hide comments' : 'Show comments'" @click="toggleComments">
           <v-icon size="36">{{ commentsVisible ? "mdi-comment" : "mdi-comment-outline" }}</v-icon>
         </v-btn>
       </div>
       <div class="bottom-right" v-show="!hideUi" :style="commentsChromeOffset">
-        <post-buttons v-if="current" :key="current.id" :buttons="buttons" :post="current"
-          @open-post-details="$emit('open-post-details', $event)" @open-post-fullscreen="exitFullscreen()"
+        <post-buttons
+          v-if="current"
+          :key="current.id"
+          :buttons="buttons"
+          :post="current"
+          @open-post-details="$emit('open-post-details', $event)"
+          @open-post-fullscreen="exitFullscreen()"
           @set-post-favorite="$emit('set-post-favorite', $event)"
-          @open-fluffle-search="$emit('open-fluffle-search', $event)" />
+          @open-fluffle-search="$emit('open-fluffle-search', $event)"
+        />
       </div>
     </div>
   </v-dialog>
@@ -259,20 +194,8 @@ import { docxToText, isDocx } from "@/misc/util/docxToText";
 import { isRtf, rtfToText } from "@/misc/util/rtfToText";
 import { openPostOnSourceSite } from "@/misc/util/url";
 import { originAuthForPost, originModeOf, postFeedKey } from "@/misc/util/postOrigin";
-import {
-  modeSupportsNotes,
-  postSupportsComments,
-} from "@/misc/util/siteCapabilities";
-import {
-  computed,
-  nextTick,
-  onBeforeUnmount,
-  onMounted,
-  type PropType,
-  type Ref,
-  ref,
-  watch,
-} from "vue";
+import { modeSupportsNotes, postSupportsComments } from "@/misc/util/siteCapabilities";
+import { computed, nextTick, onBeforeUnmount, onMounted, type PropType, type Ref, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import PostButtons from "@/Post/PostButtons.vue";
 import { useDirectionalTransitions } from "@/misc/util/directionalTransitions";
@@ -303,7 +226,6 @@ const emit = defineEmits<{
   "open-fluffle-search": [post: EnhancedPost];
 }>();
 
-
 const props = defineProps({
   hasPreviousFullscreenPost: {
     type: Boolean,
@@ -318,8 +240,6 @@ const props = defineProps({
     required: true,
   },
 });
-
-
 
 const appearance = useAppearanceStore();
 const blacklist = useBlacklistStore();
@@ -336,12 +256,11 @@ const COMMENTS_FEED_KEY = "fullscreen-comments-feed";
 const COMMENTS_WIDTH_KEY = "fullscreen-comments-width";
 const COMMENTS_WIDTH_DEFAULT = 360;
 const COMMENTS_WIDTH_MIN = 240;
+const infoExpanded = ref(true);
+const descriptionExpanded = ref(true);
 
 const clampCommentsWidth = (px: number) => {
-  const max = Math.max(
-    COMMENTS_WIDTH_MIN,
-    Math.floor(window.innerWidth * 0.7),
-  );
+  const max = Math.max(COMMENTS_WIDTH_MIN, Math.floor(window.innerWidth * 0.7));
   return Math.min(max, Math.max(COMMENTS_WIDTH_MIN, Math.round(px)));
 };
 
@@ -377,10 +296,7 @@ const readCommentsPref = (pools: boolean): boolean => {
 
 const writeCommentsPref = (pools: boolean, value: boolean) => {
   try {
-    localStorage.setItem(
-      pools ? COMMENTS_POOL_KEY : COMMENTS_FEED_KEY,
-      value ? "1" : "0",
-    );
+    localStorage.setItem(pools ? COMMENTS_POOL_KEY : COMMENTS_FEED_KEY, value ? "1" : "0");
   } catch {
     /* ignore */
   }
@@ -390,16 +306,10 @@ const isPoolsFullscreen = computed(() => route.name === "Pool");
 const commentsVisible = ref(readCommentsPref(route.name === "Pool"));
 const commentsWidthPx = ref(readCommentsWidth());
 
-const supportsComments = computed(() =>
-  postSupportsComments(props.current, siteMode.activeMode),
-);
+const supportsComments = computed(() => postSupportsComments(props.current, siteMode.activeMode));
 
 /** Shift fixed chrome left of the comments rail (inline wins over CSS). */
-const commentsChromeOffset = computed(() =>
-  commentsVisible.value && supportsComments.value
-    ? { right: `${commentsWidthPx.value}px` }
-    : undefined,
-);
+const commentsChromeOffset = computed(() => (commentsVisible.value && supportsComments.value ? { right: `${commentsWidthPx.value}px` } : undefined));
 const toggleComments = () => {
   commentsVisible.value = !commentsVisible.value;
   writeCommentsPref(isPoolsFullscreen.value, commentsVisible.value);
@@ -446,32 +356,18 @@ const fullImageEl = ref<HTMLImageElement | null>(null);
 const notes = ref<Note[]>([]);
 const notesVisible = ref(true);
 const notesLoadedFor = ref<string | null>(null);
-const postIsBlacklisted = computed(() =>
-  Boolean(props?.current?.__meta.isBlacklisted),
-);
-const isUnavailablePost = computed(() =>
-  Boolean(props.current?.__meta?.furaffinity?.unavailable),
-);
+const postIsBlacklisted = computed(() => Boolean(props?.current?.__meta.isBlacklisted));
+const isUnavailablePost = computed(() => Boolean(props.current?.__meta?.furaffinity?.unavailable));
 const { classes: blacklistClasses } = useBlacklistClasses({
   mode: blacklist.mode,
   postIsBlacklisted,
 });
 
-const buttons = computed(() =>
-  siteMode.filterButtonsForPost(posts.fullscreenButtons, props.current),
-);
+const buttons = computed(() => siteMode.filterButtonsForPost(posts.fullscreenButtons, props.current));
 const isVideoExt = (ext?: string) => ext === "webm" || ext === "mp4";
 const isVideoPost = computed(() => isVideoExt(props.current?.file.ext));
 const isAudioPost = computed(() => isAudioExt(props.current?.file.ext));
-const IMAGE_EXTS = new Set([
-  "jpg",
-  "jpeg",
-  "png",
-  "gif",
-  "webp",
-  "bmp",
-  "avif",
-]);
+const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp", "avif"]);
 
 const urlExt = (url?: string | null) => {
   if (!url) return "";
@@ -493,22 +389,11 @@ const isPdfPost = computed(() => {
   return urlExt(props.current?.file.url) === "pdf";
 });
 
-const documentTitle = computed(
-  () =>
-    props.current?.__meta?.sofurry?.title ||
-    props.current?.__meta?.furaffinity?.title ||
-    "",
-);
+const documentTitle = computed(() => props.current?.__meta?.sofurry?.title || props.current?.__meta?.furaffinity?.title || "");
 
-const isSofurryStory = computed(
-  () =>
-    props.current?.__meta?.kind === "story" &&
-    !!props.current?.__meta?.sofurry,
-);
+const isSofurryStory = computed(() => props.current?.__meta?.kind === "story" && !!props.current?.__meta?.sofurry);
 
-const sofurryStoryTitle = computed(
-  () => props.current?.__meta?.sofurry?.title || "",
-);
+const sofurryStoryTitle = computed(() => props.current?.__meta?.sofurry?.title || "");
 
 const documentBody = ref("");
 const documentLoading = ref(false);
@@ -534,10 +419,7 @@ const documentBlurb = computed(() => {
 const documentBodyText = computed(() => {
   if (documentLoading.value) return "";
   if (documentBody.value) return documentBody.value;
-  return (
-    props.current?.description ||
-    "No text available for this post."
-  );
+  return props.current?.description || "No text available for this post.";
 });
 
 const pdfFrameUrl = computed(() => {
@@ -592,8 +474,7 @@ const loadDocumentContent = async (post: EnhancedPost) => {
   // Legacy .doc (OLE) isn't readable as text; RTF/DOCX handled below.
   if (ext === "doc") {
     documentBody.value = post.description || "";
-    documentLoadError.value =
-      "This file format can't be previewed here — use Download or open externally.";
+    documentLoadError.value = "This file format can't be previewed here — use Download or open externally.";
     return;
   }
 
@@ -614,18 +495,14 @@ const loadDocumentContent = async (post: EnhancedPost) => {
       return;
     }
 
-    const isDocxType =
-      ext === "docx" ||
-      contentType.includes("wordprocessingml") ||
-      contentType.includes("application/vnd.openxmlformats-officedocument");
+    const isDocxType = ext === "docx" || contentType.includes("wordprocessingml") || contentType.includes("application/vnd.openxmlformats-officedocument");
 
     if (isDocxType) {
       const buf = await res.arrayBuffer();
       if (token !== documentLoadToken) return;
       if (!isDocx(buf)) {
         documentBody.value = post.description || "";
-        documentLoadError.value =
-          "Couldn't read this Word file — use Download or open externally.";
+        documentLoadError.value = "Couldn't read this Word file — use Download or open externally.";
         return;
       }
       documentBody.value = await docxToText(buf);
@@ -650,16 +527,14 @@ const loadDocumentContent = async (post: EnhancedPost) => {
         }
       }
       documentBody.value = post.description || "";
-      documentLoadError.value =
-        "Couldn't read this file as text — use Download or open externally.";
+      documentLoadError.value = "Couldn't read this file as text — use Download or open externally.";
       return;
     }
     documentBody.value = text;
   } catch (err) {
     if (token !== documentLoadToken) return;
     documentBody.value = post.description || "";
-    documentLoadError.value =
-      err instanceof Error ? err.message : "Failed to load story file";
+    documentLoadError.value = err instanceof Error ? err.message : "Failed to load story file";
   } finally {
     if (token === documentLoadToken) documentLoading.value = false;
   }
@@ -684,11 +559,7 @@ watch(
 
 const loadNotesForCurrent = async () => {
   const post = props.current;
-  if (
-    !post?.has_notes ||
-    isVideoExt(post.file.ext) ||
-    !modeSupportsNotes(originModeOf(post, siteMode.activeMode))
-  ) {
+  if (!post?.has_notes || isVideoExt(post.file.ext) || !modeSupportsNotes(originModeOf(post, siteMode.activeMode))) {
     notes.value = [];
     return;
   }
@@ -742,12 +613,11 @@ const onFullscreenRateChange = () => {
   posts.videoPlaybackRate = el.playbackRate;
 };
 
-const { enterTransitionName, leaveTransitionName, setTransitionNames } =
-  useDirectionalTransitions({
-    transitionName() {
-      return appearance.fullscreenTransition;
-    },
-  });
+const { enterTransitionName, leaveTransitionName, setTransitionNames } = useDirectionalTransitions({
+  transitionName() {
+    return appearance.fullscreenTransition;
+  },
+});
 
 const hideUi = computed(() => {
   switch (posts.fullscreenZoomUiMode) {
@@ -761,14 +631,7 @@ const hideUi = computed(() => {
   }
 });
 
-const showNotesOverlay = computed(
-  () =>
-    notesVisible.value &&
-    !hideUi.value &&
-    !isVideoPost.value &&
-    !!props.current?.has_notes &&
-    notes.value.length > 0,
-);
+const showNotesOverlay = computed(() => notesVisible.value && !hideUi.value && !isVideoPost.value && !!props.current?.has_notes && notes.value.length > 0);
 
 const exitFullscreen = () => {
   stopSlideshow();
@@ -780,7 +643,7 @@ const exitFullscreen = () => {
   }
 
   emit("close");
-}
+};
 
 const clearSlideshowTimer = () => {
   if (slideshowTimer.value !== null) {
@@ -880,10 +743,7 @@ const showNextImage = () => {
   clearSlideshowTimer();
   loadStart();
   // Manual next keeps stories reachable; slideshow skips them.
-  emit(
-    "next-post",
-    slideshowPlaying.value ? { skipDocuments: true } : undefined,
-  );
+  emit("next-post", slideshowPlaying.value ? { skipDocuments: true } : undefined);
   setTransitionNames("right");
 };
 const showPreviousImage = () => {
@@ -895,15 +755,18 @@ const showPreviousImage = () => {
 };
 
 const updateFavorite = (favorited: (current: boolean) => boolean) => () =>
-  props.current && !props.current?.__meta.isFavoriteLoading && props.current.is_favorited !== favorited(props.current.is_favorited) && emit("set-post-favorite", {
+  props.current &&
+  !props.current?.__meta.isFavoriteLoading &&
+  props.current.is_favorited !== favorited(props.current.is_favorited) &&
+  emit("set-post-favorite", {
     postId: props.current.id,
     favorited: favorited(props.current.is_favorited),
     originMode: props.current.__meta?.originMode,
   } as Parameters<ReturnType<typeof usePostListManager>["setPostFavorite"]>["0"]);
 
-const addFavorite = updateFavorite(() => true)
-const removeFavorite = updateFavorite(() => false)
-const toggleFavorite = updateFavorite((cur) => !cur)
+const addFavorite = updateFavorite(() => true);
+const removeFavorite = updateFavorite(() => false);
+const toggleFavorite = updateFavorite((cur) => !cur);
 
 const openCurrentOnSource = () => {
   if (props.current) openPostOnSourceSite(props.current);
@@ -936,10 +799,7 @@ onMounted(() => {
 });
 
 const scrollToPost = (post: { id: number; __meta?: { originMode?: string } } | number) => {
-  const id =
-    typeof post === "number"
-      ? `post_${post}`
-      : `post_${postFeedKey(post).replace(":", "-")}`;
+  const id = typeof post === "number" ? `post_${post}` : `post_${postFeedKey(post).replace(":", "-")}`;
   const el = document.getElementById(id);
   el?.scrollIntoView({ behavior: "smooth", block: "center" });
 };
@@ -953,19 +813,12 @@ const currentFileUrl = computed(() => {
   if (!url) return false;
   const ext = props.current?.file.ext;
   // Firefox/Zen: same-origin proxy for video, audio, and PDF under COEP.
-  if (
-    isVideoExt(ext) ||
-    isAudioExt(ext) ||
-    ext === "pdf" ||
-    urlExt(url) === "pdf"
-  ) {
+  if (isVideoExt(ext) || isAudioExt(ext) || ext === "pdf" || urlExt(url) === "pdf") {
     return proxyDownloadUrl(url);
   }
   return url;
 });
-const currentSampleFileUrl = computed(() =>
-  switched.value ? false : props.current?.preview.url,
-);
+const currentSampleFileUrl = computed(() => (switched.value ? false : props.current?.preview.url));
 const audioCoverUrl = computed(() => {
   if (!isAudioPost.value || switched.value) return "";
   const preview = props.current?.preview?.url;
@@ -991,10 +844,7 @@ watch(
           isZoomed.value = false;
           await loadDocumentContent(val);
           loadEnd();
-        } else if (
-          slideshowPlaying.value &&
-          (isVideoExt(val.file.ext) || isAudioExt(val.file.ext))
-        ) {
+        } else if (slideshowPlaying.value && (isVideoExt(val.file.ext) || isAudioExt(val.file.ext))) {
           // Wait for media ended; ensure playback starts.
           await nextTick();
           applyFullscreenPlaybackPrefs();
@@ -1044,7 +894,7 @@ watch(appIsFullscreen, () => {
 });
 
 useHead({
-  title: () => props.current?.id ? `Post #${props.current.id}` : undefined
+  title: () => (props.current?.id ? `Post #${props.current.id}` : undefined),
 });
 </script>
 
@@ -1146,6 +996,19 @@ useHead({
   padding-bottom: 16px;
   margin-bottom: 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.fullscreen-comments-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
 }
 
 .fullscreen-comments-section--last {
