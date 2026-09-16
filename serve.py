@@ -167,9 +167,12 @@ SOFURRY_AUTH_POSTS = {
 FLUFFLE_API = "https://api.fluffle.xyz/exact-search-by-file"
 FLUFFLE_UA = "m-e621/1.0 (by lovelyspacedog on GitHub)"
 FLUFFLE_PATH = "/api/fluffle/exact-search"
+# Furbooru / Philomena CDN (also used by Fluffle source fetch).
+FURRYCDN_HOSTS = frozenset({"furrycdn.org"})
+FURRYCDN_SUFFIXES = (".furrycdn.org",)
 # Extra CDN hosts allowed only for Fluffle source fetch (not general /api/download).
-FLUFFLE_EXTRA_HOSTS = frozenset({"furrycdn.org", "pics.tailspace.com"})
-FLUFFLE_EXTRA_SUFFIXES = (".furrycdn.org",)
+FLUFFLE_EXTRA_HOSTS = frozenset({"pics.tailspace.com"})
+FLUFFLE_EXTRA_SUFFIXES: tuple[str, ...] = ()
 
 _pull_lock = threading.Lock()
 _state: dict = {
@@ -1120,6 +1123,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if host in ITAKU_MEDIA_HOSTS or host.endswith(".itaku.ee"):
             return parsed.geturl()
         if host in SOFURRY_MEDIA_HOSTS or host.endswith(".sofurryfiles.com"):
+            return parsed.geturl()
+        if host in FURRYCDN_HOSTS or host.endswith(FURRYCDN_SUFFIXES):
             return parsed.geturl()
         return None
 

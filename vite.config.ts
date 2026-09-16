@@ -77,7 +77,9 @@ const MEDIA_HOST_OK = (host: string) =>
   host.endsWith('.metapix.net') ||
   isWeasylMediaHost(host) ||
   isItakuMediaHost(host) ||
-  isSofurryMediaHost(host);
+  isSofurryMediaHost(host) ||
+  host === 'furrycdn.org' ||
+  host.endsWith('.furrycdn.org');
 
 const isInkbunnyMediaHost = (host: string) =>
   host === 'inkbunny.net' || host === 'ib.metapix.net' || host.endsWith('.metapix.net');
@@ -101,8 +103,6 @@ const isSofurryMediaHost = (host: string) =>
 
 const isFluffleSourceHost = (host: string) =>
   MEDIA_HOST_OK(host) ||
-  host === 'furrycdn.org' ||
-  host.endsWith('.furrycdn.org') ||
   host === 'pics.tailspace.com' ||
   host === 'tailspace.com' ||
   host.endsWith('.tailspace.com');

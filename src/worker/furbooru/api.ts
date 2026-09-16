@@ -2,8 +2,8 @@
  * Furbooru (Philomena) API client.
  *
  * All requests go through the local proxy at /api/furbooru/* because
- * furbooru.org returns no CORS headers.  furrycdn.org (the media CDN)
- * does support CORS, so image/video URLs are used directly.
+ * furbooru.org returns no CORS headers.  Media URLs on furrycdn.org are
+ * played via /api/download (host must be allowlisted there).
  *
  * Auth: Furbooru uses a single API key (no username) sent as ?key=API_KEY.
  */
