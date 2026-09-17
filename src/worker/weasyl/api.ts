@@ -10,6 +10,7 @@
  */
 
 import { isAudioExt } from "@/misc/util/audioExts";
+import { shuffled } from "@/misc/util/shuffle";
 import type { Post, PostTags, Tag } from "@/worker/api/returnTypes";
 
 // ---------------------------------------------------------------------------
@@ -374,7 +375,7 @@ export async function searchSubmissions(args: {
         )
       : posts;
   const maybeShuffle = (posts: Post[]) =>
-    mapped.random ? [...posts].sort(() => Math.random() - 0.5) : posts;
+    mapped.random ? shuffled(posts) : posts;
 
   // favs:me
   if (mapped.favsMe) {

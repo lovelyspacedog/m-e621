@@ -7,6 +7,7 @@
  * (`a=…;b=…`). If omitted, the server uses FA_COOKIE_A/B or a guest session.
  */
 
+import { shuffled } from "@/misc/util/shuffle";
 import type { Comment, Post, PostTags, Tag } from "@/worker/api/returnTypes";
 
 export interface FaUserPartial {
@@ -543,7 +544,7 @@ export async function searchSubmissions(args: {
 
   let hits = data.results || [];
   if (mapped.random) {
-    hits = [...hits].sort(() => Math.random() - 0.5);
+    hits = shuffled(hits);
   }
   const ownFavs = isOwnFavoritesListing(mapped.favsUser, args.username);
   const posts = hits.map((hit) =>

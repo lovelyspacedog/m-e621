@@ -5,6 +5,7 @@
  * Auth: Authorization: Token <token> (pasted from browser DevTools).
  */
 
+import { shuffleInPlace } from "@/misc/util/shuffle";
 import type { Comment, Post, PostTags, Tag } from "@/worker/api/returnTypes";
 
 // ---------------------------------------------------------------------------
@@ -474,14 +475,6 @@ function setCachedCursor(key: string, page: number, nextUrl: string | null | und
   } catch {
     // ignore bad next urls
   }
-}
-
-function shuffleInPlace<T>(arr: T[]): T[] {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
 }
 
 const MATURITY = ["SFW", "Questionable", "NSFW"];

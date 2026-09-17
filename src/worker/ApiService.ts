@@ -27,6 +27,7 @@ import { BlacklistMode, type SiteMode, type SavedPostEntry } from "@/services/ty
 import type { UnifiedChildMode } from "@/services/types";
 import { createTagQuery } from "@/misc/util/createTagQuery";
 import { debug } from "@/misc/util/debug";
+import { shuffled } from "@/misc/util/shuffle";
 import {
   unifiedChildLabel,
   type UnifiedChildFetchArgs,
@@ -893,7 +894,7 @@ export class ApiService {
         });
         let feedPosts = result.posts;
         if (wantsRandom) {
-          feedPosts = [...feedPosts].sort(() => Math.random() - 0.5);
+          feedPosts = shuffled(feedPosts);
         }
         return feedPosts.map((post: Post): EnhancedPost => ({
           ...post,
@@ -913,7 +914,7 @@ export class ApiService {
       });
       let browsePosts = result.posts;
       if (wantsRandom) {
-        browsePosts = [...browsePosts].sort(() => Math.random() - 0.5);
+        browsePosts = shuffled(browsePosts);
       }
       return browsePosts.map((post: Post): EnhancedPost => ({
         ...post,
