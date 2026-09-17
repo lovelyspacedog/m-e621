@@ -16,12 +16,19 @@ export interface ChangelogSection {
 export const changelogSections: ChangelogSection[] = [
   {
     date: "2026-09-16",
-    title: "Pools, replies, and sidebar polish",
+    title: "Unified Following, Local writes, and polish",
     items: [
+      "Unified Search vs Following feed, with Defaults and Auth-only site presets",
       "Watched pools on the e621-family pool browser",
-      "Furbooru post comment replies",
+      "Post comments on Furbooru (composer enabled)",
+      "Landing Changelog dialog beside Browse posts",
       "Collapsible sidebar disclosure for Unified and search clutter",
       "Unified site presets show which sites are active",
+      "Tauri Local writes under the picked browse root (save, remux, sidecars)",
+      "Portable Local favorites and resume sidecars",
+      "Save Locally path templates including `%origin%`",
+      "Separate audio mute / volume / speed preferences",
+      "Offline: remote modes disabled; Local stays available",
       "Optional paw cursor under Appearance",
       "SoFurry likes / Remix auth and story formatting fixes",
       "Honest overview metadata across site modes",

@@ -21,13 +21,15 @@ m-e621 expands [Material e621](https://github.com/avoonix/material-e621) with ad
 ## Highlights
 
 - **Nine supported sites** — browse e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry, and Tailspace from one interface.
-- **Unified browsing** — merge supported sites into a date-sorted feed with per-site filters and origin-aware actions.
+- **Unified browsing** — date-merge child sites into a Search or Following feed, with Defaults / Auth-only presets, per-site filters, and origin-aware actions.
+- **Local library** — browse a folder on disk with fuzzy search, favorites, remux, and portable sidecars (Chromium or the Tauri desktop build).
 - **Independent accounts** — configure authentication, blacklists, favorites, history, and preferences for each site.
+- **Saved posts** — bookmark posts across federated sites in one mode-independent list.
 - **Community features** — view and post comments, vote, favorite, follow creators, and open posts at their source where supported.
 - **Flexible feeds** — switch between full-width lists, thumbnail grids, and compact cards with rich filtering and media controls.
-- **Powerful e621 tools** — browse pools, organize starred tags and saved searches, use the post suggester, analyze favorites, and explore artist dashboards.
-- **Comics and stories** — dedicated pool and Tailspace comic readers plus fullscreen SoFurry story and document previews.
-- **Immersive media** — fullscreen notes, slideshows, auto-next, reverse-image search, and remembered audio/video playback settings.
+- **Powerful e621 tools** — browse and watch pools, organize starred tags and saved searches, use the post suggester, analyze favorites, and explore artist dashboards.
+- **Comics and stories** — dedicated pool and Tailspace comic readers plus fullscreen story, PDF, RTF, and DOCX previews.
+- **Immersive media** — fullscreen comments rail, notes, slideshows, auto-next, Fluffle reverse-image search, and remembered audio/video playback settings.
 
 ## Preview
 

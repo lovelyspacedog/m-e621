@@ -6,40 +6,46 @@ This document expands on the quick overview in the [main README](./README.md).
 
 Each mode has its own profile for authentication, blacklist, starred tags, saved searches, history, and favorites where supported.
 
-- **e621** — the original Material e621 experience, including pools, suggester, analyzer, and artist dashboard.
-- **e6ai** — e6ai browsing with mode-aware terminology.
-- **Furbooru** — API-key authentication, tags, comments, favorites, and votes.
-- **Inkbunny** — multi-file submissions, pools, following feed, and Flash/SWF playback through Ruffle. Favorite toggling is unavailable.
-- **FurAffinity** — browsing and search through the bundled `faapi` proxy, following feed, and enriched music posts.
-- **Weasyl** — API-key authentication, multimedia audio, and `favs:me`. Guest browsing is SFW-only; favorite toggling is unavailable.
-- **Itaku** — galleries, flattened multi-image posts, comments, stars, and following with token authentication.
-- **SoFurry** — artwork, music, stories, likes, and following. Stories have a fullscreen text reader.
+- **e621** — the original Material e621 experience, including pools (with watch), suggester, analyzer, and artist dashboard.
+- **e6ai** — e6ai browsing with mode-aware terminology (pools with watch like e621).
+- **Furbooru** — API-key authentication, tags, view/post comments, favorites, and votes.
+- **Inkbunny** — multi-file submission galleries (Save all / Save page), following feed, and Flash/SWF playback through Ruffle. Submission “pools” appear as metadata, not the e621 `/pools` UI. Favorite toggling is unavailable.
+- **FurAffinity** — browsing and search through the bundled `faapi` proxy, cookie sign-in (optional captcha helper), following feed, and enriched music posts. Profile cookies override host-wide `FA_COOKIE_*` when set.
+- **Weasyl** — API-key authentication, multimedia audio, and `favs:me`. Guest browsing is SFW-only; favorite toggling is unavailable. Off by default in Unified.
+- **Itaku** — galleries, flattened multi-image posts, comments, stars, and following with token authentication. Off by default in Unified.
+- **SoFurry** — artwork, music, stories, likes (Remix session), and following. Stories have a fullscreen text reader.
 - **Tailspace** — posts, saved searches, following, account actions, and a dedicated comic reader.
 - **Local** — a searchable media library backed by a folder on disk.
-- **Unified** — a date-merged feed from the supported remote modes, with origin-aware actions and per-site query translation.
+- **Unified** — a date-merged feed from supported remote children. Switch **Search** vs **Following** (Inkbunny / FurAffinity / Itaku / SoFurry), apply **Defaults** or **Auth only** site presets, and use origin-aware actions with per-site query translation. Failed children and incompatible metatags surface as snackbars.
 
-Tailspace and Local are not included in Unified.
+Tailspace and Local are not included in Unified. When the browser is offline, remote modes are disabled and Local remains available.
 
 ## Browsing and media
 
 - Full-width list and thumbnail-grid feeds
 - Optional compact cards with controls revealed on hover
-- Inline video and audio with remembered mute, volume, and playback speed
-- Fullscreen slideshow and timed card auto-next
-- Score, favorites, random, and mode-specific media filters in the Posts toolbar
-- Collapsible long artist and creator tag lists
+- Inline video and audio with remembered mute, volume, and playback speed (optional separate audio prefs)
+- Feed GIF animate and video autoplay settings; off-screen feed videos unload their buffers
+- Fullscreen slideshow and timed card auto-next (`prefers-reduced-motion` pauses both)
+- Fullscreen comments rail (resizable) with optional info and description in-rail
+- Score, favorites, random (Fisher–Yates), and mode-specific media filters in the Posts toolbar
+- History back/forward in the header plus a toolbar history menu
+- Collapsible long artist and creator tag lists; collapsible sidebar sections for Unified sites and on-page tags
 - Notes in post details and over fullscreen media where supported
 - `o` shortcut to open the current fullscreen post on its source site
-- RTF and DOCX story previews; legacy `.doc` remains unsupported
-- Fluffle reverse-image search for still images
+- Story, PDF, RTF, and DOCX fullscreen previews; legacy `.doc` remains unsupported
+- Fluffle reverse-image search for still images (with copy-URL on results)
+- Compact sidebar site switcher; origin badge icons in Unified
 
 ## Pools and comics
 
-The fork adds dedicated pool routes at `/pools` and `/pools/:id`. Pools can be browsed as a gallery or read in scroll/full-width modes with numbered chunk pagination. Tailspace has a separate reader with similar navigation.
+The fork adds dedicated pool routes at `/pools` and `/pools/:id` for **e621 and e6ai** only. Browse by name or post tags, sort results, watch pools, and open a gallery or scroll/full-width reader with numbered chunk pagination. Tailspace has a separate comic reader with similar navigation. Inkbunny multi-file submissions use an in-post gallery dialog, not `/pools`.
 
-## Saved searches and starred tags
+## Saved searches, starred tags, and bookmarks
 
-Saved searches and starred tags can be placed into named, collapsible groups. Groups and entries support reordering and drag-and-drop. Favorites and blacklists can also be copied between site profiles using merge or replace.
+Saved searches and starred tags can be placed into named, collapsible groups. Groups and entries support reordering and drag-and-drop. Favorites, blacklists, and compatible saved searches (e621 ↔ e6ai) can be copied between site profiles using merge or replace.
+
+**Saved** (`/saved`) is a mode-independent bookmark list for federated posts. Bookmark from any supported remote origin and reopen from the nav.
 
 ## Local library
 
@@ -48,16 +54,16 @@ Local mode can:
 - Scan a selected folder and search filenames, paths, and tags fuzzily
 - Sort by newest, name, size, duration, video, stills, or audio
 - Play common image, video, and audio formats
-- Track favorites and playback position
+- Track favorites and playback position (portable sidecars `.me621-favorites.json` and `.me621-library.json`)
 - Read tags from `.me621-tags.json`
 - Use poster images where available
 - Remux individual files or every unplayable result in the current filter
 
-Chromium uses the File System Access API. The Tauri desktop build provides a read/browse bridge for Firefox-style environments. Tauri writes, remux output, sidecar writes, and saving directly into a selected folder still require Chromium's API.
+Chromium uses the File System Access API for browse and write. The Tauri desktop build can browse and **write under the picked Local browse root** (Save Locally into that folder, remux output, and sidecars). Picking an arbitrary save folder outside that root still needs Chromium's File System Access API.
 
 ## Saving and remuxing
 
-**Save Locally** downloads a post using configurable filenames, optionally based on species and tags. Folder saves merge post metadata into `.me621-tags.json` and localforage.
+**Save Locally** downloads a post using configurable filename tokens (`%artist%`, `%tags 1-5%`, `%ext%`, `%id%`, `%origin%`) with collision suffixes like `name (1).ext`. Folder saves merge post metadata into `.me621-tags.json` and localforage.
 
 After saving, **Open in Local** can reuse the destination as the Local browse root and focus the saved file. Failed network or offline downloads enter an IndexedDB queue and retry at startup or when connectivity returns.
 
@@ -154,13 +160,20 @@ cargo tauri dev
 
 The bundle identifier is `com.lovelyspacedog.me621`.
 
+## Settings and appearance
+
+- Settings hub search finds pages and rows across groups.
+- Appearance includes themes, navigation density, and an optional paw cursor.
+- Account settings show whether each profile has credentials material; Unified feed source and site presets are also editable there.
+
 ## Additional details
 
 - `start`, `sync`, and `deploy.sh` support a reverse-proxied self-host. `sync` uses `flock` on `~/.config/m-e621/sync.lock` (wait up to `M_E621_SYNC_LOCK_TIMEOUT`, default 600s, then one non-blocking retry) so overlapping agent/cron syncs do not stack.
 - Parallel agents that cannot safely edit README/changelog write untracked notes under `PENDING_DOCS/` for a later survey (see `PENDING_DOCS/README.md`).
 - `public/zen-browser.css` provides Zen Browser and Transparent Zen compatibility.
-- The PWA checks for updates every ten minutes and shows an update banner.
-- The landing page shows separate fork and upstream commit timelines.
+- The PWA checks for updates every ten minutes and shows an update banner with the git short hash when available.
+- The landing page has a **Changelog** dialog beside Browse posts, plus separate fork and upstream commit timelines.
+- The app title can show a short commit hash so a self-host knows which build is running.
 
 ## Project expectations
 
