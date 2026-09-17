@@ -129,29 +129,32 @@
             </span>
           </template>
         </v-list-item>
-        <v-list-item v-if="siteMode.unifiedFeedSource === 'search'" class="unified-sidebar__presets pt-1 pb-2">
-          <div class="d-flex flex-wrap ga-2" @click.stop>
-            <v-btn
-              size="small"
-              :variant="siteMode.isUnifiedSitesPresetActive('default') ? 'flat' : 'tonal'"
-              color="accent"
-              :aria-pressed="siteMode.isUnifiedSitesPresetActive('default')"
-              @click="siteMode.applyUnifiedSitesPreset('default')"
-            >
-              Defaults
-            </v-btn>
-            <v-btn
-              size="small"
-              :variant="siteMode.isUnifiedSitesPresetActive('authenticated') ? 'flat' : 'tonal'"
-              color="accent"
-              :aria-pressed="siteMode.isUnifiedSitesPresetActive('authenticated')"
-              @click="siteMode.applyUnifiedSitesPreset('authenticated')"
-            >
-              Auth only
-            </v-btn>
-          </div>
-        </v-list-item>
         <template v-if="unifiedSitesOpen">
+          <v-list-item
+            v-if="siteMode.unifiedFeedSource === 'search'"
+            class="unified-sidebar__presets px-3 py-1"
+          >
+            <div class="d-flex flex-wrap ga-1 justify-end" @click.stop>
+              <v-btn
+                size="x-small"
+                :variant="siteMode.isUnifiedSitesPresetActive('default') ? 'flat' : 'tonal'"
+                color="accent"
+                :aria-pressed="siteMode.isUnifiedSitesPresetActive('default')"
+                @click="siteMode.applyUnifiedSitesPreset('default')"
+              >
+                Defaults
+              </v-btn>
+              <v-btn
+                size="x-small"
+                :variant="siteMode.isUnifiedSitesPresetActive('authenticated') ? 'flat' : 'tonal'"
+                color="accent"
+                :aria-pressed="siteMode.isUnifiedSitesPresetActive('authenticated')"
+                @click="siteMode.applyUnifiedSitesPreset('authenticated')"
+              >
+                Auth only
+              </v-btn>
+            </div>
+          </v-list-item>
           <v-list-item
             v-for="child in unifiedSidebarChildren"
             :key="child"
@@ -918,5 +921,8 @@ watch(
 }
 .unified-sidebar__presets {
   min-height: auto;
+}
+.unified-sidebar__presets :deep(.v-list-item__content) {
+  overflow: visible;
 }
 </style>
