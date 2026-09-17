@@ -67,7 +67,7 @@
         </v-row>
       </v-container>
     </section>
-    <FurryDictionarySnippet />
+    <TagWikiSnippet />
     <About />
     <section class="ma-1 mb-6">
       <v-row wrap justify="center" align="start">
@@ -153,7 +153,7 @@ import About from "./About.vue";
 import ChangelogDialog from "./ChangelogDialog.vue";
 import CommitHistoryDialog from "./CommitHistoryDialog.vue";
 import Footer from "./Footer.vue";
-import FurryDictionarySnippet from "./FurryDictionarySnippet.vue";
+import TagWikiSnippet from "./TagWikiSnippet.vue";
 import { computed, ref } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import MigrationInfo from "./MigrationInfo.vue";
