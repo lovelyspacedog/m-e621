@@ -586,6 +586,7 @@ export const usePostListManager = ({
   return {
     loadPreviousPage,
     loadNextPage,
+    posts,
     visiblePosts,
     hiddenPostCount,
     fullscreenPost,

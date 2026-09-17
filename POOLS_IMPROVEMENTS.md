@@ -18,9 +18,9 @@ Checklist for improving e621/e6ai pools (`src/Pool/`, `WatchedPoolsStore`, share
 
 ## Reader polish
 
-- [ ] **Blacklist gaps** — Explicit hidden-page placeholder, soft-blur, or “N hidden” chip so sequence numbers stay honest in hide mode.
-- [ ] **Bulk save** — Pool-level Save all / download chunk (mirrors Inkbunny gallery Save all/page) into Local.
-- [ ] **Shared reader chrome (optional)** — Next `comicReader` slice: shared page-index + keyboard (not Tailspace→`/pools`).
+- [x] **Blacklist gaps** — Explicit hidden-page placeholder, soft-blur, or “N hidden” chip so sequence numbers stay honest in hide mode.
+- [x] **Bulk save** — Pool-level Save all / download chunk (mirrors Inkbunny gallery Save all/page) into Local.
+- [x] **Shared reader chrome (optional)** — Next `comicReader` slice: shared page-index + keyboard (not Tailspace→`/pools`).
 
 ## Out of scope (for now)
 
@@ -45,4 +45,5 @@ Checklist for improving e621/e6ai pools (`src/Pool/`, `WatchedPoolsStore`, share
 | Resume / deep-link | Done | `?post=` + localStorage resume |
 | Keyboard chunks | Done | ←/→ and `[`/`]` |
 | Browse/search API | Done | post_tags_match, Desc toggle, batch ids, filters |
-| Rest | Pending | reader polish |
+| Reader polish | Done | gaps/blur, save chunk/all, shared key helpers |
+| Out of scope | — | IB pools UI / Tailspace merge |

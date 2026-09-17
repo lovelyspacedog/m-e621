@@ -110,3 +110,25 @@ export const savePoolResumePost = (
     /* ignore */
   }
 };
+
+/** True when keyboard events should not drive comic/pool navigation. */
+export const isComicTypingTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    !!target.isContentEditable
+  );
+};
+
+/**
+ * Chunk step from keys shared by Pool / Tailspace readers.
+ * Returns -1 / +1 / 0.
+ */
+export const comicChunkKeyDelta = (key: string): -1 | 0 | 1 => {
+  if (key === "ArrowLeft" || key === "[") return -1;
+  if (key === "ArrowRight" || key === "]") return 1;
+  return 0;
+};

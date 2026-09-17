@@ -5,6 +5,8 @@ import {
   GALLERY_CHUNK_SIZE,
   parsePositiveIntQuery,
   SCROLL_CHUNK_SIZE,
+  comicChunkKeyDelta,
+  isComicTypingTarget,
 } from "./comicReader";
 
 describe("buildChunkButtons", () => {
@@ -36,5 +38,19 @@ describe("parsePositiveIntQuery", () => {
     expect(parsePositiveIntQuery(["7"])).toBe(7);
     expect(parsePositiveIntQuery("0")).toBe(0);
     expect(parsePositiveIntQuery("nope")).toBe(0);
+  });
+});
+
+describe("comic keyboard helpers", () => {
+  it("maps chunk keys", () => {
+    expect(comicChunkKeyDelta("ArrowLeft")).toBe(-1);
+    expect(comicChunkKeyDelta("]")).toBe(1);
+    expect(comicChunkKeyDelta("x")).toBe(0);
+  });
+
+  it("detects typing targets", () => {
+    const input = document.createElement("input");
+    expect(isComicTypingTarget(input)).toBe(true);
+    expect(isComicTypingTarget(document.createElement("div"))).toBe(false);
   });
 });

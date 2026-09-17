@@ -25,11 +25,16 @@
         :chunk-count="chunkCount"
         :total-count="poolMeta.post_count || poolMeta.post_ids.length"
         :post-ids="poolMeta.post_ids"
+        :chunk-ids="chunkIds"
         :focus-post-id="pendingScrollPostId"
+        :saving-chunk="savingChunk"
+        :saving-all="savingAll"
         @open-post="onOpenPostFromReader"
         @change-chunk="setChunk"
         @view-mode-change="onViewModeChange"
         @focus-applied="onFocusApplied"
+        @save-chunk="saveChunkLocally"
+        @save-all="saveAllLocally"
       />
       <fullscreen-dialog
         :has-previous-fullscreen-post="hasPreviousFullscreenPost"
@@ -86,12 +91,15 @@ import type { Pool } from "@/worker/api";
 import type { EnhancedPost } from "@/worker/ApiService";
 import {
   chunkForIndex,
+  comicChunkKeyDelta,
   GALLERY_CHUNK_SIZE,
+  isComicTypingTarget,
   loadPoolResumePost,
   parsePositiveIntQuery,
   savePoolResumePost,
   SCROLL_CHUNK_SIZE,
 } from "@/misc/util/comicReader";
+import { savePostsLocally } from "@/misc/util/saveLocal";
 
 const route = useRoute();
 const account = useAccountStore();
@@ -107,6 +115,8 @@ const poolError = ref<string | null>(null);
 const viewMode = ref<PoolViewMode>("gallery");
 const chunkLoading = ref(false);
 const flufflePost = ref<EnhancedPost | null>(null);
+const savingChunk = ref(false);
+const savingAll = ref(false);
 /** When true, chunk URL changed because the post list advanced — skip replace fetch. */
 const syncingChunkFromList = ref(false);
 /** Scroll mode: PoolReader scrolls this id into view once loaded. */
@@ -138,6 +148,14 @@ const chunkCount = computed(() => {
 const chunk = computed(() => {
   const raw = Number(route.query.chunk) || 1;
   return Math.min(Math.max(1, raw), chunkCount.value);
+});
+
+const chunkIds = computed(() => {
+  const ids = poolMeta.value?.post_ids || [];
+  if (!ids.length) return [] as number[];
+  const size = chunkSize.value;
+  const start = (chunk.value - 1) * size;
+  return ids.slice(start, start + size);
 });
 
 const queryPostId = computed(() => parsePositiveIntQuery(route.query.post));
@@ -212,7 +230,7 @@ const fetchChunkPosts = async (pageNumber: number): Promise<EnhancedPost[]> => {
 };
 
 const {
-  visiblePosts: posts,
+  posts,
   clearPosts,
   replacePosts,
   fullscreenPost,
@@ -273,6 +291,67 @@ const onOpenPostFromReader = (postId: number) => {
 
 const onFocusApplied = () => {
   pendingScrollPostId.value = 0;
+};
+
+const saveChunkLocally = async () => {
+  if (savingChunk.value || savingAll.value) return;
+  const eligible = posts.value.filter(
+    (post) =>
+      chunkIds.value.includes(post.id) &&
+      !!post.file?.url &&
+      !post.__meta?.isBlacklisted,
+  );
+  savingChunk.value = true;
+  try {
+    await savePostsLocally(eligible, { concurrency: 2 });
+  } finally {
+    savingChunk.value = false;
+  }
+};
+
+const saveAllLocally = async () => {
+  if (savingChunk.value || savingAll.value) return;
+  const ids = poolMeta.value?.post_ids || [];
+  if (!ids.length) {
+    snackbar.addMessage("Nothing to save");
+    return;
+  }
+  const totalChunks = Math.max(1, Math.ceil(ids.length / chunkSize.value));
+  if (
+    totalChunks > 3 &&
+    !window.confirm(
+      `Save all ${ids.length} pages from this pool locally? This may take a while.`,
+    )
+  ) {
+    return;
+  }
+  savingAll.value = true;
+  let saved = 0;
+  let failed = 0;
+  let skipped = 0;
+  try {
+    for (let pageNumber = 1; pageNumber <= totalChunks; pageNumber++) {
+      const batch = await fetchChunkPosts(pageNumber);
+      const result = await savePostsLocally(batch, {
+        concurrency: 2,
+        quietFinal: true,
+      });
+      saved += result.saved;
+      failed += result.failed;
+      skipped += result.skipped;
+      snackbar.addMessage(
+        `Saving pool ${pageNumber}/${totalChunks}… (${saved} saved)`,
+      );
+    }
+    const summary = failed
+      ? `Saved ${saved} pages locally (${failed} failed${skipped ? `, ${skipped} skipped` : ""})`
+      : `Saved ${saved} pages locally${skipped ? ` (${skipped} skipped)` : ""}`;
+    snackbar.addMessage(summary);
+  } catch (err: any) {
+    snackbar.addMessage(err?.message || String(err));
+  } finally {
+    savingAll.value = false;
+  }
 };
 
 const sequenceLabel = computed(() => {
@@ -430,25 +509,13 @@ const onPoolError = (message: string) => {
 const onWindowKey = (e: KeyboardEvent) => {
   if (fullscreenPost.value || detailsPost.value || flufflePost.value) return;
   if (!poolMeta.value?.post_ids?.length) return;
-  const target = e.target as HTMLElement | null;
-  if (
-    target &&
-    (target.tagName === "INPUT" ||
-      target.tagName === "TEXTAREA" ||
-      target.tagName === "SELECT" ||
-      target.isContentEditable)
-  ) {
-    return;
-  }
-  if (e.key === "ArrowLeft" || e.key === "[") {
-    if (chunk.value <= 1) return;
-    e.preventDefault();
-    setChunk(chunk.value - 1);
-  } else if (e.key === "ArrowRight" || e.key === "]") {
-    if (chunk.value >= chunkCount.value) return;
-    e.preventDefault();
-    setChunk(chunk.value + 1);
-  }
+  if (isComicTypingTarget(e.target)) return;
+  const delta = comicChunkKeyDelta(e.key);
+  if (!delta) return;
+  const next = chunk.value + delta;
+  if (next < 1 || next > chunkCount.value) return;
+  e.preventDefault();
+  setChunk(next);
 };
 
 onMounted(() => window.addEventListener("keydown", onWindowKey));
