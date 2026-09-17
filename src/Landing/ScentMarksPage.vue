@@ -72,7 +72,7 @@
       </v-card>
 
       <div class="d-flex align-center justify-space-between flex-wrap ga-2 mb-3">
-        <h2 class="text-h6 mb-0">Wall</h2>
+        <h2 class="text-h6 mb-0">Scent Trail</h2>
         <v-btn
           size="small"
           variant="text"
