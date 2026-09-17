@@ -14,14 +14,15 @@
                 href="https://github.com/avoonix/material-e621"
                 >Material e621</a
               >.
-              It browses e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry,
-              Tailspace{{ localBrowsePhrase }}, and Flayrah news. Federated date-merges the remote
-              gallery children.
+              It browses e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry, and
+              Tailspace, plus Flayrah’s furry news feed{{ localBrowsePhrase }}. Federated
+              date-merges enabled gallery children into one Search or Following feed; landing chips
+              choose which sites are included.
             </p>
             <p class="text-center">
-              Uploads, site forums, and account admin stay on each origin site. Experimental —
-              not affiliated with the sites or upstream. Follow each site’s rules, age
-              requirements, and API terms. Source is AGPL-3.0 on
+              Uploads, site forums, and account admin stay on each origin site. Experimental — not
+              affiliated with the sites or upstream. Follow each site’s rules, age requirements, and
+              API terms. Source is AGPL-3.0 on
               <a
                 class="text-primary text-decoration-underline"
                 target="_blank"
@@ -61,6 +62,6 @@ const url = useUrlStore();
 const siteMode = useSiteModeStore();
 
 const localBrowsePhrase = computed(() =>
-  siteMode.supportsLocalMode ? ", and a local folder" : "",
+  siteMode.supportsLocalMode ? ", and a local folder on disk" : "",
 );
 </script>

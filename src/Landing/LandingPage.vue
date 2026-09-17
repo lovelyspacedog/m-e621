@@ -182,20 +182,21 @@ useHead({
 
 const tagline = computed(() =>
   siteMode.supportsLocalMode
-    ? "Browse nine imageboards and a local folder from one client."
-    : "Browse nine imageboards from one client.",
+    ? "Browse nine imageboards, Flayrah news, and a local folder from one client."
+    : "Browse nine imageboards and Flayrah news from one client.",
 );
 
 const capabilities = computed(() => [
   siteMode.supportsLocalMode
-    ? "Nine remote sites plus Federated date-merge and a Local folder browser"
-    : "Nine remote sites plus Federated date-merge",
-  "Independent accounts, blacklists, and preferences per site",
-  "Saved posts across federated sites in one list",
-  "Pools, comics, and fullscreen story / PDF / RTF / DOCX reading where supported",
-  "Post Suggester and Favorite Analyzer outside Tailspace and Flayrah",
-  "Flayrah furry news via attributed RSS (read-only)",
-  "Uploads, site forums, and account admin stay on each origin site",
+    ? "Nine imageboards, Flayrah news, Federated date-merge (Search or Following), and a Local folder library"
+    : "Nine imageboards, Flayrah news, and Federated date-merge (Search or Following)",
+  "Federated chips multi-select which sites merge; independent accounts, blacklists, and prefs per site",
+  "Saved posts across origins, watched pools with new-page badges, and starred tag groups",
+  "Feed Layout: full-width, grid, or compact cards; infinite scroll or page buttons",
+  "Pools and Tailspace comics readers; fullscreen stories, PDF, RTF, and DOCX where supported",
+  "Post Suggester and Favorite Analyzer (not on Tailspace or Flayrah); Fluffle reverse-image search",
+  "Comments, votes, favorites, and following where each site allows them",
+  "Uploads, forums, and account admin stay on each origin site",
 ]);
 
 const showTagSearch = computed(

@@ -32,6 +32,7 @@ export const changelogSections: ChangelogSection[] = [
       "Pools: watched +N badges, chunk/deep-link resume, fullscreen across chunks, hidden-page placeholders, Save chunk / Save all",
       "Scent Marks: host pin-to-top, unlock-gated moderation, rate-limited admin actions; feed heading is Scent Trail",
       "Landing: tag wiki snippets (Another page), darkened copy panels for Transparent Zen, Scent Marks / Browse no longer blank",
+      "Landing What it does / What is PawFeed copy refreshed for Federated Search·Following, layouts, Fluffle, and watched pools",
       "Hardened media download and Fluffle redirects (allowlisted hops); Docker ships the Scent Trail blocklist",
       "Federated Post Suggester and Favorite Analyzer use per-child auth; clearer empty-sample errors",
       "Posts Back / ?page= reload; mode redirects keep query params; stars:me remaps on non-Itaku Federated children",
