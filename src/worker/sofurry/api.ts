@@ -605,6 +605,35 @@ export type SofurryAuthResult = {
   error?: string;
 };
 
+/** Accept a full Cookie header or a bare sofurry_session / _session value from DevTools. */
+export function normalizeSofurryCookies(raw: string): string {
+  const text = String(raw || "").trim().replace(/^["']|["']$/g, "");
+  if (!text) return "";
+  if (
+    /(?:^|;\s*)(?:sofurry_session|_session|XSRF-TOKEN|laravel_session)\s*=/i.test(text) ||
+    /^(?:sofurry_session|_session|XSRF-TOKEN|laravel_session)\s*=/i.test(text)
+  ) {
+    return text;
+  }
+  try {
+    const payload = decodeURIComponent(text).split(".", 1)[0] || "";
+    const pad = "=".repeat((4 - (payload.length % 4)) % 4);
+    // atob needs standard base64
+    const b64 = (payload + pad).replace(/-/g, "+").replace(/_/g, "/");
+    const data = JSON.parse(atob(b64)) as Record<string, unknown>;
+    if (data && typeof data === "object") {
+      if ("csrfToken" in data || "csrf_token" in data) return `_session=${text}`;
+      if ("iv" in data && "value" in data && "mac" in data) {
+        return `sofurry_session=${text}`;
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+  if (text.startsWith("eyJpdiI6")) return `sofurry_session=${text}`;
+  return `sofurry_session=${text}`;
+}
+
 export async function loginSofurry(args: {
   email: string;
   password: string;
@@ -618,6 +647,26 @@ export async function loginSofurry(args: {
     }),
   });
   const data = (await response.json().catch(() => ({}))) as SofurryAuthResult;
+  if (data.ok && data.cookies) {
+    setActiveSofurryCookies(data.cookies);
+  }
+  return data;
+}
+
+export async function loginSofurryCookies(args: {
+  cookies: string;
+}): Promise<SofurryAuthResult> {
+  const cookies = normalizeSofurryCookies(args.cookies);
+  if (!cookies) return { ok: false, error: "cookies required" };
+  const response = await fetch(`${proxyBase()}/login-cookies`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ cookies }),
+  });
+  const data = (await response.json().catch(() => ({}))) as SofurryAuthResult;
+  if (!response.ok && !data.error) {
+    return { ok: false, error: `Cookies rejected (${response.status})` };
+  }
   if (data.ok && data.cookies) {
     setActiveSofurryCookies(data.cookies);
   }

@@ -2326,33 +2326,68 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _proxy_sofurry_login(self, body: bytes) -> None:
+    @staticmethod
+    def _sofurry_normalize_cookies(raw: str) -> str:
+        """Accept full Cookie headers or a bare sofurry_session / _session value."""
+        text = (raw or "").strip().strip('"').strip("'")
+        if not text:
+            return ""
+        if re.search(
+            r"(?:^|;\s*)(?:sofurry_session|_session|XSRF-TOKEN|laravel_session)\s*=",
+            text,
+            re.I,
+        ):
+            return text
+        if re.match(
+            r"^(?:sofurry_session|_session|XSRF-TOKEN|laravel_session)\s*=",
+            text,
+            re.I,
+        ):
+            return text
+        # Bare value from DevTools — detect Remix vs Laravel encrypted cookie.
         try:
-            payload = json.loads(body.decode("utf-8") or "{}")
+            payload = unquote(text).split(".", 1)[0]
+            pad = "=" * ((4 - len(payload) % 4) % 4)
+            data = json.loads(base64.urlsafe_b64decode(payload + pad))
+            if isinstance(data, dict) and (
+                "csrfToken" in data or "csrf_token" in data
+            ):
+                return f"_session={text}"
+            if isinstance(data, dict) and {"iv", "value", "mac"} <= set(data):
+                return f"sofurry_session={text}"
         except Exception:  # noqa: BLE001
-            self._json(400, {"ok": False, "error": "Invalid JSON body"})
-            return
-        email = str(payload.get("email") or "").strip()
-        password = str(payload.get("password") or "")
-        if not email or not password:
-            self._json(400, {"ok": False, "error": "email and password required"})
-            return
+            pass
+        if text.startswith("eyJpdiI6"):
+            return f"sofurry_session={text}"
+        return f"sofurry_session={text}"
 
+    def _sofurry_resolve_username(self, cookie: str) -> tuple[str | None, str]:
+        browse_body, _, _, cookie = self._sofurry_request(
+            f"{SOFURRY_BASE}/browse",
+            cookie=cookie,
+            accept="text/html,application/xhtml+xml",
+        )
+        handle = re.search(
+            r'"USER_HANDLE":"([^"]+)"',
+            browse_body.decode("utf-8", errors="ignore"),
+        )
+        return (handle.group(1) if handle else None), cookie
+
+    def _sofurry_login_form(self, cookie: str, email: str, password: str) -> tuple[bytes, int, str]:
         page_body, page_status, _, cookie = self._sofurry_request(
             f"{SOFURRY_BASE}/login",
+            cookie=cookie,
             accept="text/html",
         )
         if page_status >= 400 and not cookie:
-            self._json(502, {"ok": False, "error": f"login page failed ({page_status})"})
-            return
+            return b"", page_status, cookie
         html = page_body.decode("utf-8", errors="ignore")
         token_match = re.search(r'name="_token"\s+value="([^"]+)"', html) or re.search(
             r'name="csrf-token"\s+content="([^"]+)"', html
         )
         token = (token_match.group(1) if token_match else "") or self._sofurry_csrf(cookie)
         if not token:
-            self._json(502, {"ok": False, "error": "Could not obtain CSRF token"})
-            return
+            return b"", 502, cookie
         form = urlencode(
             {
                 "_token": token,
@@ -2369,46 +2404,48 @@ class SpaHandler(SimpleHTTPRequestHandler):
             content_type="application/x-www-form-urlencoded",
             accept="text/html, application/xhtml+xml",
             extra_headers={"X-CSRF-TOKEN": token, "X-CSRF-Token": token},
+            redirects=10,
         )
-        has_session = bool(
-            re.search(
-                r"(?:^|;\s*)(?:laravel_session|sofurry_session|_session)=",
-                cookie,
-                re.I,
-            )
+        return post_body, post_status, cookie
+
+    def _proxy_sofurry_login(self, body: bytes) -> None:
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}")
+        except Exception:  # noqa: BLE001
+            self._json(400, {"ok": False, "error": "Invalid JSON body"})
+            return
+        email = str(payload.get("email") or "").strip()
+        password = str(payload.get("password") or "")
+        if not email or not password:
+            self._json(400, {"ok": False, "error": "email and password required"})
+            return
+
+        # Start Soft's Remix OAuth first so login returns into /fe/auth/callback.
+        _, _, _, cookie = self._sofurry_request(
+            f"{SOFURRY_BASE}/fe/auth/sofurry",
+            accept="text/html,application/xhtml+xml",
+            redirects=8,
         )
-        if not has_session and post_status == 200 and 'name="password"' in post_body.decode(
-            "utf-8", errors="ignore"
-        ):
+        post_body, post_status, cookie = self._sofurry_login_form(cookie, email, password)
+        if post_status == 502 and not cookie:
+            self._json(502, {"ok": False, "error": "login page failed"})
+            return
+        post_html = post_body.decode("utf-8", errors="ignore")
+        if 'name="password"' in post_html and not self._sofurry_remix_authed(cookie):
             self._json(401, {"ok": False, "error": "Login failed — check email/password"})
             return
-        profile_body, profile_status, _, cookie = self._sofurry_request(
-            f"{SOFURRY_BASE}/api/profile",
-            cookie=cookie,
-            accept="application/json",
-        )
-        if profile_status in (401, 403):
-            self._json(401, {"ok": False, "error": "Login did not establish a usable session"})
-            return
+
         cookie = self._sofurry_upgrade_remix_session(cookie)
-        username = None
-        try:
-            data = json.loads(profile_body.decode("utf-8") or "{}")
-            username = (data.get("user") or {}).get("name")
-        except Exception:  # noqa: BLE001
-            pass
-        if not username:
-            browse_body, _, _, cookie = self._sofurry_request(
-                f"{SOFURRY_BASE}/browse",
-                cookie=cookie,
-                accept="text/html,application/xhtml+xml",
+        username, cookie = self._sofurry_resolve_username(cookie)
+        if not username or not self._sofurry_remix_authed(cookie):
+            self._json(
+                401,
+                {
+                    "ok": False,
+                    "error": "Login did not establish a SoFurry Remix session — try again or paste _session + sofurry_session cookies",
+                },
             )
-            handle = re.search(
-                r'"USER_HANDLE":"([^"]+)"',
-                browse_body.decode("utf-8", errors="ignore"),
-            )
-            if handle:
-                username = handle.group(1)
+            return
         self._json(200, {"ok": True, "cookies": cookie, "username": username})
 
     def _proxy_sofurry_login_cookies(self, body: bytes) -> None:
@@ -2417,37 +2454,22 @@ class SpaHandler(SimpleHTTPRequestHandler):
         except Exception:  # noqa: BLE001
             self._json(400, {"ok": False, "error": "Invalid JSON body"})
             return
-        cookies = str(payload.get("cookies") or "").strip()
+        cookies = self._sofurry_normalize_cookies(str(payload.get("cookies") or ""))
         if not cookies:
             self._json(400, {"ok": False, "error": "cookies required"})
             return
-        profile_body, profile_status, _, cookie = self._sofurry_request(
-            f"{SOFURRY_BASE}/api/profile",
-            cookie=cookies,
-            accept="application/json",
-        )
-        if profile_status in (401, 403):
-            self._json(401, {"ok": False, "error": "Cookies rejected by SoFurry"})
+
+        cookie = self._sofurry_upgrade_remix_session(cookies)
+        username, cookie = self._sofurry_resolve_username(cookie)
+        if not username or not self._sofurry_remix_authed(cookie):
+            self._json(
+                401,
+                {
+                    "ok": False,
+                    "error": "Cookies rejected — paste the _session value (or sofurry_session=_session pair) from sofurry.com while logged in",
+                },
+            )
             return
-        cookie = self._sofurry_upgrade_remix_session(cookie)
-        username = None
-        try:
-            data = json.loads(profile_body.decode("utf-8") or "{}")
-            username = (data.get("user") or {}).get("name")
-        except Exception:  # noqa: BLE001
-            pass
-        if not username:
-            browse_body, _, _, cookie = self._sofurry_request(
-                f"{SOFURRY_BASE}/browse",
-                cookie=cookie,
-                accept="text/html,application/xhtml+xml",
-            )
-            handle = re.search(
-                r'"USER_HANDLE":"([^"]+)"',
-                browse_body.decode("utf-8", errors="ignore"),
-            )
-            if handle:
-                username = handle.group(1)
         self._json(200, {"ok": True, "cookies": cookie, "username": username})
 
     def _proxy_sofurry(self, path: str, parsed, method: str = "GET", body: bytes = b"") -> None:

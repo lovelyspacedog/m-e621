@@ -688,16 +688,19 @@
                     Cookie / login help
                   </summary>
                   <p class="text-left text-caption mt-1 mb-0">
-                    Sign in with email/password, or paste the SoFurry cookie header
-                    (<code>sofurry_session</code> and/or Remix <code>_session</code>). Cookies are stored in
-                    settings and included in Backup JSON. The password is not saved.
+                    Sign in with email/password, or paste SoFurry cookies from DevTools.
+                    Prefer the Remix <code>_session</code> value (or both
+                    <code>_session</code> and <code>sofurry_session</code>). A bare cookie
+                    value is fine — m-e621 will name it. Cookies are stored in settings and
+                    Backup JSON; the password is not saved.
                   </p>
                   <p class="text-left text-caption mt-2 mb-0">
                     <strong>Chrome / Firefox:</strong>
                     log in on
-                    <external-link href="https://sofurry.com/login">sofurry.com</external-link>
+                    <external-link href="https://sofurry.com/">sofurry.com</external-link>
                     → F12 → Application/Storage → Cookies →
-                    <code>https://sofurry.com</code> → copy session cookies.
+                    <code>https://sofurry.com</code> → copy <code>_session</code>
+                    (and <code>sofurry_session</code> if present).
                   </p>
                 </details>
                 <div>
@@ -1459,8 +1462,13 @@ const applySofurryLoginResult = (result: {
   username?: string;
   cookies?: string;
 }) => {
-  const username = result.username || fields.sofurry.username || sofurryEmail.value;
+  const username = result.username;
   const cookies = result.cookies || "";
+  if (!username || !cookies) {
+    sofurryAuth.value.success = false;
+    sofurryAuth.value.message = "Login did not return a Soft username/session";
+    return;
+  }
   setLiveAccount(main.$state, "sofurry", {
     username,
     apiKey: cookies,

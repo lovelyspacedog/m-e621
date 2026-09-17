@@ -2,8 +2,32 @@ import { describe, expect, it } from "vitest";
 import {
   adaptDetails,
   hashidToNumericId,
+  normalizeSofurryCookies,
   normalizeSofurryStoryText,
 } from "./api";
+
+describe("normalizeSofurryCookies", () => {
+  it("wraps bare Laravel sofurry_session values", () => {
+    const payload = Buffer.from(
+      JSON.stringify({ iv: "a", value: "b", mac: "c" }),
+    ).toString("base64url");
+    expect(normalizeSofurryCookies(payload)).toBe(`sofurry_session=${payload}`);
+  });
+
+  it("wraps bare Remix _session values", () => {
+    const payload = Buffer.from(JSON.stringify({ csrfToken: "abc" })).toString(
+      "base64url",
+    );
+    const raw = `${payload}.sig`;
+    expect(normalizeSofurryCookies(raw)).toBe(`_session=${raw}`);
+  });
+
+  it("keeps named cookie headers", () => {
+    expect(normalizeSofurryCookies("sofurry_session=abc; _session=def")).toBe(
+      "sofurry_session=abc; _session=def",
+    );
+  });
+});
 
 describe("normalizeSofurryStoryText", () => {
   it("turns HTML and malformed paragraph tags into readable plain text", () => {

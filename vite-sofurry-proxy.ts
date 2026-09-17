@@ -213,15 +213,60 @@ function usernameFromBrowse(html: string): string | undefined {
   return /"USER_HANDLE":"([^"]+)"/.exec(html)?.[1];
 }
 
+function normalizeSofurryCookies(raw: string): string {
+  const text = String(raw || "").trim().replace(/^["']|["']$/g, "");
+  if (!text) return "";
+  if (
+    /(?:^|;\s*)(?:sofurry_session|_session|XSRF-TOKEN|laravel_session)\s*=/i.test(text) ||
+    /^(?:sofurry_session|_session|XSRF-TOKEN|laravel_session)\s*=/i.test(text)
+  ) {
+    return text;
+  }
+  try {
+    const payload = decodeURIComponent(text).split(".", 1)[0] || "";
+    const pad = "=".repeat((4 - (payload.length % 4)) % 4);
+    const data = JSON.parse(Buffer.from(payload + pad, "base64url").toString("utf8")) as Record<
+      string,
+      unknown
+    >;
+    if (data && typeof data === "object") {
+      if ("csrfToken" in data || "csrf_token" in data) return `_session=${text}`;
+      if ("iv" in data && "value" in data && "mac" in data) return `sofurry_session=${text}`;
+    }
+  } catch {
+    /* fall through */
+  }
+  if (text.startsWith("eyJpdiI6")) return `sofurry_session=${text}`;
+  return `sofurry_session=${text}`;
+}
+
+async function resolveUsername(cookie: string): Promise<{ username?: string; cookie: string }> {
+  const browse = await sofurryRequest(`${SOFURRY_BASE}/browse`, {
+    cookie,
+    accept: "text/html,application/xhtml+xml",
+  });
+  return {
+    username: usernameFromBrowse(browse.body.toString("utf8")),
+    cookie: browse.cookie,
+  };
+}
+
 async function loginWithPassword(
   email: string,
   password: string,
 ): Promise<{ ok: boolean; cookies?: string; username?: string; error?: string }> {
-  // 1) GET login page for CSRF + XSRF cookie
+  // Start Remix OAuth so the password POST returns into /fe/auth/callback.
+  let cookie = (
+    await sofurryRequest(`${SOFURRY_BASE}/fe/auth/sofurry`, {
+      accept: "text/html,application/xhtml+xml",
+    })
+  ).cookie;
+
   const page = await sofurryRequest(`${SOFURRY_BASE}/login`, {
+    cookie,
     accept: "text/html",
   });
-  let cookie = page.cookie;
+  cookie = page.cookie;
   const html = page.body.toString("utf8");
   const tokenMatch =
     /name="_token"\s+value="([^"]+)"/.exec(html) ||
@@ -249,41 +294,21 @@ async function loginWithPassword(
     },
   });
   cookie = post.cookie;
-
-  // Success usually redirects away from /login with a session cookie.
-  const hasSession = /(?:^|;\s*)(?:laravel_session|sofurry_session|_session)=/i.test(cookie);
-  if (!hasSession && post.status === 200 && /name="password"/.test(post.body.toString("utf8"))) {
+  if (/name="password"/.test(post.body.toString("utf8")) && !remixSessionAuthed(cookie)) {
     return { ok: false, error: "Login failed — check email/password" };
   }
 
-  // Resolve username via /api/profile
-  const profile = await sofurryRequest(`${SOFURRY_BASE}/api/profile`, {
-    cookie,
-    accept: "application/json",
-  });
-  cookie = profile.cookie;
-  if (profile.status === 401 || profile.status === 403) {
-    return { ok: false, error: "Login did not establish a usable session" };
-  }
   cookie = await upgradeRemixSession(cookie);
-  let username: string | undefined;
-  try {
-    const data = JSON.parse(profile.body.toString("utf8")) as {
-      user?: { name?: string };
+  const resolved = await resolveUsername(cookie);
+  cookie = resolved.cookie;
+  if (!resolved.username || !remixSessionAuthed(cookie)) {
+    return {
+      ok: false,
+      error:
+        "Login did not establish a SoFurry Remix session — try again or paste _session + sofurry_session cookies",
     };
-    username = data.user?.name;
-  } catch {
-    /* ignore */
   }
-  if (!username) {
-    const browse = await sofurryRequest(`${SOFURRY_BASE}/browse`, {
-      cookie,
-      accept: "text/html,application/xhtml+xml",
-    });
-    cookie = browse.cookie;
-    username = usernameFromBrowse(browse.body.toString("utf8"));
-  }
-  return { ok: true, cookies: cookie, username };
+  return { ok: true, cookies: cookie, username: resolved.username };
 }
 
 function isAllowedMediaUrl(raw: string): boolean {
@@ -371,36 +396,22 @@ export function sofurryProxy(): Plugin {
               sendJson(res, 400, { ok: false, error: "cookies required" });
               return;
             }
-            const profile = await sofurryRequest(`${SOFURRY_BASE}/api/profile`, {
-              cookie: cookies,
-              accept: "application/json",
-            });
-            if (profile.status === 401 || profile.status === 403) {
-              sendJson(res, 401, { ok: false, error: "Cookies rejected by SoFurry" });
-              return;
-            }
-            let nextCookie = await upgradeRemixSession(profile.cookie);
-            let username: string | undefined;
-            try {
-              const data = JSON.parse(profile.body.toString("utf8")) as {
-                user?: { name?: string };
-              };
-              username = data.user?.name;
-            } catch {
-              /* ignore */
-            }
-            if (!username) {
-              const browse = await sofurryRequest(`${SOFURRY_BASE}/browse`, {
-                cookie: nextCookie,
-                accept: "text/html,application/xhtml+xml",
+            const normalized = normalizeSofurryCookies(cookies);
+            let nextCookie = await upgradeRemixSession(normalized);
+            const resolved = await resolveUsername(nextCookie);
+            nextCookie = resolved.cookie;
+            if (!resolved.username || !remixSessionAuthed(nextCookie)) {
+              sendJson(res, 401, {
+                ok: false,
+                error:
+                  "Cookies rejected — paste the _session value (or sofurry_session+_session pair) from sofurry.com while logged in",
               });
-              nextCookie = browse.cookie;
-              username = usernameFromBrowse(browse.body.toString("utf8"));
+              return;
             }
             sendJson(res, 200, {
               ok: true,
               cookies: nextCookie,
-              username,
+              username: resolved.username,
             });
             return;
           }

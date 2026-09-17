@@ -1329,10 +1329,7 @@ export class ApiService {
   }
 
   async loginSofurryCookies(args: { cookies: string }) {
-    sofurry.setActiveSofurryCookies(args.cookies);
-    const me = await sofurry.whoami(args.cookies);
-    if (!me?.name) return { ok: false as const, error: "Cookies rejected" };
-    return { ok: true as const, cookies: args.cookies, username: me.name };
+    return sofurry.loginSofurryCookies(args);
   }
 
   async logoutSofurry() {
