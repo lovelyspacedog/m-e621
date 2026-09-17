@@ -94,6 +94,19 @@
             </div>
           </settings-row>
           <settings-row
+            title="Include Tailspace comics"
+            description="Federated Pools name browse merges Tailspace comics (opens the Tailspace reader). Tag search stays e621/e6ai only."
+            switch
+          >
+            <v-switch
+              :model-value="siteMode.unifiedIncludeTailspaceComics"
+              color="accent"
+              hide-details
+              density="compact"
+              @update:model-value="siteMode.setUnifiedIncludeTailspaceComics(!!$event)"
+            />
+          </settings-row>
+          <settings-row
             v-for="child in unifiedChildren"
             :key="child"
             :title="unifiedChildLabel(child)"

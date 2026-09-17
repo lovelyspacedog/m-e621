@@ -22,6 +22,7 @@ export const changelogSections: ChangelogSection[] = [
       "App logo and favicon refreshed to a basset-hound mark; loading spinner matches the sidebar face",
       "Flayrah site mode: read-only RSS feed and article reader with taxonomy chips, archive, saved/unread, magazine layout, and j/k shortcuts",
       "Federated Pools: merged e621/e6ai browse with origin badges, sequential fetch/retry, and Updated/sort interleave",
+      "Federated Pools name browse can include Tailspace comics (Account setting, on by default); opens the Tailspace reader",
       "Site mode renamed from Unified to Federated; sidebar Defaults / Auth-only presets sit as a compact toolbar",
       "Layout menu and Post settings: Infinite scroll toggle (off uses previous/next); Saved posts share the same Layout menu",
       "Pools: watched +N badges, chunk/deep-link resume, fullscreen across chunks, hidden-page placeholders, Save chunk / Save all",

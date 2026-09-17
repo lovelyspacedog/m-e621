@@ -191,7 +191,7 @@ import {
   useWatchedPoolsStore,
 } from "@/services";
 import { useMainStore } from "@/services/state";
-import type { PoolOriginMode, WatchedPoolEntry } from "@/services/types";
+import type { PoolOriginMode, PoolBrowseOrigin, WatchedPoolEntry } from "@/services/types";
 import { BlacklistMode } from "@/services/types";
 import { useRouterQueryHelpers } from "@/misc/util/utilities";
 import {
@@ -202,6 +202,13 @@ import {
   type PoolChildFetchArgs,
 } from "@/misc/util/poolOrigin";
 import { unifiedChildLabel } from "@/misc/util/postOrigin";
+import {
+  poolOrderToTailspaceSort,
+  tailspaceComicCoverUrl,
+  tailspaceComicToPoolListItem,
+  tailspaceCoverKey,
+} from "@/misc/util/tailspacePoolBrowse";
+import { getComics } from "@/worker/tailspace/api";
 import { getApiService } from "@/worker/services";
 
 useHead({ title: "Pools" });
@@ -323,10 +330,13 @@ let browseFetchGeneration = 0;
 /** Bumps on each tags fetch so overlapping resets cannot wipe results. */
 let tagsFetchGeneration = 0;
 
-const childPage = ref<Partial<Record<PoolOriginMode, number>>>({});
-const childHasMore = ref<Partial<Record<PoolOriginMode, boolean>>>({});
+const childPage = ref<Partial<Record<PoolBrowseOrigin, number>>>({});
+const childHasMore = ref<Partial<Record<PoolBrowseOrigin, boolean>>>({});
 
 const isFederatedPools = computed(() => siteMode.isUnified);
+const includeTailspaceComics = computed(
+  () => isFederatedPools.value && siteMode.unifiedIncludeTailspaceComics,
+);
 const browseChildren = computed(() => poolFamilyChildren(main.$state));
 const defaultCoverOrigin = computed(() => {
   if (isPoolOriginMode(siteMode.activeMode)) return siteMode.activeMode;
@@ -350,7 +360,7 @@ const newCounts = computed(() => {
   const out: Record<string, number> = {};
   for (const pool of [...watchedPoolResults.value, ...pools.value]) {
     const origin = pool.originMode;
-    if (!origin) continue;
+    if (!origin || origin === "tailspace") continue;
     const n = watchedPoolStore.newCount(
       origin,
       pool.id,
@@ -440,7 +450,7 @@ const mergePools = (
 const existingPoolKeys = () =>
   new Set(
     pools.value
-      .filter((p): p is PoolListItem & { originMode: PoolOriginMode } => !!p.originMode)
+      .filter((p): p is PoolListItem & { originMode: PoolBrowseOrigin } => !!p.originMode)
       .map((p) => poolKey(p.originMode, p.id)),
   );
 
@@ -457,12 +467,19 @@ const sharedPoolArgsFor = (child: PoolChildFetchArgs) =>
     auth: child.auth,
   }) as const;
 
-const resetChildPaging = (children: PoolChildFetchArgs[]) => {
-  const pages: Partial<Record<PoolOriginMode, number>> = {};
-  const more: Partial<Record<PoolOriginMode, boolean>> = {};
+const resetChildPaging = (
+  children: PoolChildFetchArgs[],
+  opts?: { includeTailspace?: boolean },
+) => {
+  const pages: Partial<Record<PoolBrowseOrigin, number>> = {};
+  const more: Partial<Record<PoolBrowseOrigin, boolean>> = {};
   for (const child of children) {
     pages[child.mode] = 1;
     more[child.mode] = true;
+  }
+  if (opts?.includeTailspace) {
+    pages.tailspace = 1;
+    more.tailspace = true;
   }
   childPage.value = pages;
   childHasMore.value = more;
@@ -544,7 +561,7 @@ const fetchCoversFor = async (list: PoolListItem[], child: PoolChildFetchArgs) =
 const fetchCovers = async (list: PoolListItem[]) => {
   const byOrigin = new Map<PoolOriginMode, PoolListItem[]>();
   for (const pool of list) {
-    if (!pool.originMode) continue;
+    if (!pool.originMode || pool.originMode === "tailspace") continue;
     const arr = byOrigin.get(pool.originMode) || [];
     arr.push(pool);
     byOrigin.set(pool.originMode, arr);
@@ -646,7 +663,7 @@ const loadWatchedPools = async () => {
 
 const toggleWatch = (pool: PoolListItem) => {
   const origin = pool.originMode;
-  if (!origin) return;
+  if (!origin || origin === "tailspace") return;
   const watched = watchedPoolStore.toggle(origin, pool.id, poolSnapshot(pool));
   if (watched) {
     watchedPoolResults.value = [
@@ -710,21 +727,40 @@ const fetchNamePageForChild = async (
   return { list, hasMore: list.length >= limit };
 };
 
+const fetchTailspaceComicsPage = async (
+  pageNumber: number,
+): Promise<{ list: PoolListItem[]; hasMore: boolean; covers: Record<string, string> }> => {
+  const result = await getComics({
+    page: pageNumber,
+    search: queryText() || undefined,
+    sort: poolOrderToTailspaceSort(order.value),
+  });
+  const comics = Array.isArray(result?.comics) ? result.comics : [];
+  const list = comics.map(tailspaceComicToPoolListItem);
+  const covers: Record<string, string> = {};
+  for (const comic of comics) {
+    covers[tailspaceCoverKey(comic.id)] = tailspaceComicCoverUrl(comic);
+  }
+  const totalPages = Math.max(1, Number(result?.numberOfPages) || 1);
+  return { list, hasMore: pageNumber < totalPages, covers };
+};
+
 const fetchPoolsByName = async (append: boolean) => {
   const generation = ++browseFetchGeneration;
   loading.value = true;
   error.value = null;
   try {
     const children = browseChildren.value;
-    if (!children.length) {
+    const withTailspace = includeTailspaceComics.value;
+    if (!children.length && !withTailspace) {
       error.value =
-        "No e621 or e6ai sites enabled — turn them on in Federated Account settings";
+        "No e621, e6ai, or Tailspace comics sources — enable sites in Federated Account settings";
       if (!append) pools.value = [];
       hasMore.value = false;
       searched.value = true;
       return;
     }
-    if (!append) resetChildPaging(children);
+    if (!append) resetChildPaging(children, { includeTailspace: withTailspace });
 
     const results = await mapPoolChildrenSequential(children, async (child) => {
       if (append && childHasMore.value[child.mode] === false) {
@@ -762,6 +798,7 @@ const fetchPoolsByName = async (append: boolean) => {
     const pages = { ...childPage.value };
     const more = { ...childHasMore.value };
     const lists: PoolListItem[][] = [];
+    let tailspaceCovers: Record<string, string> = {};
     for (const result of results) {
       if (result.failed) {
         more[result.child.mode] = false;
@@ -771,6 +808,26 @@ const fetchPoolsByName = async (append: boolean) => {
       more[result.child.mode] = result.hasMore;
       lists.push(result.list);
     }
+
+    if (withTailspace) {
+      if (!(append && more.tailspace === false)) {
+        const pageNumber = append ? (pages.tailspace || 1) + 1 : 1;
+        try {
+          if (children.length) await sleep(75);
+          const ts = await withRetry(() => fetchTailspaceComicsPage(pageNumber));
+          pages.tailspace = pageNumber;
+          more.tailspace = ts.hasMore;
+          lists.push(ts.list);
+          tailspaceCovers = ts.covers;
+        } catch (err: any) {
+          snackbar.addMessage(
+            `Tailspace skipped: ${err?.message || String(err)}`,
+          );
+          more.tailspace = false;
+        }
+      }
+    }
+
     childPage.value = pages;
     childHasMore.value = more;
 
@@ -781,6 +838,9 @@ const fetchPoolsByName = async (append: boolean) => {
         ? sortPoolsByOrder(next, order.value)
         : next;
     if (!append) covers.value = {};
+    if (Object.keys(tailspaceCovers).length) {
+      covers.value = { ...covers.value, ...tailspaceCovers };
+    }
     hasMore.value = Object.values(more).some(Boolean);
     searched.value = true;
     void fetchCovers(merged);
@@ -1037,7 +1097,11 @@ onMounted(() => {
 
 // Watch sources separately so a new array identity does not re-fire every tick.
 watch(
-  [() => siteMode.activeMode, () => JSON.stringify(siteMode.unifiedSites)],
+  [
+    () => siteMode.activeMode,
+    () => JSON.stringify(siteMode.unifiedSites),
+    () => siteMode.unifiedIncludeTailspaceComics,
+  ],
   () => {
     // Apply Federated default sort when the URL has no explicit order.
     if (route.query.order == null) {

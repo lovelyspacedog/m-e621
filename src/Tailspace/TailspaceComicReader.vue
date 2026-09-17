@@ -8,9 +8,9 @@
             variant="text"
             size="small"
             prepend-icon="mdi-arrow-left"
-            :to="{ name: 'TailspaceComics' }"
+            :to="comicsBackTo"
           >
-            Comics
+            {{ comicsBackLabel }}
           </v-btn>
         </div>
         <div v-if="comic" class="ts-reader-title-block">
@@ -409,6 +409,7 @@ import {
   type TailspaceComicDetail,
 } from "@/worker/tailspace/api";
 import { useTailspaceSession } from "./useTailspaceSession";
+import { useSiteModeStore } from "@/services";
 import {
   buildChunkButtons,
   GALLERY_CHUNK_SIZE,
@@ -427,6 +428,11 @@ const FULL_WIDTH_KEY = "tailspace-comic-scroll-full-width";
 const route = useRoute();
 const router = useRouter();
 const { isLoggedIn } = useTailspaceSession();
+const siteMode = useSiteModeStore();
+const comicsBackTo = computed(() =>
+  siteMode.isUnified ? { name: "Pools" as const } : { name: "TailspaceComics" as const },
+);
+const comicsBackLabel = computed(() => (siteMode.isUnified ? "Pools" : "Comics"));
 const loggedIn = computed(() => isLoggedIn());
 
 const comic = ref<TailspaceComicDetail | null>(null);

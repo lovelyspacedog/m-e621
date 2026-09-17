@@ -31,6 +31,7 @@
         </div>
       </router-link>
       <v-btn
+        v-if="canWatch(pool)"
         class="pool-watch-button"
         icon
         size="x-small"
@@ -68,7 +69,7 @@
         {{ displayName(pool.name) }}
       </v-list-item-title>
       <v-list-item-subtitle>
-        {{ pool.post_count }} posts · {{ pool.creator_name }}
+        {{ pool.post_count }} {{ countNoun(pool) }} · {{ pool.creator_name }}
         <span v-if="updatedLabel(pool)"> · {{ updatedLabel(pool) }}</span>
         <span v-if="pool.category"> · {{ pool.category }}</span>
         <span v-if="!pool.is_active"> · inactive</span>
@@ -86,6 +87,7 @@
           +{{ newCount(pool) }}
         </v-chip>
         <v-btn
+          v-if="canWatch(pool)"
           icon
           size="small"
           variant="text"
@@ -105,11 +107,16 @@
 
 <script setup lang="ts">
 import type { Pool } from "@/worker/api";
-import type { PoolOriginMode } from "@/services/types";
+import type { PoolBrowseOrigin, PoolOriginMode } from "@/services/types";
 import { poolKey, poolRouteQuery } from "@/misc/util/poolOrigin";
 import { unifiedChildIcon, unifiedChildLabel } from "@/misc/util/postOrigin";
+import { isTailspacePoolItem } from "@/misc/util/tailspacePoolBrowse";
 
-export type PoolListItem = Pool & { originMode?: PoolOriginMode };
+export type PoolListItem = Pool & {
+  originMode?: PoolBrowseOrigin;
+  /** Tailspace comic slug when originMode is tailspace. */
+  comicName?: string;
+};
 
 const props = defineProps<{
   pools: PoolListItem[];
@@ -136,17 +143,37 @@ const resolvedOrigin = (pool: PoolListItem): string =>
 const poolRowKey = (pool: PoolListItem) =>
   pool.originMode ? poolKey(pool.originMode, pool.id) : String(pool.id);
 
-const poolLink = (pool: PoolListItem) => ({
-  name: "Pool" as const,
-  params: { id: pool.id },
-  query: poolRouteQuery(pool.originMode ?? (props.coverOrigin as PoolOriginMode | undefined)),
-});
+const poolLink = (pool: PoolListItem) => {
+  if (isTailspacePoolItem(pool) || pool.originMode === "tailspace") {
+    const name = pool.comicName || pool.name;
+    return {
+      name: "TailspaceComic" as const,
+      params: { name },
+    };
+  }
+  return {
+    name: "Pool" as const,
+    params: { id: pool.id },
+    query: poolRouteQuery(
+      (pool.originMode ?? props.coverOrigin) as PoolOriginMode | undefined,
+    ),
+  };
+};
+
+const canWatch = (pool: PoolListItem) =>
+  pool.originMode !== "tailspace";
+
+const countNoun = (pool: PoolListItem) =>
+  pool.originMode === "tailspace" ? "pages" : "posts";
 
 const displayName = (name: string) => name.replace(/_/g, " ");
 const coverLookupKey = (origin: string, id: number) =>
   origin ? `${origin}:${id}` : String(id);
 const coverUrl = (pool: PoolListItem) => {
   const origin = resolvedOrigin(pool);
+  if (origin === "tailspace") {
+    return props.covers[coverLookupKey(origin, pool.id)] || null;
+  }
   for (const id of pool.post_ids || []) {
     if (typeof id !== "number" || id <= 0) continue;
     const keyed = props.covers[coverLookupKey(origin, id)];
@@ -156,7 +183,9 @@ const coverUrl = (pool: PoolListItem) => {
   return null;
 };
 const watchKey = (pool: PoolListItem) =>
-  pool.originMode ? poolKey(pool.originMode, pool.id) : String(pool.id);
+  pool.originMode && pool.originMode !== "tailspace"
+    ? poolKey(pool.originMode, pool.id)
+    : String(pool.id);
 const isWatched = (pool: PoolListItem) =>
   props.watchedIds.has(watchKey(pool)) || props.watchedIds.has(pool.id);
 const newCount = (pool: PoolListItem) =>

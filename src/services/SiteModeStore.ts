@@ -99,6 +99,21 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     () => main.profiles.unified?.unifiedFeedSource || "search",
   );
 
+  const unifiedIncludeTailspaceComics = computed(
+    () => main.profiles.unified?.unifiedIncludeTailspaceComics !== false,
+  );
+
+  const setUnifiedIncludeTailspaceComics = (enabled: boolean) => {
+    if (!main.profiles.unified) {
+      main.profiles.unified = createEmptySiteProfile("unified");
+    }
+    if (main.profiles.unified.unifiedIncludeTailspaceComics === enabled) return;
+    main.profiles.unified.unifiedIncludeTailspaceComics = enabled;
+    if (main.activeMode === "unified") {
+      modeChangeCount.value++;
+    }
+  };
+
   const setUnifiedFeedSource = (source: UnifiedFeedSource) => {
     if (!main.profiles.unified) {
       main.profiles.unified = createEmptySiteProfile("unified");
@@ -331,6 +346,8 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     isUnified,
     unifiedSites,
     unifiedFeedSource,
+    unifiedIncludeTailspaceComics,
+    setUnifiedIncludeTailspaceComics,
     setUnifiedChild,
     setUnifiedFeedSource,
     applyUnifiedSitesPreset,

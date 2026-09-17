@@ -35,7 +35,8 @@ export const modeSupportsOtherUserFavorites = (mode: SiteMode): boolean =>
   mode === "sofurry";
 
 /**
- * `/pools` + pool reader — e621-family, plus Federated (e621/e6ai children only).
+ * `/pools` + pool reader — e621-family, plus Federated (e621/e6ai children;
+ * Tailspace comics may join Federated name browse only).
  * Inkbunny submission pools stay on `__meta`, not this UI.
  */
 export const modeSupportsPools = (mode: SiteMode): boolean =>

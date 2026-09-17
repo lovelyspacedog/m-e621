@@ -87,6 +87,9 @@ export interface FlayrahNewsState {
 
 export type PoolOriginMode = "e621" | "e6ai";
 
+/** Federated Pools browse rows — Tailspace comics join name browse only. */
+export type PoolBrowseOrigin = PoolOriginMode | "tailspace";
+
 export interface WatchedPoolEntry {
   originMode: PoolOriginMode;
   id: number;
@@ -176,6 +179,11 @@ export interface SiteProfile {
   unifiedSites?: UnifiedSites;
   /** Unified Posts source: tag search (default) or following/watch merge. */
   unifiedFeedSource?: UnifiedFeedSource;
+  /**
+   * Federated Pools name browse: also merge Tailspace comics.
+   * Independent of Defaults / Auth-only presets. Default true.
+   */
+  unifiedIncludeTailspaceComics?: boolean;
 }
 
 // export interface FavoritedSearch {
@@ -241,7 +249,9 @@ export interface ISettingsServiceState {
     | 39
     | 40
     | 41
-    | 42;
+    | 42
+    | 43
+    | 44;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];

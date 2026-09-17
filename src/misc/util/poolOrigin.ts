@@ -33,7 +33,7 @@ export const resolvePoolOrigin = (
   return null;
 };
 
-export const poolKey = (originMode: PoolOriginMode, id: number) =>
+export const poolKey = (originMode: PoolOriginMode | "tailspace", id: number) =>
   `${originMode}:${id}`;
 
 export type PoolChildFetchArgs = {

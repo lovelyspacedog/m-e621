@@ -47,7 +47,11 @@ export const createEmptySiteProfile = (mode: SiteMode): SiteProfile => ({
     maxLength: 100,
   },
   ...(mode === "unified"
-    ? { unifiedSites: defaultUnifiedSites(), unifiedFeedSource: "search" as const }
+    ? {
+        unifiedSites: defaultUnifiedSites(),
+        unifiedFeedSource: "search" as const,
+        unifiedIncludeTailspaceComics: true,
+      }
     : {}),
 });
 
@@ -70,6 +74,9 @@ export const profileFromMirrors = (state: ISettingsServiceState): SiteProfile =>
     unifiedFeedSource:
       existing?.unifiedFeedSource ||
       (state.activeMode === "unified" ? "search" : undefined),
+    unifiedIncludeTailspaceComics:
+      existing?.unifiedIncludeTailspaceComics ??
+      (state.activeMode === "unified" ? true : undefined),
   };
 };
 

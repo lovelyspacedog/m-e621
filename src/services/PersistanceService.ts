@@ -725,6 +725,16 @@ class PersistanceService {
       }
       newState.configVersion = 43;
     }
+    if (newState.configVersion < 44) {
+      if (!newState.profiles?.unified) {
+        newState.profiles = newState.profiles || ({} as any);
+        newState.profiles.unified = createEmptySiteProfile("unified");
+      }
+      if (newState.profiles.unified.unifiedIncludeTailspaceComics === undefined) {
+        newState.profiles.unified.unifiedIncludeTailspaceComics = true;
+      }
+      newState.configVersion = 44;
+    }
 
     if (!newState.watchedPools || !Array.isArray(newState.watchedPools.entries)) {
       newState.watchedPools = { entries: [] };
@@ -829,6 +839,9 @@ class PersistanceService {
       newState.profiles.unified.unifiedFeedSource !== "following"
     ) {
       newState.profiles.unified.unifiedFeedSource = "search";
+    }
+    if (newState.profiles.unified.unifiedIncludeTailspaceComics === undefined) {
+      newState.profiles.unified.unifiedIncludeTailspaceComics = true;
     }
     if (!newState.profiles.e621.account) {
       // Do NOT copy active-mode mirrors here: account/blacklist/etc. may

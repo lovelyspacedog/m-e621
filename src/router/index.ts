@@ -291,7 +291,10 @@ router.beforeEach((to) => {
       return { name: "FlayrahFeed", query: to.query };
     }
     if (mode !== "tailspace" && tailspaceRoutes.has(String(to.name))) {
-      return { name: "Posts", query: to.query };
+      // Federated Pools may open Tailspace comics without leaving Federated mode.
+      if (!(mode === "unified" && to.name === "TailspaceComic")) {
+        return { name: "Posts", query: to.query };
+      }
     }
     if (mode !== "flayrah" && flayrahRoutes.has(String(to.name))) {
       return { name: "Posts", query: to.query };

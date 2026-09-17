@@ -65,6 +65,7 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { label: "API & Account", keywords: ["account", "login", "credentials", "api key"], section: "account", hash: "accounts" },
   { label: "Federated feed sites", keywords: ["unified", "federated", "child", "federation"], section: "account", hash: "unified" },
   { label: "Federated Following", keywords: ["following", "watch", "feed source", "federated", "unified"], section: "account", hash: "unified" },
+  { label: "Federated Tailspace comics", keywords: ["tailspace", "comics", "pools", "federated", "unified"], section: "account", hash: "unified" },
   { label: "Copy starred tags / blacklist", keywords: ["sync", "copy", "starred", "favorites"], section: "account", hash: "sync" },
   { label: "Favorites proxy", keywords: ["proxy", "favorites api", "vercel"], section: "account", hash: "proxy" },
   { label: "e621 / e6ai API key", keywords: ["e621", "e6ai", "api key", "username", "credentials", "auth"], section: "account", hash: "accounts" },
