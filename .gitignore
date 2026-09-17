@@ -173,6 +173,10 @@ __pycache__/
 # Internal working notes
 BUG-ANALYSIS.md
 
+# Parallel-agent deferred docs/changelog survey notes (untracked; see PENDING_DOCS/README.md)
+PENDING_DOCS/*
+!PENDING_DOCS/README.md
+
 # Screenshot working copies (pre-censor / duplicates)
 screenshots/raw/
 # Tauri / Rust

@@ -156,7 +156,8 @@ The bundle identifier is `com.lovelyspacedog.me621`.
 
 ## Additional details
 
-- `start`, `sync`, and `deploy.sh` support a reverse-proxied self-host.
+- `start`, `sync`, and `deploy.sh` support a reverse-proxied self-host. `sync` uses `flock` on `~/.config/m-e621/sync.lock` (wait up to `M_E621_SYNC_LOCK_TIMEOUT`, default 600s, then one non-blocking retry) so overlapping agent/cron syncs do not stack.
+- Parallel agents that cannot safely edit README/changelog write untracked notes under `PENDING_DOCS/` for a later survey (see `PENDING_DOCS/README.md`).
 - `public/zen-browser.css` provides Zen Browser and Transparent Zen compatibility.
 - The PWA checks for updates every ten minutes and shows an update banner.
 - The landing page shows separate fork and upstream commit timelines.

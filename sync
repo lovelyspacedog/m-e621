@@ -9,11 +9,30 @@ source "$ROOT/load-m-e621-env.sh"
 APP_DIR="${M_E621_DIR:-$HOME/m-e621}"
 CONFIG_DIR="${M_E621_CONFIG:-$HOME/.config/m-e621}"
 LOG="$CONFIG_DIR/sync.log"
+LOCK="$CONFIG_DIR/sync.lock"
+# Wait this many seconds for another sync (agent or cron), then one non-blocking try.
+LOCK_TIMEOUT="${M_E621_SYNC_LOCK_TIMEOUT:-600}"
 DOMAIN="${M_E621_DOMAIN:-localhost}"
 REPO_URL="${M_E621_REPO:-https://github.com/lovelyspacedog/m-e621.git}"
 BRANCH="${M_E621_BRANCH:-master}"
 
 mkdir -p "$CONFIG_DIR"
+
+# Serialize overlapping syncs. Blocking wait first; if still busy, non-blocking retry then exit.
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"$LOCK"
+  if ! flock -w "$LOCK_TIMEOUT" 9; then
+    if ! flock -n 9; then
+      msg="sync: lock busy ($LOCK) after ${LOCK_TIMEOUT}s wait + non-blocking retry"
+      echo "$msg" >&2
+      echo "==== $(date -Is) $msg ====" >>"$LOG"
+      exit 75
+    fi
+  fi
+else
+  echo "==== $(date -Is) sync warning: flock not found; running without lock ====" >>"$LOG"
+fi
+
 exec >>"$LOG" 2>&1
 echo "==== $(date -Is) sync start ===="
 

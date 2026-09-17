@@ -26,6 +26,7 @@ export const changelogSections: ChangelogSection[] = [
       "SoFurry likes / Remix auth and story formatting fixes",
       "Honest overview metadata across site modes",
       "Fairer Random order (Fisher–Yates)",
+      "Self-host `sync` serializes with a lock so overlapping deploys wait or exit cleanly",
     ],
   },
   {
