@@ -195,6 +195,7 @@ The bundle identifier is `com.lovelyspacedog.me621`.
 - Info → Debug can silence main-thread production console diagnostics (workers unchanged).
 - Blacklist and History settings show which site profile you are editing.
 - Posts settings can set per-site mute/volume/speed overrides (HTML5; SWF unchanged) and insert Save Locally path tokens from chips.
+- Data saver controls feed preview quality (fullscreen still uses full-resolution). Automatic mode prefers `connection.type` when present, otherwise Chromium’s `effectiveType` / Save-Data, and falls back to medium when the Network Information API is unavailable.
 - Starred-tag / saved-search merge between sites keeps groups by name when possible (Replace still copies the full tree).
 - Backup can download a full JSON or a sanitized copy without API keys/cookies; restore and reset ask for confirmation with a preview. Library clear and per-section reset live on Backup and Restore.
 

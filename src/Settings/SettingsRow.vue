@@ -66,6 +66,13 @@ const isSwitch = computed(() => props.switch);
   justify-content: stretch;
 }
 
+/* Stacked rows often put help text + a control in the same slot; keep them
+   vertical so selects are not squeezed to a few characters (e.g. "A.."). */
+.settings-row--stack .settings-row__control {
+  flex-direction: column;
+  align-items: stretch;
+}
+
 .settings-row--stack .settings-row__label {
   margin-bottom: 4px;
 }

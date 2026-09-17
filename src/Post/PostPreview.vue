@@ -169,7 +169,10 @@
 
 <script lang="ts">
 import { isAudioExt } from "@/misc/util/audioExts";
-import { useDataSaverInfo } from "@/misc/util/dataSaver";
+import {
+  resolveDataSaverQuality,
+  useDataSaverInfo,
+} from "@/misc/util/dataSaver";
 import { remuxLocalPath } from "@/misc/util/localMedia";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
 import {
@@ -178,7 +181,7 @@ import {
   type PlaybackMediaKind,
 } from "@/misc/util/playbackPrefs";
 import { useMainStore, usePostsStore, useSnackbarStore } from "@/services";
-import { DataSaverType, type SiteMode } from "@/services/types";
+import { type SiteMode } from "@/services/types";
 import type { File, Preview, Sample } from "@/worker/api";
 import type { PropType } from "vue";
 import { computed, defineComponent, nextTick, onBeforeUnmount, ref, watch } from "vue";
@@ -612,39 +615,11 @@ export default defineComponent({
     });
 
     const imageSrc = computed<string>(() => {
-      switch (posts.dataSaver) {
-        case DataSaverType.lowest:
-          return imageSrcPerQuality.value.low;
-        case DataSaverType.medium:
-          return imageSrcPerQuality.value.medium;
-        case DataSaverType.highest:
-          return imageSrcPerQuality.value.high;
-        default:
-        case DataSaverType.auto:
-          if (dataSaverInfo.value.effectiveTypeSupported && (dataSaverInfo.value.effectiveType === "slow-2g" || dataSaverInfo.value.effectiveType === "2g")) {
-            return imageSrcPerQuality.value.low;
-          }
-          if (!dataSaverInfo.value.typeSupported) {
-            if(dataSaverInfo.value.saveData) return imageSrcPerQuality.value.low;
-            return imageSrcPerQuality.value.medium;
-          }
-          if (
-            dataSaverInfo.value.type === "bluetooth" ||
-            dataSaverInfo.value.type === "cellular"
-          ) {
-            return imageSrcPerQuality.value.low;
-          }
-          if (
-            dataSaverInfo.value.type === "ethernet" ||
-            dataSaverInfo.value.type === "wifi"
-          ) {
-            if (dataSaverInfo.value.saveData) {
-              return imageSrcPerQuality.value.medium;
-            }
-            return imageSrcPerQuality.value.high;
-          }
-          return imageSrcPerQuality.value.medium;
-      }
+      const quality = resolveDataSaverQuality(
+        posts.dataSaver,
+        dataSaverInfo.value,
+      );
+      return imageSrcPerQuality.value[quality];
     });
 
     const loading = computed(() => {
