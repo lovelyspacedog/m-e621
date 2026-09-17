@@ -49,6 +49,7 @@
       </div>
     </section>
     <MigrationInfo />
+    <FurryDictionarySnippet />
     <section class="mt-8 mb-2">
       <v-container>
         <v-row justify="center">
@@ -122,6 +123,7 @@ import TagSearch from "@/Tag/TagSearch.vue";
 import About from "./About.vue";
 import ChangelogDialog from "./ChangelogDialog.vue";
 import Footer from "./Footer.vue";
+import FurryDictionarySnippet from "./FurryDictionarySnippet.vue";
 import { computed, ref } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import MigrationInfo from "./MigrationInfo.vue";
