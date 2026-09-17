@@ -109,6 +109,10 @@ export const useWatchedPoolsStore = defineStore("watched-pools", () => {
   const newCount = (originMode: PoolOriginMode, id: number, postCount: number) =>
     newPostCountFor(findEntry(originMode, id), postCount);
 
+  const clearAll = () => {
+    main.watchedPools = { entries: [] };
+  };
+
   return {
     entries,
     entriesFor,
@@ -120,5 +124,6 @@ export const useWatchedPoolsStore = defineStore("watched-pools", () => {
     markSeen,
     ensureBaseline,
     newCount,
+    clearAll,
   };
 });

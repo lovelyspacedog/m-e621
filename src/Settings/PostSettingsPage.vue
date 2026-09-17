@@ -302,9 +302,22 @@
               density="comfortable"
               label="Path template"
               v-model="posts.saveLocalPathTemplate"
-              hint="%artist%  %tags 1-5%  %ext%  %id%  %origin%  (collision → foo (1).ext)"
+              hint="Collision → foo (1).ext"
               persistent-hint
             />
+            <div class="d-flex flex-wrap ga-1 mb-2">
+              <v-chip
+                v-for="token in pathTemplateTokens"
+                :key="token"
+                size="small"
+                label
+                variant="tonal"
+                color="accent"
+                @click="insertPathToken(token)"
+              >
+                {{ token }}
+              </v-chip>
+            </div>
             <local-folder-picker v-if="supportsLocalMode" purpose="save" />
             <v-switch
               v-if="supportsLocalMode"
@@ -497,4 +510,30 @@ const dataSaverItems = computed(() => [
 const showAutomaticDataSaverInfo = computed(
   () => posts.dataSaver === DataSaverType.auto,
 );
+
+const pathTemplateTokens = [
+  "%artist%",
+  "%tags 1-5%",
+  "%ext%",
+  "%id%",
+  "%origin%",
+];
+
+const insertPathToken = (token: string) => {
+  const current = posts.saveLocalPathTemplate || "";
+  if (!current) {
+    posts.saveLocalPathTemplate = token;
+    return;
+  }
+  if (token === "%ext%") {
+    if (current.includes("%ext%")) return;
+    posts.saveLocalPathTemplate = `${current.replace(/\.[^./]*$/, "")}${token}`;
+    return;
+  }
+  if (current.endsWith("/") || current.endsWith("%")) {
+    posts.saveLocalPathTemplate = `${current}${current.endsWith("%") ? "/" : ""}${token}`;
+    return;
+  }
+  posts.saveLocalPathTemplate = `${current}/${token}`;
+};
 </script>

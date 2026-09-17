@@ -45,6 +45,17 @@ export type SettingsImportPreview = {
   watchedPools: number;
 };
 
+export type SettingsResetSlice =
+  | "posts"
+  | "appearance"
+  | "shortcuts"
+  | "blacklist"
+  | "history"
+  | "searches"
+  | "favorites"
+  | "savedPosts"
+  | "watchedPools";
+
 const clearAccountSecrets = (account: {
   username?: string | null;
   apiKey?: string | null;
@@ -185,6 +196,55 @@ class PersistanceService {
 
   public resetStateToDefault() {
     this.setState(clone(defaultSettings));
+  }
+
+  /**
+   * Reset one settings slice to defaults. Profile-mirrored slices sync into the
+   * active profile; credentials / accounts are never touched here.
+   */
+  public resetStateSlice(slice: SettingsResetSlice) {
+    const d = defaultSettings;
+    syncMirrorsToActiveProfile(this.main.$state);
+    switch (slice) {
+      case "posts":
+        this.main.posts = clone(d.posts);
+        break;
+      case "appearance":
+        this.main.appearance = clone(d.appearance);
+        break;
+      case "shortcuts":
+        this.main.shortcuts = clone(d.shortcuts);
+        break;
+      case "blacklist":
+        this.main.blacklist = clone(d.blacklist);
+        break;
+      case "history":
+        this.main.history = clone(d.history);
+        break;
+      case "searches":
+        this.main.searches = clone(d.searches);
+        break;
+      case "favorites":
+        this.main.favorites = clone(d.favorites);
+        break;
+      case "savedPosts":
+        this.main.savedPosts = { entries: [] };
+        break;
+      case "watchedPools":
+        this.main.watchedPools = { entries: [] };
+        break;
+      default:
+        return;
+    }
+    if (
+      slice === "blacklist" ||
+      slice === "history" ||
+      slice === "searches" ||
+      slice === "favorites"
+    ) {
+      syncMirrorsToActiveProfile(this.main.$state);
+    }
+    void this.saveState();
   }
 
   private serializeState() {
@@ -582,6 +642,12 @@ class PersistanceService {
       // Watched pools gain optional last-seen snapshot fields (filled on open/hydrate).
       newState.configVersion = 39;
     }
+    if (newState.configVersion < 40) {
+      if (!newState.appearance.colorScheme) {
+        newState.appearance.colorScheme = newState.appearance.dark ? "dark" : "light";
+      }
+      newState.configVersion = 40;
+    }
 
     if (!newState.watchedPools || !Array.isArray(newState.watchedPools.entries)) {
       newState.watchedPools = { entries: [] };
@@ -595,6 +661,13 @@ class PersistanceService {
     if (newState.appearance) {
       if (newState.appearance.pawCursor === undefined) {
         newState.appearance.pawCursor = true;
+      }
+      if (
+        newState.appearance.colorScheme !== "system" &&
+        newState.appearance.colorScheme !== "dark" &&
+        newState.appearance.colorScheme !== "light"
+      ) {
+        newState.appearance.colorScheme = newState.appearance.dark ? "dark" : "light";
       }
       if (!newState.appearance.transition) {
         newState.appearance.transition = { fullscreen: "slide", route: "fade" };

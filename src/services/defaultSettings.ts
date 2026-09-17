@@ -33,7 +33,7 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 39,
+  configVersion: 40,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -87,6 +87,7 @@ export const defaultSettings: ISettingsServiceState = {
     sidebar: "#001325",
     toolbar: "#020c1c",
     dark: true,
+    colorScheme: "dark",
     transition: {
       fullscreen: "slide",
       route: "fade",

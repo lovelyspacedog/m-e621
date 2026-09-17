@@ -189,12 +189,13 @@ The bundle identifier is `com.lovelyspacedog.me621`.
 
 ## Settings and appearance
 
-- Settings hub search finds pages and rows across groups (including playback, route transitions, git pull, and sanitized backup).
-- Appearance includes themes, navigation density, fullscreen and route transitions, and an optional paw cursor.
+- Settings hub search finds pages and rows across groups (including synonyms like “hotkey” → shortcuts, plus playback, route transitions, git pull, and sanitized backup).
+- Appearance includes themes, System/Dark/Light color scheme, navigation density, fullscreen and route transitions (route animations respect reduced motion), an optional paw cursor, and a Prompts subgroup for dismissable banners.
 - Account settings show whether each profile has credentials material; Unified feed source and site presets are also editable there.
 - Blacklist and History settings show which site profile you are editing.
-- Posts settings can set per-site mute/volume/speed overrides (HTML5; SWF unchanged).
-- Backup can download a full JSON or a sanitized copy without API keys/cookies; restore and reset ask for confirmation with a preview.
+- Posts settings can set per-site mute/volume/speed overrides (HTML5; SWF unchanged) and insert Save Locally path tokens from chips.
+- Starred-tag / saved-search merge between sites keeps groups by name when possible (Replace still copies the full tree).
+- Backup can download a full JSON or a sanitized copy without API keys/cookies; restore and reset ask for confirmation with a preview. Library clear and per-section reset live on Backup and Restore.
 
 ## Additional details
 

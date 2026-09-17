@@ -110,31 +110,69 @@ export const canCopySavedSearches = (from: SiteMode, to: SiteMode): boolean => {
   return Boolean(a && b && a === b);
 };
 
-/** Merge source starred tags into target (by name+category). New tags land in Ungrouped. */
+/** Merge source starred tags into target (by name+category).
+ *  Creates missing groups by name; tags keep their group when possible.
+ */
 export const mergeFavoriteTags = (
   target: SiteProfile["favorites"],
   source: SiteProfile["favorites"],
 ): number => {
   ensureUngrouped(target);
+  const groupIdMap = new Map<string, string>();
+  groupIdMap.set(UNGROUPED_FAVORITE_GROUP_ID, UNGROUPED_FAVORITE_GROUP_ID);
+  for (const g of source.groups) {
+    if (g.id === UNGROUPED_FAVORITE_GROUP_ID) continue;
+    const existing = target.groups.find(
+      (tg) =>
+        tg.id !== UNGROUPED_FAVORITE_GROUP_ID &&
+        tg.name.trim().toLowerCase() === g.name.trim().toLowerCase(),
+    );
+    if (existing) {
+      groupIdMap.set(g.id, existing.id);
+      continue;
+    }
+    const newId = makeId("fgroup");
+    const maxOrder = target.groups.length
+      ? Math.max(...target.groups.map((x) => x.order))
+      : -1;
+    target.groups.push({
+      id: newId,
+      name: g.name.trim() || "Group",
+      collapsed: !!g.collapsed,
+      order: maxOrder + 1,
+    });
+    groupIdMap.set(g.id, newId);
+  }
+
   const existing = new Set(
     target.tags.map((t) => `${t.name}\0${t.category}`),
   );
-  const ungrouped = target.tags.filter(
-    (t) => t.groupId === UNGROUPED_FAVORITE_GROUP_ID,
-  );
-  let nextOrder = ungrouped.length
-    ? Math.max(...ungrouped.map((t) => t.order)) + 1
-    : 0;
+  const nextOrder = new Map<string, number>();
+  const orderFor = (groupId: string) => {
+    if (!nextOrder.has(groupId)) {
+      const inGroup = target.tags.filter((t) => t.groupId === groupId);
+      nextOrder.set(
+        groupId,
+        inGroup.length ? Math.max(...inGroup.map((t) => t.order)) + 1 : 0,
+      );
+    }
+    const n = nextOrder.get(groupId)!;
+    nextOrder.set(groupId, n + 1);
+    return n;
+  };
+
   let added = 0;
   for (const tag of source.tags) {
     const key = `${tag.name}\0${tag.category}`;
     if (existing.has(key)) continue;
+    const groupId =
+      groupIdMap.get(tag.groupId) || UNGROUPED_FAVORITE_GROUP_ID;
     const entry: FavoriteTagEntry = {
       id: makeId("tag"),
       name: tag.name,
       category: tag.category,
-      groupId: UNGROUPED_FAVORITE_GROUP_ID,
-      order: nextOrder++,
+      groupId,
+      order: orderFor(groupId),
     };
     if (tag.display && tag.display !== tag.name) entry.display = tag.display;
     target.tags.push(entry);
@@ -162,32 +200,68 @@ export const mergeBlacklistTags = (
   return added;
 };
 
-/** Merge saved searches by normalized tag list; new entries land in Ungrouped. */
+/** Merge saved searches by normalized tag list; creates missing groups by name. */
 export const mergeSavedSearches = (
   target: SiteProfile["searches"],
   source: SiteProfile["searches"],
 ): number => {
   ensureUngroupedSearches(target);
+  const groupIdMap = new Map<string, string>();
+  groupIdMap.set(UNGROUPED_SAVED_SEARCH_GROUP_ID, UNGROUPED_SAVED_SEARCH_GROUP_ID);
+  for (const g of source.groups) {
+    if (g.id === UNGROUPED_SAVED_SEARCH_GROUP_ID) continue;
+    const existing = target.groups.find(
+      (tg) =>
+        tg.id !== UNGROUPED_SAVED_SEARCH_GROUP_ID &&
+        tg.name.trim().toLowerCase() === g.name.trim().toLowerCase(),
+    );
+    if (existing) {
+      groupIdMap.set(g.id, existing.id);
+      continue;
+    }
+    const newId = makeId("sgroup");
+    const maxOrder = target.groups.length
+      ? Math.max(...target.groups.map((x) => x.order))
+      : -1;
+    target.groups.push({
+      id: newId,
+      name: g.name.trim() || "Group",
+      collapsed: !!g.collapsed,
+      order: maxOrder + 1,
+    });
+    groupIdMap.set(g.id, newId);
+  }
+
   const existing = new Set(
     target.entries.map(searchEntryKey).filter(Boolean),
   );
-  const ungrouped = target.entries.filter(
-    (e) => e.groupId === UNGROUPED_SAVED_SEARCH_GROUP_ID,
-  );
-  let nextOrder = ungrouped.length
-    ? Math.max(...ungrouped.map((e) => e.order)) + 1
-    : 0;
+  const nextOrder = new Map<string, number>();
+  const orderFor = (groupId: string) => {
+    if (!nextOrder.has(groupId)) {
+      const inGroup = target.entries.filter((e) => e.groupId === groupId);
+      nextOrder.set(
+        groupId,
+        inGroup.length ? Math.max(...inGroup.map((e) => e.order)) + 1 : 0,
+      );
+    }
+    const n = nextOrder.get(groupId)!;
+    nextOrder.set(groupId, n + 1);
+    return n;
+  };
+
   let added = 0;
   for (const entry of source.entries) {
     const tags = entry.tags.map(stripTag).filter(Boolean);
     const key = tags.join(" ");
     if (!key || existing.has(key)) continue;
+    const groupId =
+      groupIdMap.get(entry.groupId) || UNGROUPED_SAVED_SEARCH_GROUP_ID;
     const next: SavedSearchEntry = {
       id: makeId("search"),
       name: entry.name.trim() || tags.join(" ") || "Untitled",
       tags,
-      groupId: UNGROUPED_SAVED_SEARCH_GROUP_ID,
-      order: nextOrder++,
+      groupId,
+      order: orderFor(groupId),
     };
     target.entries.push(next);
     existing.add(key);

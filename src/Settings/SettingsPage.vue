@@ -213,8 +213,11 @@ const sectionSubtitle = (section: string): string | null => {
       const layout = main.posts.feedLayout === "grid" ? "Grid" : "List";
       return `${layout} feed · ${main.posts.postListFetchLimit} per page`;
     }
-    case "appearance":
-      return appearance.dark ? "Dark theme" : "Light theme";
+    case "appearance": {
+      const scheme = appearance.colorScheme;
+      if (scheme === "system") return "System color scheme";
+      return scheme === "light" ? "Light theme" : "Dark theme";
+    }
     case "restore":
       return "Backup includes credentials — use sanitized to strip secrets";
     default:

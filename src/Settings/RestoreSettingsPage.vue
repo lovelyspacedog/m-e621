@@ -43,6 +43,62 @@
           </form>
         </settings-group>
 
+        <settings-group
+          title="Library"
+          description="Mode-independent bookmarks and watched pools. Clearing does not affect site credentials."
+          anchor="library"
+        >
+          <settings-row
+            title="Saved posts"
+            :description="`${savedCount} bookmark${savedCount === 1 ? '' : 's'}`"
+          >
+            <v-btn
+              variant="text"
+              color="error"
+              size="small"
+              :disabled="!savedCount"
+              @click="pendingSlice = 'savedPosts'"
+            >
+              Clear
+            </v-btn>
+          </settings-row>
+          <settings-row
+            title="Watched pools"
+            :description="`${watchedCount} watch${watchedCount === 1 ? '' : 'es'}`"
+          >
+            <v-btn
+              variant="text"
+              color="error"
+              size="small"
+              :disabled="!watchedCount"
+              @click="pendingSlice = 'watchedPools'"
+            >
+              Clear
+            </v-btn>
+          </settings-row>
+        </settings-group>
+
+        <settings-group
+          title="Reset section"
+          description="Restore one settings area to defaults without wiping accounts. Active-site lists (blacklist, history, starred tags, saved searches) reset for the current site profile only."
+          anchor="partial"
+        >
+          <settings-row stack>
+            <div class="d-flex flex-wrap ga-2">
+              <v-btn
+                v-for="item in partialItems"
+                :key="item.slice"
+                size="small"
+                variant="tonal"
+                color="warning"
+                @click="pendingSlice = item.slice"
+              >
+                {{ item.label }}
+              </v-btn>
+            </div>
+          </settings-row>
+        </settings-group>
+
         <v-dialog v-model="confirmReset" max-width="480">
           <v-card>
             <v-card-title>Reset all settings?</v-card-title>
@@ -54,6 +110,18 @@
               <v-spacer />
               <v-btn variant="text" @click="confirmReset = false">Cancel</v-btn>
               <v-btn color="error" variant="text" @click="doReset">Reset</v-btn>
+            </v-card-actions>
+          </v-card>
+        </v-dialog>
+
+        <v-dialog :model-value="!!pendingSlice" max-width="480" @update:model-value="onSliceDialog">
+          <v-card>
+            <v-card-title>{{ sliceTitle }}</v-card-title>
+            <v-card-text class="text-left">{{ sliceBody }}</v-card-text>
+            <v-card-actions>
+              <v-spacer />
+              <v-btn variant="text" @click="pendingSlice = null">Cancel</v-btn>
+              <v-btn color="error" variant="text" @click="doSliceReset">Confirm</v-btn>
             </v-card-actions>
           </v-card>
         </v-dialog>
@@ -95,9 +163,17 @@
 </template>
 
 <script setup lang="ts">
-import { usePersistanceService, useSnackbarStore } from "@/services";
-import type { SettingsImportPreview } from "@/services/PersistanceService";
-import { ref } from "vue";
+import {
+  usePersistanceService,
+  useSavedPostsStore,
+  useSnackbarStore,
+  useWatchedPoolsStore,
+} from "@/services";
+import type {
+  SettingsImportPreview,
+  SettingsResetSlice,
+} from "@/services/PersistanceService";
+import { computed, ref } from "vue";
 import SettingsGroup from "./SettingsGroup.vue";
 import SettingsPageTitle, { type SettingsNavChip } from "./SettingsPageTitle.vue";
 import SettingsRow from "./SettingsRow.vue";
@@ -111,16 +187,75 @@ useHead({
 const navChips: SettingsNavChip[] = [
   { label: "Backup", anchor: "backup" },
   { label: "Restore", anchor: "restore" },
+  { label: "Library", anchor: "library" },
+  { label: "Partial", anchor: "partial" },
 ];
 
 const snackbar = useSnackbarStore();
 const persistanceService = usePersistanceService();
+const savedPosts = useSavedPostsStore();
+const watchedPools = useWatchedPoolsStore();
 const fileInput = ref<HTMLInputElement>();
 const confirmReset = ref(false);
 const confirmImport = ref(false);
 const importing = ref(false);
 const importPreview = ref<SettingsImportPreview | null>(null);
 const pendingFile = ref<File | null>(null);
+const pendingSlice = ref<SettingsResetSlice | null>(null);
+
+const savedCount = computed(() => savedPosts.count);
+const watchedCount = computed(() => watchedPools.entries.length);
+
+const partialItems: { slice: SettingsResetSlice; label: string }[] = [
+  { slice: "posts", label: "Posts" },
+  { slice: "appearance", label: "Appearance" },
+  { slice: "shortcuts", label: "Shortcuts" },
+  { slice: "blacklist", label: "Blacklist" },
+  { slice: "history", label: "History" },
+  { slice: "searches", label: "Saved searches" },
+  { slice: "favorites", label: "Starred tags" },
+];
+
+const sliceTitle = computed(() => {
+  switch (pendingSlice.value) {
+    case "savedPosts":
+      return "Clear saved posts?";
+    case "watchedPools":
+      return "Clear watched pools?";
+    case "posts":
+      return "Reset Posts settings?";
+    case "appearance":
+      return "Reset Appearance?";
+    case "shortcuts":
+      return "Reset shortcuts?";
+    case "blacklist":
+      return "Reset blacklist?";
+    case "history":
+      return "Reset history?";
+    case "searches":
+      return "Reset saved searches?";
+    case "favorites":
+      return "Reset starred tags?";
+    default:
+      return "Confirm";
+  }
+});
+
+const sliceBody = computed(() => {
+  switch (pendingSlice.value) {
+    case "savedPosts":
+      return "Removes all bookmarked posts. Site credentials are kept.";
+    case "watchedPools":
+      return "Unwatches every pool. Site credentials are kept.";
+    case "blacklist":
+    case "history":
+    case "searches":
+    case "favorites":
+      return "Restores defaults for the currently active site profile only.";
+    default:
+      return "Restores this section to built-in defaults. Accounts and other sections stay as they are.";
+  }
+});
 
 const download = async (sanitizeCredentials: boolean) => {
   const file = await persistanceService.stateToFile({ sanitizeCredentials });
@@ -170,6 +305,18 @@ const doReset = () => {
   persistanceService.resetStateToDefault();
   confirmReset.value = false;
   snackbar.addMessage("successfully reset settings");
+};
+
+const onSliceDialog = (open: boolean) => {
+  if (!open) pendingSlice.value = null;
+};
+
+const doSliceReset = () => {
+  const slice = pendingSlice.value;
+  if (!slice) return;
+  persistanceService.resetStateSlice(slice);
+  pendingSlice.value = null;
+  snackbar.addMessage("section reset");
 };
 
 const openFileInput = () => {

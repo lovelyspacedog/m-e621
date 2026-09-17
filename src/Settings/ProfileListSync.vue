@@ -5,6 +5,10 @@
       Copy from another mode into the current one.
       <template v-if="kind === 'searches'">
         Same query language only (e621↔e6ai OK; cross-site refused).
+        Merge keeps group names when possible.
+      </template>
+      <template v-else-if="kind === 'favorites'">
+        Merge keeps starred-tag groups by name; Replace copies the full group tree.
       </template>
     </p>
     <div class="d-flex flex-wrap ga-2 align-center">

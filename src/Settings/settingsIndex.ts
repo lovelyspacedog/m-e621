@@ -119,29 +119,57 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { label: "Backup settings", keywords: ["backup", "download", "export", "json"], section: "restore", hash: "backup" },
   { label: "Sanitized backup", keywords: ["sanitized", "no credentials", "strip keys"], section: "restore", hash: "backup" },
   { label: "Restore settings", keywords: ["restore", "upload", "import", "reset"], section: "restore", hash: "restore" },
+  { label: "Saved posts library", keywords: ["bookmarks", "saved posts", "clear library"], section: "restore", hash: "library" },
+  { label: "Watched pools library", keywords: ["watched", "pools", "clear library"], section: "restore", hash: "library" },
+  { label: "Reset section", keywords: ["partial reset", "reset posts", "reset appearance"], section: "restore", hash: "partial" },
+  { label: "Color scheme", keywords: ["system", "dark", "light", "os theme"], section: "appearance", hash: "colors" },
+  { label: "Prompts", keywords: ["install", "github", "migration", "hide prompt"], section: "appearance", hash: "prompts" },
   { label: "Version / Force Update", keywords: ["version", "commit", "update", "storage"], section: "info" },
   { label: "Pull from Git", keywords: ["git", "pull", "sync", "deploy"], section: "info" },
   { label: "Storage persistence", keywords: ["storage", "quota", "persist", "indexeddb"], section: "info" },
 ];
 
+/** Synonyms expand the query so e.g. “hotkey” finds Keyboard Shortcuts. */
+const SETTINGS_SYNONYMS: Record<string, string[]> = {
+  hotkey: ["shortcut", "keyboard"],
+  keybind: ["shortcut", "keyboard"],
+  theme: ["appearance", "color", "dark"],
+  login: ["account", "credentials", "api"],
+  password: ["account", "credentials", "inkbunny", "tailspace"],
+  download: ["backup", "save", "export"],
+  import: ["restore", "upload", "blacklist"],
+  mute: ["volume", "playback", "audio"],
+  gif: ["animate", "media"],
+  folder: ["local", "save"],
+  bookmark: ["saved posts", "library"],
+  pool: ["watched", "library"],
+};
+
+const tokenMatchesHay = (hay: string, token: string) => {
+  if (hay.includes(token)) return true;
+  return (SETTINGS_SYNONYMS[token] || []).some((syn) => hay.includes(syn));
+};
+
 export function matchSettingsQuery(query: string): {
   sections: string[];
   controls: SettingsIndexEntry[];
 } {
-  const q = query.trim().toLowerCase();
-  if (!q) return { sections: SETTINGS_SECTIONS.map((s) => s.section), controls: [] };
+  const raw = query.trim().toLowerCase();
+  if (!raw) return { sections: SETTINGS_SECTIONS.map((s) => s.section), controls: [] };
 
-  const sectionHits = SETTINGS_SECTIONS.filter(
-    (s) =>
-      s.title.toLowerCase().includes(q) ||
-      s.section.toLowerCase().includes(q),
-  ).map((s) => s.section);
+  const tokens = raw.split(/\s+/).filter(Boolean);
 
-  const controls = SETTINGS_INDEX.filter((entry) => {
+  const entryMatches = (entry: SettingsIndexEntry) => {
     const hay = [entry.label, ...entry.keywords].join(" ").toLowerCase();
-    return hay.includes(q);
-  });
+    return tokens.every((token) => tokenMatchesHay(hay, token));
+  };
 
+  const sectionHits = SETTINGS_SECTIONS.filter((s) => {
+    const hay = `${s.title} ${s.section}`.toLowerCase();
+    return tokens.every((token) => tokenMatchesHay(hay, token));
+  }).map((s) => s.section);
+
+  const controls = SETTINGS_INDEX.filter(entryMatches);
   const fromControls = [...new Set(controls.map((c) => c.section))];
   const sections = [...new Set([...sectionHits, ...fromControls])];
 

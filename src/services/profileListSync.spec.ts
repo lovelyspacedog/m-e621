@@ -94,6 +94,28 @@ describe("mergeFavoriteTags", () => {
     expect(mergeFavoriteTags(target, source)).toBe(1);
     expect(target.tags.map((t) => t.name).sort()).toEqual(["fox", "wolf"]);
   });
+
+  it("creates missing groups by name and keeps tags in them", () => {
+    const target = createEmptySiteProfile("e621").favorites;
+    const source = createEmptySiteProfile("e6ai").favorites;
+    source.groups.push({
+      id: "canines",
+      name: "Canines",
+      collapsed: false,
+      order: 1,
+    });
+    source.tags.push({
+      id: "c",
+      name: "fox",
+      category: "species",
+      groupId: "canines",
+      order: 0,
+    });
+    expect(mergeFavoriteTags(target, source)).toBe(1);
+    const group = target.groups.find((g) => g.name === "Canines");
+    expect(group).toBeTruthy();
+    expect(target.tags.find((t) => t.name === "fox")?.groupId).toBe(group!.id);
+  });
 });
 
 describe("mergeBlacklistTags", () => {

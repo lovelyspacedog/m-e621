@@ -18,14 +18,18 @@
 <script setup lang="ts">
 import { useAppearanceStore } from "@/services";
 import { getTransitionName } from "@/misc/util/transitions";
+import { prefersReducedMotion } from "@/misc/util/reducedMotion";
 import { computed, watchEffect } from "vue";
 
 const appearance = useAppearanceStore();
 const backgroundColor = computed(() => appearance.backgroundColor);
 
-const routeClasses = computed(() =>
-  getTransitionName(appearance.routeTransition || "fade", "none"),
-);
+const routeClasses = computed(() => {
+  if (prefersReducedMotion()) {
+    return getTransitionName("none", "none");
+  }
+  return getTransitionName(appearance.routeTransition || "fade", "none");
+});
 const enterTransitionName = computed(() => routeClasses.value.enterTransitionName);
 const leaveTransitionName = computed(() => routeClasses.value.leaveTransitionName);
 

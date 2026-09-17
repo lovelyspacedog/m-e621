@@ -2,6 +2,9 @@ import { defineStore } from "pinia";
 import { computed } from "vue";
 import { useMainStore } from "./state";
 import type { ISettingsServiceState } from "./types";
+import { systemPrefersDark } from "@/misc/util/systemColorScheme";
+
+export type ColorScheme = "system" | "dark" | "light";
 
 export const useAppearanceStore = defineStore("appearance", () => {
   const main = useMainStore();
@@ -60,14 +63,41 @@ export const useAppearanceStore = defineStore("appearance", () => {
     },
   });
 
-  const dark = computed({
-    get() {
-      return main.appearance.dark;
+  const colorScheme = computed({
+    get(): ColorScheme {
+      const scheme = main.appearance.colorScheme;
+      if (scheme === "system" || scheme === "dark" || scheme === "light") {
+        return scheme;
+      }
+      return main.appearance.dark ? "dark" : "light";
     },
-    set(value) {
-      main.appearance.dark = value;
+    set(value: ColorScheme) {
+      main.appearance.colorScheme = value;
+      if (value === "dark") main.appearance.dark = true;
+      else if (value === "light") main.appearance.dark = false;
+      else main.appearance.dark = systemPrefersDark();
     },
   });
+
+  /** Effective dark flag (resolves `"system"` against the OS). */
+  const dark = computed({
+    get() {
+      if (colorScheme.value === "system") return systemPrefersDark();
+      if (colorScheme.value === "light") return false;
+      if (colorScheme.value === "dark") return true;
+      return main.appearance.dark;
+    },
+    set(value: boolean) {
+      main.appearance.dark = value;
+      main.appearance.colorScheme = value ? "dark" : "light";
+    },
+  });
+
+  /** Sync stored `dark` when OS preference changes under `"system"`. */
+  const syncSystemDark = () => {
+    if (main.appearance.colorScheme !== "system") return;
+    main.appearance.dark = systemPrefersDark();
+  };
 
   const fullscreenTransition = computed({
     get() {
@@ -114,7 +144,6 @@ export const useAppearanceStore = defineStore("appearance", () => {
     },
   });
 
-  // TODO: move to somewhere else?
   const logoStyles = computed<
     ISettingsServiceState["appearance"]["logoStyle"][]
   >(() => ["face", "text"]);
@@ -129,18 +158,30 @@ export const useAppearanceStore = defineStore("appearance", () => {
   });
 
   const hideGithubInfo = computed({
-    get() { return main.appearance.hideGithubInfo; },
-    set(value) { main.appearance.hideGithubInfo = value; },
+    get() {
+      return main.appearance.hideGithubInfo;
+    },
+    set(value) {
+      main.appearance.hideGithubInfo = value;
+    },
   });
 
   const hideMigrationInfo = computed({
-    get() { return main.appearance.hideMigrationInfo; },
-    set(value) { main.appearance.hideMigrationInfo = value; },
+    get() {
+      return main.appearance.hideMigrationInfo;
+    },
+    set(value) {
+      main.appearance.hideMigrationInfo = value;
+    },
   });
 
   const pawCursor = computed({
-    get() { return main.appearance.pawCursor; },
-    set(value) { main.appearance.pawCursor = value; },
+    get() {
+      return main.appearance.pawCursor;
+    },
+    set(value) {
+      main.appearance.pawCursor = value;
+    },
   });
 
   const applyTheme = (theme: Theme) => {
@@ -171,6 +212,8 @@ export const useAppearanceStore = defineStore("appearance", () => {
     toolbarColor,
     sidebarColor,
     dark,
+    colorScheme,
+    syncSystemDark,
     fullscreenTransition,
     routeTransition,
     ratingStripe,

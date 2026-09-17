@@ -28,8 +28,23 @@
             <color-chooser label="Sidebar" v-model:color="appearance.sidebarColor" />
             <color-chooser label="Toolbar" v-model:color="appearance.toolbarColor" />
           </settings-row>
-          <settings-row title="Dark" switch>
-            <v-switch v-model="appearance.dark" color="accent" hide-details density="compact" />
+          <settings-row
+            title="Color scheme"
+            description="System follows your OS light/dark preference."
+            stack
+          >
+            <v-btn-toggle
+              color="accent"
+              density="compact"
+              divided
+              mandatory
+              :model-value="appearance.colorScheme"
+              @update:model-value="onColorScheme"
+            >
+              <v-btn value="system" size="small">System</v-btn>
+              <v-btn value="dark" size="small">Dark</v-btn>
+              <v-btn value="light" size="small">Light</v-btn>
+            </v-btn-toggle>
           </settings-row>
         </settings-group>
 
@@ -60,7 +75,7 @@
           </settings-row>
           <settings-row
             title="Route transitions"
-            description="Animation when navigating between pages (Settings, Posts, etc.)."
+            description="Animation when navigating between pages. Disabled automatically when the OS requests reduced motion."
             stack
           >
             <v-select
@@ -100,6 +115,13 @@
               density="compact"
             />
           </settings-row>
+        </settings-group>
+
+        <settings-group
+          title="Prompts"
+          description="Dismissable banners and install prompts on the Settings hub and elsewhere."
+          anchor="prompts"
+        >
           <settings-row title="Hide install prompt" switch>
             <v-switch
               v-model="appearance.hideInstallPrompt"
@@ -138,7 +160,7 @@ import TransitionPreview from "./TransitionPreview.vue";
 import { computed } from "vue";
 import ColorChooser from "./ColorChooser.vue";
 import transitions from "@/misc/data/transitions.json";
-import { useAppearanceStore } from "@/services";
+import { useAppearanceStore, type ColorScheme } from "@/services";
 import { useHead } from "@unhead/vue";
 
 useHead({
@@ -150,7 +172,14 @@ const appearance = useAppearanceStore();
 const navChips: SettingsNavChip[] = [
   { label: "Colors", anchor: "colors" },
   { label: "Chrome", anchor: "chrome" },
+  { label: "Prompts", anchor: "prompts" },
 ];
+
+const onColorScheme = (value: unknown) => {
+  if (value === "system" || value === "dark" || value === "light") {
+    appearance.colorScheme = value as ColorScheme;
+  }
+};
 
 const transitionItems = computed(() =>
   Object.entries(transitions).map(([key, val]) => ({

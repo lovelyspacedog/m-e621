@@ -219,7 +219,8 @@ export interface ISettingsServiceState {
     | 36
     | 37
     | 38
-    | 39;
+    | 39
+    | 40;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];
@@ -236,6 +237,11 @@ export interface ISettingsServiceState {
     sidebar: string;
     toolbar: string;
     dark: boolean;
+    /**
+     * When `"system"`, follow `prefers-color-scheme` and keep `dark` in sync.
+     * Theme presets set `"dark"` / `"light"`.
+     */
+    colorScheme: "system" | "dark" | "light";
     transition: {
       route: string;
       fullscreen: string;

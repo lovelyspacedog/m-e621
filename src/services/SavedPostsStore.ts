@@ -85,6 +85,10 @@ export const useSavedPostsStore = defineStore("saved-posts", () => {
       (e) => postFeedKey({ id: e.id, __meta: { originMode: e.originMode } }) === feedKey,
     );
 
+  const clearAll = () => {
+    main.savedPosts = { entries: [] };
+  };
+
   return {
     entries,
     count,
@@ -93,5 +97,6 @@ export const useSavedPostsStore = defineStore("saved-posts", () => {
     add,
     remove,
     toggle,
+    clearAll,
   };
 });
