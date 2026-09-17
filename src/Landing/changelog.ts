@@ -28,6 +28,7 @@ export const changelogSections: ChangelogSection[] = [
       "Pool reader: hidden-page placeholders, Save chunk / Save all to Local",
       "Landing Latest updates again shows Tony Pup and Avoonix commit columns (Changelog & TOS stays in the dialog)",
       "Settings: safer backup/restore (confirm + preview, sanitized export), active-site banner on blacklist/history, per-site playback overrides, route transitions, shortcut reset and conflict warnings",
+      "Account settings split into per-site panels (credentials and verify/login stay the same)",
       "Settings: System/Dark/Light color scheme, Prompts subgroup, library clear and partial section reset, Save Locally path-token chips, synonym settings search, and starred-tag merge that keeps groups",
       "Account settings split into a dedicated panels module with Verified / Check failed chips after probe; Info can silence main-thread debug console logs",
     ],
