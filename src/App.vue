@@ -1,12 +1,17 @@
 <template>
   <v-app :class="{ 'paw-cursor': appearance.pawCursor }">
     <v-navigation-drawer v-if="!minimalHeader" :color="theme.sidebar" :clipped="clipped" v-model="drawer" floating app
-      width="400" class="pa-2">
-      <router-link to="/">
-        <app-logo v-view-transition-name="'applogo'" :type="logoStyle" />
-      </router-link>
-      <navigation-list />
-      <portal-target name="sidebar-suggestions" />
+      width="400" class="pa-2 app-sidebar">
+      <div class="sidebar-sticky">
+        <router-link to="/">
+          <app-logo v-view-transition-name="'applogo'" :type="logoStyle" />
+        </router-link>
+        <navigation-list section="primary" />
+      </div>
+      <div class="sidebar-scroll">
+        <navigation-list section="secondary" />
+        <portal-target name="sidebar-suggestions" />
+      </div>
     </v-navigation-drawer>
     <v-app-bar v-view-transition-name="'appbar'" :color="minimalHeader ? theme.primary : theme.toolbar"
       :app="!minimalHeader" :flat="minimalHeader" :clipped-left="clipped" :floating="navMode == 'floating'" :class="{
@@ -140,4 +145,30 @@ watch(mobile, (val, prevVal) => {
 
 <style lang="css">
 @import "@/misc/styles/global.css";
+
+.app-sidebar {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.app-sidebar .v-navigation-drawer__content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+.sidebar-sticky {
+  flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: inherit;
+  padding-bottom: 4px;
+}
+.sidebar-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 </style>

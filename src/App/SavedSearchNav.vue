@@ -127,9 +127,18 @@
               @update:model-value="(next) => onGroupReorder(group.id, next)"
             >
               <template #item="{ element }">
-                <v-list-item :to="toSearch(element.tags)" exact density="compact">
+                <v-list-item
+                  :to="toSearch(element.tags)"
+                  exact
+                  density="compact"
+                  class="saved-search-entry"
+                >
                   <template #prepend>
-                    <v-icon class="drag-handle" size="small" @click.prevent.stop>
+                    <v-icon
+                      class="drag-handle entry-chrome"
+                      size="small"
+                      @click.prevent.stop
+                    >
                       mdi-drag-vertical
                     </v-icon>
                   </template>
@@ -141,6 +150,7 @@
                           icon
                           size="x-small"
                           variant="text"
+                          class="entry-chrome"
                           aria-label="Saved search actions"
                           v-bind="menuProps"
                           @click.prevent.stop
@@ -394,5 +404,18 @@ const save = () => {
 }
 .saved-search-group-body {
   padding-left: 8px;
+}
+.entry-chrome {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.saved-search-entry:hover .entry-chrome,
+.saved-search-entry:focus-within .entry-chrome {
+  opacity: 1;
+}
+@media (hover: none) {
+  .entry-chrome {
+    opacity: 1;
+  }
 }
 </style>

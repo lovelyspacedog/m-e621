@@ -99,11 +99,36 @@
             @update:model-value="onUnifiedFeedSource"
           >
             <v-btn class="flex-grow-1" value="search" size="small">Search</v-btn>
-            <v-btn class="flex-grow-1" value="following" size="small">Following</v-btn>
+            <v-btn
+              class="flex-grow-1"
+              value="following"
+              size="small"
+              title="Tag search is ignored. Needs login on each site."
+            >
+              Following
+            </v-btn>
           </v-btn-toggle>
         </v-list-item>
-        <v-list-item v-if="siteMode.unifiedFeedSource === 'search'">
-          <div class="d-flex flex-wrap ga-1">
+        <v-list-item
+          class="sidebar-section-header"
+          @click="toggleUnifiedSitesOpen"
+        >
+          <template #prepend>
+            <v-icon size="small">
+              {{ unifiedSitesOpen ? "mdi-chevron-down" : "mdi-chevron-right" }}
+            </v-icon>
+          </template>
+          <v-list-item-title class="text-overline">
+            {{ siteMode.unifiedFeedSource === "following" ? "Sites in Following" : "Sites in this search" }}
+          </v-list-item-title>
+          <template #append>
+            <span class="text-caption text-medium-emphasis mr-1">
+              {{ unifiedSitesSummary }}
+            </span>
+          </template>
+        </v-list-item>
+        <v-list-item v-if="siteMode.unifiedFeedSource === 'search'" class="pt-0">
+          <div class="d-flex flex-wrap ga-1" @click.stop>
             <v-btn size="x-small" variant="text" color="accent" @click="siteMode.applyUnifiedSitesPreset('default')">
               Defaults
             </v-btn>
@@ -112,108 +137,149 @@
             </v-btn>
           </div>
         </v-list-item>
-        <v-list-subheader class="text-overline">
-          {{ siteMode.unifiedFeedSource === "following" ? "Sites in Following" : "Sites in this search" }}
-        </v-list-subheader>
-        <v-list-item
-          v-for="child in unifiedSidebarChildren"
-          :key="child"
-        >
-          <template #prepend>
-            <v-icon>{{ unifiedChildIcon(child) }}</v-icon>
-          </template>
-          <v-list-item-title>{{ unifiedChildLabel(child) }}</v-list-item-title>
-          <template #append>
-            <v-switch
-              class="ma-0"
-              color="accent"
-              density="compact"
-              hide-details
-              :model-value="siteMode.unifiedSites[child]"
-              @update:model-value="siteMode.setUnifiedChild(child, !!$event)"
-            />
-          </template>
-        </v-list-item>
-        <v-list-item
-          v-if="siteMode.unifiedFeedSource === 'following'"
-          class="text-caption text-medium-emphasis"
-        >
-          Tag search is ignored. Needs login on each site.
-        </v-list-item>
+        <template v-if="unifiedSitesOpen">
+          <v-list-item
+            v-for="child in unifiedSidebarChildren"
+            :key="child"
+          >
+            <template #prepend>
+              <v-icon>{{ unifiedChildIcon(child) }}</v-icon>
+            </template>
+            <v-list-item-title>{{ unifiedChildLabel(child) }}</v-list-item-title>
+            <template #append>
+              <v-switch
+                class="ma-0"
+                color="accent"
+                density="compact"
+                hide-details
+                :model-value="siteMode.unifiedSites[child]"
+                @update:model-value="siteMode.setUnifiedChild(child, !!$event)"
+              />
+            </template>
+          </v-list-item>
+        </template>
       </v-list>
       <v-list class="pa-0 mt-1 mb-2" density="compact">
-        <v-list-item>
-          <template #prepend>
-            <v-icon>mdi-arrow-expand-horizontal</v-icon>
+        <v-menu location="bottom end" :close-on-content-click="false">
+          <template #activator="{ props: menuProps }">
+            <v-list-item v-bind="menuProps" title="Layout">
+              <template #prepend>
+                <v-icon>mdi-view-dashboard-outline</v-icon>
+              </template>
+              <template #append>
+                <v-tooltip
+                  :text="layoutShortcutHint"
+                  location="top"
+                >
+                  <template #activator="{ props: tipProps }">
+                    <v-icon
+                      v-bind="tipProps"
+                      size="small"
+                      class="text-medium-emphasis"
+                      @click.prevent.stop
+                    >
+                      mdi-keyboard-outline
+                    </v-icon>
+                  </template>
+                </v-tooltip>
+                <v-icon size="small" class="ml-1">mdi-menu-down</v-icon>
+              </template>
+            </v-list-item>
           </template>
-          <v-list-item-title>Full-width feed</v-list-item-title>
-          <template #append>
-            <v-switch
-              class="ma-0"
-              color="accent"
-              density="compact"
-              hide-details
-              :disabled="postsStore.feedLayout === 'grid'"
-              v-model="postsStore.fullWidthFeed"
-            />
-          </template>
-        </v-list-item>
-        <v-list-item>
-          <template #prepend>
-            <v-icon>mdi-view-grid</v-icon>
-          </template>
-          <v-list-item-title>Grid layout</v-list-item-title>
-          <template #append>
-            <v-switch
-              class="ma-0"
-              color="accent"
-              density="compact"
-              hide-details
-              :model-value="postsStore.feedLayout === 'grid'"
-              @update:model-value="postsStore.feedLayout = $event ? 'grid' : 'list'"
-            />
-          </template>
-        </v-list-item>
-        <v-list-item>
-          <template #prepend>
-            <v-icon>mdi-card-text-outline</v-icon>
-          </template>
-          <v-list-item-title>Compact cards</v-list-item-title>
-          <template #append>
-            <v-switch
-              class="ma-0"
-              color="accent"
-              density="compact"
-              hide-details
-              v-model="postsStore.compactCards"
-            />
-          </template>
-        </v-list-item>
-        <v-list-item>
-          <template #prepend>
-            <v-icon>mdi-skip-next</v-icon>
-          </template>
-          <v-list-item-title>Auto-next cards</v-list-item-title>
-          <template #append>
-            <v-switch
-              class="ma-0"
-              color="accent"
-              density="compact"
-              hide-details
-              v-model="postsStore.cardAutoNext"
-            />
-          </template>
-        </v-list-item>
-        <v-list-item v-if="postsStore.cardAutoNext" class="text-medium-emphasis">
-          <v-list-item-subtitle>Space pauses (feed) · slideshow (fullscreen) · j/k next/prev</v-list-item-subtitle>
-        </v-list-item>
-        <v-list-item v-else class="text-medium-emphasis">
-          <v-list-item-subtitle>j/k next/prev · Space slideshow in fullscreen</v-list-item-subtitle>
-        </v-list-item>
+          <v-list density="compact" min-width="260">
+            <v-list-item>
+              <template #prepend>
+                <v-icon>mdi-arrow-expand-horizontal</v-icon>
+              </template>
+              <v-list-item-title>Full-width feed</v-list-item-title>
+              <template #append>
+                <v-switch
+                  class="ma-0"
+                  color="accent"
+                  density="compact"
+                  hide-details
+                  :disabled="postsStore.feedLayout === 'grid'"
+                  v-model="postsStore.fullWidthFeed"
+                />
+              </template>
+            </v-list-item>
+            <v-list-item>
+              <template #prepend>
+                <v-icon>mdi-view-grid</v-icon>
+              </template>
+              <v-list-item-title>Grid layout</v-list-item-title>
+              <template #append>
+                <v-switch
+                  class="ma-0"
+                  color="accent"
+                  density="compact"
+                  hide-details
+                  :model-value="postsStore.feedLayout === 'grid'"
+                  @update:model-value="postsStore.feedLayout = $event ? 'grid' : 'list'"
+                />
+              </template>
+            </v-list-item>
+            <v-list-item>
+              <template #prepend>
+                <v-icon>mdi-card-text-outline</v-icon>
+              </template>
+              <v-list-item-title>Compact cards</v-list-item-title>
+              <template #append>
+                <v-switch
+                  class="ma-0"
+                  color="accent"
+                  density="compact"
+                  hide-details
+                  v-model="postsStore.compactCards"
+                />
+              </template>
+            </v-list-item>
+            <v-list-item>
+              <template #prepend>
+                <v-icon>mdi-skip-next</v-icon>
+              </template>
+              <v-list-item-title>Auto-next cards</v-list-item-title>
+              <template #append>
+                <v-switch
+                  class="ma-0"
+                  color="accent"
+                  density="compact"
+                  hide-details
+                  v-model="postsStore.cardAutoNext"
+                />
+              </template>
+            </v-list-item>
+          </v-list>
+        </v-menu>
       </v-list>
-      <div class="text-overline" v-if="hiddenPostCount > 0">Blacklisted posts hidden: {{ hiddenPostCount }}</div>
-      <div class="text-overline" v-if="suggestedTags.length > 0">Tags on this page</div>
-      <suggestions :tags="suggestedTags" />
+      <v-chip
+        v-if="hiddenPostCount > 0"
+        class="ma-2"
+        size="small"
+        variant="tonal"
+        color="warning"
+      >
+        {{ hiddenPostCount }} blacklisted hidden
+      </v-chip>
+      <template v-if="suggestedTags.length > 0">
+        <v-list class="pa-0" density="compact">
+          <v-list-item
+            class="sidebar-section-header"
+            @click="toggleTagsOpen"
+          >
+            <template #prepend>
+              <v-icon size="small">
+                {{ tagsOpen ? "mdi-chevron-down" : "mdi-chevron-right" }}
+              </v-icon>
+            </template>
+            <v-list-item-title class="text-overline">Tags on this page</v-list-item-title>
+            <template #append>
+              <span class="text-caption text-medium-emphasis">{{ suggestedTags.length }}</span>
+            </template>
+          </v-list-item>
+        </v-list>
+        <suggestions v-if="tagsOpen" :tags="suggestedTags" />
+      </template>
     </portal>
   </div>
 </template>
@@ -257,6 +323,10 @@ import LocalFolderPicker from "../Settings/LocalFolderPicker.vue";
 import { getAnalyzeService, getApiService } from "../worker/services";
 import { savePostsLocally, saveSearchLocally } from "../misc/util/saveLocal";
 import Suggestions from "./Suggestions.vue";
+import {
+  readSidebarSectionOpen,
+  writeSidebarSectionOpen,
+} from "@/misc/util/sidebarSections";
 import { useDisplay } from "vuetify";
 
 const { mdAndDown, mdAndUp } = useDisplay();
@@ -274,6 +344,26 @@ const unifiedSidebarChildren = computed(() =>
   siteMode.unifiedFeedSource === "following"
     ? UNIFIED_CHILD_MODES.filter((mode) => modeSupportsFollowing(mode))
     : UNIFIED_CHILD_MODES,
+);
+const unifiedSitesOpen = ref(readSidebarSectionOpen("unified-sites", false));
+const tagsOpen = ref(readSidebarSectionOpen("tags-on-page", true));
+const toggleUnifiedSitesOpen = () => {
+  unifiedSitesOpen.value = !unifiedSitesOpen.value;
+  writeSidebarSectionOpen("unified-sites", unifiedSitesOpen.value);
+};
+const toggleTagsOpen = () => {
+  tagsOpen.value = !tagsOpen.value;
+  writeSidebarSectionOpen("tags-on-page", tagsOpen.value);
+};
+const unifiedSitesSummary = computed(() => {
+  const children = unifiedSidebarChildren.value;
+  const enabled = children.filter((child) => siteMode.unifiedSites[child]).length;
+  return `${enabled}/${children.length} sites`;
+});
+const layoutShortcutHint = computed(() =>
+  postsStore.cardAutoNext
+    ? "Space pauses (feed) · slideshow (fullscreen) · j/k next/prev"
+    : "j/k next/prev · Space slideshow in fullscreen",
 );
 const onUnifiedFeedSource = (value: unknown) => {
   if (value === "search" || value === "following") {
@@ -862,5 +952,9 @@ watch(
 .posts-toolbar-search {
   flex: 1 1 auto;
   min-width: 0;
+}
+.sidebar-section-header {
+  cursor: pointer;
+  user-select: none;
 }
 </style>

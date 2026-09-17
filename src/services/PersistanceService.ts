@@ -503,6 +503,13 @@ class PersistanceService {
       }
       newState.configVersion = 35;
     }
+    if (newState.configVersion < 36) {
+      // Sidebar declutter: shorter default tag suggestion list.
+      if (newState.posts.sidebarSuggestionLimit === 40) {
+        newState.posts.sidebarSuggestionLimit = 12;
+      }
+      newState.configVersion = 36;
+    }
 
     if (!newState.watchedPools || !Array.isArray(newState.watchedPools.entries)) {
       newState.watchedPools = { entries: [] };

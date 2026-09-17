@@ -211,7 +211,8 @@ export interface ISettingsServiceState {
     | 32
     | 33
     | 34
-    | 35;
+    | 35
+    | 36;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];
