@@ -4,11 +4,37 @@
       <v-btn
         variant="text"
         prepend-icon="mdi-arrow-left"
-        :to="{ name: 'FlayrahFeed' }"
+        :to="feedRoute"
       >
         Back to feed
       </v-btn>
+      <v-btn
+        variant="text"
+        icon
+        :disabled="!prevId"
+        aria-label="Previous article"
+        @click="prevId && router.push(articleRoute(prevId))"
+      >
+        <v-icon>mdi-chevron-up</v-icon>
+      </v-btn>
+      <v-btn
+        variant="text"
+        icon
+        :disabled="!nextId"
+        aria-label="Next article"
+        @click="nextId && router.push(articleRoute(nextId))"
+      >
+        <v-icon>mdi-chevron-down</v-icon>
+      </v-btn>
       <v-spacer />
+      <v-btn
+        v-if="article"
+        variant="text"
+        prepend-icon="mdi-link-variant"
+        @click="copyInAppLink"
+      >
+        Copy link
+      </v-btn>
       <v-btn
         v-if="article"
         :href="article.link"
@@ -30,10 +56,16 @@
     </div>
 
     <article v-else-if="article" class="flayrah-article pa-4">
-      <p class="text-overline text-medium-emphasis mb-1">Flayrah</p>
+      <p class="text-overline text-medium-emphasis mb-1">
+        Flayrah
+        <template v-if="article.fromArchive"> · Archive</template>
+      </p>
       <h1 class="text-h4 mb-2">{{ article.title }}</h1>
       <p class="text-body-2 text-medium-emphasis mb-3">
-        By {{ article.author }}
+        By
+        <router-link class="flayrah-inline-link" :to="authorFilterRoute">
+          {{ article.author }}
+        </router-link>
         <template v-if="dateLabel"> · {{ dateLabel }}</template>
         ·
         <a :href="article.link" target="_blank" rel="noopener">Original on Flayrah</a>
@@ -44,7 +76,7 @@
           :key="tag"
           size="small"
           variant="tonal"
-          :to="{ name: 'FlayrahFeed', query: { tags: tag } }"
+          :to="tagFilterRoute(tag)"
         >
           {{ tag }}
         </v-chip>
@@ -66,9 +98,14 @@ import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   fetchFlayrahArticles,
-  findFlayrahArticle,
+  resolveFlayrahArticle,
   type FlayrahArticle,
 } from "@/worker/flayrah/api";
+import { normalizeFlayrahFeedId } from "@/worker/flayrah/feeds";
+import {
+  articleMatchesQuery,
+  parseFlayrahQueryTerms,
+} from "@/worker/flayrah/parseRss";
 import { sanitizeFlayrahHtml } from "@/misc/util/flayrahHtml";
 import { useSnackbarStore } from "@/services/SnackbarStore";
 
@@ -77,6 +114,7 @@ const router = useRouter();
 const snackbar = useSnackbarStore();
 
 const article = ref<FlayrahArticle | null>(null);
+const siblings = ref<FlayrahArticle[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -84,6 +122,68 @@ const articleId = computed(() => {
   const raw = route.params.id;
   const n = parseInt(String(Array.isArray(raw) ? raw[0] : raw), 10);
   return Number.isFinite(n) ? n : 0;
+});
+
+const feedId = computed(() => normalizeFlayrahFeedId(route.query.feed));
+const tagsQuery = computed(() => {
+  const raw = route.query.tags;
+  return typeof raw === "string" ? raw : "";
+});
+
+const feedQuery = computed(() => {
+  const q: Record<string, string> = {};
+  if (feedId.value !== "full") q.feed = feedId.value;
+  if (tagsQuery.value.trim()) q.tags = tagsQuery.value.trim();
+  return q;
+});
+
+const feedRoute = computed(() => ({
+  name: "FlayrahFeed" as const,
+  query: feedQuery.value,
+}));
+
+const authorFilterRoute = computed(() => ({
+  name: "FlayrahFeed" as const,
+  query: {
+    ...feedQuery.value,
+    tags: article.value?.author || "",
+  },
+}));
+
+function tagFilterRoute(tag: string) {
+  return {
+    name: "FlayrahFeed" as const,
+    query: { ...feedQuery.value, tags: tag },
+  };
+}
+
+function articleRoute(id: number) {
+  return {
+    name: "FlayrahArticle" as const,
+    params: { id: String(id) },
+    query: feedQuery.value,
+  };
+}
+
+const filteredSiblings = computed(() => {
+  const terms = parseFlayrahQueryTerms(tagsQuery.value);
+  return siblings.value.filter((a) => articleMatchesQuery(a, terms));
+});
+
+const siblingIndex = computed(() =>
+  filteredSiblings.value.findIndex((a) => a.id === articleId.value),
+);
+
+const prevId = computed(() => {
+  const i = siblingIndex.value;
+  if (i <= 0) return null;
+  return filteredSiblings.value[i - 1]?.id ?? null;
+});
+
+const nextId = computed(() => {
+  const i = siblingIndex.value;
+  if (i < 0 || i >= filteredSiblings.value.length - 1) return null;
+  return filteredSiblings.value[i + 1]?.id ?? null;
 });
 
 const bodyHtml = computed(() =>
@@ -105,22 +205,37 @@ const dateLabel = computed(() => {
   }
 });
 
+async function copyInAppLink() {
+  if (!article.value) return;
+  const origin = `${location.origin}${location.pathname}${location.search}`;
+  const link = `${origin}#/flayrah/${article.value.id}`;
+  try {
+    await navigator.clipboard.writeText(link);
+    snackbar.addMessage("Copied in-app link");
+  } catch {
+    snackbar.addMessage("Could not copy link");
+  }
+}
+
 async function load() {
   const id = articleId.value;
   if (!id) {
     snackbar.addMessage("Unknown Flayrah article");
-    await router.replace({ name: "FlayrahFeed" });
+    await router.replace(feedRoute.value);
     return;
   }
   loading.value = true;
   error.value = null;
   article.value = null;
   try {
-    const list = await fetchFlayrahArticles();
-    const hit = findFlayrahArticle(list, id);
+    const [hit, list] = await Promise.all([
+      resolveFlayrahArticle(id, { feed: feedId.value }),
+      fetchFlayrahArticles({ feed: feedId.value }).catch(() => [] as FlayrahArticle[]),
+    ]);
+    siblings.value = list;
     if (!hit) {
-      snackbar.addMessage("Article not in the current Flayrah RSS feed");
-      await router.replace({ name: "FlayrahFeed" });
+      snackbar.addMessage("Could not load Flayrah article");
+      await router.replace(feedRoute.value);
       return;
     }
     article.value = hit;
@@ -131,9 +246,13 @@ async function load() {
   }
 }
 
-watch(articleId, () => {
-  void load();
-}, { immediate: true });
+watch(
+  () => [articleId.value, feedId.value] as const,
+  () => {
+    void load();
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>
@@ -156,5 +275,10 @@ watch(articleId, () => {
 }
 .flayrah-body :deep(a) {
   color: rgb(var(--v-theme-primary));
+}
+.flayrah-inline-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 </style>

@@ -14,7 +14,7 @@ Each mode has its own profile for authentication, blacklist, starred tags, saved
 - **Weasyl** — API-key authentication, multimedia audio, `favs:me`, and post suggester. Guest browsing is SFW-only; favorite toggling is unavailable. On by default in Federated.
 - **Itaku** — galleries, flattened multi-image posts, comments, stars, following, and post suggester with token authentication. On by default in Federated.
 - **SoFurry** — artwork, music, stories, likes (Remix session), following, and post suggester (any user). Stories have a fullscreen text reader.
-- **Flayrah** — furry news magazine via the public RSS full feed (read-only headlines + in-app article reader). Not a Federated child; no login, comments, or ratings. Work-safe news with attribution and a link back to flayrah.com.
+- **Flayrah** — furry news magazine via public RSS (full feed plus curated taxonomy feeds), in-app article reader, archive fallback for deep links, and attributed links back to flayrah.com. Not a Federated child; no login, comments, or ratings. Work-safe news only.
 - **Tailspace** — posts, saved searches, following, account actions, and a dedicated comic reader. Post Suggester and Favorite Analyzer are not available here.
 - **Local** — a searchable media library backed by a folder on disk, including post suggester over local favorites.
 - **Federated** — a date-merged feed from supported remote children. Switch **Search** vs **Following** (Inkbunny / FurAffinity / Itaku / SoFurry), apply **Defaults** or **Auth only** site presets, and use origin-aware actions with per-site query translation. Failed children and incompatible metatags surface as snackbars. Post Suggester and Favorite Analyzer merge per-child favorites.

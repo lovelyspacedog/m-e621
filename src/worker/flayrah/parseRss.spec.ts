@@ -13,7 +13,8 @@ const FIXTURE = `<?xml version="1.0" encoding="utf-8"?>
     <item>
       <title>NYC furries baited</title>
       <link>https://www.flayrah.com/9638/nyc-furries-baited-go-247-livestream</link>
-      <description><![CDATA[<p><img src="https://www.flayrah.com/sites/default/files/u/x.png" alt="x" />First para.</p><!--break--><p>More body.</p>]]></description>
+      <description><![CDATA[<p><img src="https://www.flayrah.com/sites/default/files/u/x.png" alt="x" />First para.</p><!--break--><p>More body about livestream bait.</p>]]></description>
+      <enclosure url="https://www.flayrah.com/sites/default/files/u/hero.jpg" length="100" type="image/jpeg" />
       <category>furmeets</category>
       <category>New York</category>
       <pubDate>Thu, 17 Sep 2026 01:47:22 +0000</pubDate>
@@ -41,7 +42,7 @@ describe("parseFlayrahRss", () => {
     expect(articles[0].tags).toEqual(["furmeets", "New York"]);
     expect(articles[0].excerpt).toContain("First para");
     expect(articles[0].excerpt).not.toContain("More body");
-    expect(articles[0].thumbUrl).toContain("sites/default/files");
+    expect(articles[0].thumbUrl).toContain("hero.jpg");
     expect(articles[1].id).toBe(9637);
     expect(articles[1].author).toBe("earthfurst");
   });
@@ -62,10 +63,11 @@ describe("firstImageUrl", () => {
 });
 
 describe("articleMatchesQuery", () => {
-  it("matches title author tags", () => {
+  it("matches title author tags and body", () => {
     const articles = parseFlayrahRss(FIXTURE);
     expect(articleMatchesQuery(articles[0], ["nyc"])).toBe(true);
     expect(articleMatchesQuery(articles[0], ["maryland"])).toBe(false);
     expect(articleMatchesQuery(articles[0], ["eberrawolf"])).toBe(true);
+    expect(articleMatchesQuery(articles[0], ["livestream"])).toBe(true);
   });
 });

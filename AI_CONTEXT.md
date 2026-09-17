@@ -10,6 +10,7 @@ Supported **site modes** (`SiteMode` in `src/services/types.ts`): `e621`, `e6ai`
 
 - **Unified** date-merges remote gallery children. **Tailspace, Flayrah, and Local are not Unified children.**
 - Flayrah uses dedicated news routes (`/#/flayrah`) backed by RSS — never `getPosts` / e621 fall-through (same dedicated-chrome pattern as Tailspace).
+- Flayrah proxy: `GET /api/flayrah/rss?feed=` (allowlisted taxonomy feeds) and `GET /api/flayrah/article/:id` (HTML archive fallback).
 - Each mode has an independent **site profile** (auth, blacklist, starred tags, saved searches, history).
 - License: **AGPL-3.0**. Network use of a modified version must offer corresponding source.
 - Not affiliated with the sites or upstream. Follow each site’s rules and API terms.
@@ -213,7 +214,7 @@ PWA: `registerType: 'prompt'`, update poll every 10 minutes, Workbox max cache *
 - **FA search** scrapes HTML and **deliberately delays** between requests (`fa_proxy.py`).
 - **Weasyl guests are SFW-only.** Inkbunny and Weasyl have **no public fav-toggle API** — keep the favorite button hidden (`modeSupportsFavoriteToggle`).
 - **SoFurry / Flayrah / other non-e621 modes must not fall through to e621 comments, notes, pools, or dashboard.** Post Suggester and Favorite Analyzer are allowed outside Tailspace and Flayrah via `modeSupportsSuggester` / `modeSupportsFavoriteAnalyzer` (`isDedicatedChromeMode`), using mode-native favorite queries — never the e621 client.
-- **Flayrah** is read-only RSS news chrome (`/#/flayrah`); proxy is `GET /api/flayrah/rss` only.
+- **Flayrah** is read-only RSS news chrome (`/#/flayrah`); proxy is `GET /api/flayrah/rss?feed=` plus `GET /api/flayrah/article/:id` for archive HTML.
 - **Unified merge** keeps sticky per-child leftovers (`unifiedMerge.ts`). Sequential pages reuse discarded posts; tag/children changes must reset state. Page jumps use legacy merge then reseed.
 - **Unified tag translation** (`unifiedTags.ts`) strips/remaps metatags per child (`order:`, `favs:me` → `my:faves` / `stars:me`, etc.) and may snackbar ignored tokens.
 - **e621 hide-mode blacklist** is folded into the **40-tag API cap** on page 1 only (`createTagQuery.ts` / `PostsPage.vue`). Other modes do not use that path.

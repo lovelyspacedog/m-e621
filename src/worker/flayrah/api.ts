@@ -1,7 +1,9 @@
 /**
- * Flayrah RSS client.
- * Fetches via local proxy (/api/flayrah/rss) — no CORS on flayrah.com.
+ * Flayrah RSS + archive article client.
+ * Fetches via local proxy (/api/flayrah/…) — no CORS on flayrah.com.
  */
+import { normalizeFlayrahFeedId } from "./feeds";
+import { parseFlayrahArticleHtml } from "./parseArticleHtml";
 import {
   parseFlayrahRss,
   type FlayrahArticle,
@@ -9,23 +11,35 @@ import {
 
 export type { FlayrahArticle };
 
-let cachedArticles: FlayrahArticle[] | null = null;
-let cachedAt = 0;
-const CACHE_MS = 5 * 60 * 1000;
+/** Align with Flayrah ~900s and proxy max-age=300. */
+const CACHE_MS = 10 * 60 * 1000;
+
+const cacheByFeed = new Map<string, { articles: FlayrahArticle[]; at: number }>();
+const articleCache = new Map<number, FlayrahArticle>();
 
 function proxyBase(): string {
   const origin = typeof location !== "undefined" ? location.origin : "";
   return `${origin}/api/flayrah`;
 }
 
+export function getFlayrahCacheAgeMs(feedId = "full"): number | null {
+  const hit = cacheByFeed.get(normalizeFlayrahFeedId(feedId));
+  if (!hit) return null;
+  return Date.now() - hit.at;
+}
+
 export async function fetchFlayrahArticles(opts?: {
   force?: boolean;
+  feed?: string;
 }): Promise<FlayrahArticle[]> {
+  const feed = normalizeFlayrahFeedId(opts?.feed);
   const now = Date.now();
-  if (!opts?.force && cachedArticles && now - cachedAt < CACHE_MS) {
-    return cachedArticles;
+  const cached = cacheByFeed.get(feed);
+  if (!opts?.force && cached && now - cached.at < CACHE_MS) {
+    return cached.articles;
   }
-  const response = await fetch(`${proxyBase()}/rss`, {
+  const qs = feed === "full" ? "" : `?feed=${encodeURIComponent(feed)}`;
+  const response = await fetch(`${proxyBase()}/rss${qs}`, {
     headers: { Accept: "application/rss+xml, application/xml, text/xml, */*" },
   });
   if (!response.ok) {
@@ -33,14 +47,59 @@ export async function fetchFlayrahArticles(opts?: {
   }
   const xml = await response.text();
   const articles = parseFlayrahRss(xml);
-  cachedArticles = articles;
-  cachedAt = now;
+  cacheByFeed.set(feed, { articles, at: now });
+  for (const a of articles) articleCache.set(a.id, a);
   return articles;
 }
 
+/** Resolve an article from RSS caches, then HTML archive fallback. */
+export async function resolveFlayrahArticle(
+  id: number,
+  opts?: { feed?: string; force?: boolean },
+): Promise<FlayrahArticle | null> {
+  if (!id) return null;
+  if (!opts?.force) {
+    const mem = articleCache.get(id);
+    if (mem) return mem;
+  }
+  const feed = normalizeFlayrahFeedId(opts?.feed);
+  try {
+    const list = await fetchFlayrahArticles({ force: opts?.force, feed });
+    const hit = findFlayrahArticle(list, id);
+    if (hit) return hit;
+  } catch {
+    // Fall through to archive even if RSS fails.
+  }
+  // Scan other feed caches before hitting the network.
+  for (const { articles } of cacheByFeed.values()) {
+    const hit = findFlayrahArticle(articles, id);
+    if (hit) {
+      articleCache.set(id, hit);
+      return hit;
+    }
+  }
+  return fetchFlayrahArticleArchive(id);
+}
+
+export async function fetchFlayrahArticleArchive(
+  id: number,
+): Promise<FlayrahArticle | null> {
+  if (!id) return null;
+  const response = await fetch(`${proxyBase()}/article/${id}`, {
+    headers: { Accept: "text/html,application/xhtml+xml,*/*" },
+  });
+  if (!response.ok) {
+    throw new Error(`Flayrah article failed (${response.status})`);
+  }
+  const html = await response.text();
+  const article = parseFlayrahArticleHtml(html, id);
+  if (article) articleCache.set(id, article);
+  return article;
+}
+
 export function clearFlayrahCache() {
-  cachedArticles = null;
-  cachedAt = 0;
+  cacheByFeed.clear();
+  articleCache.clear();
 }
 
 export function findFlayrahArticle(

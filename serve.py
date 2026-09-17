@@ -358,6 +358,20 @@ SOFURRY_AUTH_POSTS = {
 FLAYRAH_RSS_URL = "https://www.flayrah.com/rss-full.xml"
 FLAYRAH_MEDIA_HOSTS = frozenset({"flayrah.com", "www.flayrah.com"})
 FLAYRAH_RSS_PATH = "/api/flayrah/rss"
+FLAYRAH_ARTICLE_PATH = re.compile(r"^/api/flayrah/article/(\d+)$")
+# Curated taxonomy feeds (must match src/worker/flayrah/feeds.ts).
+FLAYRAH_FEEDS = {
+    "full": FLAYRAH_RSS_URL,
+    "reviews": "https://www.flayrah.com/taxonomy/term/37/0/feed",
+    "opinion": "https://www.flayrah.com/taxonomy/term/36/0/feed",
+    "media": "https://www.flayrah.com/taxonomy/term/41/0/feed",
+    "conventions": "https://www.flayrah.com/taxonomy/term/30/0/feed",
+    "games": "https://www.flayrah.com/taxonomy/term/60/0/feed",
+    "science-fiction": "https://www.flayrah.com/taxonomy/term/32/0/feed",
+    "art": "https://www.flayrah.com/taxonomy/term/49/0/feed",
+    "wikifur-news": "https://www.flayrah.com/taxonomy/term/51/0/feed",
+}
+
 
 FLUFFLE_API = "https://api.fluffle.xyz/exact-search-by-file"
 FLUFFLE_UA = "PawFeed/1.0 (by lovelyspacedog on GitHub)"
@@ -2858,7 +2872,13 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self._json(200, {"ok": True, "cookies": cookie, "username": username})
 
     def _proxy_flayrah_rss(self) -> None:
-        req = urllib.request.Request(FLAYRAH_RSS_URL, method="GET")
+        parsed = urlparse(self.path)
+        feed = ((parse_qs(parsed.query).get("feed") or ["full"])[0] or "full").strip().lower()
+        target = FLAYRAH_FEEDS.get(feed)
+        if not target:
+            self._json(400, {"ok": False, "message": f"unknown flayrah feed: {feed}"})
+            return
+        req = urllib.request.Request(target, method="GET")
         req.add_header(
             "User-Agent",
             f"m-e621-flayrah-proxy/1.0 (https://{DOMAIN})",
@@ -2883,7 +2903,47 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "private, max-age=120")
+        self.send_header("Cache-Control", "private, max-age=300")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
+
+    def _proxy_flayrah_article(self, node_id: str) -> None:
+        if not node_id.isdigit() or int(node_id) <= 0:
+            self._json(400, {"ok": False, "message": "invalid article id"})
+            return
+        target = f"https://www.flayrah.com/node/{node_id}"
+        req = urllib.request.Request(target, method="GET")
+        req.add_header(
+            "User-Agent",
+            (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                f"(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 "
+                f"m-e621-flayrah-proxy/1.0 (https://{DOMAIN})"
+            ),
+        )
+        req.add_header("Accept", "text/html,application/xhtml+xml,*/*")
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                body = resp.read()
+                status = getattr(resp, "status", 200)
+                content_type = resp.headers.get("Content-Type", "text/html; charset=utf-8")
+        except urllib.error.HTTPError as exc:
+            body = exc.read() if exc.fp else b""
+            status = exc.code
+            content_type = (
+                exc.headers.get("Content-Type", "text/html")
+                if exc.headers
+                else "text/html"
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "message": f"flayrah article failed: {exc}"})
+            return
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "private, max-age=600")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         if body:
@@ -3233,6 +3293,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return
         if path == FLAYRAH_RSS_PATH:
             self._proxy_flayrah_rss()
+            return
+        article_match = FLAYRAH_ARTICLE_PATH.match(path)
+        if article_match:
+            self._proxy_flayrah_article(article_match.group(1))
             return
         if path == "/api/git":
             if not _git_pull_enabled():

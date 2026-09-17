@@ -14,6 +14,8 @@ export interface FlayrahArticle {
   descriptionHtml: string;
   excerpt: string;
   thumbUrl: string | null;
+  /** True when loaded via HTML archive fallback (not current RSS). */
+  fromArchive?: boolean;
 }
 
 function textContent(el: Element | null): string {
@@ -100,6 +102,30 @@ export function firstImageUrl(html: string): string | null {
   return src;
 }
 
+/** Prefer RSS enclosure image over the first inline <img>. */
+export function enclosureImageUrl(item: Element): string | null {
+  const enclosures = item.getElementsByTagName("enclosure");
+  for (let i = 0; i < enclosures.length; i++) {
+    const el = enclosures[i];
+    const type = (el.getAttribute("type") || "").toLowerCase();
+    const url = (el.getAttribute("url") || "").trim();
+    if (!url) continue;
+    if (type && !type.startsWith("image/")) continue;
+    let src = url;
+    if (src.startsWith("//")) src = `https:${src}`;
+    if (src.startsWith("/")) src = `https://www.flayrah.com${src}`;
+    if (!/^https?:\/\//i.test(src)) continue;
+    if (!type && !/\.(jpe?g|png|gif|webp|avif)(\?|$)/i.test(src)) continue;
+    return src;
+  }
+  return null;
+}
+
+/** Plain text of description for search (scripts/styles stripped). */
+export function bodySearchText(html: string): string {
+  return stripTags(html).toLowerCase();
+}
+
 export function parseFlayrahRss(xml: string): FlayrahArticle[] {
   const doc = new DOMParser().parseFromString(xml, "application/xml");
   if (doc.querySelector("parsererror")) {
@@ -135,7 +161,7 @@ export function parseFlayrahRss(xml: string): FlayrahArticle[] {
       tags: categories(item),
       descriptionHtml,
       excerpt: excerptFromDescription(descriptionHtml),
-      thumbUrl: firstImageUrl(descriptionHtml),
+      thumbUrl: enclosureImageUrl(item) || firstImageUrl(descriptionHtml),
     });
   }
   return out;
@@ -147,6 +173,7 @@ export function articleMatchesQuery(article: FlayrahArticle, terms: string[]): b
     article.title,
     article.author,
     article.excerpt,
+    bodySearchText(article.descriptionHtml),
     ...article.tags,
   ]
     .join(" ")
