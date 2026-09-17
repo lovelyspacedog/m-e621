@@ -33,7 +33,64 @@
         fill="rgb(0, 84, 159)"
       />
 
-      <!-- Left floppy ear -->
+      <!-- Brand m on forehead (always) -->
+      <path
+        class="brand-m"
+        d="M 418 420 L 418 318
+           C 418 298 430 288 448 288
+           C 466 288 478 302 488 328
+           C 498 302 510 288 528 288
+           C 546 288 558 298 558 318
+           L 558 420 L 528 420 L 528 340
+           C 528 328 522 320 512 320
+           C 502 320 496 328 496 342
+           L 496 420 L 480 420 L 480 342
+           C 480 328 474 320 464 320
+           C 454 320 448 328 448 340
+           L 448 420 Z"
+        fill="rgb(255,255,255)"
+      />
+
+      <!-- Face under ears so the blink rect never paints over them -->
+      <g class="face" v-if="type === 'face'">
+        <path
+          d="M 320 468 L 420 492 L 412 518 L 312 494 Z"
+          fill="rgb(0,0,0)"
+        />
+        <path
+          d="M 680 468 L 580 492 L 588 518 L 688 494 Z"
+          fill="rgb(0,0,0)"
+        />
+        <ellipse class="eye" cx="375" cy="555" rx="38" ry="52" fill="rgb(0,0,0)" />
+        <ellipse class="eye" cx="625" cy="555" rx="38" ry="52" fill="rgb(0,0,0)" />
+        <rect
+          class="eyelids"
+          x="340"
+          y="380"
+          width="320"
+          height="130"
+          fill="rgb(0, 84, 159)"
+        />
+        <path
+          d="M 500 640
+             C 462 640 438 668 438 688
+             C 438 712 464 732 500 732
+             C 536 732 562 712 562 688
+             C 562 668 538 640 500 640 Z"
+          fill="rgb(0,0,0)"
+        />
+        <path
+          d="M 500 732 L 500 752
+             M 448 772 Q 478 798 500 778 Q 522 798 552 772"
+          fill="none"
+          stroke="rgb(0,0,0)"
+          stroke-width="12"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </g>
+
+      <!-- Ears painted after face/eyelids -->
       <g class="left-ear">
         <path
           d="M 270 400
@@ -55,7 +112,6 @@
         />
       </g>
 
-      <!-- Right floppy ear -->
       <g class="right-ear">
         <path
           d="M 730 400
@@ -74,63 +130,6 @@
              C 678 670 685 550 705 470
              C 712 445 720 432 725 430 Z"
           fill="rgb(255, 205, 241)"
-        />
-      </g>
-
-      <!-- Brand m on forehead (always) -->
-      <path
-        class="brand-m"
-        d="M 418 420 L 418 318
-           C 418 298 430 288 448 288
-           C 466 288 478 302 488 328
-           C 498 302 510 288 528 288
-           C 546 288 558 298 558 318
-           L 558 420 L 528 420 L 528 340
-           C 528 328 522 320 512 320
-           C 502 320 496 328 496 342
-           L 496 420 L 480 420 L 480 342
-           C 480 328 474 320 464 320
-           C 454 320 448 328 448 340
-           L 448 420 Z"
-        fill="rgb(255,255,255)"
-      />
-
-      <!-- Face: thick inward-angled brows + tall droopy ovals -->
-      <g class="face" v-if="type === 'face'">
-        <path
-          d="M 320 468 L 420 492 L 412 518 L 312 494 Z"
-          fill="rgb(0,0,0)"
-        />
-        <path
-          d="M 680 468 L 580 492 L 588 518 L 688 494 Z"
-          fill="rgb(0,0,0)"
-        />
-        <ellipse class="eye" cx="375" cy="555" rx="38" ry="52" fill="rgb(0,0,0)" />
-        <ellipse class="eye" cx="625" cy="555" rx="38" ry="52" fill="rgb(0,0,0)" />
-        <rect
-          class="eyelids"
-          x="300"
-          y="360"
-          width="400"
-          height="140"
-          fill="rgb(0, 84, 159)"
-        />
-        <path
-          d="M 500 640
-             C 462 640 438 668 438 688
-             C 438 712 464 732 500 732
-             C 536 732 562 712 562 688
-             C 562 668 538 640 500 640 Z"
-          fill="rgb(0,0,0)"
-        />
-        <path
-          d="M 500 732 L 500 752
-             M 448 772 Q 478 798 500 778 Q 522 798 552 772"
-          fill="none"
-          stroke="rgb(0,0,0)"
-          stroke-width="12"
-          stroke-linecap="round"
-          stroke-linejoin="round"
         />
       </g>
 

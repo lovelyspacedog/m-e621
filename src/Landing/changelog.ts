@@ -21,6 +21,7 @@ export const changelogSections: ChangelogSection[] = [
       "App logo and favicon refreshed to a basset-hound mark with forehead m, long ears, and the same ear/tail/blink animations",
       "Logo head uses darker e621 blue so it stays visible on the primary landing hero; droopy brows and eyes match the mark",
       "Logo head restored to a pointy-top hexagon (rounded forehead reverted)",
+      "Logo blink no longer paints over the ears (ears drawn above eyelids)",
       "Landing Furry Dictionary slang entry sits under What it does (random each visit; from the-furry-dictionary.avoonix.com)",
       "Landing Scent Marks / Browse posts no longer open a blank page (single-root landing + skip view transition when leaving Home)",
       "Scent Marks feed heading renamed from Wall to Scent Trail",
