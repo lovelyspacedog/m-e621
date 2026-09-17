@@ -67,3 +67,46 @@ export const saveComicFullWidthScroll = (storageKey: string, on: boolean) => {
     /* ignore */
   }
 };
+
+/** 1-based chunk that contains a 0-based index into `post_ids`. */
+export const chunkForIndex = (index: number, chunkSize: number): number => {
+  const size = Math.max(1, chunkSize);
+  return Math.floor(Math.max(0, index) / size) + 1;
+};
+
+export const parsePositiveIntQuery = (raw: unknown): number => {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const n = typeof value === "string" || typeof value === "number" ? Number(value) : NaN;
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+};
+
+export const poolResumeStorageKey = (originMode: string, poolId: number) =>
+  `pools-resume:${originMode}:${poolId}`;
+
+export const loadPoolResumePost = (
+  originMode: string,
+  poolId: number,
+): number => {
+  try {
+    const raw = localStorage.getItem(poolResumeStorageKey(originMode, poolId));
+    return parsePositiveIntQuery(raw);
+  } catch {
+    return 0;
+  }
+};
+
+export const savePoolResumePost = (
+  originMode: string,
+  poolId: number,
+  postId: number,
+) => {
+  if (!poolId || !postId) return;
+  try {
+    localStorage.setItem(
+      poolResumeStorageKey(originMode, poolId),
+      String(postId),
+    );
+  } catch {
+    /* ignore */
+  }
+};

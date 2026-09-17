@@ -25,9 +25,11 @@
         :chunk-count="chunkCount"
         :total-count="poolMeta.post_count || poolMeta.post_ids.length"
         :post-ids="poolMeta.post_ids"
-        @open-post="openFullscreenPost"
+        :focus-post-id="pendingScrollPostId"
+        @open-post="onOpenPostFromReader"
         @change-chunk="setChunk"
         @view-mode-change="onViewModeChange"
+        @focus-applied="onFocusApplied"
       />
       <fullscreen-dialog
         :has-previous-fullscreen-post="hasPreviousFullscreenPost"
@@ -58,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, toRaw, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRaw, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useHead } from "@unhead/vue";
 import PoolInfo from "@/Pool/PoolInfo.vue";
@@ -83,7 +85,11 @@ import {
 import type { Pool } from "@/worker/api";
 import type { EnhancedPost } from "@/worker/ApiService";
 import {
+  chunkForIndex,
   GALLERY_CHUNK_SIZE,
+  loadPoolResumePost,
+  parsePositiveIntQuery,
+  savePoolResumePost,
   SCROLL_CHUNK_SIZE,
 } from "@/misc/util/comicReader";
 
@@ -103,6 +109,10 @@ const chunkLoading = ref(false);
 const flufflePost = ref<EnhancedPost | null>(null);
 /** When true, chunk URL changed because the post list advanced — skip replace fetch. */
 const syncingChunkFromList = ref(false);
+/** Scroll mode: PoolReader scrolls this id into view once loaded. */
+const pendingScrollPostId = ref(0);
+/** Avoid re-applying the same deep-link focus after the user navigates away. */
+const appliedFocusKey = ref("");
 
 const displayPoolName = computed(() =>
   (poolMeta.value?.name || "").replace(/_/g, " "),
@@ -129,6 +139,24 @@ const chunk = computed(() => {
   const raw = Number(route.query.chunk) || 1;
   return Math.min(Math.max(1, raw), chunkCount.value);
 });
+
+const queryPostId = computed(() => parsePositiveIntQuery(route.query.post));
+
+const resumeOrigin = computed(() => String(siteMode.activeMode));
+
+const rememberPost = (postId: number) => {
+  if (!poolId.value || !postId) return;
+  savePoolResumePost(resumeOrigin.value, poolId.value, postId);
+};
+
+const syncPostQuery = async (postId: number) => {
+  if (!postId) {
+    if (route.query.post != null) await removeRouterQuery(["post"]);
+    return;
+  }
+  if (queryPostId.value === postId) return;
+  await updateRouterQuery({ post: String(postId) });
+};
 
 const fetchChunkPosts = async (pageNumber: number): Promise<EnhancedPost[]> => {
   const ids = poolMeta.value?.post_ids || [];
@@ -237,6 +265,16 @@ const onOpenFullscreen = (payload: any) => openFullscreenPost(payload);
 const onSetFavorite = (payload: any) => setPostFavorite(payload);
 const onSetVote = (payload: any) => setPostVote(payload);
 
+const onOpenPostFromReader = (postId: number) => {
+  rememberPost(postId);
+  void syncPostQuery(postId);
+  openFullscreenPost(postId);
+};
+
+const onFocusApplied = () => {
+  pendingScrollPostId.value = 0;
+};
+
 const sequenceLabel = computed(() => {
   const post = fullscreenPost.value;
   const meta = poolMeta.value;
@@ -270,31 +308,117 @@ const fetchChunk = async () => {
   }
 };
 
-const onViewModeChange = (mode: PoolViewMode) => {
+const resolveFocusPostId = (ids: number[]): { postId: number; fromQuery: boolean } => {
+  const fromQuery = queryPostId.value;
+  if (fromQuery && ids.includes(fromQuery)) return { postId: fromQuery, fromQuery: true };
+  // Resume only when the URL does not already pin a chunk or post.
+  if (route.query.post != null || route.query.chunk != null) {
+    return { postId: 0, fromQuery: false };
+  }
+  const resumed = loadPoolResumePost(resumeOrigin.value, poolId.value);
+  if (resumed && ids.includes(resumed)) return { postId: resumed, fromQuery: false };
+  return { postId: 0, fromQuery: false };
+};
+
+const applyFocus = async (
+  postId: number,
+  opts: { openFullscreen?: boolean; writeQuery?: boolean; scroll?: boolean },
+) => {
+  if (!postId || !poolMeta.value?.post_ids?.length) return;
+  const ids = poolMeta.value.post_ids;
+  const index = ids.indexOf(postId);
+  if (index < 0) return;
+
+  const key = `${poolId.value}:${postId}:${viewMode.value}:${opts.openFullscreen ? 1 : 0}`;
+  if (appliedFocusKey.value === key) return;
+
+  const targetChunk = chunkForIndex(index, chunkSize.value);
+  if (targetChunk !== chunk.value) {
+    syncingChunkFromList.value = true;
+    try {
+      if (targetChunk <= 1) await removeRouterQuery(["chunk"]);
+      else await updateRouterQuery({ chunk: String(targetChunk) });
+      await fetchChunk();
+    } finally {
+      await nextTick();
+      syncingChunkFromList.value = false;
+    }
+  } else if (!posts.value.some((p) => p.id === postId)) {
+    await fetchChunk();
+  }
+
+  rememberPost(postId);
+  if (opts.writeQuery) await syncPostQuery(postId);
+  appliedFocusKey.value = key;
+
+  if (opts.scroll || viewMode.value === "scroll") {
+    pendingScrollPostId.value = postId;
+  }
+  if (opts.openFullscreen) {
+    openFullscreenPost(postId);
+  }
+};
+
+const bootstrapPool = async (pool: Pool) => {
+  clearPosts();
+  if (!pool.post_ids?.length) return;
+
+  const { postId: focusId, fromQuery } = resolveFocusPostId(pool.post_ids);
+  if (focusId) {
+    const index = pool.post_ids.indexOf(focusId);
+    const targetChunk = chunkForIndex(index, chunkSize.value);
+    if (targetChunk !== chunk.value) {
+      syncingChunkFromList.value = true;
+      try {
+        if (targetChunk <= 1) await removeRouterQuery(["chunk"]);
+        else await updateRouterQuery({ chunk: String(targetChunk) });
+      } finally {
+        await nextTick();
+        syncingChunkFromList.value = false;
+      }
+    }
+    await fetchChunk();
+    await applyFocus(focusId, {
+      openFullscreen: fromQuery && viewMode.value === "gallery",
+      writeQuery: fromQuery,
+      scroll: viewMode.value === "scroll",
+    });
+    return;
+  }
+
+  await fetchChunk();
+};
+
+const onViewModeChange = async (mode: PoolViewMode) => {
   if (viewMode.value === mode) return;
   viewMode.value = mode;
-  // Keep absolute position roughly stable when chunk size changes.
-  const firstId = posts.value[0]?.id;
-  if (firstId && poolMeta.value?.post_ids) {
-    const index = poolMeta.value.post_ids.indexOf(firstId);
+  const anchorId =
+    fullscreenPost.value?.id ||
+    queryPostId.value ||
+    posts.value[0]?.id ||
+    0;
+  if (anchorId && poolMeta.value?.post_ids) {
+    const index = poolMeta.value.post_ids.indexOf(anchorId);
     if (index >= 0) {
-      const nextChunk = Math.floor(index / chunkSize.value) + 1;
+      const nextChunk = chunkForIndex(index, chunkSize.value);
       if (nextChunk !== chunk.value) {
         setChunk(nextChunk);
+        await nextTick();
+        await fetchChunk();
+        if (mode === "scroll") pendingScrollPostId.value = anchorId;
         return;
       }
     }
   }
-  void fetchChunk();
+  await fetchChunk();
+  if (mode === "scroll" && anchorId) pendingScrollPostId.value = anchorId;
 };
 
 const onPoolLoaded = (pool: Pool) => {
   poolError.value = null;
   poolMeta.value = pool;
-  clearPosts();
-  if (pool.post_ids?.length) {
-    void fetchChunk();
-  }
+  appliedFocusKey.value = "";
+  void bootstrapPool(pool);
 };
 
 const onPoolError = (message: string) => {
@@ -303,9 +427,38 @@ const onPoolError = (message: string) => {
   clearPosts();
 };
 
+const onWindowKey = (e: KeyboardEvent) => {
+  if (fullscreenPost.value || detailsPost.value || flufflePost.value) return;
+  if (!poolMeta.value?.post_ids?.length) return;
+  const target = e.target as HTMLElement | null;
+  if (
+    target &&
+    (target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.tagName === "SELECT" ||
+      target.isContentEditable)
+  ) {
+    return;
+  }
+  if (e.key === "ArrowLeft" || e.key === "[") {
+    if (chunk.value <= 1) return;
+    e.preventDefault();
+    setChunk(chunk.value - 1);
+  } else if (e.key === "ArrowRight" || e.key === "]") {
+    if (chunk.value >= chunkCount.value) return;
+    e.preventDefault();
+    setChunk(chunk.value + 1);
+  }
+};
+
+onMounted(() => window.addEventListener("keydown", onWindowKey));
+onBeforeUnmount(() => window.removeEventListener("keydown", onWindowKey));
+
 watch(poolId, () => {
   poolMeta.value = null;
   poolError.value = null;
+  pendingScrollPostId.value = 0;
+  appliedFocusKey.value = "";
   clearPosts();
 });
 
@@ -318,6 +471,23 @@ watch(chunk, (next, prev) => {
     return;
   }
   void fetchChunk();
+});
+
+watch(fullscreenPost, (post) => {
+  if (!post) return;
+  rememberPost(post.id);
+  void syncPostQuery(post.id);
+});
+
+watch(queryPostId, (postId, prev) => {
+  if (!poolMeta.value?.post_ids?.length) return;
+  if (!postId || postId === prev) return;
+  if (fullscreenPost.value?.id === postId) return;
+  void applyFocus(postId, {
+    openFullscreen: viewMode.value === "gallery",
+    writeQuery: true,
+    scroll: viewMode.value === "scroll",
+  });
 });
 </script>
 

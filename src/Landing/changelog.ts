@@ -22,6 +22,8 @@ export const changelogSections: ChangelogSection[] = [
       "Scent Marks moderation Unlock checks the admin password against the host before showing delete controls",
       "Watched pools show +N new-page badges; opening a pool marks it seen",
       "Pool fullscreen next/previous continues across gallery/scroll chunks",
+      "Pool deep-link `?post=` and resume last page; Open at this page from post details",
+      "Pool reader: arrow keys / [ ] change chunks when not in fullscreen",
     ],
   },
   {

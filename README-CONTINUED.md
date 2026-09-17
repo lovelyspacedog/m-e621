@@ -40,7 +40,7 @@ Tailspace and Local are not included in Unified. When the browser is offline, re
 
 ## Pools and comics
 
-The fork adds dedicated pool routes at `/pools` and `/pools/:id` for **e621 and e6ai** only. Browse by name or post tags, sort results, watch pools (with **new page** badges after updates), and open a gallery or scroll/full-width reader with numbered chunk pagination. Fullscreen next/previous continues across chunk boundaries. Tailspace has a separate comic reader with similar navigation. Inkbunny multi-file submissions use an in-post gallery dialog, not `/pools`.
+The fork adds dedicated pool routes at `/pools` and `/pools/:id` for **e621 and e6ai** only. Browse by name or post tags, sort results, watch pools (with **new page** badges after updates), and open a gallery or scroll/full-width reader with numbered chunk pagination. Fullscreen next/previous continues across chunk boundaries. Deep-link with `?post=` (post details offers **Open at this page**); returning to a pool without a query resumes the last viewed page. Arrow keys / `[` `]` change chunks when fullscreen is closed. Tailspace has a separate comic reader with similar navigation. Inkbunny multi-file submissions use an in-post gallery dialog, not `/pools`.
 
 ## Post Suggester
 

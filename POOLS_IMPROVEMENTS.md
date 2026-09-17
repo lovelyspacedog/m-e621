@@ -6,8 +6,8 @@ Checklist for improving e621/e6ai pools (`src/Pool/`, `WatchedPoolsStore`, share
 
 - [x] **Watch deltas** — Persist `lastSeenPostCount` / `lastSeenUpdatedAt` on watch; mark seen when opening a pool; show new-page badges / sort by activity on `/pools`.
 - [x] **Cross-chunk fullscreen next/prev** — Wire `PoolPage` `loadPosts` so fullscreen advance fetches the next/previous chunk instead of stopping at chunk edges.
-- [ ] **Resume / deep-link** — Support `?post=` (and/or remember last post per pool) so opening a pool lands on that page in gallery, scroll, or fullscreen.
-- [ ] **Keyboard parity** — Chunk ←/→ (and optional gallery/scroll toggle); align with Tailspace reader keys without merging routes. Optional focus-trap audit.
+- [x] **Resume / deep-link** — Support `?post=` (and/or remember last post per pool) so opening a pool lands on that page in gallery, scroll, or fullscreen.
+- [x] **Keyboard parity** — Chunk ←/→ (and optional gallery/scroll toggle); align with Tailspace reader keys without merging routes. Optional focus-trap audit.
 
 ## Browse & search
 
@@ -42,5 +42,6 @@ Checklist for improving e621/e6ai pools (`src/Pool/`, `WatchedPoolsStore`, share
 | Checklist doc | Done | This file |
 | Watch deltas | Done | lastSeen + badges + sort |
 | Cross-chunk fullscreen | Done | PoolPage loadPosts |
-| Resume / deep-link | Pending | |
+| Resume / deep-link | Done | `?post=` + localStorage resume |
+| Keyboard chunks | Done | ←/→ and `[`/`]` |
 | Rest | Pending | |

@@ -43,6 +43,17 @@
             <span v-if="pool.name" class="text-caption text-medium-emphasis ml-1">
               {{ pool.name }}
             </span>
+            <router-link
+              v-if="supportsPoolReader"
+              class="post-info-pool-open text-caption ml-2"
+              :to="{
+                name: 'Pool',
+                params: { id: pool.id },
+                query: { post: String(post.id) },
+              }"
+            >
+              Open at this page
+            </router-link>
           </div>
         </td>
       </tr>
@@ -168,6 +179,7 @@ import { originModeOf, unifiedChildLabel } from "@/misc/util/postOrigin";
 import {
   modeSupportsComments,
   modeSupportsNotes,
+  modeSupportsPools,
   modeSupportsVotes,
 } from "@/misc/util/siteCapabilities";
 
@@ -195,6 +207,7 @@ const isWeasyl = computed(() => originMode.value === "weasyl");
 const isItaku = computed(() => originMode.value === "itaku");
 const isSofurry = computed(() => originMode.value === "sofurry");
 const supportsVotes = computed(() => modeSupportsVotes(originMode.value));
+const supportsPoolReader = computed(() => modeSupportsPools(originMode.value));
 const supportsNotes = computed(() => modeSupportsNotes(originMode.value));
 const supportsComments = computed(() =>
   modeSupportsComments(originMode.value),
@@ -319,6 +332,13 @@ const castVote = (score: 1 | -1 | 0) => {
 }
 .post-info-pool + .post-info-pool {
   margin-top: 4px;
+}
+.post-info-pool-open {
+  white-space: nowrap;
+  text-decoration: none;
+}
+.post-info-pool-open:hover {
+  text-decoration: underline;
 }
 .post-info-source a {
   word-break: break-all;

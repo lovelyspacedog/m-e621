@@ -144,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
 import {
@@ -168,12 +168,15 @@ const props = defineProps<{
   chunkCount: number;
   totalCount: number;
   postIds: number[];
+  /** When set, scroll mode scrolls this post into view once it is present. */
+  focusPostId?: number;
 }>();
 
 const emit = defineEmits<{
   (e: "open-post", postId: number): void;
   (e: "change-chunk", chunk: number): void;
   (e: "view-mode-change", mode: PoolViewMode): void;
+  (e: "focus-applied"): void;
 }>();
 
 const viewMode = ref<PoolViewMode>(loadComicViewMode(VIEW_MODE_KEY));
@@ -220,6 +223,20 @@ const scrollUrl = (post: EnhancedPost) =>
 const scrollToTop = () => {
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
+
+watch(
+  () => [props.focusPostId, props.posts, viewMode.value] as const,
+  async ([focusId]) => {
+    if (!focusId || viewMode.value !== "scroll") return;
+    if (!props.posts.some((p) => p.id === focusId)) return;
+    await nextTick();
+    const el = document.getElementById(`pool-post-${focusId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    emit("focus-applied");
+  },
+);
 </script>
 
 <style scoped>
