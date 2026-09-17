@@ -10,9 +10,11 @@ import {
 import type { SiteMode } from "@/services/types";
 
 describe("modeSupportsPools", () => {
-  it("matches e621-family only", () => {
+  it("matches e621-family and Federated", () => {
     expect(modeSupportsPools("e621")).toBe(true);
     expect(modeSupportsPools("e6ai")).toBe(true);
+    expect(modeSupportsPools("unified")).toBe(true);
+    expect(isE621FamilyMode("unified")).toBe(false);
     const blocked: SiteMode[] = [
       "inkbunny",
       "furaffinity",
@@ -21,7 +23,6 @@ describe("modeSupportsPools", () => {
       "itaku",
       "sofurry",
       "local",
-      "unified",
       "tailspace",
       "flayrah",
     ];

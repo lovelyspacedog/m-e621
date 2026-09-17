@@ -18,6 +18,7 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-17",
     title: "Public instance noted",
     items: [
+      "Federated Pools: merged e621/e6ai browse with origin badges; reader stays in Federated via ?origin=",
       "Federated sidebar Defaults / Auth only presets hide with Sites in this search and sit as a compact toolbar above the list",
       "Layout menu and Post settings include an Infinite scroll toggle (off uses previous/next page buttons)",
       "Saved posts sidebar includes the same Layout menu as Posts (full-width, grid, compact, auto-next, infinite scroll)",

@@ -49,7 +49,7 @@
               :to="{
                 name: 'Pool',
                 params: { id: pool.id },
-                query: { post: String(post.id) },
+                query: poolOpenQuery,
               }"
             >
               Open at this page
@@ -176,6 +176,7 @@ import { getCreatorTags, useSiteLabels } from "@/misc/util/siteLabels";
 import { useSiteModeStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { originModeOf, unifiedChildLabel } from "@/misc/util/postOrigin";
+import { isPoolOriginMode, poolRouteQuery } from "@/misc/util/poolOrigin";
 import {
   modeSupportsComments,
   modeSupportsNotes,
@@ -207,7 +208,15 @@ const isWeasyl = computed(() => originMode.value === "weasyl");
 const isItaku = computed(() => originMode.value === "itaku");
 const isSofurry = computed(() => originMode.value === "sofurry");
 const supportsVotes = computed(() => modeSupportsVotes(originMode.value));
-const supportsPoolReader = computed(() => modeSupportsPools(originMode.value));
+const supportsPoolReader = computed(() =>
+  isPoolOriginMode(originMode.value) || modeSupportsPools(originMode.value),
+);
+const poolOpenQuery = computed(() =>
+  poolRouteQuery(
+    isPoolOriginMode(originMode.value) ? originMode.value : null,
+    { post: String(props.post.id) },
+  ),
+);
 const supportsNotes = computed(() => modeSupportsNotes(originMode.value));
 const supportsComments = computed(() =>
   modeSupportsComments(originMode.value),

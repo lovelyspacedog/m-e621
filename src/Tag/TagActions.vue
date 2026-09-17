@@ -1,6 +1,11 @@
 <template>
   <v-list>
-    <PoolInfo v-if="pool && showPoolBrowse" class="mb-2" :pool-id="pool" />
+    <PoolInfo
+      v-if="pool && showPoolBrowse"
+      class="mb-2"
+      :pool-id="pool"
+      :origin-mode="poolOrigin"
+    />
     <v-list-item v-for="(item, i) in items" :key="i" @click.stop="item.action" :router="!!item.route" exact :to="item.route" >
       {{ item.text }}
     </v-list-item>
@@ -11,11 +16,17 @@
 import PoolInfo from "@/Pool/PoolInfo.vue";
 import { useBlacklistStore, useSiteModeStore, useUrlStore } from "@/services";
 import { useFavoritesStore } from "@/services/FavoriteStore";
+import { useMainStore } from "@/services/state";
 import { computed, defineComponent } from "vue";
 import { openUrlInNewTab } from "@/misc/util/url";
 import { isCreatorCategory, useSiteLabels } from "@/misc/util/siteLabels";
-import { isE621FamilyMode } from "@/misc/util/siteCapabilities";
-import { useRouter } from "vue-router";
+import { isE621FamilyMode, modeSupportsPools } from "@/misc/util/siteCapabilities";
+import {
+  poolFamilyChildren,
+  poolRouteQuery,
+  resolvePoolOrigin,
+} from "@/misc/util/poolOrigin";
+import { useRoute, useRouter } from "vue-router";
 
 export default defineComponent({
     props: {
@@ -33,6 +44,8 @@ export default defineComponent({
         const favorites = useFavoritesStore();
         const urlStore = useUrlStore();
         const siteMode = useSiteModeStore();
+        const main = useMainStore();
+        const route = useRoute();
         const wikiUrl = computed(() => `${urlStore.e621Url}wiki/show?title=${props.name}`);
         const e621Url = computed(() => `${urlStore.e621Url}posts?tags=${props.name}`);
         const furbooruSearchUrl = computed(
@@ -52,12 +65,28 @@ export default defineComponent({
             }
             return false;
         });
+        const poolOrigin = computed(() => {
+          const fromRoute = resolvePoolOrigin(route.query.origin, siteMode.activeMode);
+          if (fromRoute) return fromRoute;
+          if (siteMode.isUnified) {
+            const kids = poolFamilyChildren(main.$state);
+            return kids.length === 1 ? kids[0].mode : null;
+          }
+          return null;
+        });
         const showPoolBrowse = computed(() => {
           if (!pool.value) return false;
           // Inkbunny pools browse via Posts tags; Pool page is e621-shaped (H15/H13).
           if (siteMode.isInkbunny) return false;
-          return isE621Family.value;
+          if (!modeSupportsPools(siteMode.activeMode)) return false;
+          if (siteMode.isUnified && !poolOrigin.value) return false;
+          return true;
         });
+        const poolBrowseRoute = computed(() => ({
+          name: "Pool" as const,
+          params: { id: pool.value || 0 },
+          query: poolRouteQuery(poolOrigin.value),
+        }));
         const toggleFavorite = () => {
             favorites.setFavorite(props.name, props.category, !isFavorited.value);
         };
@@ -78,12 +107,7 @@ export default defineComponent({
                 text: "Browse pool",
                 route: siteMode.isInkbunny
                   ? { name: "Posts", query: { tags: `pool:${pool.value || 0}` } }
-                  : {
-                      name: "Pool",
-                      params: {
-                          id: pool.value || 0,
-                      },
-                    },
+                  : poolBrowseRoute.value,
                 action: async () => {
                     if (!pool.value) return;
                     if (siteMode.isInkbunny) {
@@ -93,14 +117,9 @@ export default defineComponent({
                       });
                       return;
                     }
-                    router.push({
-                        name: "Pool",
-                        params: {
-                            id: pool.value,
-                        },
-                    });
+                    router.push(poolBrowseRoute.value);
                 },
-                visible: !!pool.value && (isE621Family.value || siteMode.isInkbunny),
+                visible: !!pool.value && (showPoolBrowse.value || siteMode.isInkbunny),
             },
             {
                 text: "Search",
@@ -196,6 +215,7 @@ export default defineComponent({
             items,
             pool,
             showPoolBrowse,
+            poolOrigin,
         };
     },
     components: { PoolInfo }

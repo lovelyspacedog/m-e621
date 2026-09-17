@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { modeSupportsSavedPosts } from '@/misc/util/postOrigin'
+import { resolvePoolOrigin } from '@/misc/util/poolOrigin'
 import { isE621FamilyMode, modeSupportsFavoriteAnalyzer, modeSupportsPools, modeSupportsSuggester } from '@/misc/util/siteCapabilities'
 import { shouldSkipViewTransition } from '@/misc/util/viewTransition'
 import { useMainStore } from '@/services/state'
@@ -299,7 +300,7 @@ router.beforeEach((to) => {
     if (mode === "flayrah" && flayrahRoutes.has(String(to.name))) {
       return true;
     }
-    // Pools reader is e621-family only — never fall through to SoFurry/Itaku/IB chrome.
+    // Pools: e621-family + Federated — never fall through to SoFurry/Itaku/IB chrome.
     if (
       !modeSupportsPools(mode) &&
       (to.name === "Pools" || to.name === "Pool")
@@ -307,6 +308,14 @@ router.beforeEach((to) => {
       return mode === "flayrah"
         ? { name: "FlayrahFeed", query: to.query }
         : { name: "Posts", query: to.query };
+    }
+    // Federated pool reader needs ?origin=e621|e6ai (IDs collide across sites).
+    if (
+      mode === "unified" &&
+      to.name === "Pool" &&
+      !resolvePoolOrigin(to.query.origin, mode)
+    ) {
+      return { name: "Pools", query: to.query };
     }
     if (
       !modeSupportsSuggester(mode) &&

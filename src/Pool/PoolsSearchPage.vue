@@ -108,15 +108,28 @@
           :pools="watchedPoolResults"
           :layout="browseLayout"
           :covers="covers"
-          :cover-origin="String(siteMode.activeMode)"
+          :cover-origin="defaultCoverOrigin"
+          :show-origin-badges="isFederatedPools"
           :watched-ids="watchedIds"
           :new-counts="newCounts"
           @toggle-watch="toggleWatch"
         />
-        <v-list v-if="unavailableWatchedIds.length" class="mt-2" bg-color="transparent" density="compact">
-          <v-list-item v-for="id in unavailableWatchedIds" :key="id" :title="`Pool ${id}`" subtitle="Pool details are unavailable">
+        <v-list v-if="unavailableWatched.length" class="mt-2" bg-color="transparent" density="compact">
+          <v-list-item
+            v-for="entry in unavailableWatched"
+            :key="`${entry.originMode}:${entry.id}`"
+            :title="`Pool ${entry.id}`"
+            :subtitle="unavailableSubtitle(entry)"
+          >
             <template #append>
-              <v-btn icon size="small" variant="text" title="Unwatch pool" aria-label="Unwatch pool" @click="removeUnavailableWatch(id)">
+              <v-btn
+                icon
+                size="small"
+                variant="text"
+                title="Unwatch pool"
+                aria-label="Unwatch pool"
+                @click="removeUnavailableWatch(entry)"
+              >
                 <v-icon>mdi-eye-off-outline</v-icon>
               </v-btn>
             </template>
@@ -146,7 +159,8 @@
         :pools="pools"
         :layout="browseLayout"
         :covers="covers"
-        :cover-origin="String(siteMode.activeMode)"
+        :cover-origin="defaultCoverOrigin"
+        :show-origin-badges="isFederatedPools"
         :watched-ids="watchedIds"
         :new-counts="newCounts"
         @toggle-watch="toggleWatch"
@@ -168,12 +182,25 @@ import { useHead } from "@unhead/vue";
 import { debounce } from "lodash";
 import type { Pool } from "@/worker/api";
 import TagSearch from "@/Tag/TagSearch.vue";
-import PoolCollection from "@/Pool/PoolCollection.vue";
+import PoolCollection, { type PoolListItem } from "@/Pool/PoolCollection.vue";
 import { useRouterTagManager } from "@/Post/routerTagManager";
-import { useAccountStore, usePostsStore, useSiteModeStore, useUrlStore, useWatchedPoolsStore } from "@/services";
-import type { PoolOriginMode } from "@/services/types";
+import {
+  usePostsStore,
+  useSiteModeStore,
+  useSnackbarStore,
+  useWatchedPoolsStore,
+} from "@/services";
+import { useMainStore } from "@/services/state";
+import type { PoolOriginMode, WatchedPoolEntry } from "@/services/types";
 import { BlacklistMode } from "@/services/types";
 import { useRouterQueryHelpers } from "@/misc/util/utilities";
+import {
+  isPoolOriginMode,
+  poolFamilyChildren,
+  poolKey,
+  type PoolChildFetchArgs,
+} from "@/misc/util/poolOrigin";
+import { unifiedChildLabel } from "@/misc/util/postOrigin";
 import { getApiService } from "@/worker/services";
 
 useHead({ title: "Pools" });
@@ -193,10 +220,10 @@ const COVER_CANDIDATES = 4;
 const ID_BATCH = 40;
 
 const route = useRoute();
-const urlStore = useUrlStore();
+const main = useMainStore();
 const siteMode = useSiteModeStore();
 const postsStore = usePostsStore();
-const account = useAccountStore();
+const snackbar = useSnackbarStore();
 const watchedPoolStore = useWatchedPoolsStore();
 const { updateRouterQuery, removeRouterQuery } = useRouterQueryHelpers();
 const { tags, addTag, removeTag } = useRouterTagManager();
@@ -270,58 +297,108 @@ const activeFilter = ref<ActiveFilter>(parseActive(route.query.active));
 const searchMode = ref<SearchMode>(parseMode(route.query.mode));
 const alsoDescriptions = ref(loadAlsoDescriptions());
 const browseLayout = ref<BrowseLayout>(loadBrowseLayout());
-const pools = ref<Pool[]>([]);
-const watchedPoolResults = ref<Pool[]>([]);
+const pools = ref<PoolListItem[]>([]);
+const watchedPoolResults = ref<PoolListItem[]>([]);
 const watchedLoading = ref(false);
 const covers = ref<Record<string, string>>({});
 const loading = ref(false);
 const error = ref<string | null>(null);
 const searched = ref(false);
-const page = ref(1);
 const hasMore = ref(true);
 const syncingFromRoute = ref(false);
 /** Bumps on each tags fetch so overlapping resets cannot wipe results. */
 let tagsFetchGeneration = 0;
 
-const poolOrigin = computed(() => siteMode.activeMode as PoolOriginMode);
-const watchedEntries = computed(() => watchedPoolStore.entriesFor(poolOrigin.value));
-const watchedIds = computed(() => new Set(watchedEntries.value.map((entry) => entry.id)));
+const childPage = ref<Partial<Record<PoolOriginMode, number>>>({});
+const childHasMore = ref<Partial<Record<PoolOriginMode, boolean>>>({});
+
+const isFederatedPools = computed(() => siteMode.isUnified);
+const browseChildren = computed(() => poolFamilyChildren(main.$state));
+const defaultCoverOrigin = computed(() => {
+  if (isPoolOriginMode(siteMode.activeMode)) return siteMode.activeMode;
+  return browseChildren.value[0]?.mode || "e621";
+});
+
+const watchedEntries = computed(() => {
+  if (isFederatedPools.value) {
+    const enabled = new Set(browseChildren.value.map((c) => c.mode));
+    return watchedPoolStore.entries.filter((entry) => enabled.has(entry.originMode));
+  }
+  if (!isPoolOriginMode(siteMode.activeMode)) return [];
+  return watchedPoolStore.entriesFor(siteMode.activeMode);
+});
+
+const watchedIds = computed(
+  () => new Set(watchedEntries.value.map((entry) => poolKey(entry.originMode, entry.id))),
+);
+
 const newCounts = computed(() => {
-  const out: Record<number, number> = {};
+  const out: Record<string, number> = {};
   for (const pool of [...watchedPoolResults.value, ...pools.value]) {
+    const origin = pool.originMode;
+    if (!origin) continue;
     const n = watchedPoolStore.newCount(
-      poolOrigin.value,
+      origin,
       pool.id,
       pool.post_count || 0,
       pool.updated_at,
     );
-    if (n > 0) out[pool.id] = n;
+    if (n > 0) out[poolKey(origin, pool.id)] = n;
   }
   return out;
 });
-const unavailableWatchedIds = computed(() => {
+
+const unavailableWatched = computed(() => {
   if (watchedLoading.value) return [];
-  const loaded = new Set(watchedPoolResults.value.map((pool) => pool.id));
-  return watchedEntries.value.map((entry) => entry.id).filter((id) => !loaded.has(id));
+  const loaded = new Set(
+    watchedPoolResults.value.map((pool) =>
+      pool.originMode ? poolKey(pool.originMode, pool.id) : String(pool.id),
+    ),
+  );
+  return watchedEntries.value.filter(
+    (entry) => !loaded.has(poolKey(entry.originMode, entry.id)),
+  );
 });
+
+const unavailableSubtitle = (entry: WatchedPoolEntry) =>
+  isFederatedPools.value
+    ? `${unifiedChildLabel(entry.originMode)} · Pool details are unavailable`
+    : "Pool details are unavailable";
+
 const queryText = () => (query.value || "").trim();
 const creatorText = () => (creator.value || "").trim();
 const browseLimit = () => postsStore.postListFetchLimit || 40;
 
-const mergePools = (lists: Pool[][], existingIds?: Set<number>) => {
-  const seen = existingIds ? new Set(existingIds) : new Set<number>();
-  const out: Pool[] = [];
+const stampPools = (list: Pool[], origin: PoolOriginMode): PoolListItem[] =>
+  list.map((pool) => ({ ...pool, originMode: origin }));
+
+const mergePools = (
+  lists: PoolListItem[][],
+  existingKeys?: Set<string>,
+): PoolListItem[] => {
+  const seen = existingKeys ? new Set(existingKeys) : new Set<string>();
+  const out: PoolListItem[] = [];
   for (const list of lists) {
     for (const pool of list) {
-      if (seen.has(pool.id)) continue;
-      seen.add(pool.id);
+      const origin = pool.originMode;
+      if (!origin) continue;
+      const key = poolKey(origin, pool.id);
+      if (seen.has(key)) continue;
+      seen.add(key);
       out.push(pool);
     }
   }
   return out;
 };
 
-const sharedPoolArgs = () =>
+const existingPoolKeys = () =>
+  new Set(
+    pools.value
+      .filter((p): p is PoolListItem & { originMode: PoolOriginMode } => !!p.originMode)
+      .map((p) => poolKey(p.originMode, p.id)),
+  );
+
+const sharedPoolArgsFor = (child: PoolChildFetchArgs) =>
   ({
     limit: browseLimit(),
     order: order.value,
@@ -329,9 +406,21 @@ const sharedPoolArgs = () =>
     isActive:
       activeFilter.value === "all" ? undefined : activeFilter.value === "active",
     creatorName: creatorText() || undefined,
-    baseUrl: toRaw(urlStore.e621Url),
-    mode: toRaw(siteMode.activeMode),
+    baseUrl: child.baseUrl,
+    mode: child.mode,
+    auth: child.auth,
   }) as const;
+
+const resetChildPaging = (children: PoolChildFetchArgs[]) => {
+  const pages: Partial<Record<PoolOriginMode, number>> = {};
+  const more: Partial<Record<PoolOriginMode, boolean>> = {};
+  for (const child of children) {
+    pages[child.mode] = 1;
+    more[child.mode] = true;
+  }
+  childPage.value = pages;
+  childHasMore.value = more;
+};
 
 const syncQueryToRoute = async () => {
   const next: Record<string, string | undefined> = {};
@@ -364,11 +453,12 @@ const syncQueryToRoute = async () => {
   if (keysToRemove.length) await removeRouterQuery(keysToRemove);
 };
 
-const fetchCovers = async (list: Pool[]) => {
-  const origin = String(siteMode.activeMode || "e621");
+const fetchCoversFor = async (list: PoolListItem[], child: PoolChildFetchArgs) => {
+  const origin = child.mode;
   const coverKey = (id: number) => `${origin}:${id}`;
   const needed = new Set<number>();
   for (const pool of list) {
+    if (pool.originMode && pool.originMode !== origin) continue;
     const candidates = (pool.post_ids || [])
       .filter((id): id is number => typeof id === "number" && id > 0)
       .slice(0, COVER_CANDIDATES);
@@ -381,7 +471,6 @@ const fetchCovers = async (list: Pool[]) => {
 
   try {
     const service = await getApiService();
-    // id: queries can be long; batch modestly.
     const next = { ...covers.value };
     for (let i = 0; i < ids.length; i += ID_BATCH) {
       const slice = ids.slice(i, i + ID_BATCH);
@@ -391,9 +480,9 @@ const fetchCovers = async (list: Pool[]) => {
         tags: [`id:${slice.join(",")}`],
         blacklist: [],
         blacklistMode: BlacklistMode.hide,
-        auth: toRaw(account.auth),
-        baseUrl: toRaw(urlStore.e621Url),
-        mode: toRaw(siteMode.activeMode),
+        auth: child.auth,
+        baseUrl: child.baseUrl,
+        mode: child.mode,
       });
       for (const post of posts) {
         const url = post.preview?.url || post.sample?.url;
@@ -406,7 +495,30 @@ const fetchCovers = async (list: Pool[]) => {
   }
 };
 
-const hydratePools = async (ids: number[]): Promise<Pool[]> => {
+const fetchCovers = async (list: PoolListItem[]) => {
+  const byOrigin = new Map<PoolOriginMode, PoolListItem[]>();
+  for (const pool of list) {
+    if (!pool.originMode) continue;
+    const arr = byOrigin.get(pool.originMode) || [];
+    arr.push(pool);
+    byOrigin.set(pool.originMode, arr);
+  }
+  const children = browseChildren.value;
+  await Promise.all(
+    [...byOrigin.entries()].map(async ([origin, poolsForOrigin]) => {
+      const child =
+        children.find((c) => c.mode === origin) ||
+        poolFamilyChildren(main.$state).find((c) => c.mode === origin);
+      if (!child) return;
+      await fetchCoversFor(poolsForOrigin, child);
+    }),
+  );
+};
+
+const hydratePoolsForChild = async (
+  child: PoolChildFetchArgs,
+  ids: number[],
+): Promise<PoolListItem[]> => {
   if (!ids.length) return [];
   const service = await getApiService();
   const unique = [...new Set(ids.filter((id) => Number.isFinite(id) && id > 0))];
@@ -415,7 +527,7 @@ const hydratePools = async (ids: number[]): Promise<Pool[]> => {
     const slice = unique.slice(i, i + ID_BATCH);
     try {
       const result = await service.getPools({
-        ...sharedPoolArgs(),
+        ...sharedPoolArgsFor(child),
         limit: Math.max(slice.length, 1),
         page: 1,
         order: "post_count",
@@ -429,7 +541,7 @@ const hydratePools = async (ids: number[]): Promise<Pool[]> => {
       // Fall through — missing ids show as unavailable watches.
     }
   }
-  return out;
+  return stampPools(out, child.mode);
 };
 
 const poolSnapshot = (pool: Pool) => ({
@@ -440,24 +552,41 @@ const poolSnapshot = (pool: Pool) => ({
 const loadWatchedPools = async () => {
   watchedLoading.value = true;
   try {
-    const hydrated = await hydratePools(watchedEntries.value.map((entry) => entry.id));
-    const byId = new Map(hydrated.map((pool) => [pool.id, pool]));
+    const children = browseChildren.value;
+    const byChild = new Map<PoolOriginMode, number[]>();
+    for (const entry of watchedEntries.value) {
+      const list = byChild.get(entry.originMode) || [];
+      list.push(entry.id);
+      byChild.set(entry.originMode, list);
+    }
+    const hydrated: PoolListItem[] = [];
+    await Promise.all(
+      children.map(async (child) => {
+        const ids = byChild.get(child.mode) || [];
+        if (!ids.length) return;
+        hydrated.push(...(await hydratePoolsForChild(child, ids)));
+      }),
+    );
+    const byKey = new Map(
+      hydrated.map((pool) => [poolKey(pool.originMode!, pool.id), pool]),
+    );
     watchedPoolResults.value = watchedEntries.value
-      .map((entry) => byId.get(entry.id))
-      .filter((pool): pool is Pool => !!pool);
+      .map((entry) => byKey.get(poolKey(entry.originMode, entry.id)))
+      .filter((pool): pool is PoolListItem => !!pool);
     for (const pool of watchedPoolResults.value) {
-      watchedPoolStore.ensureBaseline(poolOrigin.value, pool.id, poolSnapshot(pool));
+      if (!pool.originMode) continue;
+      watchedPoolStore.ensureBaseline(pool.originMode, pool.id, poolSnapshot(pool));
     }
     watchedPoolResults.value = [...watchedPoolResults.value].sort((a, b) => {
       const delta =
         watchedPoolStore.newCount(
-          poolOrigin.value,
+          b.originMode!,
           b.id,
           b.post_count || 0,
           b.updated_at,
         ) -
         watchedPoolStore.newCount(
-          poolOrigin.value,
+          a.originMode!,
           a.id,
           a.post_count || 0,
           a.updated_at,
@@ -471,61 +600,135 @@ const loadWatchedPools = async () => {
   }
 };
 
-const toggleWatch = (pool: Pool) => {
-  const watched = watchedPoolStore.toggle(poolOrigin.value, pool.id, poolSnapshot(pool));
+const toggleWatch = (pool: PoolListItem) => {
+  const origin = pool.originMode;
+  if (!origin) return;
+  const watched = watchedPoolStore.toggle(origin, pool.id, poolSnapshot(pool));
   if (watched) {
-    watchedPoolResults.value = [pool, ...watchedPoolResults.value.filter((item) => item.id !== pool.id)];
+    watchedPoolResults.value = [
+      pool,
+      ...watchedPoolResults.value.filter(
+        (item) => !(item.originMode === origin && item.id === pool.id),
+      ),
+    ];
     void fetchCovers([pool]);
   } else {
-    watchedPoolResults.value = watchedPoolResults.value.filter((item) => item.id !== pool.id);
+    watchedPoolResults.value = watchedPoolResults.value.filter(
+      (item) => !(item.originMode === origin && item.id === pool.id),
+    );
   }
 };
 
-const removeUnavailableWatch = (id: number) => {
-  watchedPoolStore.remove(poolOrigin.value, id);
+const removeUnavailableWatch = (entry: WatchedPoolEntry) => {
+  watchedPoolStore.remove(entry.originMode, entry.id);
 };
 
-const fetchPoolsByName = async (pageNumber: number, append: boolean) => {
+const fetchNamePageForChild = async (
+  child: PoolChildFetchArgs,
+  pageNumber: number,
+): Promise<{ list: PoolListItem[]; hasMore: boolean }> => {
+  const service = await getApiService();
+  const q = queryText();
+  const limit = browseLimit();
+  const shared = {
+    ...sharedPoolArgsFor(child),
+    limit,
+    page: pageNumber,
+  };
+
+  if (q && alsoDescriptions.value) {
+    const [byName, byDesc] = await Promise.all([
+      service.getPools({ ...shared, query: `*${q}*` }),
+      service.getPools({
+        ...shared,
+        descriptionMatches: `*${q}*`,
+      }),
+    ]);
+    const nameList = stampPools(Array.isArray(byName) ? byName : [], child.mode);
+    const descList = stampPools(Array.isArray(byDesc) ? byDesc : [], child.mode);
+    return {
+      list: mergePools([nameList, descList]),
+      hasMore: nameList.length >= limit || descList.length >= limit,
+    };
+  }
+  if (q) {
+    const result = await service.getPools({ ...shared, query: `*${q}*` });
+    const list = stampPools(Array.isArray(result) ? result : [], child.mode);
+    return { list, hasMore: list.length >= limit };
+  }
+  const result = await service.getPools(shared);
+  const list = stampPools(Array.isArray(result) ? result : [], child.mode);
+  return { list, hasMore: list.length >= limit };
+};
+
+const fetchPoolsByName = async (append: boolean) => {
   loading.value = true;
   error.value = null;
   try {
-    const service = await getApiService();
-    const q = queryText();
-    const limit = browseLimit();
-    const shared = {
-      ...sharedPoolArgs(),
-      limit,
-      page: pageNumber,
-    };
-
-    let list: Pool[];
-    if (q && alsoDescriptions.value) {
-      const [byName, byDesc] = await Promise.all([
-        service.getPools({ ...shared, query: `*${q}*` }),
-        service.getPools({
-          ...shared,
-          descriptionMatches: `*${q}*`,
-        }),
-      ]);
-      const nameList = Array.isArray(byName) ? byName : [];
-      const descList = Array.isArray(byDesc) ? byDesc : [];
-      list = mergePools([nameList, descList], append ? new Set(pools.value.map((p) => p.id)) : undefined);
-      hasMore.value = nameList.length >= limit || descList.length >= limit;
-    } else if (q) {
-      const result = await service.getPools({ ...shared, query: `*${q}*` });
-      list = Array.isArray(result) ? result : [];
-      hasMore.value = list.length >= limit;
-    } else {
-      const result = await service.getPools(shared);
-      list = Array.isArray(result) ? result : [];
-      hasMore.value = list.length >= limit;
+    const children = browseChildren.value;
+    if (!children.length) {
+      error.value =
+        "No e621 or e6ai sites enabled — turn them on in Federated Account settings";
+      if (!append) pools.value = [];
+      hasMore.value = false;
+      searched.value = true;
+      return;
     }
+    if (!append) resetChildPaging(children);
 
-    pools.value = append ? [...pools.value, ...list] : list;
+    const results = await Promise.all(
+      children.map(async (child) => {
+        if (append && childHasMore.value[child.mode] === false) {
+          return { child, list: [] as PoolListItem[], hasMore: false, failed: false };
+        }
+        const pageNumber = append
+          ? (childPage.value[child.mode] || 1) + 1
+          : 1;
+        try {
+          const result = await fetchNamePageForChild(child, pageNumber);
+          return {
+            child,
+            list: result.list,
+            hasMore: result.hasMore,
+            failed: false,
+            pageNumber,
+          };
+        } catch (err: any) {
+          snackbar.addMessage(
+            `${unifiedChildLabel(child.mode)} skipped: ${err?.message || String(err)}`,
+          );
+          return {
+            child,
+            list: [] as PoolListItem[],
+            hasMore: false,
+            failed: true,
+            pageNumber,
+          };
+        }
+      }),
+    );
+
+    const pages = { ...childPage.value };
+    const more = { ...childHasMore.value };
+    const lists: PoolListItem[][] = [];
+    for (const result of results) {
+      if (result.failed) {
+        more[result.child.mode] = false;
+        continue;
+      }
+      pages[result.child.mode] = result.pageNumber!;
+      more[result.child.mode] = result.hasMore;
+      lists.push(result.list);
+    }
+    childPage.value = pages;
+    childHasMore.value = more;
+
+    const merged = mergePools(lists, append ? existingPoolKeys() : undefined);
+    pools.value = append ? [...pools.value, ...merged] : merged;
     if (!append) covers.value = {};
+    hasMore.value = Object.values(more).some(Boolean);
     searched.value = true;
-    page.value = pageNumber;
-    void fetchCovers(list);
+    void fetchCovers(merged);
   } catch (err: any) {
     error.value = err?.message || String(err);
     if (!append) pools.value = [];
@@ -534,7 +737,7 @@ const fetchPoolsByName = async (pageNumber: number, append: boolean) => {
   }
 };
 
-const fetchPoolsByTags = async (pageNumber: number, append: boolean) => {
+const fetchPoolsByTags = async (append: boolean) => {
   const generation = ++tagsFetchGeneration;
 
   if (!tags.value.length) {
@@ -544,29 +747,86 @@ const fetchPoolsByTags = async (pageNumber: number, append: boolean) => {
     hasMore.value = false;
     searched.value = true;
     error.value = null;
-    page.value = 1;
     return;
   }
 
   loading.value = true;
   error.value = null;
   try {
+    const children = browseChildren.value;
+    if (!children.length) {
+      if (generation !== tagsFetchGeneration) return;
+      error.value =
+        "No e621 or e6ai sites enabled — turn them on in Federated Account settings";
+      if (!append) pools.value = [];
+      hasMore.value = false;
+      searched.value = true;
+      return;
+    }
+    if (!append) resetChildPaging(children);
+
     const service = await getApiService();
     const limit = browseLimit();
-    const result = await service.getPools({
-      ...sharedPoolArgs(),
-      limit,
-      page: pageNumber,
-      postTagsMatch: toRaw(tags.value).join(" "),
-    });
+    const results = await Promise.all(
+      children.map(async (child) => {
+        if (append && childHasMore.value[child.mode] === false) {
+          return { child, list: [] as PoolListItem[], hasMore: false, failed: false };
+        }
+        const pageNumber = append
+          ? (childPage.value[child.mode] || 1) + 1
+          : 1;
+        try {
+          const result = await service.getPools({
+            ...sharedPoolArgsFor(child),
+            limit,
+            page: pageNumber,
+            postTagsMatch: toRaw(tags.value).join(" "),
+          });
+          const list = stampPools(Array.isArray(result) ? result : [], child.mode);
+          return {
+            child,
+            list,
+            hasMore: list.length >= limit,
+            failed: false,
+            pageNumber,
+          };
+        } catch (err: any) {
+          snackbar.addMessage(
+            `${unifiedChildLabel(child.mode)} skipped: ${err?.message || String(err)}`,
+          );
+          return {
+            child,
+            list: [] as PoolListItem[],
+            hasMore: false,
+            failed: true,
+            pageNumber,
+          };
+        }
+      }),
+    );
     if (generation !== tagsFetchGeneration) return;
-    const list = Array.isArray(result) ? result : [];
-    pools.value = append ? [...pools.value, ...list] : list;
+
+    const pages = { ...childPage.value };
+    const more = { ...childHasMore.value };
+    const lists: PoolListItem[][] = [];
+    for (const result of results) {
+      if (result.failed) {
+        more[result.child.mode] = false;
+        continue;
+      }
+      pages[result.child.mode] = result.pageNumber!;
+      more[result.child.mode] = result.hasMore;
+      lists.push(result.list);
+    }
+    childPage.value = pages;
+    childHasMore.value = more;
+
+    const merged = mergePools(lists, append ? existingPoolKeys() : undefined);
+    pools.value = append ? [...pools.value, ...merged] : merged;
     if (!append) covers.value = {};
-    hasMore.value = list.length >= limit;
+    hasMore.value = Object.values(more).some(Boolean);
     searched.value = true;
-    page.value = pageNumber;
-    void fetchCovers(list);
+    void fetchCovers(merged);
   } catch (err: any) {
     if (generation !== tagsFetchGeneration) return;
     error.value = err?.message || String(err);
@@ -586,8 +846,8 @@ const runSearch = async () => {
   } finally {
     syncingFromRoute.value = false;
   }
-  if (searchMode.value === "tags") void fetchPoolsByTags(1, false);
-  else void fetchPoolsByName(1, false);
+  if (searchMode.value === "tags") void fetchPoolsByTags(false);
+  else void fetchPoolsByName(false);
 };
 
 const runTagSearch = async () => {
@@ -598,15 +858,15 @@ const runTagSearch = async () => {
   } finally {
     syncingFromRoute.value = false;
   }
-  void fetchPoolsByTags(1, false);
+  void fetchPoolsByTags(false);
 };
 
 const loadMore = () => {
   if (!hasMore.value || loading.value) return;
   if (searchMode.value === "tags") {
-    void fetchPoolsByTags(page.value + 1, true);
+    void fetchPoolsByTags(true);
   } else {
-    void fetchPoolsByName(page.value + 1, true);
+    void fetchPoolsByName(true);
   }
 };
 
@@ -691,8 +951,8 @@ watch(
     creator.value = nextCreator;
     alsoDescriptions.value = nextDesc;
     syncingFromRoute.value = false;
-    if (nextMode === "tags") void fetchPoolsByTags(1, false);
-    else void fetchPoolsByName(1, false);
+    if (nextMode === "tags") void fetchPoolsByTags(false);
+    else void fetchPoolsByName(false);
   },
 );
 
@@ -701,23 +961,23 @@ watch(
   () => {
     if (syncingFromRoute.value) return;
     if (searchMode.value !== "tags") return;
-    void fetchPoolsByTags(1, false);
+    void fetchPoolsByTags(false);
   },
 );
 
 onMounted(() => {
   void loadWatchedPools();
-  if (searchMode.value === "tags") void fetchPoolsByTags(1, false);
-  else void fetchPoolsByName(1, false);
+  if (searchMode.value === "tags") void fetchPoolsByTags(false);
+  else void fetchPoolsByName(false);
 });
 
 watch(
-  () => siteMode.activeMode,
+  () => [siteMode.activeMode, JSON.stringify(siteMode.unifiedSites)] as const,
   () => {
     watchedPoolResults.value = [];
     void loadWatchedPools();
-    if (searchMode.value === "tags") void fetchPoolsByTags(1, false);
-    else void fetchPoolsByName(1, false);
+    if (searchMode.value === "tags") void fetchPoolsByTags(false);
+    else void fetchPoolsByName(false);
   },
 );
 </script>

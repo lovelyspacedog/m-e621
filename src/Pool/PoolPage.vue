@@ -3,6 +3,7 @@
     <div class="pa-4">
       <PoolInfo
         :pool-id="poolId"
+        :origin-mode="poolOrigin"
         :show-browse="false"
         @loaded="onPoolLoaded"
         @error="onPoolError"
@@ -76,12 +77,11 @@ import FluffleSearchDialog from "@/Post/FluffleSearchDialog.vue";
 import { usePostListManager } from "@/Post/postListManager";
 import { useRouterQueryHelpers } from "@/misc/util/utilities";
 import {
-  useAccountStore,
   useBlacklistStore,
   useSiteModeStore,
   useSnackbarStore,
-  useUrlStore,
 } from "@/services";
+import { useMainStore } from "@/services/state";
 import { getApiService } from "@/worker/services";
 import {
   buildTagQuery,
@@ -99,17 +99,27 @@ import {
   savePoolResumePost,
   SCROLL_CHUNK_SIZE,
 } from "@/misc/util/comicReader";
+import {
+  poolChildForOrigin,
+  resolvePoolOrigin,
+} from "@/misc/util/poolOrigin";
+import type { PoolOriginMode } from "@/services/types";
 import { savePostsLocally } from "@/misc/util/saveLocal";
 
 const route = useRoute();
-const account = useAccountStore();
+const main = useMainStore();
 const blacklist = useBlacklistStore();
-const urlStore = useUrlStore();
 const siteMode = useSiteModeStore();
 const snackbar = useSnackbarStore();
 const { removeRouterQuery, updateRouterQuery } = useRouterQueryHelpers();
 
 const poolId = computed(() => Number(route.params.id) || 0);
+const poolOrigin = computed((): PoolOriginMode | null =>
+  resolvePoolOrigin(route.query.origin, siteMode.activeMode),
+);
+const poolChild = computed(() =>
+  poolOrigin.value ? poolChildForOrigin(main.$state, poolOrigin.value) : null,
+);
 const poolMeta = ref<Pool | null>(null);
 const poolError = ref<string | null>(null);
 const viewMode = ref<PoolViewMode>("gallery");
@@ -162,10 +172,10 @@ const chunkIds = computed(() => {
 
 const queryPostId = computed(() => parsePositiveIntQuery(route.query.post));
 
-const resumeOrigin = computed(() => String(siteMode.activeMode));
+const resumeOrigin = computed(() => poolOrigin.value || String(siteMode.activeMode));
 
 const rememberPost = (postId: number) => {
-  if (!poolId.value || !postId) return;
+  if (!poolId.value || !postId || !poolOrigin.value) return;
   savePoolResumePost(resumeOrigin.value, poolId.value, postId);
 };
 
@@ -181,29 +191,30 @@ const syncPostQuery = async (postId: number) => {
 const fetchChunkPosts = async (pageNumber: number): Promise<EnhancedPost[]> => {
   const ids = poolMeta.value?.post_ids || [];
   if (!ids.length) return [];
+  const child = poolChild.value;
+  const origin = poolOrigin.value;
+  if (!child || !origin) {
+    throw new Error(
+      siteMode.isUnified
+        ? "Pool origin required — open from Federated Pools browse"
+        : "Pools are not available in this site mode",
+    );
+  }
   const size = chunkSize.value;
   const start = (pageNumber - 1) * size;
   const slice = ids.slice(start, start + size);
   if (!slice.length) return [];
 
-  if (
-    pageNumber <= 1 &&
-    !siteMode.isFurbooru &&
-    !siteMode.isInkbunny &&
-    !siteMode.isFurAffinity &&
-    !siteMode.isTailspace
-  ) {
-    const built = buildTagQuery(
-      toRaw(blacklist.mode),
-      toRaw(blacklist.tags),
-      [`id:${slice.join(",")}`],
-    );
-    if (built.truncated) {
-      const key = `${poolId.value}:${built.total}`;
-      if (key !== lastPoolTruncationKey.value) {
-        lastPoolTruncationKey.value = key;
-        snackbar.addMessage(tagQueryTruncationMessage(built.total, built.limit));
-      }
+  const built = buildTagQuery(
+    toRaw(blacklist.mode),
+    toRaw(blacklist.tags),
+    [`id:${slice.join(",")}`],
+  );
+  if (built.truncated) {
+    const key = `${origin}:${poolId.value}:${built.total}`;
+    if (key !== lastPoolTruncationKey.value) {
+      lastPoolTruncationKey.value = key;
+      snackbar.addMessage(tagQueryTruncationMessage(built.total, built.limit));
     }
   }
 
@@ -213,11 +224,11 @@ const fetchChunkPosts = async (pageNumber: number): Promise<EnhancedPost[]> => {
       limit: slice.length,
       page: 1,
       tags: [`id:${slice.join(",")}`],
-      blacklist: toRaw(blacklist.tags),
+      blacklist: child.blacklist,
       blacklistMode: toRaw(blacklist.mode),
-      auth: toRaw(account.auth),
-      baseUrl: toRaw(urlStore.e621Url),
-      mode: toRaw(siteMode.activeMode),
+      auth: child.auth,
+      baseUrl: child.baseUrl,
+      mode: origin,
     }),
   );
   const byId = new Map<number, EnhancedPost>(
@@ -231,6 +242,8 @@ const fetchChunkPosts = async (pageNumber: number): Promise<EnhancedPost[]> => {
       __meta: {
         ...post.__meta,
         pageNumber,
+        originMode: origin,
+        originBaseUrl: child.baseUrl,
       },
     }));
 };
@@ -549,6 +562,16 @@ onMounted(() => window.addEventListener("keydown", onWindowKey));
 onBeforeUnmount(() => window.removeEventListener("keydown", onWindowKey));
 
 watch(poolId, () => {
+  poolMeta.value = null;
+  poolError.value = null;
+  pendingScrollPostId.value = 0;
+  appliedFocusKey.value = "";
+  lastPoolTruncationKey.value = "";
+  clearPosts();
+});
+
+watch(poolOrigin, (next, prev) => {
+  if (next === prev) return;
   poolMeta.value = null;
   poolError.value = null;
   pendingScrollPostId.value = 0;

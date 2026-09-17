@@ -1,0 +1,132 @@
+import type {
+  ISettingsServiceState,
+  PoolOriginMode,
+  SiteMode,
+} from "@/services/types";
+import { SITE_MODE_URLS, defaultUnifiedSites } from "@/services/types";
+import { createEmptySiteProfile } from "@/services/siteProfiles";
+import { authFromAccount } from "@/misc/util/postOrigin";
+import { toRaw } from "vue";
+
+export const POOL_ORIGIN_MODES: PoolOriginMode[] = ["e621", "e6ai"];
+
+export const isPoolOriginMode = (value: unknown): value is PoolOriginMode =>
+  value === "e621" || value === "e6ai";
+
+/** Parse `?origin=` (or array query). */
+export const parsePoolOriginQuery = (raw: unknown): PoolOriginMode | null => {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return isPoolOriginMode(value) ? value : null;
+};
+
+/**
+ * Resolve pool origin for API/watch/resume.
+ * Federated requires an explicit `?origin=`; single-site modes fall back to activeMode.
+ */
+export const resolvePoolOrigin = (
+  queryOrigin: unknown,
+  activeMode: SiteMode,
+): PoolOriginMode | null => {
+  const fromQuery = parsePoolOriginQuery(queryOrigin);
+  if (fromQuery) return fromQuery;
+  if (isPoolOriginMode(activeMode)) return activeMode;
+  return null;
+};
+
+export const poolKey = (originMode: PoolOriginMode, id: number) =>
+  `${originMode}:${id}`;
+
+export type PoolChildFetchArgs = {
+  mode: PoolOriginMode;
+  baseUrl: string;
+  auth?: { login: string; api_key: string };
+  userId?: number | null;
+  blacklist: string[][];
+};
+
+const childArgsFor = (
+  state: ISettingsServiceState,
+  mode: PoolOriginMode,
+  opts: { includeSharedBlacklist: boolean; useLiveBlacklist: boolean },
+): PoolChildFetchArgs => {
+  const profile = toRaw(state.profiles[mode]) || createEmptySiteProfile(mode);
+  const account = toRaw(profile.account) || {
+    username: null,
+    apiKey: null,
+    userId: null,
+  };
+  const live = toRaw(state.blacklist?.tags) || [];
+  const childTags = toRaw(profile.blacklist?.tags) || [];
+  let tags: string[][];
+  if (opts.useLiveBlacklist) {
+    tags = live;
+  } else if (opts.includeSharedBlacklist) {
+    tags = [...live, ...childTags];
+  } else {
+    tags = childTags;
+  }
+  return {
+    mode,
+    baseUrl: profile.baseUrl || SITE_MODE_URLS[mode],
+    auth: authFromAccount(mode, account),
+    userId: account.userId ?? null,
+    blacklist: tags.map((line) => [...(toRaw(line) || [])]),
+  };
+};
+
+/** Enabled e621/e6ai Federated children (or the single active e621-family site). */
+export const poolFamilyChildren = (
+  state: ISettingsServiceState,
+): PoolChildFetchArgs[] => {
+  const active = state.activeMode;
+  if (isPoolOriginMode(active)) {
+    return [childArgsFor(state, active, {
+      includeSharedBlacklist: false,
+      useLiveBlacklist: true,
+    })];
+  }
+  if (active !== "unified") return [];
+
+  const sites = {
+    ...defaultUnifiedSites(),
+    ...(toRaw(state.profiles.unified?.unifiedSites) || {}),
+  };
+  const out: PoolChildFetchArgs[] = [];
+  for (const mode of POOL_ORIGIN_MODES) {
+    if (!sites[mode]) continue;
+    out.push(
+      childArgsFor(state, mode, {
+        includeSharedBlacklist: true,
+        useLiveBlacklist: false,
+      }),
+    );
+  }
+  return out;
+};
+
+export const poolChildForOrigin = (
+  state: ISettingsServiceState,
+  origin: PoolOriginMode,
+): PoolChildFetchArgs => {
+  const fromFamily = poolFamilyChildren(state).find((c) => c.mode === origin);
+  if (fromFamily) return fromFamily;
+  return childArgsFor(state, origin, {
+    includeSharedBlacklist: state.activeMode === "unified",
+    useLiveBlacklist: state.activeMode === origin,
+  });
+};
+
+/** Router link query fragment for a pool reader URL. */
+export const poolRouteQuery = (
+  origin: PoolOriginMode | null | undefined,
+  extra?: Record<string, string | undefined>,
+): Record<string, string> => {
+  const query: Record<string, string> = {};
+  if (origin) query.origin = origin;
+  if (extra) {
+    for (const [key, value] of Object.entries(extra)) {
+      if (value != null && value !== "") query[key] = value;
+    }
+  }
+  return query;
+};

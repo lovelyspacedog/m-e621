@@ -25,14 +25,14 @@ A public instance is operable at **[pawfeed.tonypup.box.ca](https://pawfeed.tony
 ## Highlights
 
 - **Nine imageboards plus Flayrah news** — browse e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry, and Tailspace, plus Flayrah’s furry news magazine via attributed RSS (taxonomy feeds, archive deep-links, read/saved state, offline last-good cache).
-- **Federated browsing** — date-merge child sites into a Search or Following feed, with Defaults / Auth-only presets, per-site filters, and origin-aware actions.
+- **Federated browsing** — date-merge child sites into a Search or Following feed, with Defaults / Auth-only presets, per-site filters, origin-aware actions, and e621/e6ai Pools browse/reader.
 - **Local library** — browse a folder on disk with fuzzy search, favorites, remux, and portable sidecars (Chromium or the Tauri desktop build).
 - **Independent accounts** — configure authentication, blacklists, favorites, history, and preferences for each site.
 - **Saved posts** — bookmark posts across federated sites in one mode-independent list, with the same feed Layout controls as Posts.
 - **Community features** — view and post comments, vote, favorite, follow creators, and open posts at their source where supported. Anonymous **Scent Marks** guestbook on the landing page for short public notes (host can pin), plus a random [e621 tag wiki](https://e621.net/wiki_pages/204) first-paragraph snippet each landing visit (click the tag to search e621 in-app; Another page refreshes in place).
 - **Flexible feeds** — switch between full-width lists, thumbnail grids, and compact cards; toggle infinite scroll or page with buttons; rich filtering and media controls.
-- **Powerful browsing tools** — browse and watch pools (e621-family, with new-page badges), organize starred tags and saved searches, use the multi-site post suggester and favorite analyzer, and explore artist dashboards (heatmap, top posts, tag ranks).
-- **Comics and stories** — dedicated pool and Tailspace comic readers (pool fullscreen continues across chunks; `?post=` resume; Save chunk/all) plus fullscreen story, PDF, RTF, and DOCX previews.
+- **Powerful browsing tools** — browse and watch pools (e621-family and Federated e621/e6ai merge, with new-page badges), organize starred tags and saved searches, use the multi-site post suggester and favorite analyzer, and explore artist dashboards (heatmap, top posts, tag ranks).
+- **Comics and stories** — dedicated pool and Tailspace comic readers (pool fullscreen continues across chunks; Federated uses `?origin=` plus `?post=` resume; Save chunk/all) plus fullscreen story, PDF, RTF, and DOCX previews.
 - **Immersive media** — fullscreen comments rail, notes, slideshows, auto-next, Fluffle reverse-image search, and remembered audio/video playback settings (including optional per-site overrides).
 - **Safer settings** — searchable hub (with synonyms), confirm/preview restore, sanitized backups, partial section reset, System/Dark/Light color scheme, auth probe chips, and clear which site profile blacklist/history edits.
 

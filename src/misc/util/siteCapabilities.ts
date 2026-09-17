@@ -34,9 +34,12 @@ export const modeSupportsOtherUserFavorites = (mode: SiteMode): boolean =>
   mode === "furaffinity" ||
   mode === "sofurry";
 
-/** `/pools` + pool reader — e621-family only. Inkbunny submission pools stay on `__meta`, not this UI. */
+/**
+ * `/pools` + pool reader — e621-family, plus Federated (e621/e6ai children only).
+ * Inkbunny submission pools stay on `__meta`, not this UI.
+ */
 export const modeSupportsPools = (mode: SiteMode): boolean =>
-  isE621FamilyMode(mode);
+  isE621FamilyMode(mode) || mode === "unified";
 
 export const modeSupportsVotes = (mode: SiteMode): boolean =>
   isE621FamilyMode(mode) || mode === "furbooru";

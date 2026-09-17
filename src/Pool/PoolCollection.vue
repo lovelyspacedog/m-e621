@@ -1,7 +1,7 @@
 <template>
   <div v-if="layout === 'grid'" class="pools-grid">
-    <div v-for="pool in pools" :key="pool.id" class="pools-card">
-      <router-link class="pools-card-link" :to="{ name: 'Pool', params: { id: pool.id } }" :title="displayName(pool.name)">
+    <div v-for="pool in pools" :key="poolRowKey(pool)" class="pools-card">
+      <router-link class="pools-card-link" :to="poolLink(pool)" :title="displayName(pool.name)">
         <div class="pools-card-thumb">
           <img v-if="coverUrl(pool)" class="pools-card-img" :src="coverUrl(pool)!" :alt="displayName(pool.name)" loading="lazy" />
           <div v-else class="pools-card-placeholder">
@@ -18,6 +18,9 @@
           <div v-if="newCount(pool) > 0" class="pools-badge pools-badge--new">
             +{{ newCount(pool) }}
           </div>
+          <div v-if="showOrigin(pool)" class="pools-badge pools-badge--origin" :title="originLabel(pool)">
+            <v-icon size="14">{{ originIcon(pool) }}</v-icon>
+          </div>
         </div>
         <div class="pools-card-info">
           <div class="pools-card-title">{{ displayName(pool.name) }}</div>
@@ -32,27 +35,38 @@
         icon
         size="x-small"
         variant="tonal"
-        :color="isWatched(pool.id) ? 'accent' : undefined"
-        :title="isWatched(pool.id) ? 'Unwatch pool' : 'Watch pool'"
-        :aria-label="isWatched(pool.id) ? 'Unwatch pool' : 'Watch pool'"
+        :color="isWatched(pool) ? 'accent' : undefined"
+        :title="isWatched(pool) ? 'Unwatch pool' : 'Watch pool'"
+        :aria-label="isWatched(pool) ? 'Unwatch pool' : 'Watch pool'"
         @click="$emit('toggle-watch', pool)"
       >
         <v-icon size="18">
-          {{ isWatched(pool.id) ? "mdi-eye" : "mdi-eye-outline" }}
+          {{ isWatched(pool) ? "mdi-eye" : "mdi-eye-outline" }}
         </v-icon>
       </v-btn>
     </div>
   </div>
 
   <v-list v-else bg-color="transparent">
-    <v-list-item v-for="pool in pools" :key="pool.id" :to="{ name: 'Pool', params: { id: pool.id } }" rounded="lg" class="mb-1 pool-row">
+    <v-list-item
+      v-for="pool in pools"
+      :key="poolRowKey(pool)"
+      :to="poolLink(pool)"
+      rounded="lg"
+      class="mb-1 pool-row"
+    >
       <template #prepend>
         <div class="pool-cover">
           <img v-if="coverUrl(pool)" :src="coverUrl(pool)!" :alt="displayName(pool.name)" class="pool-cover-img" loading="lazy" />
           <v-icon v-else size="32" class="text-medium-emphasis"> mdi-image-off-outline </v-icon>
         </div>
       </template>
-      <v-list-item-title>{{ displayName(pool.name) }}</v-list-item-title>
+      <v-list-item-title>
+        <v-icon v-if="showOrigin(pool)" size="16" class="mr-1" :title="originLabel(pool)">
+          {{ originIcon(pool) }}
+        </v-icon>
+        {{ displayName(pool.name) }}
+      </v-list-item-title>
       <v-list-item-subtitle>
         {{ pool.post_count }} posts · {{ pool.creator_name }}
         <span v-if="updatedLabel(pool)"> · {{ updatedLabel(pool) }}</span>
@@ -75,13 +89,13 @@
           icon
           size="small"
           variant="text"
-          :color="isWatched(pool.id) ? 'accent' : undefined"
-          :title="isWatched(pool.id) ? 'Unwatch pool' : 'Watch pool'"
-          :aria-label="isWatched(pool.id) ? 'Unwatch pool' : 'Watch pool'"
+          :color="isWatched(pool) ? 'accent' : undefined"
+          :title="isWatched(pool) ? 'Unwatch pool' : 'Watch pool'"
+          :aria-label="isWatched(pool) ? 'Unwatch pool' : 'Watch pool'"
           @click.prevent.stop="$emit('toggle-watch', pool)"
         >
           <v-icon>
-            {{ isWatched(pool.id) ? "mdi-eye" : "mdi-eye-outline" }}
+            {{ isWatched(pool) ? "mdi-eye" : "mdi-eye-outline" }}
           </v-icon>
         </v-btn>
       </template>
@@ -91,39 +105,69 @@
 
 <script setup lang="ts">
 import type { Pool } from "@/worker/api";
+import type { PoolOriginMode } from "@/services/types";
+import { poolKey, poolRouteQuery } from "@/misc/util/poolOrigin";
+import { unifiedChildIcon, unifiedChildLabel } from "@/misc/util/postOrigin";
+
+export type PoolListItem = Pool & { originMode?: PoolOriginMode };
 
 const props = defineProps<{
-  pools: Pool[];
+  pools: PoolListItem[];
   layout: "grid" | "list";
   /** Keys are `${originMode}:${postId}` (or bare id string for legacy). */
   covers: Record<string, string>;
-  watchedIds: Set<number>;
-  /** pool id → new posts since last seen */
-  newCounts?: Record<number, number>;
-  /** Active site mode used when looking up cover URLs. */
+  /** Watched keys: `${originMode}:${id}` preferred; bare numeric id also accepted. */
+  watchedIds: Set<string | number>;
+  /** `${originMode}:${id}` or bare id → new posts since last seen */
+  newCounts?: Record<string, number>;
+  /** Fallback origin when pool.originMode is missing (single-site browse). */
   coverOrigin?: string;
+  /** Show origin chips (Federated browse). */
+  showOriginBadges?: boolean;
 }>();
 
 defineEmits<{
-  "toggle-watch": [pool: Pool];
+  "toggle-watch": [pool: PoolListItem];
 }>();
 
+const resolvedOrigin = (pool: PoolListItem): string =>
+  pool.originMode || props.coverOrigin || "";
+
+const poolRowKey = (pool: PoolListItem) =>
+  pool.originMode ? poolKey(pool.originMode, pool.id) : String(pool.id);
+
+const poolLink = (pool: PoolListItem) => ({
+  name: "Pool" as const,
+  params: { id: pool.id },
+  query: poolRouteQuery(pool.originMode ?? (props.coverOrigin as PoolOriginMode | undefined)),
+});
+
 const displayName = (name: string) => name.replace(/_/g, " ");
-const coverLookupKey = (id: number) =>
-  props.coverOrigin ? `${props.coverOrigin}:${id}` : String(id);
-const coverUrl = (pool: Pool) => {
+const coverLookupKey = (origin: string, id: number) =>
+  origin ? `${origin}:${id}` : String(id);
+const coverUrl = (pool: PoolListItem) => {
+  const origin = resolvedOrigin(pool);
   for (const id of pool.post_ids || []) {
     if (typeof id !== "number" || id <= 0) continue;
-    const keyed = props.covers[coverLookupKey(id)];
+    const keyed = props.covers[coverLookupKey(origin, id)];
     if (keyed) return keyed;
-    // Legacy numeric-string keys from older sessions.
     if (props.covers[String(id)]) return props.covers[String(id)];
   }
   return null;
 };
-const isWatched = (id: number) => props.watchedIds.has(id);
-const newCount = (pool: Pool) => props.newCounts?.[pool.id] || 0;
-const updatedLabel = (pool: Pool) => {
+const watchKey = (pool: PoolListItem) =>
+  pool.originMode ? poolKey(pool.originMode, pool.id) : String(pool.id);
+const isWatched = (pool: PoolListItem) =>
+  props.watchedIds.has(watchKey(pool)) || props.watchedIds.has(pool.id);
+const newCount = (pool: PoolListItem) =>
+  props.newCounts?.[watchKey(pool)] || props.newCounts?.[String(pool.id)] || 0;
+const showOrigin = (pool: PoolListItem) =>
+  !!props.showOriginBadges && !!pool.originMode;
+const originLabel = (pool: PoolListItem) =>
+  pool.originMode ? unifiedChildLabel(pool.originMode) : "";
+const originIcon = (pool: PoolListItem) =>
+  pool.originMode ? unifiedChildIcon(pool.originMode) : "mdi-paw";
+const updatedLabel = (pool: PoolListItem) => {
   const raw = pool.updated_at;
   if (!raw) return null;
   const date = raw instanceof Date ? raw : new Date(raw);
@@ -257,6 +301,13 @@ const updatedLabel = (pool: Pool) => {
   left: 5px;
   background: rgb(var(--v-theme-accent));
   color: rgb(var(--v-theme-on-accent));
+}
+.pools-badge--origin {
+  top: 5px;
+  left: 36px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  padding: 3px;
 }
 .pools-card-info {
   padding: 6px 8px 8px;
