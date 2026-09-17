@@ -18,6 +18,7 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-17",
     title: "Public instance noted",
     items: [
+      "Saved posts sidebar includes the same Layout menu as Posts (full-width, grid, compact, auto-next)",
       "Landing What it does, Tag Wiki, and About text sit on darkened panels so copy stays readable in Transparent Zen",
       "Hardened media download and Fluffle redirects so each hop is allowlisted (no cookie leak on intermediate redirects)",
       "Docker image ships the Scent Trail blocklist; posts fail closed if the blocklist is missing",

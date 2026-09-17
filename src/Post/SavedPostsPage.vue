@@ -18,6 +18,10 @@
       </div>
     </portal>
 
+    <portal to="sidebar-suggestions">
+      <feed-layout-menu />
+    </portal>
+
     <v-container v-if="!loading && !posts.length" class="text-center py-12">
       <v-icon size="64" class="mb-4" color="medium-emphasis">mdi-bookmark-outline</v-icon>
       <div class="text-h6 mb-2">No saved posts</div>
@@ -53,6 +57,7 @@
 </template>
 
 <script setup lang="ts">
+import FeedLayoutMenu from "@/Post/FeedLayoutMenu.vue";
 import Posts from "@/Post/Posts.vue";
 import { usePostListManager } from "@/Post/postListManager";
 import {

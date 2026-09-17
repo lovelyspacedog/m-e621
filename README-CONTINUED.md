@@ -63,7 +63,7 @@ The fork adds dedicated pool routes at `/pools` and `/pools/:id` for **e621 and 
 
 Saved searches and starred tags can be placed into named, collapsible groups. Groups and entries support reordering and drag-and-drop. Favorites, blacklists, and compatible saved searches (e621 ↔ e6ai) can be copied between site profiles using merge or replace.
 
-**Saved** (`/saved`) is a mode-independent bookmark list for federated posts. Bookmark from any supported remote origin and reopen from the nav.
+**Saved** (`/saved`) is a mode-independent bookmark list for federated posts. Bookmark from any supported remote origin and reopen from the nav. The same sidebar **Layout** menu as Posts (full-width, grid, compact cards, auto-next) applies here.
 
 ## Local library
 
