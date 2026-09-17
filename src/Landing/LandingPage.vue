@@ -1,14 +1,13 @@
 <template>
-  <section class="v-toolbar elevation-0 bg-primary d-flex" :style="{ height: '75vh' }">
-    <div class="w-100 d-flex flex-column align-center justify-center fill-height">
-
-      <app-logo v-view-transition-name="'applogo'" type="face" size="200" />
+  <section class="landing-hero v-toolbar elevation-0 bg-primary d-flex">
+    <div class="w-100 d-flex flex-column align-center justify-center fill-height py-10 px-4">
+      <app-logo v-view-transition-name="'applogo'" type="face" size="160" />
       <h1 class="mb-2 text-h1 text-center">m-e621</h1>
-      <div class="text-h5 landing-tagline">
-        <span>A {{ adjective }} frontend for</span>
-        <site-mode-switcher variant="inline" :navigate-on-change="false" />
-      </div>
-      <div class="landing-search">
+      <p class="text-h6 text-center landing-tagline mb-4">
+        Browse nine imageboards and a local folder from one client.
+      </p>
+      <site-mode-switcher class="mb-5" variant="chips" :navigate-on-change="false" />
+      <div v-if="showTagSearch" class="landing-search mb-4">
         <tag-search
           v-view-transition-name="'tagsearch'"
           class="landing-search-field"
@@ -16,63 +15,60 @@
           @add-tag="addTag"
           @remove-tag="removeTag"
           @confirm-search="router.push(query)"
-          label="Search Tags ..."
+          :label="searchLabel"
         />
       </div>
-      <div class="ma-5 d-flex flex-wrap justify-center ga-3">
-        <v-btn size="x-large" color="secondary" variant="outlined" :to="query">
-          Browse posts
-        </v-btn>
-        <v-btn
-          size="x-large"
-          color="secondary"
-          variant="outlined"
-          @click="changelogOpen = true"
-        >
-          Changelog
-        </v-btn>
+      <p v-else class="text-body-2 text-center mb-4 landing-search-hint">
+        Tailspace uses its own browse feed — pick a site above or open posts.
+      </p>
+      <div class="d-flex flex-wrap justify-center align-center ga-3">
+        <v-btn size="x-large" color="secondary" variant="flat" :to="query"> Browse posts </v-btn>
+        <v-btn size="large" color="secondary" variant="text" @click="changelogOpen = true"> Changelog </v-btn>
       </div>
       <ChangelogDialog v-model="changelogOpen" />
     </div>
   </section>
   <MigrationInfo />
+  <section class="mt-8 mb-2">
+    <v-container>
+      <v-row justify="center">
+        <v-col cols="12" md="8" lg="6">
+          <h2 class="text-h4 text-center mb-4">What it does</h2>
+          <ul class="landing-capabilities">
+            <li v-for="item in capabilities" :key="item">{{ item }}</li>
+          </ul>
+        </v-col>
+      </v-row>
+    </v-container>
+  </section>
   <About />
-  <section class="ma-1">
-    <v-row wrap justify="center" align="start">
-      <v-col cols="12" class="pt-5">
-        <div class="text-center">
-          <h2 class="text-h4">Latest updates</h2>
-        </div>
-      </v-col>
-      <v-col cols="12" md="6" xl="4" class="py-5">
-        <h3 class="text-h6 text-center mb-3">Tony Pup</h3>
-        <commit-timeline dense :limit="3" source="fork" />
-        <v-btn
-          block
-          class="mt-0"
-          color="primary"
-          href="https://github.com/lovelyspacedog/m-e621/commits/master"
-          target="_blank"
-          rel="noopener"
-        >
-          more on GitHub
-        </v-btn>
-      </v-col>
-      <v-col cols="12" md="6" xl="4" class="py-5">
-        <h3 class="text-h6 text-center mb-3">Avoonix</h3>
-        <commit-timeline dense :limit="3" source="upstream" />
-        <v-btn
-          block
-          class="mt-0"
-          color="primary"
-          href="https://github.com/avoonix/material-e621/commits/master"
-          target="_blank"
-          rel="noopener"
-        >
-          more on GitHub
-        </v-btn>
-      </v-col>
-    </v-row>
+  <section class="ma-1 mb-6">
+    <v-container>
+      <v-row justify="center">
+        <v-col cols="12" md="8" lg="6">
+          <h2 class="text-h4 text-center mb-1">What's new</h2>
+          <p class="text-center text-medium-emphasis text-body-2 mb-4">
+            {{ latestSection.title }} · {{ formatDate(latestSection.date) }}
+          </p>
+          <ul class="landing-whats-new">
+            <li v-for="(item, idx) in latestPreview" :key="idx">{{ item }}</li>
+          </ul>
+          <div class="d-flex flex-wrap justify-center ga-2 mt-4">
+            <v-btn color="primary" variant="tonal" @click="changelogOpen = true"> Full changelog </v-btn>
+            <v-btn
+              color="primary"
+              variant="text"
+              href="https://github.com/lovelyspacedog/m-e621/commits/master"
+              target="_blank"
+              rel="noopener"
+            >
+              <v-icon start>mdi-open-in-new</v-icon>
+              Commits on GitHub
+            </v-btn>
+          </div>
+        </v-col>
+      </v-row>
+    </v-container>
   </section>
   <Footer />
 </template>
@@ -80,12 +76,12 @@
 <script setup lang="ts">
 import AppLogo from "../App/AppLogo.vue";
 import SiteModeSwitcher from "../App/SiteModeSwitcher.vue";
-import CommitTimeline from "@/About/CommitTimeline.vue";
 import { useHead } from "@unhead/vue";
 import TagSearch from "@/Tag/TagSearch.vue";
 import About from "./About.vue";
 import ChangelogDialog from "./ChangelogDialog.vue";
 import Footer from "./Footer.vue";
+import { changelogSections } from "./changelog";
 import { computed, ref } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import MigrationInfo from "./MigrationInfo.vue";
@@ -95,21 +91,34 @@ const router = useRouter();
 const siteMode = useSiteModeStore();
 const changelogOpen = ref(false);
 
-const chooseRandom = (arr: string[]) =>
-  arr[Math.floor(Math.random() * arr.length)];
-
 useHead({
   title: "m-e621",
   titleTemplate: null,
 });
 
-const adjective = chooseRandom([
-  "modern",
-  "delightful",
-  "customizable",
-  "stylish",
-  "handy",
-]);
+const capabilities = [
+  "Nine remote sites plus Unified date-merge and a Local folder browser",
+  "Independent accounts, blacklists, and preferences per site",
+  "Saved posts across federated sites in one list",
+  "Pools, comics, and fullscreen story / PDF / RTF / DOCX reading where supported",
+  "Post Suggester and Favorite Analyzer outside Tailspace",
+  "Uploads, site forums, and account admin stay on each origin site",
+];
+
+const latestSection = changelogSections[0];
+const latestPreview = latestSection.items.slice(0, 6);
+
+const formatDate = (iso: string) => {
+  const d = new Date(`${iso}T12:00:00`);
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+};
+
+const showTagSearch = computed(() => !siteMode.isTailspace);
+const searchLabel = computed(() => (siteMode.isLocal ? "Fuzzy search …" : "Search tags …"));
 
 const tags = ref<string[]>([]);
 const query = computed<RouteLocationRaw>(() =>
@@ -117,7 +126,7 @@ const query = computed<RouteLocationRaw>(() =>
     ? { name: "TailspacePosts" }
     : {
         name: "Posts",
-        query: { tags: tags.value.join(" ") },
+        query: tags.value.length ? { tags: tags.value.join(" ") } : {},
       },
 );
 const addTag = (tag: string) => tags.value.push(tag);
@@ -128,15 +137,13 @@ const removeTag = (tag: string) => {
 </script>
 
 <style scoped>
+.landing-hero {
+  min-height: min(70vh, 36rem);
+}
+
 .landing-tagline {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  column-gap: 0.5em;
-  row-gap: 0.35em;
-  margin-bottom: 0.75rem;
-  text-align: center;
+  max-width: 36rem;
+  line-height: 1.35;
 }
 
 .landing-search {
@@ -145,8 +152,30 @@ const removeTag = (tag: string) => {
   flex-direction: column;
   align-items: stretch;
 }
+
 .landing-search-field {
   flex: 1 1 auto;
   width: 100%;
+}
+
+.landing-search-hint {
+  max-width: 28rem;
+  opacity: 0.9;
+}
+
+.landing-capabilities,
+.landing-whats-new {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.landing-capabilities li,
+.landing-whats-new li {
+  margin-bottom: 0.5rem;
+}
+
+.landing-capabilities li::marker,
+.landing-whats-new li::marker {
+  color: rgb(var(--v-theme-primary));
 }
 </style>

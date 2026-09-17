@@ -24,6 +24,7 @@ export const changelogSections: ChangelogSection[] = [
       "Unified Search vs Following feed, with Defaults and Auth-only site presets",
       "Watched pools on the e621-family pool browser",
       "Post comments on Furbooru (composer enabled)",
+      "Landing page: site chips, honest About copy, capability strip, and changelog excerpt instead of dual git timelines",
       "Landing Changelog dialog beside Browse posts",
       "Collapsible sidebar disclosure for Unified and search clutter",
       "Unified site presets show which sites are active",
