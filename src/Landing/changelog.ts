@@ -30,6 +30,7 @@ export const changelogSections: ChangelogSection[] = [
       "Scent Marks: anonymous public guestbook from the landing page (host-moderated)",
       "Scent Marks composer and fields use higher-contrast surface styling",
       "Scent Marks Post button includes a dog emoji",
+      "Landing hero site chips and Scent Marks / Changelog buttons use stronger outlines and tinted fills so they stay readable on solid primary and Transparent Zen",
       "Collapsible sidebar disclosure for Unified and search clutter",
       "Unified site presets show which sites are active",
       "Tauri Local writes under the picked browse root (save, remux, sidecars)",

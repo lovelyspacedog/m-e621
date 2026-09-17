@@ -174,6 +174,16 @@ const onSelect = async (mode: SiteMode) => {
   gap: 6px;
 }
 
+/* Inactive chips: thicker outline + tint so they hold up on busy transparent BGs. */
+.site-mode-chips :deep(.v-btn--variant-outlined) {
+  background-color: rgba(0, 0, 0, 0.34) !important;
+  border-width: 2px !important;
+}
+
+.site-mode-chips :deep(.v-btn--variant-flat) {
+  border: 2px solid rgba(255, 255, 255, 0.55);
+}
+
 .site-mode-sidebar :deep(.v-field__input) {
   min-height: 2rem;
   padding-top: 0;

@@ -25,13 +25,22 @@
         <v-btn size="x-large" color="secondary" variant="flat" :to="query"> Browse posts </v-btn>
         <v-btn
           size="large"
-          color="secondary"
-          variant="text"
+          color="white"
+          variant="outlined"
+          class="landing-hero-link"
           :to="{ name: 'ScentMarks' }"
         >
           Scent Marks
         </v-btn>
-        <v-btn size="large" color="secondary" variant="text" @click="changelogOpen = true"> Changelog </v-btn>
+        <v-btn
+          size="large"
+          color="white"
+          variant="outlined"
+          class="landing-hero-link"
+          @click="changelogOpen = true"
+        >
+          Changelog
+        </v-btn>
       </div>
       <ChangelogDialog v-model="changelogOpen" />
     </div>
@@ -177,6 +186,13 @@ const removeTag = (tag: string) => {
 .landing-search-hint {
   max-width: 28rem;
   opacity: 0.9;
+}
+
+/* Outlined white + tinted fill stays readable on solid primary and Transparent Zen. */
+.landing-hero-link {
+  background-color: rgba(0, 0, 0, 0.34) !important;
+  border-width: 2px !important;
+  font-weight: 600;
 }
 
 .landing-capabilities,

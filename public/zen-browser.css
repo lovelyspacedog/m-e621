@@ -97,3 +97,20 @@ body,
   background: transparent !important;
   background-color: transparent !important;
 }
+
+/*
+ * Landing hero: Transparent Zen forces --v-theme-secondary to black, which made
+ * secondary text buttons vanish on the frosted primary toolbar / wallpaper.
+ * App CSS already uses white outlined + tinted fill; reinforce here for Stylus.
+ */
+.landing-hero .landing-hero-link.v-btn,
+.landing-hero .site-mode-chips .v-btn--variant-outlined {
+  color: #fff !important;
+  background-color: rgba(0, 0, 0, 0.45) !important;
+  border-color: rgba(255, 255, 255, 0.85) !important;
+  border-width: 2px !important;
+}
+
+.landing-hero .site-mode-chips .v-btn--variant-flat {
+  border: 2px solid rgba(255, 255, 255, 0.65) !important;
+}
