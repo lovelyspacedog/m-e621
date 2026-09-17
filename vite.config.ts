@@ -15,6 +15,7 @@ import { tailspaceProxy } from './vite-tailspace-proxy'
 import { weasylProxy } from './vite-weasyl-proxy'
 import { itakuProxy } from './vite-itaku-proxy'
 import { sofurryProxy } from './vite-sofurry-proxy'
+import { flayrahProxy } from './vite-flayrah-proxy'
 
 // Furbooru's Cloudflare IPv6 path 520s from some hosts; prefer IPv4.
 dns.setDefaultResultOrder('ipv4first');
@@ -1027,6 +1028,7 @@ export default defineConfig(({ mode }) => {
       weasylProxy(),
       itakuProxy(),
       sofurryProxy(),
+      flayrahProxy(),
       fluffleProxy(),
       rufflePlugin(),
       generateSitemap(env),

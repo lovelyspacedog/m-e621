@@ -117,6 +117,7 @@ const modeIcon = (mode: SiteMode) => {
     case "e6ai": return "$tanukiAi";
     case "local": return "mdi-harddisk";
     case "tailspace": return "mdi-rocket-launch";
+    case "flayrah": return "mdi-newspaper-variant";
     case "furbooru": return "mdi-dog";
     case "inkbunny": return "mdi-rabbit";
     case "furaffinity": return "$fox";
@@ -132,6 +133,7 @@ const modeLabel = (mode: SiteMode) => {
   switch (mode) {
     case "local": return "Local";
     case "tailspace": return "Tailspace";
+    case "flayrah": return "Flayrah";
     case "furbooru": return "Furbooru";
     case "inkbunny": return "Inkbunny";
     case "furaffinity": return "FurAffinity";
@@ -143,10 +145,11 @@ const modeLabel = (mode: SiteMode) => {
   }
 };
 
-const postsRouteFor = (mode: SiteMode) =>
-  mode === "tailspace"
-    ? { name: "TailspacePosts" as const }
-    : { name: "Posts" as const, query: {} };
+const postsRouteFor = (mode: SiteMode) => {
+  if (mode === "tailspace") return { name: "TailspacePosts" as const };
+  if (mode === "flayrah") return { name: "FlayrahFeed" as const };
+  return { name: "Posts" as const, query: {} };
+};
 
 const onSelect = async (mode: SiteMode) => {
   // Landing: active chip is a shortcut to browse that site (otherwise a no-op).

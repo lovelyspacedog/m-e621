@@ -26,6 +26,7 @@ const ALL_SITE_MODES: SiteMode[] = [
   "weasyl",
   "itaku",
   "sofurry",
+  "flayrah",
   "local",
   "tailspace",
 ];
@@ -65,6 +66,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   );
   const isLocal = computed(() => main.activeMode === "local");
   const isTailspace = computed(() => main.activeMode === "tailspace");
+  const isFlayrah = computed(() => main.activeMode === "flayrah");
   const isFurbooru = computed(() => main.activeMode === "furbooru");
   const isInkbunny = computed(() => main.activeMode === "inkbunny");
   const isFurAffinity = computed(() => main.activeMode === "furaffinity");
@@ -77,6 +79,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       case "e6ai": return "e6ai";
       case "local": return "local";
       case "tailspace": return "tailspace";
+      case "flayrah": return "Flayrah";
       case "furbooru": return "Furbooru";
       case "inkbunny": return "Inkbunny";
       case "furaffinity": return "FurAffinity";
@@ -318,6 +321,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     supportsSavedPosts,
     isLocal,
     isTailspace,
+    isFlayrah,
     isFurbooru,
     isInkbunny,
     isFurAffinity,

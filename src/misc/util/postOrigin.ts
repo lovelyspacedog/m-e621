@@ -46,6 +46,8 @@ export const unifiedChildLabel = (mode: SiteMode | UnifiedChildMode): string => 
       return "Local";
     case "tailspace":
       return "Tailspace";
+    case "flayrah":
+      return "Flayrah";
     default:
       return mode;
   }
@@ -73,6 +75,8 @@ export const unifiedChildIcon = (mode: SiteMode | UnifiedChildMode): string => {
       return "mdi-harddisk";
     case "tailspace":
       return "mdi-rocket-launch";
+    case "flayrah":
+      return "mdi-newspaper-variant";
     default:
       return "mdi-paw";
   }

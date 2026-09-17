@@ -355,6 +355,10 @@ SOFURRY_AUTH_POSTS = {
     "/api/sofurry/login-cookies",
 }
 
+FLAYRAH_RSS_URL = "https://www.flayrah.com/rss-full.xml"
+FLAYRAH_MEDIA_HOSTS = frozenset({"flayrah.com", "www.flayrah.com"})
+FLAYRAH_RSS_PATH = "/api/flayrah/rss"
+
 FLUFFLE_API = "https://api.fluffle.xyz/exact-search-by-file"
 FLUFFLE_UA = "PawFeed/1.0 (by lovelyspacedog on GitHub)"
 FLUFFLE_PATH = "/api/fluffle/exact-search"
@@ -1545,6 +1549,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if host in ITAKU_MEDIA_HOSTS or host.endswith(".itaku.ee"):
             return parsed.geturl()
         if host in SOFURRY_MEDIA_HOSTS or host.endswith(".sofurryfiles.com"):
+            return parsed.geturl()
+        if host in FLAYRAH_MEDIA_HOSTS:
             return parsed.geturl()
         if host in FURRYCDN_HOSTS or host.endswith(FURRYCDN_SUFFIXES):
             return parsed.geturl()
@@ -2851,6 +2857,38 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return
         self._json(200, {"ok": True, "cookies": cookie, "username": username})
 
+    def _proxy_flayrah_rss(self) -> None:
+        req = urllib.request.Request(FLAYRAH_RSS_URL, method="GET")
+        req.add_header(
+            "User-Agent",
+            f"m-e621-flayrah-proxy/1.0 (https://{DOMAIN})",
+        )
+        req.add_header("Accept", "application/rss+xml, application/xml, text/xml, */*")
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                body = resp.read()
+                status = getattr(resp, "status", 200)
+                content_type = resp.headers.get("Content-Type", "application/rss+xml")
+        except urllib.error.HTTPError as exc:
+            body = exc.read() if exc.fp else b""
+            status = exc.code
+            content_type = (
+                exc.headers.get("Content-Type", "application/xml")
+                if exc.headers
+                else "application/xml"
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "message": f"flayrah rss failed: {exc}"})
+            return
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "private, max-age=120")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
+
     def _proxy_sofurry(self, path: str, parsed, method: str = "GET", body: bytes = b"") -> None:
         cookie = self._sofurry_cookies()
 
@@ -3192,6 +3230,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if path == "/api/download":
             raw = (parse_qs(parsed.query).get("url") or [""])[0]
             self._proxy_media(raw)
+            return
+        if path == FLAYRAH_RSS_PATH:
+            self._proxy_flayrah_rss()
             return
         if path == "/api/git":
             if not _git_pull_enabled():

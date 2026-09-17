@@ -337,6 +337,36 @@ export const tosSummaries: TosSummary[] = [
     ],
   },
   {
+    id: "flayrah",
+    name: "Flayrah",
+    sourceUrl: "https://www.flayrah.com/about",
+    sourceLabel: "About",
+    note: "Flayrah does not publish a single formal Terms of Service page. This summary is from their About page (licensing and redistribution). PawFeed uses the public RSS full feed only.",
+    sections: [
+      {
+        heading: "What it is",
+        paragraphs: [
+          "Community furry news magazine since 2001. Content is intended to be work-safe to read.",
+        ],
+      },
+      {
+        heading: "Licensing and reuse",
+        bullets: [
+          "Contributors choose a license; the site default is Creative Commons Attribution-ShareAlike",
+          "Attributed redistribution of news summaries is welcome; credit the site and author and link the original",
+          "Broadcast or translation is generally welcome under the same attribution expectations",
+        ],
+      },
+      {
+        heading: "PawFeed use",
+        bullets: [
+          "Read-only RSS browsing with in-app reading and a link back to flayrah.com",
+          "No Flayrah login, comments, or ratings through PawFeed",
+        ],
+      },
+    ],
+  },
+  {
     id: "fluffle",
     name: "Fluffle",
     sourceUrl: "https://fluffle.xyz/about/",

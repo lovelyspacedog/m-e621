@@ -24,7 +24,7 @@ A public instance is operable at **[pawfeed.tonypup.box.ca](https://pawfeed.tony
 
 ## Highlights
 
-- **Nine supported sites** — browse e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry, and Tailspace from one interface.
+- **Nine imageboards plus Flayrah news** — browse e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry, and Tailspace, plus Flayrah’s furry news magazine via attributed RSS.
 - **Federated browsing** — date-merge child sites into a Search or Following feed, with Defaults / Auth-only presets, per-site filters, and origin-aware actions.
 - **Local library** — browse a folder on disk with fuzzy search, favorites, remux, and portable sidecars (Chromium or the Tauri desktop build).
 - **Independent accounts** — configure authentication, blacklists, favorites, history, and preferences for each site.

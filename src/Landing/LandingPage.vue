@@ -22,10 +22,16 @@
           />
         </div>
         <p v-else class="text-body-2 text-center mb-4 landing-search-hint">
-          Tailspace uses its own browse feed — pick a site above or open posts.
+          {{
+            siteMode.isFlayrah
+              ? "Flayrah uses its own news feed — pick a site above or browse headlines."
+              : "Tailspace uses its own browse feed — pick a site above or open posts."
+          }}
         </p>
         <div class="d-flex flex-wrap justify-center align-center ga-3">
-          <v-btn size="x-large" color="secondary" variant="flat" :to="query"> Browse posts </v-btn>
+          <v-btn size="x-large" color="secondary" variant="flat" :to="query">
+            {{ siteMode.isFlayrah ? "Browse news" : "Browse posts" }}
+          </v-btn>
           <v-btn
             size="large"
             color="white"
@@ -185,21 +191,26 @@ const capabilities = computed(() => [
   "Independent accounts, blacklists, and preferences per site",
   "Saved posts across federated sites in one list",
   "Pools, comics, and fullscreen story / PDF / RTF / DOCX reading where supported",
-  "Post Suggester and Favorite Analyzer outside Tailspace",
+  "Post Suggester and Favorite Analyzer outside Tailspace and Flayrah",
+  "Flayrah furry news via attributed RSS (read-only)",
   "Uploads, site forums, and account admin stay on each origin site",
 ]);
 
-const showTagSearch = computed(() => !siteMode.isTailspace);
+const showTagSearch = computed(
+  () => !siteMode.isTailspace && !siteMode.isFlayrah,
+);
 const searchLabel = computed(() => (siteMode.isLocal ? "Fuzzy search …" : "Search tags …"));
 
 const tags = ref<string[]>([]);
 const query = computed<RouteLocationRaw>(() =>
   siteMode.isTailspace
     ? { name: "TailspacePosts" }
-    : {
-        name: "Posts",
-        query: tags.value.length ? { tags: tags.value.join(" ") } : {},
-      },
+    : siteMode.isFlayrah
+      ? { name: "FlayrahFeed" }
+      : {
+          name: "Posts",
+          query: tags.value.length ? { tags: tags.value.join(" ") } : {},
+        },
 );
 const addTag = (tag: string) => tags.value.push(tag);
 const removeTag = (tag: string) => {

@@ -18,6 +18,7 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-17",
     title: "Public instance noted",
     items: [
+      "Flayrah site mode: read-only RSS news feed and article reader (not Federated)",
       "Public instance Live URL is pawfeed.tonypup.box.ca (docs and README updated)",
       "Product renamed to PawFeed (landing, PWA, desktop title, and docs); host paths and GitHub repo stay m-e621",
       "README documents how to rename the public Expedition subdomain",

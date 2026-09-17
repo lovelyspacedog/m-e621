@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isDedicatedChromeMode,
   isE621FamilyMode,
   modeSupportsFavoriteAnalyzer,
   modeSupportsOtherUserFavorites,
@@ -22,6 +23,7 @@ describe("modeSupportsPools", () => {
       "local",
       "unified",
       "tailspace",
+      "flayrah",
     ];
     for (const mode of blocked) {
       expect(modeSupportsPools(mode)).toBe(false);
@@ -31,7 +33,7 @@ describe("modeSupportsPools", () => {
 });
 
 describe("modeSupportsSuggester", () => {
-  it("allows all modes except Tailspace", () => {
+  it("allows all modes except dedicated chrome", () => {
     const modes: SiteMode[] = [
       "e621",
       "e6ai",
@@ -50,6 +52,11 @@ describe("modeSupportsSuggester", () => {
     }
     expect(modeSupportsSuggester("tailspace")).toBe(false);
     expect(modeSupportsFavoriteAnalyzer("tailspace")).toBe(false);
+    expect(modeSupportsSuggester("flayrah")).toBe(false);
+    expect(modeSupportsFavoriteAnalyzer("flayrah")).toBe(false);
+    expect(isDedicatedChromeMode("tailspace")).toBe(true);
+    expect(isDedicatedChromeMode("flayrah")).toBe(true);
+    expect(isDedicatedChromeMode("e621")).toBe(false);
   });
 });
 

@@ -455,6 +455,7 @@ const {
       !siteMode.isItaku &&
       !siteMode.isSofurry &&
       !siteMode.isTailspace &&
+      !siteMode.isFlayrah &&
       !siteMode.isUnified
     ) {
       const built = buildTagQuery(
@@ -731,13 +732,13 @@ watch(
 // When the user switches site mode from the nav drawer, router.push to the
 // same blank /posts route is a no-op.  Watch the store signal so we always
 // reload posts after a mode change regardless of route state.
-// Skip Tailspace: that mode uses TailspacePosts, not this page (C3).
+// Skip Tailspace / Flayrah: dedicated chrome, not this page (C3).
 // Do not go through onSearchClick's debounce — clear immediately so the
 // previous site's feed cannot linger across the 50ms wait / router await.
 watch(
   () => siteMode.modeChangeCount,
   async (count) => {
-    if (siteMode.isTailspace) return;
+    if (siteMode.isTailspace || siteMode.isFlayrah) return;
     onSearchClick.cancel();
     if (siteMode.isLocal) {
       invalidateLocalMediaIndex();
@@ -747,7 +748,7 @@ watch(
     }
     clearPosts();
     await removeRouterQuery(["page"]);
-    if (siteMode.isTailspace) return;
+    if (siteMode.isTailspace || siteMode.isFlayrah) return;
     if (count !== siteMode.modeChangeCount) return;
     if (siteMode.isLocal) {
       await loadLocalWithResume();

@@ -389,7 +389,11 @@ const toggleExpanded = (category: string) => {
 
 const searchTag = (name: string) => {
   router.push({
-    name: siteMode.isTailspace ? "TailspacePosts" : "Posts",
+    name: siteMode.isTailspace
+      ? "TailspacePosts"
+      : siteMode.isFlayrah
+        ? "FlayrahFeed"
+        : "Posts",
     query: { tags: name },
   });
 };

@@ -33,13 +33,14 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 41,
+  configVersion: 42,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
     e6ai: createEmptySiteProfile("e6ai"),
     local: createEmptySiteProfile("local"),
     tailspace: createEmptySiteProfile("tailspace"),
+    flayrah: createEmptySiteProfile("flayrah"),
     furbooru: createEmptySiteProfile("furbooru"),
     inkbunny: createEmptySiteProfile("inkbunny"),
     furaffinity: createEmptySiteProfile("furaffinity"),

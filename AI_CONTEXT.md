@@ -6,9 +6,10 @@ Onboarding for other AI agents. Prefer this file plus `README.md` / `README-CONT
 
 **PawFeed** (`package.json` name `pawfeed`, GitHub `lovelyspacedog/m-e621`) is a personal, AI-assisted fork of [Material e621](https://github.com/avoonix/material-e621). It is a Vue 3 SPA that browses multiple furry imageboards and a local media folder from one UI. User-facing branding lives in `src/misc/util/brand.ts` (`APP_NAME`). Host paths, env vars (`M_E621_*`), and Local sidecars stay `m-e621`. Public instance: **https://pawfeed.tonypup.box.ca**.
 
-Supported **site modes** (`SiteMode` in `src/services/types.ts`): `e621`, `e6ai`, `furbooru`, `inkbunny`, `furaffinity`, `weasyl`, `itaku`, `sofurry`, `tailspace`, `local`, `unified`.
+Supported **site modes** (`SiteMode` in `src/services/types.ts`): `e621`, `e6ai`, `furbooru`, `inkbunny`, `furaffinity`, `weasyl`, `itaku`, `sofurry`, `flayrah`, `tailspace`, `local`, `unified`.
 
-- **Unified** date-merges remote children. **Tailspace and Local are not Unified children.**
+- **Unified** date-merges remote gallery children. **Tailspace, Flayrah, and Local are not Unified children.**
+- Flayrah uses dedicated news routes (`/#/flayrah`) backed by RSS — never `getPosts` / e621 fall-through (same dedicated-chrome pattern as Tailspace).
 - Each mode has an independent **site profile** (auth, blacklist, starred tags, saved searches, history).
 - License: **AGPL-3.0**. Network use of a modified version must offer corresponding source.
 - Not affiliated with the sites or upstream. Follow each site’s rules and API terms.
@@ -50,7 +51,7 @@ src/App/                    # Nav, logo, mode switcher
 src/misc/util/              # Capabilities, proxies, local FS, unified merge
 src/misc/plugins/           # Vuetify + Unhead
 vite.config.ts              # Dev proxies, PWA, sitemap, git define
-vite-*-proxy.ts             # Dev-only site proxies (FA, Tailspace, Weasyl, Itaku, SoFurry)
+vite-*-proxy.ts             # Dev-only site proxies (FA, Tailspace, Weasyl, Itaku, SoFurry, Flayrah)
 serve.py                    # Production static server + same-origin proxies
 fa_proxy.py / furbooru_cf.py
 src-tauri/                  # Desktop shell + Local FS commands
@@ -198,7 +199,7 @@ Load order: process env wins; then `~/.config/m-e621/env`, then `deploy.env` (`l
 - SoFurry: email/password or pasted cookies (session only).
 - Tailspace: password or `tailspace_session` cookie.
 
-**External APIs / hosts:** e621.net, e6ai.net, furbooru.org (Philomena; Cloudflare bot challenge via `furbooru_cf.py`), inkbunny.net, furaffinity.net, weasyl.com, itaku.ee, sofurry.com, tailspace.com, [Fluffle](https://api.fluffle.xyz/exact-search-by-file) reverse-image (stills only; max 4 MiB).
+**External APIs / hosts:** e621.net, e6ai.net, furbooru.org (Philomena; Cloudflare bot challenge via `furbooru_cf.py`), inkbunny.net, furaffinity.net, weasyl.com, itaku.ee, sofurry.com, flayrah.com (`rss-full.xml`), tailspace.com, [Fluffle](https://api.fluffle.xyz/exact-search-by-file) reverse-image (stills only; max 4 MiB).
 
 PWA: `registerType: 'prompt'`, update poll every 10 minutes, Workbox max cache **4 MiB**, `ruffle/**` excluded from precache, `/api/` denylisted from navigate fallback. Start URL `/#/posts`.
 
@@ -211,7 +212,8 @@ PWA: `registerType: 'prompt'`, update poll every 10 minutes, Workbox max cache *
 - **Furbooru** needs `curl_cffi` + cached `_philomena_key` (`.furbooru_philomena_key`, gitignored). Node `fetch` gets HTTP 501 “I'm not a robot”.
 - **FA search** scrapes HTML and **deliberately delays** between requests (`fa_proxy.py`).
 - **Weasyl guests are SFW-only.** Inkbunny and Weasyl have **no public fav-toggle API** — keep the favorite button hidden (`modeSupportsFavoriteToggle`).
-- **SoFurry / other non-e621 modes must not fall through to e621 comments, notes, pools, or dashboard.** Post Suggester and Favorite Analyzer are allowed outside Tailspace via `modeSupportsSuggester` / `modeSupportsFavoriteAnalyzer`, using mode-native favorite queries — never the e621 client.
+- **SoFurry / Flayrah / other non-e621 modes must not fall through to e621 comments, notes, pools, or dashboard.** Post Suggester and Favorite Analyzer are allowed outside Tailspace and Flayrah via `modeSupportsSuggester` / `modeSupportsFavoriteAnalyzer` (`isDedicatedChromeMode`), using mode-native favorite queries — never the e621 client.
+- **Flayrah** is read-only RSS news chrome (`/#/flayrah`); proxy is `GET /api/flayrah/rss` only.
 - **Unified merge** keeps sticky per-child leftovers (`unifiedMerge.ts`). Sequential pages reuse discarded posts; tag/children changes must reset state. Page jumps use legacy merge then reseed.
 - **Unified tag translation** (`unifiedTags.ts`) strips/remaps metatags per child (`order:`, `favs:me` → `my:faves` / `stars:me`, etc.) and may snackbar ignored tokens.
 - **e621 hide-mode blacklist** is folded into the **40-tag API cap** on page 1 only (`createTagQuery.ts` / `PostsPage.vue`). Other modes do not use that path.

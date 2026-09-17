@@ -35,7 +35,11 @@ class ShortcutService {
           case "go_to_posts": {
             const siteMode = useSiteModeStore();
             this.router.push({
-              name: siteMode.isTailspace ? "TailspacePosts" : "Posts",
+              name: siteMode.isTailspace
+                ? "TailspacePosts"
+                : siteMode.isFlayrah
+                  ? "FlayrahFeed"
+                  : "Posts",
             });
             break;
           }

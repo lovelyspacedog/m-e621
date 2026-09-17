@@ -14,7 +14,8 @@
               >Material e621</a
             >.
             It browses e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry,
-            Tailspace{{ localBrowsePhrase }}. Federated date-merges the remote children.
+            Tailspace{{ localBrowsePhrase }}, and Flayrah news. Federated date-merges the remote
+            gallery children.
           </p>
           <p class="text-center">
             Uploads, site forums, and account admin stay on each origin site. Experimental —

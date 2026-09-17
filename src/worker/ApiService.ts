@@ -55,16 +55,18 @@ const isItakuUrl = (baseUrl: string) =>
   /(?:^|\.)itaku\.ee(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
 const isSofurryUrl = (baseUrl: string) =>
   /(?:^|\.)sofurry\.com(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
+const isFlayrahUrl = (baseUrl: string) =>
+  /(?:^|\.)flayrah\.com(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
 
 /** Prefer explicit mode; fall back to hostname only when mode omitted (M17). */
-type ApiBackend = "e621" | "furbooru" | "inkbunny" | "tailspace" | "furaffinity" | "weasyl" | "itaku" | "sofurry";
+type ApiBackend = "e621" | "furbooru" | "inkbunny" | "tailspace" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "flayrah";
 
 /**
  * Site-mode checklist (do NOT invent a plugin framework; refuse drive-by sites):
  * types + SITE_MODE_URLS + empty profile + SiteModeStore + nav/router guards +
  * worker adapter + Vite/serve.py proxy + siteCapabilities flags.
  * Never fall through to the e621 client (comments/notes/pools/analyzer/…).
- * Post Suggester is multi-mode via AnalyzeService; Tailspace still blocked here.
+ * Post Suggester is multi-mode via AnalyzeService; Tailspace/Flayrah still blocked here.
  * UA / `_client`: `PawFeed/<git>`. See AI_CONTEXT.md.
  */
 const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
@@ -72,6 +74,7 @@ const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
   if (mode === "inkbunny") return "inkbunny";
   if (mode === "furaffinity") return "furaffinity";
   if (mode === "tailspace") return "tailspace";
+  if (mode === "flayrah") return "flayrah";
   if (mode === "weasyl") return "weasyl";
   if (mode === "itaku") return "itaku";
   if (mode === "sofurry") return "sofurry";
@@ -80,6 +83,7 @@ const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
   if (isInkbunnyUrl(baseUrl)) return "inkbunny";
   if (isFurAffinityUrl(baseUrl)) return "furaffinity";
   if (isTailspaceUrl(baseUrl)) return "tailspace";
+  if (isFlayrahUrl(baseUrl)) return "flayrah";
   if (isWeasylUrl(baseUrl)) return "weasyl";
   if (isItakuUrl(baseUrl)) return "itaku";
   if (isSofurryUrl(baseUrl)) return "sofurry";
@@ -96,6 +100,27 @@ const assertNotTailspace = (
       `${method} is not available for Tailspace; use the Tailspace pages instead`,
     );
   }
+};
+
+const assertNotFlayrah = (
+  baseUrl: string,
+  method: string,
+  mode?: SiteMode,
+) => {
+  if (resolveApiBackend(baseUrl, mode) === "flayrah") {
+    throw new Error(
+      `${method} is not available for Flayrah; use the Flayrah pages instead`,
+    );
+  }
+};
+
+const assertNotDedicatedChrome = (
+  baseUrl: string,
+  method: string,
+  mode?: SiteMode,
+) => {
+  assertNotTailspace(baseUrl, method, mode);
+  assertNotFlayrah(baseUrl, method, mode);
 };
 
 // debug.disable();
@@ -736,7 +761,7 @@ export class ApiService {
     userId?: number | null;
   }): Promise<EnhancedPost[]> {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    assertNotTailspace(args.baseUrl, "getPosts", args.mode);
+    assertNotDedicatedChrome(args.baseUrl, "getPosts", args.mode);
 
     if (backend === "furbooru") {
       // Furbooru: strip e621 order:* tags → Philomena sf/sd; join rest as query
@@ -954,7 +979,7 @@ export class ApiService {
 
   async getTags(args: ITagsListArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    assertNotTailspace(args.baseUrl, "getTags", args.mode);
+    assertNotDedicatedChrome(args.baseUrl, "getTags", args.mode);
     if (backend === "furbooru") {
       return furbooru.searchTags({
         query: args.query ?? args.name,
@@ -998,7 +1023,7 @@ export class ApiService {
 
   async getPools(args: IPoolsArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    assertNotTailspace(args.baseUrl, "getPools", args.mode);
+    assertNotDedicatedChrome(args.baseUrl, "getPools", args.mode);
     if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
       return [];
     }
@@ -1007,7 +1032,7 @@ export class ApiService {
 
   async getPool(args: IGetPoolArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    assertNotTailspace(args.baseUrl, "getPool", args.mode);
+    assertNotDedicatedChrome(args.baseUrl, "getPool", args.mode);
     if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
       throw new Error("Pools are not supported on this site");
     }
@@ -1016,7 +1041,7 @@ export class ApiService {
 
   async getComments(args: ICommentsListArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    assertNotTailspace(args.baseUrl, "getComments", args.mode);
+    assertNotDedicatedChrome(args.baseUrl, "getComments", args.mode);
     if (backend === "inkbunny" || backend === "weasyl" || backend === "sofurry") {
       return [];
     }

@@ -436,6 +436,7 @@ class PersistanceService {
         e6ai: createEmptySiteProfile("e6ai"),
         local: createEmptySiteProfile("local"),
         tailspace: createEmptySiteProfile("tailspace"),
+        flayrah: createEmptySiteProfile("flayrah"),
         furbooru: createEmptySiteProfile("furbooru"),
         inkbunny: createEmptySiteProfile("inkbunny"),
         furaffinity: createEmptySiteProfile("furaffinity"),
@@ -466,6 +467,7 @@ class PersistanceService {
           e6ai: createEmptySiteProfile("e6ai"),
           local: createEmptySiteProfile("local"),
           tailspace: createEmptySiteProfile("tailspace"),
+          flayrah: createEmptySiteProfile("flayrah"),
           furbooru: createEmptySiteProfile("furbooru"),
           inkbunny: createEmptySiteProfile("inkbunny"),
           furaffinity: createEmptySiteProfile("furaffinity"),
@@ -656,6 +658,27 @@ class PersistanceService {
       }
       newState.configVersion = 41;
     }
+    if (newState.configVersion < 42) {
+      if (!newState.profiles) {
+        newState.profiles = {
+          e621: createEmptySiteProfile("e621"),
+          e6ai: createEmptySiteProfile("e6ai"),
+          local: createEmptySiteProfile("local"),
+          tailspace: createEmptySiteProfile("tailspace"),
+          flayrah: createEmptySiteProfile("flayrah"),
+          furbooru: createEmptySiteProfile("furbooru"),
+          inkbunny: createEmptySiteProfile("inkbunny"),
+          furaffinity: createEmptySiteProfile("furaffinity"),
+          weasyl: createEmptySiteProfile("weasyl"),
+          itaku: createEmptySiteProfile("itaku"),
+          sofurry: createEmptySiteProfile("sofurry"),
+          unified: createEmptySiteProfile("unified"),
+        };
+      } else if (!newState.profiles.flayrah) {
+        newState.profiles.flayrah = createEmptySiteProfile("flayrah");
+      }
+      newState.configVersion = 42;
+    }
 
     if (!newState.watchedPools || !Array.isArray(newState.watchedPools.entries)) {
       newState.watchedPools = { entries: [] };
@@ -694,6 +717,7 @@ class PersistanceService {
         e6ai: createEmptySiteProfile("e6ai"),
         local: createEmptySiteProfile("local"),
         tailspace: createEmptySiteProfile("tailspace"),
+        flayrah: createEmptySiteProfile("flayrah"),
         furbooru: createEmptySiteProfile("furbooru"),
         inkbunny: createEmptySiteProfile("inkbunny"),
         furaffinity: createEmptySiteProfile("furaffinity"),
@@ -707,6 +731,7 @@ class PersistanceService {
     newState.profiles.e6ai = newState.profiles.e6ai || createEmptySiteProfile("e6ai");
     newState.profiles.local = newState.profiles.local || createEmptySiteProfile("local");
     newState.profiles.tailspace = newState.profiles.tailspace || createEmptySiteProfile("tailspace");
+    newState.profiles.flayrah = newState.profiles.flayrah || createEmptySiteProfile("flayrah");
     newState.profiles.furbooru = newState.profiles.furbooru || createEmptySiteProfile("furbooru");
     newState.profiles.inkbunny = newState.profiles.inkbunny || createEmptySiteProfile("inkbunny");
     newState.profiles.furaffinity = newState.profiles.furaffinity || createEmptySiteProfile("furaffinity");
@@ -763,6 +788,7 @@ class PersistanceService {
       newState.activeMode !== "weasyl" &&
       newState.activeMode !== "itaku" &&
       newState.activeMode !== "sofurry" &&
+      newState.activeMode !== "flayrah" &&
       newState.activeMode !== "unified"
     ) {
       newState.activeMode = "e621";
@@ -793,6 +819,10 @@ class PersistanceService {
       newState.profiles.tailspace = createEmptySiteProfile("tailspace");
     }
     newState.profiles.tailspace.baseUrl = newState.profiles.tailspace.baseUrl || SITE_MODE_URLS.tailspace;
+    if (!newState.profiles.flayrah) {
+      newState.profiles.flayrah = createEmptySiteProfile("flayrah");
+    }
+    newState.profiles.flayrah.baseUrl = newState.profiles.flayrah.baseUrl || SITE_MODE_URLS.flayrah;
 
     if (newState.posts.localDirectoryName === undefined) {
       newState.posts.localDirectoryName = null;

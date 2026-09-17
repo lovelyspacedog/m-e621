@@ -14,11 +14,12 @@ Each mode has its own profile for authentication, blacklist, starred tags, saved
 - **Weasyl** — API-key authentication, multimedia audio, `favs:me`, and post suggester. Guest browsing is SFW-only; favorite toggling is unavailable. On by default in Federated.
 - **Itaku** — galleries, flattened multi-image posts, comments, stars, following, and post suggester with token authentication. On by default in Federated.
 - **SoFurry** — artwork, music, stories, likes (Remix session), following, and post suggester (any user). Stories have a fullscreen text reader.
+- **Flayrah** — furry news magazine via the public RSS full feed (read-only headlines + in-app article reader). Not a Federated child; no login, comments, or ratings. Work-safe news with attribution and a link back to flayrah.com.
 - **Tailspace** — posts, saved searches, following, account actions, and a dedicated comic reader. Post Suggester and Favorite Analyzer are not available here.
 - **Local** — a searchable media library backed by a folder on disk, including post suggester over local favorites.
 - **Federated** — a date-merged feed from supported remote children. Switch **Search** vs **Following** (Inkbunny / FurAffinity / Itaku / SoFurry), apply **Defaults** or **Auth only** site presets, and use origin-aware actions with per-site query translation. Failed children and incompatible metatags surface as snackbars. Post Suggester and Favorite Analyzer merge per-child favorites.
 
-Tailspace and Local are not included in Federated. When the browser is offline, remote modes are disabled and Local remains available.
+Tailspace, Flayrah, and Local are not included in Federated. When the browser is offline, remote modes are disabled and Local remains available.
 
 ## Browsing and media
 
@@ -44,7 +45,7 @@ The fork adds dedicated pool routes at `/pools` and `/pools/:id` for **e621 and 
 
 ## Post Suggester
 
-- Available on every mode except Tailspace
+- Available on every mode except Tailspace and Flayrah
 - Builds a taste profile from favorites (any user on e621 / e6ai / FurAffinity / SoFurry; logged-in favorites elsewhere; Local `type:favorited`)
 - Hybrid candidates: recent posts plus searches seeded from top favorite tags
 - Results ranked by score; already-favorited posts excluded
@@ -52,7 +53,7 @@ The fork adds dedicated pool routes at `/pools` and `/pools/:id` for **e621 and 
 
 ## Favorite Analyzer
 
-- Same mode surface as Post Suggester (everything except Tailspace)
+- Same mode surface as Post Suggester (everything except Tailspace and Flayrah)
 - Ranks tags by frequency in a sample of favorites (320 / 960 / 1920)
 - Other users’ public favorites on e621 / e6ai / FurAffinity / SoFurry; own favorites when signed in elsewhere; Local library favorites; Federated per-child merge
 - Optional blacklist filter, category chips, copy top tags, JSON export, and a link into Post Suggester

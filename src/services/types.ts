@@ -57,7 +57,7 @@ export interface SavedSearchEntry {
 export const UNGROUPED_FAVORITE_GROUP_ID = "ungrouped";
 export const UNGROUPED_SAVED_SEARCH_GROUP_ID = "ungrouped";
 
-export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "unified";
+export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "flayrah" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "unified";
 
 export type UnifiedChildMode = "e621" | "e6ai" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry";
 
@@ -108,6 +108,7 @@ export const SITE_MODE_URLS: Record<SiteMode, string> = {
   weasyl: "https://www.weasyl.com/",
   itaku: "https://itaku.ee/",
   sofurry: "https://www.sofurry.com/",
+  flayrah: "https://www.flayrah.com/",
   unified: "",
 };
 
@@ -221,7 +222,8 @@ export interface ISettingsServiceState {
     | 38
     | 39
     | 40
-    | 41;
+    | 41
+    | 42;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];

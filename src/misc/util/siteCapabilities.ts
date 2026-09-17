@@ -5,9 +5,16 @@ import { originModeOf } from "@/misc/util/postOrigin";
 export const isE621FamilyMode = (mode: SiteMode): boolean =>
   mode === "e621" || mode === "e6ai";
 
-/** Post Suggester — all modes except Tailspace (dedicated routes; no getPosts favs). */
+/**
+ * Modes with their own browse routes (not `/posts` / getPosts).
+ * Tailspace comics + Flayrah news — never fall through to e621-shaped chrome.
+ */
+export const isDedicatedChromeMode = (mode: SiteMode): boolean =>
+  mode === "tailspace" || mode === "flayrah";
+
+/** Post Suggester — all modes except dedicated chrome (no getPosts favs). */
 export const modeSupportsSuggester = (mode: SiteMode): boolean =>
-  mode !== "tailspace";
+  !isDedicatedChromeMode(mode);
 
 /**
  * Favorite Analyzer — same mode surface as Post Suggester.
@@ -67,7 +74,7 @@ export const postSupportsInkbunnyGallery = (post: {
 };
 
 export const modeSupportsFluffle = (mode: SiteMode): boolean =>
-  mode !== "tailspace"; // Local keeps Fluffle reverse image search
+  !isDedicatedChromeMode(mode); // Local keeps Fluffle reverse image search
 
 /**
  * Sites whose adapters already expose a following/watch feed via
@@ -93,7 +100,8 @@ export const postSupportsComments = (
   fallback: SiteMode,
 ): boolean => {
   const mode = originModeOf(post, fallback);
-  if (mode === "local" || mode === "tailspace" || mode === "unified") return false;
+  if (mode === "local" || mode === "tailspace" || mode === "flayrah" || mode === "unified")
+    return false;
   if (!modeSupportsComments(mode)) return false;
   if (mode === "furaffinity" && post?.__meta?.furaffinity?.kind === "journal") {
     return false;

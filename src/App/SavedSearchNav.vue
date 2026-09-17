@@ -316,6 +316,13 @@ const toSearch = (tags: string[]) =>
           tags: tags.join(" "),
         },
       }
+    : siteMode.isFlayrah
+      ? {
+          name: "FlayrahFeed",
+          query: {
+            tags: tags.join(" "),
+          },
+        }
     : {
         name: "Posts",
         query: {

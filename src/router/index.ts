@@ -241,6 +241,18 @@ const router = createRouter({
         import(/* webpackChunkName: "tailspace" */ "@/Tailspace/TailspaceComicReader.vue"),
     },
     {
+      path: "/flayrah",
+      name: "FlayrahFeed",
+      component: () =>
+        import(/* webpackChunkName: "flayrah" */ "@/Flayrah/FlayrahFeedPage.vue"),
+    },
+    {
+      path: "/flayrah/:id",
+      name: "FlayrahArticle",
+      component: () =>
+        import(/* webpackChunkName: "flayrah" */ "@/Flayrah/FlayrahArticlePage.vue"),
+    },
+    {
       path: "/:pathMatch(.*)",
       name: "ErrorPage",
       component: () =>
@@ -259,6 +271,7 @@ router.beforeEach((to) => {
       "TailspaceComic",
       "TailspaceFollowing",
     ]);
+    const flayrahRoutes = new Set(["FlayrahFeed", "FlayrahArticle"]);
     const e621ShapedRoutes = new Set([
       "Posts",
       "Pools",
@@ -273,36 +286,46 @@ router.beforeEach((to) => {
     if (mode === "tailspace" && e621ShapedRoutes.has(String(to.name))) {
       return { name: "TailspacePosts" };
     }
+    if (mode === "flayrah" && e621ShapedRoutes.has(String(to.name))) {
+      return { name: "FlayrahFeed" };
+    }
     if (mode !== "tailspace" && tailspaceRoutes.has(String(to.name))) {
       return { name: "Posts" };
+    }
+    if (mode !== "flayrah" && flayrahRoutes.has(String(to.name))) {
+      return { name: "Posts" };
+    }
+    // Dedicated chrome: never strand on Posts via suggester/analyzer redirects.
+    if (mode === "flayrah" && flayrahRoutes.has(String(to.name))) {
+      return true;
     }
     // Pools reader is e621-family only — never fall through to SoFurry/Itaku/IB chrome.
     if (
       !modeSupportsPools(mode) &&
       (to.name === "Pools" || to.name === "Pool")
     ) {
-      return { name: "Posts" };
+      return mode === "flayrah" ? { name: "FlayrahFeed" } : { name: "Posts" };
     }
     if (
       !modeSupportsSuggester(mode) &&
       (to.name === "Suggester" || to.name === "SuggesterResult")
     ) {
-      return { name: "Posts" };
+      return mode === "flayrah" ? { name: "FlayrahFeed" } : { name: "Posts" };
     }
     if (
       !modeSupportsFavoriteAnalyzer(mode) &&
       (to.name === "FavoritesAnalyzer" || to.name === "FavoritesAnalyzerResult")
     ) {
-      return { name: "Posts" };
+      return mode === "flayrah" ? { name: "FlayrahFeed" } : { name: "Posts" };
     }
     if (
       !isE621FamilyMode(mode) &&
       ["Dashboard", "DashboardResult"].includes(String(to.name))
     ) {
-      return { name: "Posts" };
+      return mode === "flayrah" ? { name: "FlayrahFeed" } : { name: "Posts" };
     }
     if (to.name === "SavedPosts" && !modeSupportsSavedPosts(mode)) {
-      return { name: "Posts" };
+      return mode === "flayrah" ? { name: "FlayrahFeed" } : { name: "Posts" };
     }
   } catch {
     // Pinia not ready yet

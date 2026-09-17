@@ -43,7 +43,11 @@ export const useHomeNavigationItem = () => {
       name: "Home",
       exact: true,
       to: {
-        name: siteMode.isTailspace ? "TailspacePosts" : "Posts",
+        name: siteMode.isTailspace
+          ? "TailspacePosts"
+          : siteMode.isFlayrah
+            ? "FlayrahFeed"
+            : "Posts",
       },
     }),
   );
@@ -62,6 +66,19 @@ export const useTrailingNavigationItems = () => {
         name: "Settings",
       },
     };
+
+    // Flayrah: news feed + settings only
+    if (siteMode.isFlayrah) {
+      return [
+        {
+          icon: "mdi-newspaper-variant",
+          name: "News",
+          exact: false,
+          to: { name: "FlayrahFeed" },
+        },
+        settings,
+      ].map((item) => resolveItem(router, item));
+    }
 
     // Tailspace mode: only Posts + Comics + Following + Settings
     if (siteMode.isTailspace) {
@@ -190,6 +207,13 @@ export const useNavigationItems = () => {
                 tags: entry.tags.join(" "),
               },
             }
+          : siteMode.isFlayrah
+            ? {
+                name: "FlayrahFeed",
+                query: {
+                  tags: entry.tags.join(" "),
+                },
+              }
           : {
               name: "Posts",
               query: {
