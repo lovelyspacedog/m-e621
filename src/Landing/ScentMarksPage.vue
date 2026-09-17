@@ -160,7 +160,13 @@
                 class="scent-admin-field scent-field"
                 @keydown.enter="unlockMod"
               />
-              <v-btn color="primary" variant="tonal" @click="unlockMod">
+              <v-btn
+                color="primary"
+                variant="tonal"
+                :loading="unlocking"
+                :disabled="unlocking"
+                @click="unlockMod"
+              >
                 Unlock
               </v-btn>
             </div>
@@ -188,6 +194,7 @@ import {
   getScentAdminPassword,
   listScentMarks,
   setScentAdminPassword,
+  verifyScentAdminPassword,
   type ScentMark,
 } from "./scentMarksApi";
 import {
@@ -210,6 +217,7 @@ const draftText = ref("");
 const adminPassword = ref("");
 const modUnlocked = ref(Boolean(getScentAdminPassword()));
 const modError = ref("");
+const unlocking = ref(false);
 const deletingId = ref<string | null>(null);
 
 const formatWhen = (iso: string) => {
@@ -266,16 +274,27 @@ const submitMark = async () => {
   }
 };
 
-const unlockMod = () => {
+const unlockMod = async () => {
   modError.value = "";
   const pw = adminPassword.value.trim();
   if (!pw) {
     modError.value = "Enter the admin password";
     return;
   }
-  setScentAdminPassword(pw);
-  modUnlocked.value = true;
-  adminPassword.value = "";
+  unlocking.value = true;
+  try {
+    await verifyScentAdminPassword(pw);
+    setScentAdminPassword(pw);
+    modUnlocked.value = true;
+    adminPassword.value = "";
+  } catch (err) {
+    clearScentAdminPassword();
+    modUnlocked.value = false;
+    modError.value =
+      err instanceof Error ? err.message : "Unlock failed";
+  } finally {
+    unlocking.value = false;
+  }
 };
 
 const lockMod = () => {

@@ -19,6 +19,7 @@ export const changelogSections: ChangelogSection[] = [
     title: "Public instance noted",
     items: [
       "README notes that the public instance at m-e621.tonypup.box.ca is operable",
+      "Scent Marks moderation Unlock checks the admin password against the host before showing delete controls",
     ],
   },
   {

@@ -86,6 +86,7 @@ SCENT_BLOCKLIST_PATH = (
     Path(__file__).resolve().parent / "src" / "Landing" / "scentMarksBlocklist.json"
 )
 SCENT_MARKS_LIST_PATH = re.compile(r"^/api/scent-marks/?$")
+SCENT_MARKS_AUTH_PATH = re.compile(r"^/api/scent-marks/auth/?$")
 SCENT_MARK_ITEM_PATH = re.compile(r"^/api/scent-marks/([A-Za-z0-9_-]{8,64})$")
 SCENT_MAX_BODY = 500
 SCENT_MAX_NAME = 32
@@ -1241,6 +1242,23 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return
         _scent_rate_stamp(ip)
         self._json(201, {"ok": True, "mark": mark})
+
+    def _handle_scent_marks_auth(self) -> None:
+        """Verify admin password without deleting (Unlock UI)."""
+        password = self._scent_admin_password()
+        if not SCENT_ADMIN_HASH_PATH.is_file():
+            self._json(
+                503,
+                {
+                    "ok": False,
+                    "message": "admin hash not configured on host",
+                },
+            )
+            return
+        if not _scent_verify_admin(password):
+            self._json(401, {"ok": False, "message": "unauthorized"})
+            return
+        self._json(200, {"ok": True})
 
     def _handle_scent_marks_delete(self, mark_id: str) -> None:
         password = self._scent_admin_password()
@@ -3273,6 +3291,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
         path = parsed.path
         length = int(self.headers.get("Content-Length", "0") or 0)
         body = self.rfile.read(length) if length else b""
+
+        if SCENT_MARKS_AUTH_PATH.match(path):
+            self._handle_scent_marks_auth()
+            return
 
         if SCENT_MARKS_LIST_PATH.match(path):
             self._handle_scent_marks_post(body)

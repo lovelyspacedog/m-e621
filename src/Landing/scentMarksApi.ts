@@ -61,6 +61,19 @@ export async function createScentMark(args: {
   return data.mark;
 }
 
+export async function verifyScentAdminPassword(
+  password: string,
+): Promise<void> {
+  const res = await fetch("/api/scent-marks/auth", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${password}`,
+      "X-Scent-Admin": password,
+    },
+  });
+  if (!res.ok) throw new Error(await readError(res));
+}
+
 export async function deleteScentMark(
   id: string,
   password: string,

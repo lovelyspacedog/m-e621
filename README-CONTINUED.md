@@ -94,16 +94,17 @@ Upstream's static image remains suitable for e621-only hosting. This fork includ
 - Proxies remote APIs, account actions, comments, and downloads
 - Provides same-origin media URLs for Firefox and Zen playback
 - Supports optional managed-instance git updates
-- Hosts **Scent Marks** (`GET`/`POST` `/api/scent-marks`, admin `DELETE /api/scent-marks/:id`) with JSON at `~/.config/m-e621/scent_marks.json`
+- Hosts **Scent Marks** (`GET`/`POST` `/api/scent-marks`, `POST /api/scent-marks/auth`, admin `DELETE /api/scent-marks/:id`) with JSON at `~/.config/m-e621/scent_marks.json`
 - New scent marks are checked client-side and in `serve.py` against a shared blocklist (`src/Landing/scentMarksBlocklist.json`) for hate, clear illegal/CSAM terms, and spam links — NSFW language is allowed; rejected posts report `Blocked: …` with the matched terms
 
-Admin delete requires a PBKDF2 password hash at `~/.config/m-e621/scent_marks_admin.hash` (mode `600`). Create once on the host:
+Admin delete requires a PBKDF2 password hash at `~/.config/m-e621/scent_marks_admin.hash` (mode `600`). Unlock in the UI calls `/api/scent-marks/auth` so a wrong or stale hash fails before delete. Create once on the host (replace `YOUR_PASSWORD`):
 
 ```bash
 python3 -c "import hashlib,base64,secrets; salt=secrets.token_bytes(16); pw=b'YOUR_PASSWORD'; it=390000; h=hashlib.pbkdf2_hmac('sha256',pw,salt,it); print(f'pbkdf2_sha256\${it}\${base64.b64encode(salt).decode()}\${base64.b64encode(h).decode()}')" > ~/.config/m-e621/scent_marks_admin.hash
 chmod 600 ~/.config/m-e621/scent_marks_admin.hash
 ```
 
+`serve.py` only checks that hash file. If you change the password (or keep a separate reminder file), regenerate the hash — a mismatched hash returns `unauthorized`.
 Configuration belongs in `~/.config/m-e621/env` or a gitignored `deploy.env`. See [`deploy.env.example`](./deploy.env.example).
 
 ### Development
