@@ -13,7 +13,7 @@
           <settings-row stack>
             <p class="text-left text-body-2 mb-0">
               Each site keeps its own credentials, starred tags, blacklist, saved searches, and history.
-              Pick a site in the sidebar; Unified mixes the children you enable below.
+              Pick a site in the sidebar; Federated mixes the children you enable below.
             </p>
             <v-btn
               class="mt-2 px-0"
@@ -54,7 +54,7 @@
         </settings-group>
 
         <settings-group
-          title="Unified feed"
+          title="Federated feed"
           description="Uses each site's login when present, otherwise guest search. Following merges watch feeds from Inkbunny, FurAffinity, Itaku, and SoFurry only."
           anchor="unified"
         >
@@ -180,7 +180,7 @@ const activeModeLabel = computed(() => unifiedChildLabel(siteMode.activeMode));
 const navChips: SettingsNavChip[] = [
   { label: "Sites", anchor: "sites" },
   { label: "Sync", anchor: "sync" },
-  { label: "Unified", anchor: "unified" },
+  { label: "Federated", anchor: "unified" },
   { label: "Accounts", anchor: "accounts" },
   { label: "Proxy", anchor: "proxy" },
 ];

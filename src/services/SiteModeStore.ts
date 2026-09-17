@@ -83,7 +83,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       case "weasyl": return "Weasyl";
       case "itaku": return "Itaku";
       case "sofurry": return "SoFurry";
-      case "unified": return "Unified";
+      case "unified": return "Federated";
       default: return "e621";
     }
   });
@@ -149,8 +149,8 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     main.profiles.unified.unifiedSites = next;
     snackbar.addMessage(
       preset === "default"
-        ? "Unified sites reset to defaults"
-        : "Unified sites set to profiles with auth saved",
+        ? "Federated sites reset to defaults"
+        : "Federated sites set to profiles with auth saved",
     );
     if (main.activeMode === "unified") {
       void getApiService().then((api) => api.resetUnifiedMerge());

@@ -140,8 +140,8 @@ const tagline = computed(() =>
 
 const capabilities = computed(() => [
   siteMode.supportsLocalMode
-    ? "Nine remote sites plus Unified date-merge and a Local folder browser"
-    : "Nine remote sites plus Unified date-merge",
+    ? "Nine remote sites plus Federated date-merge and a Local folder browser"
+    : "Nine remote sites plus Federated date-merge",
   "Independent accounts, blacklists, and preferences per site",
   "Saved posts across federated sites in one list",
   "Pools, comics, and fullscreen story / PDF / RTF / DOCX reading where supported",

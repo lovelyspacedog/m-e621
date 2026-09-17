@@ -41,7 +41,7 @@ export const unifiedChildLabel = (mode: SiteMode | UnifiedChildMode): string => 
     case "sofurry":
       return "SoFurry";
     case "unified":
-      return "Unified";
+      return "Federated";
     case "local":
       return "Local";
     case "tailspace":

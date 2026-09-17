@@ -62,7 +62,7 @@ const showUsername = computed(() =>
 const ownFavoritesLabel = computed(() => {
   if (siteMode.activeMode === "local") return "Using library favorites";
   if (siteMode.activeMode === "unified") {
-    return "Using favorites from each enabled Unified child";
+    return "Using favorites from each enabled Federated child";
   }
   return "Using logged-in favorites";
 });

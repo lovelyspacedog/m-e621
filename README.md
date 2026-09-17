@@ -15,7 +15,7 @@
 
 ---
 
-m-e621 expands [Material e621](https://github.com/avoonix/material-e621) with additional sites, a Unified feed, local media management, and richer browsing tools. It is built with Vue 3 and Vuetify.
+m-e621 expands [Material e621](https://github.com/avoonix/material-e621) with additional sites, a Federated feed, local media management, and richer browsing tools. It is built with Vue 3 and Vuetify.
 
 A public instance is operable at **[m-e621.tonypup.box.ca](https://m-e621.tonypup.box.ca)**.
 
@@ -25,7 +25,7 @@ A public instance is operable at **[m-e621.tonypup.box.ca](https://m-e621.tonypu
 ## Highlights
 
 - **Nine supported sites** — browse e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry, and Tailspace from one interface.
-- **Unified browsing** — date-merge child sites into a Search or Following feed, with Defaults / Auth-only presets, per-site filters, and origin-aware actions.
+- **Federated browsing** — date-merge child sites into a Search or Following feed, with Defaults / Auth-only presets, per-site filters, and origin-aware actions.
 - **Local library** — browse a folder on disk with fuzzy search, favorites, remux, and portable sidecars (Chromium or the Tauri desktop build).
 - **Independent accounts** — configure authentication, blacklists, favorites, history, and preferences for each site.
 - **Saved posts** — bookmark posts across federated sites in one mode-independent list.
@@ -42,7 +42,7 @@ A public instance is operable at **[m-e621.tonypup.box.ca](https://m-e621.tonypu
 
 [![m-e621 landing page](./screenshots/landing-page.png)](./screenshots/landing-page.png)
 
-[![Grid layout in Unified mode](./screenshots/grid-and-unified-mode.png)](./screenshots/grid-and-unified-mode.png)
+[![Grid layout in Federated mode](./screenshots/grid-and-unified-mode.png)](./screenshots/grid-and-unified-mode.png)
 
 <details>
   <summary>More screenshots</summary>

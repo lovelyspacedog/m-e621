@@ -14,7 +14,7 @@
               >Material e621</a
             >.
             It browses e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry,
-            Tailspace{{ localBrowsePhrase }}. Unified date-merges the remote children.
+            Tailspace{{ localBrowsePhrase }}. Federated date-merges the remote children.
           </p>
           <p class="text-center">
             Uploads, site forums, and account admin stay on each origin site. Experimental —

@@ -284,7 +284,7 @@ watch(
 
 const heading = computed(() => {
   if (siteMode.activeMode === "local") return "Library favorites";
-  if (siteMode.activeMode === "unified") return "Unified favorites";
+  if (siteMode.activeMode === "unified") return "Federated favorites";
   if (needsUsername.value && username.value) {
     return `Favorites for ${username.value}`;
   }

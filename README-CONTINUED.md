@@ -11,14 +11,14 @@ Each mode has its own profile for authentication, blacklist, starred tags, saved
 - **Furbooru** — API-key authentication, tags, view/post comments, favorites, votes, and post suggester (logged-in favorites).
 - **Inkbunny** — multi-file submission galleries (Save all / Save page), following feed, Flash/SWF playback through Ruffle, and post suggester (logged-in favorites). Submission “pools” appear as metadata, not the e621 `/pools` UI. Favorite toggling is unavailable.
 - **FurAffinity** — browsing and search through the bundled `faapi` proxy, cookie sign-in (optional captcha helper), following feed, enriched music posts, and post suggester (any user). Profile cookies override host-wide `FA_COOKIE_*` when set.
-- **Weasyl** — API-key authentication, multimedia audio, `favs:me`, and post suggester. Guest browsing is SFW-only; favorite toggling is unavailable. On by default in Unified.
-- **Itaku** — galleries, flattened multi-image posts, comments, stars, following, and post suggester with token authentication. On by default in Unified.
+- **Weasyl** — API-key authentication, multimedia audio, `favs:me`, and post suggester. Guest browsing is SFW-only; favorite toggling is unavailable. On by default in Federated.
+- **Itaku** — galleries, flattened multi-image posts, comments, stars, following, and post suggester with token authentication. On by default in Federated.
 - **SoFurry** — artwork, music, stories, likes (Remix session), following, and post suggester (any user). Stories have a fullscreen text reader.
 - **Tailspace** — posts, saved searches, following, account actions, and a dedicated comic reader. Post Suggester and Favorite Analyzer are not available here.
 - **Local** — a searchable media library backed by a folder on disk, including post suggester over local favorites.
-- **Unified** — a date-merged feed from supported remote children. Switch **Search** vs **Following** (Inkbunny / FurAffinity / Itaku / SoFurry), apply **Defaults** or **Auth only** site presets, and use origin-aware actions with per-site query translation. Failed children and incompatible metatags surface as snackbars. Post Suggester and Favorite Analyzer merge per-child favorites.
+- **Federated** — a date-merged feed from supported remote children. Switch **Search** vs **Following** (Inkbunny / FurAffinity / Itaku / SoFurry), apply **Defaults** or **Auth only** site presets, and use origin-aware actions with per-site query translation. Failed children and incompatible metatags surface as snackbars. Post Suggester and Favorite Analyzer merge per-child favorites.
 
-Tailspace and Local are not included in Unified. When the browser is offline, remote modes are disabled and Local remains available.
+Tailspace and Local are not included in Federated. When the browser is offline, remote modes are disabled and Local remains available.
 
 ## Browsing and media
 
@@ -30,12 +30,12 @@ Tailspace and Local are not included in Unified. When the browser is offline, re
 - Fullscreen comments rail (resizable) with optional info and description in-rail
 - Score, favorites, random (Fisher–Yates), and mode-specific media filters in the Posts toolbar
 - History back/forward in the header plus a toolbar history menu
-- Collapsible long artist and creator tag lists; collapsible sidebar sections for Unified sites and on-page tags
+- Collapsible long artist and creator tag lists; collapsible sidebar sections for Federated sites and on-page tags
 - Notes in post details and over fullscreen media where supported
 - `o` shortcut to open the current fullscreen post on its source site
 - Story, PDF, RTF, and DOCX fullscreen previews; legacy `.doc` remains unsupported
 - Fluffle reverse-image search for still images (with copy-URL on results)
-- Compact sidebar site switcher; origin badge icons in Unified
+- Compact sidebar site switcher; origin badge icons in Federated
 - **Scent Marks** (`#/scent-marks`) — anonymous public guestbook from the landing page; host operators moderate via a hashed admin password on the VPS
 
 ## Pools and comics
@@ -48,13 +48,13 @@ The fork adds dedicated pool routes at `/pools` and `/pools/:id` for **e621 and 
 - Builds a taste profile from favorites (any user on e621 / e6ai / FurAffinity / SoFurry; logged-in favorites elsewhere; Local `type:favorited`)
 - Hybrid candidates: recent posts plus searches seeded from top favorite tags
 - Results ranked by score; already-favorited posts excluded
-- Unified merges per-child favorites and ranks across origins
+- Federated merges per-child favorites and ranks across origins
 
 ## Favorite Analyzer
 
 - Same mode surface as Post Suggester (everything except Tailspace)
 - Ranks tags by frequency in a sample of favorites (320 / 960 / 1920)
-- Other users’ public favorites on e621 / e6ai / FurAffinity / SoFurry; own favorites when signed in elsewhere; Local library favorites; Unified per-child merge
+- Other users’ public favorites on e621 / e6ai / FurAffinity / SoFurry; own favorites when signed in elsewhere; Local library favorites; Federated per-child merge
 - Optional blacklist filter, category chips, copy top tags, JSON export, and a link into Post Suggester
 - Uses mode-native favorite queries — never falls through to the e621 API on other sites
 
@@ -191,7 +191,7 @@ The bundle identifier is `com.lovelyspacedog.me621`.
 
 - Settings hub search finds pages and rows across groups (including synonyms like “hotkey” → shortcuts, plus playback, route transitions, git pull, and sanitized backup).
 - Appearance includes themes, System/Dark/Light color scheme, navigation density, fullscreen and route transitions (route animations respect reduced motion), an optional paw cursor, and a Prompts subgroup for dismissable banners.
-- Account settings use per-site panels with credentials material and last verify/login probe status; Unified feed source and site presets are also editable there.
+- Account settings use per-site panels with credentials material and last verify/login probe status; Federated feed source and site presets are also editable there.
 - Info → Debug can silence main-thread production console diagnostics (workers unchanged).
 - Blacklist and History settings show which site profile you are editing.
 - Posts settings can set per-site mute/volume/speed overrides (HTML5; SWF unchanged) and insert Save Locally path tokens from chips.

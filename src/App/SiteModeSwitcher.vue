@@ -138,7 +138,7 @@ const modeLabel = (mode: SiteMode) => {
     case "weasyl": return "Weasyl";
     case "itaku": return "Itaku";
     case "sofurry": return "SoFurry";
-    case "unified": return "Unified";
+    case "unified": return "Federated";
     default: return mode;
   }
 };

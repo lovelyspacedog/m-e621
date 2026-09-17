@@ -88,7 +88,7 @@
     <portal to="sidebar-suggestions">
       <v-list v-if="siteMode.isUnified" class="pa-0 mt-1 mb-2 unified-sidebar" density="compact">
         <v-list-subheader class="text-overline unified-sidebar__label">
-          Unified source
+          Federated source
         </v-list-subheader>
         <v-list-item class="unified-sidebar__source py-2">
           <v-btn-toggle

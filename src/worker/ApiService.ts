@@ -341,7 +341,7 @@ export class ApiService {
       throw new Error(
         feedSource === "following"
           ? "No following-capable sites enabled (Inkbunny, FurAffinity, Itaku, SoFurry)"
-          : "No sites enabled for Unified search",
+          : "No sites enabled for Federated search",
       );
     }
 
@@ -377,7 +377,7 @@ export class ApiService {
     const warnings = args.page <= 1 ? [...tagWarnings] : [];
     if (feedSource === "following" && args.page <= 1) {
       warnings.unshift(
-        "Unified Following: merging watch feeds (search tags ignored)",
+        "Federated Following: merging watch feeds (search tags ignored)",
       );
     }
     const childByMode = new Map(children.map((c) => [c.mode, c]));
@@ -432,7 +432,7 @@ export class ApiService {
       (w) =>
         !/: (dropped|remapped|ignored) /.test(w) &&
         !/; remapped /.test(w) &&
-        !w.startsWith("Unified Following:"),
+        !w.startsWith("Federated Following:"),
     );
     if (!posts.length && hardFailures.length === children.length) {
       throw new Error(hardFailures.join(" · "));
