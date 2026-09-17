@@ -197,7 +197,7 @@ The bundle identifier is `com.lovelyspacedog.me621`.
 - Parallel agents that cannot safely edit README/changelog write untracked notes under `PENDING_DOCS/` for a later survey (see `PENDING_DOCS/README.md`).
 - `public/zen-browser.css` provides Zen Browser and Transparent Zen compatibility.
 - The PWA checks for updates every ten minutes and shows an update banner with the git short hash when available.
-- The landing page uses site-mode chips, a primary Browse posts action, a capability summary, honest About/limits copy, a curated changelog excerpt (full dialog + GitHub commits), and an AGPL/age footer.
+- The landing page uses site-mode chips, a primary Browse posts action, a capability summary, honest About/limits copy, a curated changelog excerpt (full dialog + GitHub commits), and an AGPL/age footer. The hero tagline and About copy mention a local folder only when Local browse is available (Chromium File System Access or the Tauri app).
 - The app title can show a short commit hash so a self-host knows which build is running.
 
 ## Project expectations

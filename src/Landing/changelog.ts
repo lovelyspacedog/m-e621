@@ -25,6 +25,7 @@ export const changelogSections: ChangelogSection[] = [
       "Watched pools on the e621-family pool browser",
       "Post comments on Furbooru (composer enabled)",
       "Landing page: site chips, honest About copy, capability strip, and changelog excerpt instead of dual git timelines",
+      "Landing tagline omits Local when this browser cannot browse a folder",
       "Landing Changelog dialog beside Browse posts",
       "Scent Marks: anonymous public guestbook from the landing page (host-moderated)",
       "Collapsible sidebar disclosure for Unified and search clutter",

@@ -4,7 +4,7 @@
       <app-logo v-view-transition-name="'applogo'" type="face" size="160" />
       <h1 class="mb-2 text-h1 text-center">m-e621</h1>
       <p class="text-h6 text-center landing-tagline mb-4">
-        Browse nine imageboards and a local folder from one client.
+        {{ tagline }}
       </p>
       <site-mode-switcher class="mb-5" variant="chips" :navigate-on-change="false" />
       <div v-if="showTagSearch" class="landing-search mb-4">
@@ -104,14 +104,22 @@ useHead({
   titleTemplate: null,
 });
 
-const capabilities = [
-  "Nine remote sites plus Unified date-merge and a Local folder browser",
+const tagline = computed(() =>
+  siteMode.supportsLocalMode
+    ? "Browse nine imageboards and a local folder from one client."
+    : "Browse nine imageboards from one client.",
+);
+
+const capabilities = computed(() => [
+  siteMode.supportsLocalMode
+    ? "Nine remote sites plus Unified date-merge and a Local folder browser"
+    : "Nine remote sites plus Unified date-merge",
   "Independent accounts, blacklists, and preferences per site",
   "Saved posts across federated sites in one list",
   "Pools, comics, and fullscreen story / PDF / RTF / DOCX reading where supported",
   "Post Suggester and Favorite Analyzer outside Tailspace",
   "Uploads, site forums, and account admin stay on each origin site",
-];
+]);
 
 const latestSection = changelogSections[0];
 const latestPreview = latestSection.items.slice(0, 6);

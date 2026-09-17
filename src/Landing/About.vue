@@ -14,7 +14,7 @@
               >Material e621</a
             >.
             It browses e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry,
-            Tailspace, and a local folder. Unified date-merges the remote children.
+            Tailspace{{ localBrowsePhrase }}. Unified date-merges the remote children.
           </p>
           <p class="text-center">
             Uploads, site forums, and account admin stay on each origin site. Experimental —
@@ -50,7 +50,14 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { useUrlStore } from "@/services";
+import { useSiteModeStore } from "@/services/SiteModeStore";
 
 const url = useUrlStore();
+const siteMode = useSiteModeStore();
+
+const localBrowsePhrase = computed(() =>
+  siteMode.supportsLocalMode ? ", and a local folder" : "",
+);
 </script>
