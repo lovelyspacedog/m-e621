@@ -4,7 +4,7 @@ Onboarding for other AI agents. Prefer this file plus `README.md` / `README-CONT
 
 ## Purpose
 
-**PawFeed** (`package.json` name `pawfeed`, GitHub `lovelyspacedog/m-e621`) is a personal, AI-assisted fork of [Material e621](https://github.com/avoonix/material-e621). It is a Vue 3 SPA that browses multiple furry imageboards and a local media folder from one UI. User-facing branding lives in `src/misc/util/brand.ts` (`APP_NAME`). Host paths, env vars (`M_E621_*`), and Local sidecars stay `m-e621`.
+**PawFeed** (`package.json` name `pawfeed`, GitHub `lovelyspacedog/m-e621`) is a personal, AI-assisted fork of [Material e621](https://github.com/avoonix/material-e621). It is a Vue 3 SPA that browses multiple furry imageboards and a local media folder from one UI. User-facing branding lives in `src/misc/util/brand.ts` (`APP_NAME`). Host paths, env vars (`M_E621_*`), and Local sidecars stay `m-e621`. Public instance: **https://pawfeed.tonypup.box.ca**.
 
 Supported **site modes** (`SiteMode` in `src/services/types.ts`): `e621`, `e6ai`, `furbooru`, `inkbunny`, `furaffinity`, `weasyl`, `itaku`, `sofurry`, `tailspace`, `local`, `unified`.
 
