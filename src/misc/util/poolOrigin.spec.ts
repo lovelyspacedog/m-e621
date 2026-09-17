@@ -6,6 +6,9 @@ import {
   poolKey,
   poolRouteQuery,
   resolvePoolOrigin,
+  sortPoolsByOrder,
+  comparePoolsByOrder,
+  poolTimestampMs,
 } from "./poolOrigin";
 import type { ISettingsServiceState } from "@/services/types";
 import { defaultUnifiedSites, SITE_MODE_URLS } from "@/services/types";
@@ -86,5 +89,54 @@ describe("poolFamilyChildren", () => {
       e6ai: false,
     };
     expect(poolFamilyChildren(state)).toEqual([]);
+  });
+});
+
+describe("sortPoolsByOrder", () => {
+  const sample = [
+    {
+      id: 1,
+      name: "zeta",
+      post_count: 10,
+      created_at: "2024-01-01T00:00:00Z",
+      updated_at: "2024-06-01T00:00:00Z",
+      originMode: "e621" as const,
+    },
+    {
+      id: 2,
+      name: "alpha",
+      post_count: 50,
+      created_at: "2025-01-01T00:00:00Z",
+      updated_at: "2025-06-01T00:00:00Z",
+      originMode: "e6ai" as const,
+    },
+    {
+      id: 3,
+      name: "beta",
+      post_count: 30,
+      created_at: "2024-06-01T00:00:00Z",
+      updated_at: "2025-01-01T00:00:00Z",
+      originMode: "e621" as const,
+    },
+  ];
+
+  it("interleaves by updated_at newest first", () => {
+    const sorted = sortPoolsByOrder(sample, "updated_at");
+    expect(sorted.map((p) => p.id)).toEqual([2, 3, 1]);
+  });
+
+  it("sorts by created_at and post_count", () => {
+    expect(sortPoolsByOrder(sample, "created_at").map((p) => p.id)).toEqual([
+      2, 3, 1,
+    ]);
+    expect(sortPoolsByOrder(sample, "post_count").map((p) => p.id)).toEqual([
+      2, 3, 1,
+    ]);
+  });
+
+  it("comparePoolsByOrder and poolTimestampMs helpers", () => {
+    expect(poolTimestampMs("2024-01-01T00:00:00Z")).toBeGreaterThan(0);
+    expect(poolTimestampMs("nope")).toBe(0);
+    expect(comparePoolsByOrder(sample[1], sample[0], "name")).toBeLessThan(0);
   });
 });

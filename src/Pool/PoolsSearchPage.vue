@@ -198,6 +198,7 @@ import {
   isPoolOriginMode,
   poolFamilyChildren,
   poolKey,
+  sortPoolsByOrder,
   type PoolChildFetchArgs,
 } from "@/misc/util/poolOrigin";
 import { unifiedChildLabel } from "@/misc/util/postOrigin";
@@ -249,6 +250,17 @@ const parseOrder = (raw: unknown): PoolOrder => {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return ORDER_VALUES.includes(value as PoolOrder) ? (value as PoolOrder) : "post_count";
 };
+/** Federated defaults to Updated so e621/e6ai results interleave by time. */
+const defaultOrderForMode = (): PoolOrder =>
+  siteMode.isUnified ? "updated_at" : "post_count";
+const parseOrderOrDefault = (raw: unknown): PoolOrder => {
+  if (raw == null || (Array.isArray(raw) && raw[0] == null)) {
+    return defaultOrderForMode();
+  }
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (ORDER_VALUES.includes(value as PoolOrder)) return value as PoolOrder;
+  return defaultOrderForMode();
+};
 const parseCategory = (raw: unknown): PoolCategoryFilter => {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return CATEGORY_VALUES.includes(value as PoolCategoryFilter)
@@ -291,7 +303,7 @@ const loadAlsoDescriptions = (): boolean => {
 
 const query = ref<string | null>(parseQuery(route.query.q));
 const creator = ref(parseQuery(route.query.creator));
-const order = ref<PoolOrder>(parseOrder(route.query.order));
+const order = ref<PoolOrder>(parseOrderOrDefault(route.query.order));
 const category = ref<PoolCategoryFilter>(parseCategory(route.query.category));
 const activeFilter = ref<ActiveFilter>(parseActive(route.query.active));
 const searchMode = ref<SearchMode>(parseMode(route.query.mode));
@@ -418,6 +430,10 @@ const mergePools = (
       out.push(pool);
     }
   }
+  // Federated (or any multi-origin merge): re-sort so sources interleave.
+  if (isFederatedPools.value || new Set(out.map((p) => p.originMode)).size > 1) {
+    return sortPoolsByOrder(out, order.value);
+  }
   return out;
 };
 
@@ -469,7 +485,7 @@ const syncQueryToRoute = async () => {
     else keysToRemove.push("desc");
   }
 
-  if (order.value !== "post_count") next.order = order.value;
+  if (order.value !== defaultOrderForMode()) next.order = order.value;
   else keysToRemove.push("order");
   if (category.value !== "all") next.category = category.value;
   else keysToRemove.push("category");
@@ -759,7 +775,11 @@ const fetchPoolsByName = async (append: boolean) => {
     childHasMore.value = more;
 
     const merged = mergePools(lists, append ? existingPoolKeys() : undefined);
-    pools.value = append ? [...pools.value, ...merged] : merged;
+    const next = append ? [...pools.value, ...merged] : merged;
+    pools.value =
+      isFederatedPools.value || new Set(next.map((p) => p.originMode)).size > 1
+        ? sortPoolsByOrder(next, order.value)
+        : next;
     if (!append) covers.value = {};
     hasMore.value = Object.values(more).some(Boolean);
     searched.value = true;
@@ -858,7 +878,11 @@ const fetchPoolsByTags = async (append: boolean) => {
     childHasMore.value = more;
 
     const merged = mergePools(lists, append ? existingPoolKeys() : undefined);
-    pools.value = append ? [...pools.value, ...merged] : merged;
+    const next = append ? [...pools.value, ...merged] : merged;
+    pools.value =
+      isFederatedPools.value || new Set(next.map((p) => p.originMode)).size > 1
+        ? sortPoolsByOrder(next, order.value)
+        : next;
     if (!append) covers.value = {};
     hasMore.value = Object.values(more).some(Boolean);
     searched.value = true;
@@ -961,7 +985,7 @@ watch(
     ] as const,
   ([q, o, c, m, a, cr, d]) => {
     const nextQuery = parseQuery(q);
-    const nextOrder = parseOrder(o);
+    const nextOrder = parseOrderOrDefault(o);
     const nextCategory = parseCategory(c);
     const nextMode = parseMode(m);
     const nextActive = parseActive(a);
@@ -1015,6 +1039,10 @@ onMounted(() => {
 watch(
   [() => siteMode.activeMode, () => JSON.stringify(siteMode.unifiedSites)],
   () => {
+    // Apply Federated default sort when the URL has no explicit order.
+    if (route.query.order == null) {
+      order.value = defaultOrderForMode();
+    }
     watchedPoolResults.value = [];
     void reloadPoolsForMode();
   },

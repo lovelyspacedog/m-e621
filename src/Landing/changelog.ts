@@ -20,6 +20,7 @@ export const changelogSections: ChangelogSection[] = [
     items: [
       "Federated Pools: merged e621/e6ai browse with origin badges; reader stays in Federated via ?origin=",
       "Federated Pools fetches e621/e6ai one at a time with retry (avoids Failed to fetch under COEP)",
+      "Federated Pools merge sorts by Updated (default) or the chosen sort so e621 and e6ai interleave",
       "Federated sidebar Defaults / Auth only presets hide with Sites in this search and sit as a compact toolbar above the list",
       "Layout menu and Post settings include an Infinite scroll toggle (off uses previous/next page buttons)",
       "Saved posts sidebar includes the same Layout menu as Posts (full-width, grid, compact, auto-next, infinite scroll)",

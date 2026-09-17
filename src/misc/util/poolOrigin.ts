@@ -130,3 +130,48 @@ export const poolRouteQuery = (
   }
   return query;
 };
+
+export type PoolBrowseOrder =
+  | "post_count"
+  | "updated_at"
+  | "created_at"
+  | "name";
+
+export const poolTimestampMs = (
+  value: Date | string | null | undefined,
+): number => {
+  if (value == null) return 0;
+  const t = value instanceof Date ? value.getTime() : Date.parse(String(value));
+  return Number.isFinite(t) ? t : 0;
+};
+
+/** Cross-origin merge sort so e621/e6ai results interleave by the browse order. */
+export const comparePoolsByOrder = (
+  a: { name?: string; post_count?: number; created_at?: Date | string; updated_at?: Date | string },
+  b: { name?: string; post_count?: number; created_at?: Date | string; updated_at?: Date | string },
+  order: PoolBrowseOrder,
+): number => {
+  switch (order) {
+    case "updated_at":
+      return poolTimestampMs(b.updated_at) - poolTimestampMs(a.updated_at);
+    case "created_at":
+      return poolTimestampMs(b.created_at) - poolTimestampMs(a.created_at);
+    case "name":
+      return (a.name || "").localeCompare(b.name || "", undefined, {
+        sensitivity: "base",
+      });
+    case "post_count":
+    default:
+      return (b.post_count || 0) - (a.post_count || 0);
+  }
+};
+
+export const sortPoolsByOrder = <T extends {
+  name?: string;
+  post_count?: number;
+  created_at?: Date | string;
+  updated_at?: Date | string;
+}>(
+  pools: T[],
+  order: PoolBrowseOrder,
+): T[] => [...pools].sort((a, b) => comparePoolsByOrder(a, b, order));
