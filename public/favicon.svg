@@ -63,22 +63,22 @@
        C 712 445 720 432 725 430 Z"
     fill="#ffcdf1"
   />
-  <!-- Face: thick inward-angled brows + tall droopy ovals -->
-  <path d="M 320 468 L 420 492 L 412 518 L 312 494 Z" fill="#000000" />
-  <path d="M 680 468 L 580 492 L 588 518 L 688 494 Z" fill="#000000" />
-  <ellipse cx="375" cy="555" rx="38" ry="52" fill="#000000" />
-  <ellipse cx="625" cy="555" rx="38" ry="52" fill="#000000" />
+  <!-- Face: thick inward-angled brows + tall droopy ovals (raised to shorten forehead) -->
+  <path d="M 320 413 L 420 437 L 412 463 L 312 439 Z" fill="#000000" />
+  <path d="M 680 413 L 580 437 L 588 463 L 688 439 Z" fill="#000000" />
+  <ellipse cx="375" cy="500" rx="38" ry="52" fill="#000000" />
+  <ellipse cx="625" cy="500" rx="38" ry="52" fill="#000000" />
   <path
-    d="M 500 640
-       C 462 640 438 668 438 688
-       C 438 712 464 732 500 732
-       C 536 732 562 712 562 688
-       C 562 668 538 640 500 640 Z"
+    d="M 500 585
+       C 462 585 438 613 438 633
+       C 438 657 464 677 500 677
+       C 536 677 562 657 562 633
+       C 562 613 538 585 500 585 Z"
     fill="#000000"
   />
   <path
-    d="M 500 732 L 500 752
-       M 448 772 Q 478 798 500 778 Q 522 798 552 772"
+    d="M 500 677 L 500 697
+       M 448 717 Q 478 743 500 723 Q 522 743 552 717"
     fill="none"
     stroke="#000000"
     stroke-width="12"

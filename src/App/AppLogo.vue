@@ -34,37 +34,39 @@
       />
 
       <!-- Face under ears so the blink rect never paints over them.
-           Loader uses the same face; otherwise the pulse is a blank hexagon. -->
+           Loader uses the same face; otherwise the pulse is a blank hexagon.
+           Brows paint after eyelids so the open-lid rect cannot cover them. -->
       <g class="face" v-if="type === 'face' || type === 'loader'">
-        <path
-          d="M 320 468 L 420 492 L 412 518 L 312 494 Z"
-          fill="rgb(0,0,0)"
-        />
-        <path
-          d="M 680 468 L 580 492 L 588 518 L 688 494 Z"
-          fill="rgb(0,0,0)"
-        />
-        <ellipse class="eye" cx="375" cy="555" rx="38" ry="52" fill="rgb(0,0,0)" />
-        <ellipse class="eye" cx="625" cy="555" rx="38" ry="52" fill="rgb(0,0,0)" />
+        <ellipse class="eye" cx="375" cy="500" rx="38" ry="52" fill="rgb(0,0,0)" />
+        <ellipse class="eye" cx="625" cy="500" rx="38" ry="52" fill="rgb(0,0,0)" />
+        <!-- Open lids sit above the brows; blink slides them down over the eyes. -->
         <rect
           class="eyelids"
           x="340"
-          y="380"
+          y="270"
           width="320"
           height="130"
           fill="rgb(0, 84, 159)"
         />
         <path
-          d="M 500 640
-             C 462 640 438 668 438 688
-             C 438 712 464 732 500 732
-             C 536 732 562 712 562 688
-             C 562 668 538 640 500 640 Z"
+          d="M 320 413 L 420 437 L 412 463 L 312 439 Z"
           fill="rgb(0,0,0)"
         />
         <path
-          d="M 500 732 L 500 752
-             M 448 772 Q 478 798 500 778 Q 522 798 552 772"
+          d="M 680 413 L 580 437 L 588 463 L 688 439 Z"
+          fill="rgb(0,0,0)"
+        />
+        <path
+          d="M 500 585
+             C 462 585 438 613 438 633
+             C 438 657 464 677 500 677
+             C 536 677 562 657 562 633
+             C 562 613 538 585 500 585 Z"
+          fill="rgb(0,0,0)"
+        />
+        <path
+          d="M 500 677 L 500 697
+             M 448 717 Q 478 743 500 723 Q 522 743 552 717"
           fill="none"
           stroke="rgb(0,0,0)"
           stroke-width="12"
@@ -290,7 +292,8 @@ svg .right-ear {
   83%,
   100%,
   0% {
-    transform: translateY(12%) rotateZ(0deg);
+    /* ~18% of viewBox height clears brows and covers the eyes */
+    transform: translateY(18%) rotateZ(0deg);
   }
 }
 </style>

@@ -20,6 +20,7 @@ export const changelogSections: ChangelogSection[] = [
     items: [
       "Product renamed to PawFeed; public Live URL is pawfeed.tonypup.box.ca (host paths and GitHub stay m-e621)",
       "App logo and favicon refreshed to a basset-hound mark; loading spinner matches the sidebar face",
+      "Logo face raised to shorten the forehead; blink lids no longer cover the eyebrows",
       "Flayrah site mode: read-only RSS feed and article reader with taxonomy chips, archive, saved/unread, magazine layout, and j/k shortcuts",
       "Federated Pools: merged e621/e6ai browse with origin badges, sequential fetch/retry, and Updated/sort interleave",
       "Federated Pools name browse can include Tailspace comics (Account setting, on by default); opens the Tailspace reader",
