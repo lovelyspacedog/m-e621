@@ -39,15 +39,27 @@
                 {{ cat }}
               </v-chip>
             </div>
-            <v-btn
-              color="primary"
-              variant="tonal"
-              :href="entryUrl"
-              target="_blank"
-              rel="noopener"
-            >
-              Open entry
-            </v-btn>
+            <div class="d-flex flex-wrap justify-center ga-2">
+              <v-btn
+                color="primary"
+                variant="tonal"
+                :href="entryUrl"
+                target="_blank"
+                rel="noopener"
+              >
+                Open entry
+              </v-btn>
+              <v-btn
+                color="primary"
+                variant="tonal"
+                :loading="loading"
+                :disabled="loading"
+                @click="refreshEntry"
+              >
+                <v-icon start>mdi-refresh</v-icon>
+                Another entry
+              </v-btn>
+            </div>
           </div>
         </v-col>
       </v-row>
@@ -65,17 +77,30 @@ import {
 } from "./furryDictionaryApi";
 
 const entry = ref<FurryDictionaryEntry | null>(null);
+const loading = ref(false);
 const homeUrl = dictionaryHomeUrl();
 const entryUrl = computed(() =>
   entry.value ? dictionaryEntryUrl(entry.value.slug) : homeUrl,
 );
 
-onMounted(async () => {
+async function loadEntry(excludeSlug?: string) {
+  loading.value = true;
   try {
-    entry.value = await fetchRandomFurryDictionaryEntry();
+    const next = await fetchRandomFurryDictionaryEntry(excludeSlug);
+    if (next) entry.value = next;
   } catch {
-    entry.value = null;
+    if (!entry.value) entry.value = null;
+  } finally {
+    loading.value = false;
   }
+}
+
+function refreshEntry() {
+  void loadEntry(entry.value?.slug);
+}
+
+onMounted(() => {
+  void loadEntry();
 });
 </script>
 

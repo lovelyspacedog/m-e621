@@ -88,13 +88,21 @@ export async function loadFurryDictionaryEntries(): Promise<FurryDictionaryEntry
 
 export function pickRandomEntry(
   entries: FurryDictionaryEntry[],
+  excludeSlug?: string,
 ): FurryDictionaryEntry | null {
   if (!entries.length) return null;
-  const i = Math.floor(Math.random() * entries.length);
-  return entries[i] ?? null;
+  const pool =
+    excludeSlug && entries.length > 1
+      ? entries.filter((e) => e.slug !== excludeSlug)
+      : entries;
+  if (!pool.length) return entries[0] ?? null;
+  const i = Math.floor(Math.random() * pool.length);
+  return pool[i] ?? null;
 }
 
-export async function fetchRandomFurryDictionaryEntry(): Promise<FurryDictionaryEntry | null> {
+export async function fetchRandomFurryDictionaryEntry(
+  excludeSlug?: string,
+): Promise<FurryDictionaryEntry | null> {
   const entries = await loadFurryDictionaryEntries();
-  return pickRandomEntry(entries);
+  return pickRandomEntry(entries, excludeSlug);
 }

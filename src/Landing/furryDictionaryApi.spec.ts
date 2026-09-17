@@ -34,4 +34,16 @@ describe("furryDictionaryApi", () => {
     expect(picked).not.toBeNull();
     expect(entries).toContainEqual(picked!);
   });
+
+  it("avoids the excluded slug when other entries exist", () => {
+    const entries = [sample("a"), sample("b")];
+    for (let i = 0; i < 20; i++) {
+      const picked = pickRandomEntry(entries, "a");
+      expect(picked?.slug).toBe("b");
+    }
+  });
+
+  it("keeps the only entry when exclude matches it", () => {
+    expect(pickRandomEntry([sample("solo")], "solo")?.slug).toBe("solo");
+  });
 });
