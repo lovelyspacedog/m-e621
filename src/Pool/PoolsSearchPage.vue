@@ -71,6 +71,7 @@
           :layout="browseLayout"
           :covers="covers"
           :watched-ids="watchedIds"
+          :new-counts="newCounts"
           @toggle-watch="toggleWatch"
         />
         <v-list v-if="unavailableWatchedIds.length" class="mt-2" bg-color="transparent" density="compact">
@@ -96,7 +97,15 @@
       </div>
       <div v-else-if="!pools.length && searched" class="text-medium-emphasis">No pools found</div>
 
-      <PoolCollection v-else :pools="pools" :layout="browseLayout" :covers="covers" :watched-ids="watchedIds" @toggle-watch="toggleWatch" />
+      <PoolCollection
+        v-else
+        :pools="pools"
+        :layout="browseLayout"
+        :covers="covers"
+        :watched-ids="watchedIds"
+        :new-counts="newCounts"
+        @toggle-watch="toggleWatch"
+      />
 
       <div v-if="pools.length" class="text-center mt-4">
         <v-btn variant="text" color="accent" :loading="loading" :disabled="!hasMore" @click="loadMore">
@@ -206,6 +215,14 @@ let tagsFetchGeneration = 0;
 const poolOrigin = computed(() => siteMode.activeMode as PoolOriginMode);
 const watchedEntries = computed(() => watchedPoolStore.entriesFor(poolOrigin.value));
 const watchedIds = computed(() => new Set(watchedEntries.value.map((entry) => entry.id)));
+const newCounts = computed(() => {
+  const out: Record<number, number> = {};
+  for (const pool of [...watchedPoolResults.value, ...pools.value]) {
+    const n = watchedPoolStore.newCount(poolOrigin.value, pool.id, pool.post_count || 0);
+    if (n > 0) out[pool.id] = n;
+  }
+  return out;
+});
 const unavailableWatchedIds = computed(() => {
   if (watchedLoading.value) return [];
   const loaded = new Set(watchedPoolResults.value.map((pool) => pool.id));
@@ -213,6 +230,11 @@ const unavailableWatchedIds = computed(() => {
 });
 const queryText = () => (query.value || "").trim();
 const browseLimit = () => postsStore.postListFetchLimit || 40;
+
+const poolSnapshot = (pool: Pool) => ({
+  postCount: pool.post_count || pool.post_ids?.length || 0,
+  updatedAt: pool.updated_at,
+});
 
 const mergePools = (lists: Pool[][], existingIds?: Set<number>) => {
   const seen = existingIds ? new Set(existingIds) : new Set<number>();
@@ -313,7 +335,20 @@ const loadWatchedPools = async () => {
   try {
     const hydrated = await hydratePools(watchedEntries.value.map((entry) => entry.id));
     const byId = new Map(hydrated.map((pool) => [pool.id, pool]));
-    watchedPoolResults.value = watchedEntries.value.map((entry) => byId.get(entry.id)).filter((pool): pool is Pool => !!pool);
+    watchedPoolResults.value = watchedEntries.value
+      .map((entry) => byId.get(entry.id))
+      .filter((pool): pool is Pool => !!pool);
+    for (const pool of watchedPoolResults.value) {
+      watchedPoolStore.ensureBaseline(poolOrigin.value, pool.id, poolSnapshot(pool));
+    }
+    // Prefer pools with new pages first within the watched section.
+    watchedPoolResults.value = [...watchedPoolResults.value].sort((a, b) => {
+      const delta =
+        watchedPoolStore.newCount(poolOrigin.value, b.id, b.post_count || 0) -
+        watchedPoolStore.newCount(poolOrigin.value, a.id, a.post_count || 0);
+      if (delta) return delta;
+      return 0;
+    });
     void fetchCovers(watchedPoolResults.value);
   } finally {
     watchedLoading.value = false;
@@ -321,7 +356,7 @@ const loadWatchedPools = async () => {
 };
 
 const toggleWatch = (pool: Pool) => {
-  const watched = watchedPoolStore.toggle(poolOrigin.value, pool.id);
+  const watched = watchedPoolStore.toggle(poolOrigin.value, pool.id, poolSnapshot(pool));
   if (watched) {
     watchedPoolResults.value = [pool, ...watchedPoolResults.value.filter((item) => item.id !== pool.id)];
     void fetchCovers([pool]);

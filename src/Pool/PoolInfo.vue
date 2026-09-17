@@ -80,7 +80,10 @@ export default defineComponent({
     const watched = computed(() => watchedPools.isWatched(poolOrigin.value, props.poolId));
     const toggleWatch = () => {
       if (!pool.value) return;
-      watchedPools.toggle(poolOrigin.value, props.poolId);
+      watchedPools.toggle(poolOrigin.value, props.poolId, {
+        postCount: pool.value.post_count || pool.value.post_ids?.length || 0,
+        updatedAt: pool.value.updated_at,
+      });
     };
     const datesCaption = computed(() => {
       if (!pool.value) return null;
@@ -104,6 +107,12 @@ export default defineComponent({
           mode: siteMode.activeMode,
         });
         pool.value = result;
+        if (watchedPools.isWatched(poolOrigin.value, props.poolId)) {
+          watchedPools.markSeen(poolOrigin.value, props.poolId, {
+            postCount: result.post_count || result.post_ids?.length || 0,
+            updatedAt: result.updated_at,
+          });
+        }
         emit("loaded", result);
       } catch (err: any) {
         const message = err?.message || String(err);

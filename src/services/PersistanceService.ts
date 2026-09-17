@@ -526,6 +526,10 @@ class PersistanceService {
       }
       newState.configVersion = 38;
     }
+    if (newState.configVersion < 39) {
+      // Watched pools gain optional last-seen snapshot fields (filled on open/hydrate).
+      newState.configVersion = 39;
+    }
 
     if (!newState.watchedPools || !Array.isArray(newState.watchedPools.entries)) {
       newState.watchedPools = { entries: [] };

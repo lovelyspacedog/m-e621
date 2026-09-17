@@ -58,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, toRaw, watch } from "vue";
+import { computed, nextTick, ref, toRaw, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useHead } from "@unhead/vue";
 import PoolInfo from "@/Pool/PoolInfo.vue";
@@ -101,6 +101,8 @@ const poolError = ref<string | null>(null);
 const viewMode = ref<PoolViewMode>("gallery");
 const chunkLoading = ref(false);
 const flufflePost = ref<EnhancedPost | null>(null);
+/** When true, chunk URL changed because the post list advanced — skip replace fetch. */
+const syncingChunkFromList = ref(false);
 
 const displayPoolName = computed(() =>
   (poolMeta.value?.name || "").replace(/_/g, " "),
@@ -128,6 +130,59 @@ const chunk = computed(() => {
   return Math.min(Math.max(1, raw), chunkCount.value);
 });
 
+const fetchChunkPosts = async (pageNumber: number): Promise<EnhancedPost[]> => {
+  const ids = poolMeta.value?.post_ids || [];
+  if (!ids.length) return [];
+  const size = chunkSize.value;
+  const start = (pageNumber - 1) * size;
+  const slice = ids.slice(start, start + size);
+  if (!slice.length) return [];
+
+  if (
+    pageNumber <= 1 &&
+    !siteMode.isFurbooru &&
+    !siteMode.isInkbunny &&
+    !siteMode.isFurAffinity &&
+    !siteMode.isTailspace
+  ) {
+    const built = buildTagQuery(
+      toRaw(blacklist.mode),
+      toRaw(blacklist.tags),
+      [`id:${slice.join(",")}`],
+    );
+    if (built.truncated) {
+      snackbar.addMessage(tagQueryTruncationMessage(built.total, built.limit));
+    }
+  }
+
+  const service = await getApiService();
+  const { posts: fetched } = await service.getPosts(
+    toRaw({
+      limit: slice.length,
+      page: 1,
+      tags: [`id:${slice.join(",")}`],
+      blacklist: toRaw(blacklist.tags),
+      blacklistMode: toRaw(blacklist.mode),
+      auth: toRaw(account.auth),
+      baseUrl: toRaw(urlStore.e621Url),
+      mode: toRaw(siteMode.activeMode),
+    }),
+  );
+  const byId = new Map<number, EnhancedPost>(
+    fetched.map((post) => [post.id, post]),
+  );
+  return slice
+    .map((id) => byId.get(id))
+    .filter((post): post is EnhancedPost => !!post)
+    .map((post) => ({
+      ...post,
+      __meta: {
+        ...post.__meta,
+        pageNumber,
+      },
+    }));
+};
+
 const {
   visiblePosts: posts,
   clearPosts,
@@ -147,11 +202,31 @@ const {
   getSavedPageNumber() {
     return chunk.value;
   },
-  savePageNumber() {
-    // Chunk is owned by ?chunk=; do not write ?page=.
+  savePageNumber(id) {
+    // Keep ?chunk= in sync when fullscreen advance loads adjacent chunks.
+    if (id == null || id === chunk.value) return;
+    const clamped = Math.min(Math.max(1, id), chunkCount.value);
+    syncingChunkFromList.value = true;
+    void (async () => {
+      try {
+        if (clamped <= 1) await removeRouterQuery(["chunk"]);
+        else await updateRouterQuery({ chunk: String(clamped) });
+      } finally {
+        await nextTick();
+        syncingChunkFromList.value = false;
+      }
+    })();
   },
-  async loadPosts() {
-    return [];
+  async loadPosts(page) {
+    try {
+      chunkLoading.value = true;
+      return await fetchChunkPosts(page);
+    } catch (err: any) {
+      snackbar.addMessage(err?.message || String(err));
+      return [];
+    } finally {
+      chunkLoading.value = false;
+    }
   },
 });
 
@@ -183,64 +258,9 @@ const setChunk = (next: number) => {
 };
 
 const fetchChunk = async () => {
-  const ids = poolMeta.value?.post_ids || [];
-  if (!ids.length) {
-    replacePosts([]);
-    return;
-  }
-  const size = chunkSize.value;
-  const start = (chunk.value - 1) * size;
-  const slice = ids.slice(start, start + size);
-  if (!slice.length) {
-    replacePosts([]);
-    return;
-  }
-
   chunkLoading.value = true;
   try {
-    if (
-      chunk.value <= 1 &&
-      !siteMode.isFurbooru &&
-      !siteMode.isInkbunny &&
-      !siteMode.isFurAffinity &&
-      !siteMode.isTailspace
-    ) {
-      const built = buildTagQuery(
-        toRaw(blacklist.mode),
-        toRaw(blacklist.tags),
-        [`id:${slice.join(",")}`],
-      );
-      if (built.truncated) {
-        snackbar.addMessage(tagQueryTruncationMessage(built.total, built.limit));
-      }
-    }
-
-    const service = await getApiService();
-    const { posts: fetched } = await service.getPosts(
-      toRaw({
-        limit: slice.length,
-        page: 1,
-        tags: [`id:${slice.join(",")}`],
-        blacklist: toRaw(blacklist.tags),
-        blacklistMode: toRaw(blacklist.mode),
-        auth: toRaw(account.auth),
-        baseUrl: toRaw(urlStore.e621Url),
-        mode: toRaw(siteMode.activeMode),
-      }),
-    );
-    const byId = new Map<number, EnhancedPost>(
-      fetched.map((post) => [post.id, post]),
-    );
-    const ordered = slice
-      .map((id) => byId.get(id))
-      .filter((post): post is EnhancedPost => !!post)
-      .map((post) => ({
-        ...post,
-        __meta: {
-          ...post.__meta,
-          pageNumber: chunk.value,
-        },
-      }));
+    const ordered = await fetchChunkPosts(chunk.value);
     replacePosts(ordered);
   } catch (err: any) {
     snackbar.addMessage(err?.message || String(err));
@@ -292,6 +312,11 @@ watch(poolId, () => {
 watch(chunk, (next, prev) => {
   if (!poolMeta.value?.post_ids?.length) return;
   if (next === prev) return;
+  if (syncingChunkFromList.value) {
+    // List already holds the adjacent chunk from loadPosts; do not replacePosts.
+    syncingChunkFromList.value = false;
+    return;
+  }
   void fetchChunk();
 });
 </script>

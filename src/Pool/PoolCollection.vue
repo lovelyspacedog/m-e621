@@ -15,6 +15,9 @@
             {{ pool.category }}
           </div>
           <div v-if="!pool.is_active" class="pools-badge pools-badge--inactive">inactive</div>
+          <div v-if="newCount(pool) > 0" class="pools-badge pools-badge--new">
+            +{{ newCount(pool) }}
+          </div>
         </div>
         <div class="pools-card-info">
           <div class="pools-card-title">{{ displayName(pool.name) }}</div>
@@ -51,8 +54,19 @@
         {{ pool.post_count }} posts · {{ pool.creator_name }}
         <span v-if="pool.category"> · {{ pool.category }}</span>
         <span v-if="!pool.is_active"> · inactive</span>
+        <span v-if="newCount(pool) > 0"> · +{{ newCount(pool) }} new</span>
       </v-list-item-subtitle>
       <template #append>
+        <v-chip
+          v-if="newCount(pool) > 0"
+          class="mr-1"
+          size="x-small"
+          color="accent"
+          variant="flat"
+          label
+        >
+          +{{ newCount(pool) }}
+        </v-chip>
         <v-btn
           icon
           size="small"
@@ -79,6 +93,8 @@ const props = defineProps<{
   layout: "grid" | "list";
   covers: Record<number, string>;
   watchedIds: Set<number>;
+  /** pool id → new posts since last seen */
+  newCounts?: Record<number, number>;
 }>();
 
 defineEmits<{
@@ -91,6 +107,7 @@ const coverUrl = (pool: Pool) => {
   return firstId ? props.covers[firstId] || null : null;
 };
 const isWatched = (id: number) => props.watchedIds.has(id);
+const newCount = (pool: Pool) => props.newCounts?.[pool.id] || 0;
 </script>
 
 <style scoped>
@@ -208,6 +225,12 @@ const isWatched = (id: number) => props.watchedIds.has(id);
   left: 5px;
   background: rgba(180, 0, 0, 0.75);
   color: #fff;
+}
+.pools-badge--new {
+  bottom: 5px;
+  left: 5px;
+  background: rgb(var(--v-theme-accent));
+  color: rgb(var(--v-theme-on-accent));
 }
 .pools-card-info {
   padding: 6px 8px 8px;

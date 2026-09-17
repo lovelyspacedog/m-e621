@@ -1,0 +1,46 @@
+# Pools module improvements
+
+Checklist for improving e621/e6ai pools (`src/Pool/`, `WatchedPoolsStore`, shared `comicReader.ts`). Keep Tailspace on its own routes — do not merge into `/pools`.
+
+## Highest impact
+
+- [x] **Watch deltas** — Persist `lastSeenPostCount` / `lastSeenUpdatedAt` on watch; mark seen when opening a pool; show new-page badges / sort by activity on `/pools`.
+- [x] **Cross-chunk fullscreen next/prev** — Wire `PoolPage` `loadPosts` so fullscreen advance fetches the next/previous chunk instead of stopping at chunk edges.
+- [ ] **Resume / deep-link** — Support `?post=` (and/or remember last post per pool) so opening a pool lands on that page in gallery, scroll, or fullscreen.
+- [ ] **Keyboard parity** — Chunk ←/→ (and optional gallery/scroll toggle); align with Tailspace reader keys without merging routes. Optional focus-trap audit.
+
+## Browse & search
+
+- [ ] **Tags-mode API** — Prefer native pools filter (e.g. e621 `search[post_tags_match]`) instead of posts→`getPool` N+1; restore sort/category when possible.
+- [ ] **Name search pagination** — Avoid approximate `hasMore` from dual name+description fetches; single primary query or honest “also search descriptions” toggle.
+- [ ] **Batch hydration / covers** — Batch watched-pool and cover fetches; fall through later `post_ids` when first cover is missing, deleted, or blacklisted.
+- [ ] **Browse filters** — Hide inactive; filter by creator; show updated time in grid/list.
+
+## Reader polish
+
+- [ ] **Blacklist gaps** — Explicit hidden-page placeholder, soft-blur, or “N hidden” chip so sequence numbers stay honest in hide mode.
+- [ ] **Bulk save** — Pool-level Save all / download chunk (mirrors Inkbunny gallery Save all/page) into Local.
+- [ ] **Shared reader chrome (optional)** — Next `comicReader` slice: shared page-index + keyboard (not Tailspace→`/pools`).
+
+## Out of scope (for now)
+
+- [ ] ~~Inkbunny `/pools` UI~~ — product + API undecided; submission galleries stay outside `/pools`.
+- [ ] ~~Merge Tailspace into Pools~~ — rejected; keep routes separate.
+
+## Suggested ship order
+
+1. Watch deltas  
+2. Cross-chunk fullscreen  
+3. Resume deep-link  
+4. Tags API / hydration  
+5. Keyboard + remaining polish  
+
+## Progress
+
+| Slice | Status | Notes |
+| ----- | ------ | ----- |
+| Checklist doc | Done | This file |
+| Watch deltas | Done | lastSeen + badges + sort |
+| Cross-chunk fullscreen | Done | PoolPage loadPosts |
+| Resume / deep-link | Pending | |
+| Rest | Pending | |

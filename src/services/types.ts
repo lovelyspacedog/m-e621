@@ -73,6 +73,10 @@ export interface WatchedPoolEntry {
   originMode: PoolOriginMode;
   id: number;
   watchedAt: number;
+  /** Post count when last opened (or when watch was added). Used for "new pages" badges. */
+  lastSeenPostCount?: number;
+  /** Pool `updated_at` ISO when last opened / watched. */
+  lastSeenUpdatedAt?: string;
 }
 
 export const UNIFIED_CHILD_MODES: UnifiedChildMode[] = ["e621", "e6ai", "furbooru", "inkbunny", "furaffinity", "weasyl", "itaku", "sofurry"];
@@ -214,7 +218,8 @@ export interface ISettingsServiceState {
     | 35
     | 36
     | 37
-    | 38;
+    | 38
+    | 39;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];

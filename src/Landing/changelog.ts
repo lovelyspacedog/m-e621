@@ -20,6 +20,8 @@ export const changelogSections: ChangelogSection[] = [
     items: [
       "README notes that the public instance at m-e621.tonypup.box.ca is operable",
       "Scent Marks moderation Unlock checks the admin password against the host before showing delete controls",
+      "Watched pools show +N new-page badges; opening a pool marks it seen",
+      "Pool fullscreen next/previous continues across gallery/scroll chunks",
     ],
   },
   {
