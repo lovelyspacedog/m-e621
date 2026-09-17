@@ -99,7 +99,7 @@ UI (Vue pages)
 - Identity in Unified / caches: `postFeedKey` = `` `${originMode}:${id}` `` (`postOrigin.ts`). Comment/notes caches must use this, not raw numeric id.
 - UI capability gates: `src/misc/util/siteCapabilities.ts` (votes, faves, comments, notes, hidden buttons). Origin-aware actions: `filterButtonsForPost` / `originModeOf`.
 - Local mode does **not** go through `ApiService`; `PostsPage.vue` calls `getLocalPostsPage` (`localMedia.ts`). Chromium File System Access API, or Tauri `pick_local_folder` / `list_local_media` / `read_local_file`.
-- Tailspace browsing uses dedicated routes (`/tailspace/...`), not the e621-shaped Posts/Pools/Suggester/Analyzer/Dashboard pages. Router guards enforce this.
+- Tailspace browsing uses dedicated routes (`/tailspace/...`), not the e621-shaped Posts/Pools/Analyzer/Dashboard pages (Post Suggester is multi-mode but still blocked for Tailspace). Router guards enforce this.
 
 **Proxies**
 
@@ -211,7 +211,7 @@ PWA: `registerType: 'prompt'`, update poll every 10 minutes, Workbox max cache *
 - **Furbooru** needs `curl_cffi` + cached `_philomena_key` (`.furbooru_philomena_key`, gitignored). Node `fetch` gets HTTP 501 “I'm not a robot”.
 - **FA search** scrapes HTML and **deliberately delays** between requests (`fa_proxy.py`).
 - **Weasyl guests are SFW-only.** Inkbunny and Weasyl have **no public fav-toggle API** — keep the favorite button hidden (`modeSupportsFavoriteToggle`).
-- **SoFurry / other non-e621 modes must not fall through to e621 comments, notes, pools, suggester, analyzer, or dashboard.**
+- **SoFurry / other non-e621 modes must not fall through to e621 comments, notes, pools, analyzer, or dashboard.** Post Suggester is allowed outside Tailspace via `modeSupportsSuggester`.
 - **Unified merge** keeps sticky per-child leftovers (`unifiedMerge.ts`). Sequential pages reuse discarded posts; tag/children changes must reset state. Page jumps use legacy merge then reseed.
 - **Unified tag translation** (`unifiedTags.ts`) strips/remaps metatags per child (`order:`, `favs:me` → `my:faves` / `stars:me`, etc.) and may snackbar ignored tokens.
 - **e621 hide-mode blacklist** is folded into the **40-tag API cap** on page 1 only (`createTagQuery.ts` / `PostsPage.vue`). Other modes do not use that path.

@@ -41,9 +41,10 @@ import { cloneDeep, debounce } from "lodash";
 import * as Comlink from "comlink";
 import { useRoute } from "vue-router";
 import ProgressMessage from "@/Suggester/ProgressMessage.vue";
-import { useUrlStore, useSiteModeStore } from "@/services";
+import { useAccountStore, useUrlStore, useSiteModeStore } from "@/services";
 import { useHead } from "@unhead/vue";
 import TagLabel from "@/Tag/TagLabel.vue";
+import { resolveFavoriteTagsQuery } from "@/misc/util/favoriteQuery";
 
 useHead({ title: "Favorite Analyzer" });
 
@@ -51,16 +52,22 @@ const route = useRoute();
 const progress = ref<IProgressEvent>();
 const urlStore = useUrlStore();
 const siteMode = useSiteModeStore();
+const account = useAccountStore();
 
 const args = computed<IAnalyzeTagsArgs>(() => {
-  const username = route.query?.name?.toString();
+  const username = route.query?.name?.toString() || "";
+  const resolved = resolveFavoriteTagsQuery({
+    mode: siteMode.activeMode,
+    username,
+  });
   return {
     height: window.innerHeight * 0.66,
-    tags: [`fav:${username}`],
+    tags: resolved.tags,
     postLimit: 1000,
     baseUrl: urlStore.e621Url,
     mode: siteMode.activeMode,
-    // TODO: useBlacklist: bool
+    auth: account.auth,
+    userId: account.userId,
   };
 });
 
@@ -82,7 +89,7 @@ const analyze = debounce(async (a: IAnalyzeTagsArgs, gen: number) => {
 
 watchEffect(() => {
   const username = route.query?.name?.toString();
-  // Don't run with fav:undefined when the name query param is absent
+  // Don't run when the name query param is absent
   if (!username) return;
   const a = cloneDeep(args.value);
   analyze(a, ++generation);

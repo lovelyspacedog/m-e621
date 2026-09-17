@@ -27,7 +27,7 @@ m-e621 expands [Material e621](https://github.com/avoonix/material-e621) with ad
 - **Saved posts** — bookmark posts across federated sites in one mode-independent list.
 - **Community features** — view and post comments, vote, favorite, follow creators, and open posts at their source where supported.
 - **Flexible feeds** — switch between full-width lists, thumbnail grids, and compact cards with rich filtering and media controls.
-- **Powerful e621 tools** — browse and watch pools, organize starred tags and saved searches, use the post suggester, analyze favorites, and explore artist dashboards.
+- **Powerful browsing tools** — browse and watch pools (e621-family), organize starred tags and saved searches, use the multi-site post suggester, analyze favorites, and explore artist dashboards.
 - **Comics and stories** — dedicated pool and Tailspace comic readers plus fullscreen story, PDF, RTF, and DOCX previews.
 - **Immersive media** — fullscreen comments rail, notes, slideshows, auto-next, Fluffle reverse-image search, and remembered audio/video playback settings.
 

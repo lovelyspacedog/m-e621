@@ -2,7 +2,11 @@ import { useSavedSearchStore } from "@/services";
 import { useFavoritesStore } from "@/services/FavoriteStore";
 import { useSiteModeStore } from "@/services/SiteModeStore";
 import { useSiteLabels } from "@/misc/util/siteLabels";
-import { isE621FamilyMode, modeSupportsPools } from "@/misc/util/siteCapabilities";
+import {
+  isE621FamilyMode,
+  modeSupportsPools,
+  modeSupportsSuggester,
+} from "@/misc/util/siteCapabilities";
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 
@@ -95,44 +99,50 @@ export const useTrailingNavigationItems = () => {
           },
         ]
       : [];
-    const remoteItems = [
-      {
-        icon: "mdi-chart-timeline-variant-shimmer",
-        name: "Post Suggester",
-        exact: true,
-        to: {
-          name: "Suggester",
-        },
-      },
-      {
-        icon: "mdi-cloud-tags",
-        name: "Favorite Analyzer",
-        exact: true,
-        to: {
-          name: "FavoritesAnalyzer",
-        },
-      },
-      {
-        icon: "mdi-view-dashboard-variant",
-        name: `${creatorLabel.value} Dashboard`,
-        exact: true,
-        to: {
-          name: "Dashboard",
-        },
-      },
-      ...(hasFavorites.value
-        ? [
-            {
-              icon: "mdi-star",
-              name: "Starred",
-              exact: true,
-              to: {
-                name: "Starred",
-              },
+    const suggesterItem = modeSupportsSuggester(siteMode.activeMode)
+      ? [
+          {
+            icon: "mdi-chart-timeline-variant-shimmer",
+            name: "Post Suggester",
+            exact: true,
+            to: {
+              name: "Suggester",
             },
-          ]
-        : []),
-    ];
+          },
+        ]
+      : [];
+    const e621ToolItems = isE621FamilyMode(siteMode.activeMode)
+      ? [
+          {
+            icon: "mdi-cloud-tags",
+            name: "Favorite Analyzer",
+            exact: true,
+            to: {
+              name: "FavoritesAnalyzer",
+            },
+          },
+          {
+            icon: "mdi-view-dashboard-variant",
+            name: `${creatorLabel.value} Dashboard`,
+            exact: true,
+            to: {
+              name: "Dashboard",
+            },
+          },
+        ]
+      : [];
+    const starredItem = hasFavorites.value
+      ? [
+          {
+            icon: "mdi-star",
+            name: "Starred",
+            exact: true,
+            to: {
+              name: "Starred",
+            },
+          },
+        ]
+      : [];
     return [
       ...(siteMode.supportsSavedPosts
         ? [
@@ -147,7 +157,9 @@ export const useTrailingNavigationItems = () => {
           ]
         : []),
       ...poolItems,
-      ...(isE621FamilyMode(siteMode.activeMode) ? remoteItems : []),
+      ...suggesterItem,
+      ...e621ToolItems,
+      ...starredItem,
       settings,
     ].map((item) => resolveItem(router, item));
   });

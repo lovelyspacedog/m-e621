@@ -18,6 +18,7 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-16",
     title: "Unified Following, Local writes, and polish",
     items: [
+      "Post Suggester on all modes except Tailspace, with hybrid tag-seed ranking",
       "Unified Search vs Following feed, with Defaults and Auth-only site presets",
       "Watched pools on the e621-family pool browser",
       "Post comments on Furbooru (composer enabled)",

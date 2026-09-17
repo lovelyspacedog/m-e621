@@ -1,9 +1,23 @@
 import type { ButtonType, SiteMode } from "@/services/types";
 import { originModeOf } from "@/misc/util/postOrigin";
 
-/** e621 / e6ai shaped features (pools, suggester, analyzer, dashboard, wiki). */
+/** e621 / e6ai shaped features (pools, analyzer, dashboard, wiki). */
 export const isE621FamilyMode = (mode: SiteMode): boolean =>
   mode === "e621" || mode === "e6ai";
+
+/** Post Suggester — all modes except Tailspace (dedicated routes; no getPosts favs). */
+export const modeSupportsSuggester = (mode: SiteMode): boolean =>
+  mode !== "tailspace";
+
+/**
+ * Username field for Post Suggester / Analyzer: other users' public favorites.
+ * Own-only sites use the logged-in account (`my:faves` / `favs:me` / …).
+ */
+export const modeSupportsOtherUserFavorites = (mode: SiteMode): boolean =>
+  mode === "e621" ||
+  mode === "e6ai" ||
+  mode === "furaffinity" ||
+  mode === "sofurry";
 
 /** `/pools` + pool reader — e621-family only. Inkbunny submission pools stay on `__meta`, not this UI. */
 export const modeSupportsPools = (mode: SiteMode): boolean =>

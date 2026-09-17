@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   isE621FamilyMode,
+  modeSupportsOtherUserFavorites,
   modeSupportsPools,
+  modeSupportsSuggester,
 } from "./siteCapabilities";
 import type { SiteMode } from "@/services/types";
 
@@ -24,5 +26,38 @@ describe("modeSupportsPools", () => {
       expect(modeSupportsPools(mode)).toBe(false);
       expect(isE621FamilyMode(mode)).toBe(false);
     }
+  });
+});
+
+describe("modeSupportsSuggester", () => {
+  it("allows all modes except Tailspace", () => {
+    const modes: SiteMode[] = [
+      "e621",
+      "e6ai",
+      "furbooru",
+      "inkbunny",
+      "furaffinity",
+      "weasyl",
+      "itaku",
+      "sofurry",
+      "local",
+      "unified",
+    ];
+    for (const mode of modes) {
+      expect(modeSupportsSuggester(mode)).toBe(true);
+    }
+    expect(modeSupportsSuggester("tailspace")).toBe(false);
+  });
+});
+
+describe("modeSupportsOtherUserFavorites", () => {
+  it("is true only for public-fav modes", () => {
+    expect(modeSupportsOtherUserFavorites("e621")).toBe(true);
+    expect(modeSupportsOtherUserFavorites("e6ai")).toBe(true);
+    expect(modeSupportsOtherUserFavorites("furaffinity")).toBe(true);
+    expect(modeSupportsOtherUserFavorites("sofurry")).toBe(true);
+    expect(modeSupportsOtherUserFavorites("furbooru")).toBe(false);
+    expect(modeSupportsOtherUserFavorites("unified")).toBe(false);
+    expect(modeSupportsOtherUserFavorites("local")).toBe(false);
   });
 });

@@ -1,18 +1,32 @@
 import { expose } from "comlink";
-import type { PostTags, Post } from "./api";
+import type { Post } from "./api";
 import type { EnhancedPost } from "./ApiService";
 import { ApiService } from "./ApiService";
-import { BlacklistMode, type SiteMode } from "@/services/types";
+import {
+  BlacklistMode,
+  SITE_MODE_URLS,
+  type SiteMode,
+  type UnifiedChildMode,
+} from "@/services/types";
+import type { UnifiedFetchArgs } from "@/misc/util/postOrigin";
 import { debug } from "@/misc/util/debug";
+import {
+  pickSeedTags,
+  resolveFavoriteTagsQuery,
+  type SuggesterWeights,
+} from "@/misc/util/favoriteQuery";
+import {
+  buildFavoriteTagsResult,
+  getCounts,
+  rankSuggestionPool,
+  sliceScoredPool,
+  type FavoriteTagsResult,
+  type ScoredPost,
+} from "@/misc/util/suggestionScoring";
 
 const log = debug("app:AnalyzeService");
 
-// debug.disable();
-// debug.enable("app:AnalyzeService");
-
-export interface ScoredPost extends EnhancedPost {
-  __score: number;
-}
+export type { ScoredPost, FavoriteTagsResult };
 
 type CountCategory =
   | "artist"
@@ -35,12 +49,14 @@ export interface IAnalyzeTagsArgs {
   postLimit: number;
   baseUrl: string;
   mode?: SiteMode;
+  auth?: { login: string; api_key: string };
+  userId?: number | null;
 }
 
 export interface IAnalyzeTagsResult {
   wordPositions: {
-      category: string;
-      result: {text: string, size: number}[];
+    category: string;
+    result: { text: string; size: number }[];
   }[];
 }
 
@@ -53,11 +69,22 @@ export interface IProgressEvent {
   indeterminate?: boolean;
 }
 
+const FAV_POST_LIMIT = 320 * 6;
+const RECENT_PAGES = 4;
+const SEED_TAG_LIMIT = 15;
+const PAGE_SIZE = 320;
+
+type SuggestAuth =
+  | {
+      login: string;
+      api_key: string;
+    }
+  | undefined;
+
 export class AnalyzeService {
   async getTagOccurrences(posts: Post[]) {
     log("called getTagOccurrences");
     const tags = posts.map((p) => p.tags);
-    // TODO: only copy tags over context boundaries (not all posts)
     const counts: Counts = {
       artist: {},
       character: {},
@@ -106,6 +133,7 @@ export class AnalyzeService {
   }
 
   cache: { [key: string]: Post[] | undefined } = {};
+  scoredPoolCache: { [key: string]: ScoredPost[] | undefined } = {};
 
   private async fetchPostsCached(
     tags: string[],
@@ -113,24 +141,37 @@ export class AnalyzeService {
     baseUrl: string,
     onProgress: (event: IProgressEvent) => void,
     mode?: SiteMode,
+    auth?: SuggestAuth,
+    userId?: number | null,
+    unified?: UnifiedFetchArgs,
   ) {
     const service = new ApiService();
     const posts: Post[] = [];
     let page = 1;
-    const key = JSON.stringify({ tags, postLimit, baseUrl, mode });
+    const key = JSON.stringify({
+      tags,
+      postLimit,
+      baseUrl,
+      mode,
+      auth: auth?.login || null,
+      userId: userId ?? null,
+      unifiedChildren: unified?.children?.map((c) => c.mode),
+    });
     log("start fetch");
     if (key && this.cache[key]) {
       posts.push(...this.cache[key]!);
     } else {
-      const pageLimit = 320;
       while (posts.length < postLimit) {
         const { posts: newPosts } = await service.getPosts({
           blacklistMode: BlacklistMode.blur,
-          limit: pageLimit,
+          limit: PAGE_SIZE,
           tags,
           baseUrl,
           mode,
           page,
+          auth,
+          userId: userId ?? null,
+          unified,
         });
         page += 1;
         posts.push(...newPosts);
@@ -138,8 +179,7 @@ export class AnalyzeService {
           message: `got ${posts.length} of ${postLimit} posts`,
           progress: Math.min(1, posts.length / postLimit),
         });
-        // Stop when the site returns fewer than requested (Inkbunny max 100, etc.) (H9).
-        if (newPosts.length < pageLimit) {
+        if (newPosts.length < PAGE_SIZE) {
           break;
         }
       }
@@ -158,6 +198,8 @@ export class AnalyzeService {
       args.baseUrl,
       onProgress,
       args.mode,
+      args.auth,
+      args.userId,
     );
     onProgress({
       message: "got posts, sorting tags",
@@ -182,187 +224,381 @@ export class AnalyzeService {
     };
   }
 
+  /** Build a favorite-tag profile from already-fetched posts (Local path). */
+  async favoriteTagsFromPosts(posts: Post[]): Promise<FavoriteTagsResult> {
+    return buildFavoriteTagsResult(posts);
+  }
+
   async getFavoriteTags(
     username: string,
     baseUrl: string,
     onProgress: (event: IProgressEvent) => void,
     mode?: SiteMode,
+    auth?: SuggestAuth,
+    userId?: number | null,
+    unified?: UnifiedFetchArgs,
   ): Promise<FavoriteTagsResult> {
-    const backend =
-      mode === "furbooru"
-        ? "furbooru"
-        : mode === "inkbunny"
-          ? "inkbunny"
-          : mode === "furaffinity"
-            ? "furaffinity"
-          : mode === "e621" || mode === "e6ai" || mode === "local" || mode === "tailspace"
-            ? "e621"
-            : baseUrl.includes("furbooru.org")
-              ? "furbooru"
-              : baseUrl.includes("inkbunny.net")
-                ? "inkbunny"
-                : baseUrl.includes("furaffinity.net")
-                  ? "furaffinity"
-                : "e621";
-    const favQuery =
-      backend === "furbooru"
-        ? ["my:faves"]
-        : backend === "inkbunny" || backend === "furaffinity"
-          ? ["favs:me"]
-          : [`fav:${username}`];
+    if (mode === "local") {
+      throw new Error(
+        "Local favorites must be loaded on the main thread via getLocalPostsPage",
+      );
+    }
+
+    if (mode === "unified") {
+      return this.getUnifiedFavoriteTags(username, onProgress, unified);
+    }
+
+    const resolved = resolveFavoriteTagsQuery({ mode: mode || "e621", username });
+    if (resolved.requiresAuth && !auth?.api_key && mode !== "furaffinity") {
+      throw new Error("Sign in to load favorites for this site");
+    }
+
     const posts = await this.fetchPostsCached(
-      favQuery,
-      320 * 6,
+      resolved.tags,
+      FAV_POST_LIMIT,
       baseUrl,
       onProgress,
       mode,
+      auth,
+      userId,
     );
 
-    const counts = getCounts(posts);
+    return buildFavoriteTagsResult(posts);
+  }
 
-    return { counts };
+  private async getUnifiedFavoriteTags(
+    username: string,
+    onProgress: (event: IProgressEvent) => void,
+    unified?: UnifiedFetchArgs,
+  ): Promise<FavoriteTagsResult> {
+    const children = unified?.children || [];
+    if (!children.length) {
+      return { counts: {}, favoriteKeys: [] };
+    }
+    const service = new ApiService();
+    const allPosts: EnhancedPost[] = [];
+    let done = 0;
+    for (const child of children) {
+      const childUsername =
+        modeSupportsOtherUserOnChild(child.mode) && username.trim()
+          ? username.trim()
+          : child.auth?.login || "";
+      const resolved = resolveFavoriteTagsQuery({
+        mode: child.mode,
+        username: childUsername,
+      });
+      // e621-family needs an explicit fav:user; skip unconfigured children.
+      if (
+        (child.mode === "e621" || child.mode === "e6ai") &&
+        !childUsername
+      ) {
+        done += 1;
+        onProgress({
+          message: `skip ${child.mode} (no login)`,
+          progress: done / children.length,
+        });
+        continue;
+      }
+      if (resolved.requiresAuth && !child.auth?.api_key && child.mode !== "furaffinity") {
+        done += 1;
+        onProgress({
+          message: `skip ${child.mode} (not signed in)`,
+          progress: done / children.length,
+        });
+        continue;
+      }
+      try {
+        const childPosts: EnhancedPost[] = [];
+        let page = 1;
+        while (childPosts.length < FAV_POST_LIMIT) {
+          const { posts: batch } = await service.getPosts({
+            blacklistMode: BlacklistMode.blur,
+            blacklist: [...(unified?.sharedBlacklist || []), ...child.blacklist],
+            limit: PAGE_SIZE,
+            tags: resolved.tags,
+            baseUrl: child.baseUrl || SITE_MODE_URLS[child.mode],
+            mode: child.mode,
+            page,
+            auth: child.auth,
+            userId: child.userId ?? null,
+          });
+          const stamped = batch.map((p) => ({
+            ...p,
+            __meta: {
+              ...p.__meta,
+              originMode: child.mode,
+              originBaseUrl: child.baseUrl,
+            },
+          }));
+          childPosts.push(...stamped);
+          page += 1;
+          if (batch.length < PAGE_SIZE) break;
+        }
+        allPosts.push(...childPosts.slice(0, FAV_POST_LIMIT));
+      } catch (err) {
+        log("unified fav child failed", child.mode, err);
+      }
+      done += 1;
+      onProgress({
+        message: `favorites ${child.mode} (${done}/${children.length})`,
+        progress: done / children.length,
+      });
+    }
+    return buildFavoriteTagsResult(allPosts);
   }
 
   async suggestPosts(
     tags: FavoriteTagsResult,
-    weights: {
-      [key in
-        | "general"
-        | "artist"
-        | "copyright"
-        | "character"
-        | "species"
-        | "meta"
-        | "lore"
-        | "invalid"]: number;
-    },
+    weights: SuggesterWeights,
     limit: number,
     args: {
-      direction: "next" | "previous",
-      page: number,
+      direction: "next" | "previous";
+      page: number;
     },
-    auth:
-      | {
-          login: string;
-          api_key: string;
-        }
-      | undefined,
+    auth: SuggestAuth,
     baseUrl: string,
     onProgress: (event: IProgressEvent) => void,
     blacklist: string[][],
     blacklistMode: BlacklistMode,
     mode?: SiteMode,
+    userId?: number | null,
+    unified?: UnifiedFetchArgs,
+    /** Pre-fetched candidates (Local). When set, skip remote hybrid fetch. */
+    prefetchedCandidates?: EnhancedPost[],
   ) {
-    // fetch posts, sort them by score and display the top `limit` ones
-    const toFetch = limit * 40;
-    const service = new ApiService();
-    const posts: ScoredPost[] = [];
-    let page = args.page;
-    while (posts.length < toFetch && page >= 1) {
+    const page = Math.max(1, args.page || 1);
+    const poolKey = JSON.stringify({
+      counts: tags.counts,
+      favoriteKeys: tags.favoriteKeys,
+      weights,
+      baseUrl,
+      mode,
+      userId: userId ?? null,
+      auth: auth?.login || null,
+      children: unified?.children?.map((c) => c.mode),
+      prefetched: prefetchedCandidates?.length || 0,
+    });
+
+    let pool = this.scoredPoolCache[poolKey];
+    if (!pool) {
       onProgress({
-        progress: Math.min(1, posts.length / toFetch),
-        message: `got ${posts.length} of ${toFetch} posts`,
+        progress: 0,
+        message: "building suggestion pool",
+        indeterminate: true,
       });
-      const { posts: newPosts } = await service.getPosts({
+      const candidates =
+        prefetchedCandidates ||
+        (mode === "unified"
+          ? await this.fetchUnifiedHybridCandidates(
+              tags,
+              weights,
+              onProgress,
+              blacklist,
+              blacklistMode,
+              unified,
+            )
+          : await this.fetchHybridCandidates(
+              tags,
+              weights,
+              auth,
+              baseUrl,
+              onProgress,
+              blacklist,
+              blacklistMode,
+              mode,
+              userId,
+            ));
+      pool = rankSuggestionPool({
+        tags,
+        weights,
+        candidates,
+      });
+      this.scoredPoolCache[poolKey] = pool;
+    }
+
+    onProgress({
+      progress: 1,
+      message: `ranked ${pool.length} posts`,
+    });
+    return sliceScoredPool(pool, page, limit);
+  }
+
+  private async fetchHybridCandidates(
+    tags: FavoriteTagsResult,
+    weights: SuggesterWeights,
+    auth: SuggestAuth,
+    baseUrl: string,
+    onProgress: (event: IProgressEvent) => void,
+    blacklist: string[][],
+    blacklistMode: BlacklistMode,
+    mode?: SiteMode,
+    userId?: number | null,
+  ): Promise<EnhancedPost[]> {
+    const service = new ApiService();
+    const out: EnhancedPost[] = [];
+    const seeds = pickSeedTags(tags.counts, weights, SEED_TAG_LIMIT);
+    const totalSteps = RECENT_PAGES + seeds.length;
+    let step = 0;
+
+    for (let page = 1; page <= RECENT_PAGES; page++) {
+      const { posts } = await service.getPosts({
         blacklistMode,
         blacklist,
-        limit: 320,
+        limit: PAGE_SIZE,
         tags: [],
         page,
         auth,
         baseUrl,
         mode,
+        userId: userId ?? null,
       });
+      out.push(...posts);
+      step += 1;
+      onProgress({
+        progress: step / totalSteps,
+        message: `recent page ${page}/${RECENT_PAGES}`,
+      });
+      if (posts.length < PAGE_SIZE) break;
+    }
 
-      const scoredNewPosts = scorePosts(tags, weights, newPosts);
-      if (args.direction === "previous") {
-        page -= 1;
-        posts.unshift(...scoredNewPosts);
-      } else {
-        page += 1;
-        posts.push(...scoredNewPosts);
+    for (const seed of seeds) {
+      const { posts } = await service.getPosts({
+        blacklistMode,
+        blacklist,
+        limit: PAGE_SIZE,
+        tags: [seed.tag],
+        page: 1,
+        auth,
+        baseUrl,
+        mode,
+        userId: userId ?? null,
+      });
+      out.push(...posts);
+      step += 1;
+      onProgress({
+        progress: Math.min(1, step / totalSteps),
+        message: `seed ${seed.tag}`,
+      });
+    }
+
+    return out;
+  }
+
+  private async fetchUnifiedHybridCandidates(
+    tags: FavoriteTagsResult,
+    weights: SuggesterWeights,
+    onProgress: (event: IProgressEvent) => void,
+    blacklist: string[][],
+    blacklistMode: BlacklistMode,
+    unified?: UnifiedFetchArgs,
+  ): Promise<EnhancedPost[]> {
+    const children = unified?.children || [];
+    const service = new ApiService();
+    const out: EnhancedPost[] = [];
+    const seeds = pickSeedTags(tags.counts, weights, SEED_TAG_LIMIT);
+    const totalSteps = Math.max(1, children.length * (RECENT_PAGES + seeds.length));
+    let step = 0;
+
+    for (const child of children) {
+      const childBlacklist = [
+        ...blacklist,
+        ...(unified?.sharedBlacklist || []),
+        ...child.blacklist,
+      ];
+      for (let page = 1; page <= RECENT_PAGES; page++) {
+        try {
+          const { posts } = await service.getPosts({
+            blacklistMode,
+            blacklist: childBlacklist,
+            limit: PAGE_SIZE,
+            tags: [],
+            page,
+            auth: child.auth,
+            baseUrl: child.baseUrl || SITE_MODE_URLS[child.mode],
+            mode: child.mode,
+            userId: child.userId ?? null,
+          });
+          out.push(
+            ...posts.map((p) => ({
+              ...p,
+              __meta: {
+                ...p.__meta,
+                originMode: child.mode,
+                originBaseUrl: child.baseUrl,
+              },
+            })),
+          );
+          if (posts.length < PAGE_SIZE) {
+            step += RECENT_PAGES - page + 1;
+            break;
+          }
+        } catch (err) {
+          log("unified recent failed", child.mode, err);
+        }
+        step += 1;
+        onProgress({
+          progress: step / totalSteps,
+          message: `${child.mode} recent ${page}`,
+        });
       }
 
-      if (scoredNewPosts.length < 320) {
-        break;
+      for (const seed of seeds) {
+        try {
+          const { posts } = await service.getPosts({
+            blacklistMode,
+            blacklist: childBlacklist,
+            limit: PAGE_SIZE,
+            tags: [seed.tag],
+            page: 1,
+            auth: child.auth,
+            baseUrl: child.baseUrl || SITE_MODE_URLS[child.mode],
+            mode: child.mode,
+            userId: child.userId ?? null,
+          });
+          out.push(
+            ...posts.map((p) => ({
+              ...p,
+              __meta: {
+                ...p.__meta,
+                originMode: child.mode,
+                originBaseUrl: child.baseUrl,
+              },
+            })),
+          );
+        } catch (err) {
+          log("unified seed failed", child.mode, seed.tag, err);
+        }
+        step += 1;
+        onProgress({
+          progress: Math.min(1, step / totalSteps),
+          message: `${child.mode} seed ${seed.tag}`,
+        });
       }
     }
-    const bestPostIds = [...posts]
-      .sort((a, b) => b.__score - a.__score)
-      .slice(0, limit)
-      .map((p) => p.id);
-    const result = posts.filter((p) => bestPostIds.includes(p.id)); // keep original order
-    onProgress({ indeterminate: true, message: "done", progress: 1 });
 
-    return result;
+    return out;
   }
 }
 
-const scorePosts = (
-  tags: FavoriteTagsResult,
-  weights: Parameters<AnalyzeService["suggestPosts"]>["1"],
-  posts: EnhancedPost[],
-) => {
-  const scoredPosts: ScoredPost[] = [];
-  for (const post of posts) {
-    let score = 0;
-    let tagCount = 0;
-    for (const tag of tagIterator(post.tags)) {
-      ++tagCount;
-      const categoryWeight = Number((weights as any)[tag.category]);
-      if (!categoryWeight) continue;
-      const count = tags.counts[tag.category]?.[tag.tag];
-      if (!count) continue;
-      score += count * categoryWeight;
-    }
-    scoredPosts.push({
-      ...post,
-      __score: tagCount ? Math.round(score / tagCount) : 0,
-    });
-  }
-  return scoredPosts;
-};
-
-const tagIterator = function* (tags: PostTags) {
-  for (const [category, arr] of Object.entries(tags)) {
-    for (const tag of arr) {
-      yield {
-        category,
-        tag,
-      };
-    }
-  }
-};
+const modeSupportsOtherUserOnChild = (mode: UnifiedChildMode) =>
+  mode === "e621" ||
+  mode === "e6ai" ||
+  mode === "furaffinity" ||
+  mode === "sofurry";
 
 const createCloud = (counts: any) => {
-  return new Promise<{text: string, size: number}[]>((resolve) => {
+  return new Promise<{ text: string; size: number }[]>((resolve) => {
     const words = Object.entries(counts).map(([text, count]) => ({
       text,
       size: count as number,
     }));
     words.sort((a, b) => b.size - a.size);
 
-      resolve(words);
+    resolve(words);
   });
 };
 
-const getCounts = (posts: Post[]) => {
-  const counts: {
-    [category: string]: undefined | { [tag: string]: undefined | number };
-  } = {};
-  for (const post of posts) {
-    for (const [category, tags] of Object.entries(post.tags)) {
-      counts[category] = counts[category] || {};
-      for (const tag of tags) {
-        counts[category]![tag] = (counts[category]![tag] || 0) + 1;
-      }
-    }
-  }
-  return counts;
-};
-
-export interface FavoriteTagsResult {
-  counts: ReturnType<typeof getCounts>;
-}
+// Re-export for callers / tests that import from the worker module.
+export { pickSeedTags };
 
 expose(AnalyzeService);
