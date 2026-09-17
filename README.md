@@ -34,7 +34,7 @@ A public instance is operable at **[m-e621.tonypup.box.ca](https://m-e621.tonypu
 - **Powerful browsing tools** — browse and watch pools (e621-family, with new-page badges), organize starred tags and saved searches, use the multi-site post suggester and favorite analyzer, and explore artist dashboards (heatmap, top posts, tag ranks).
 - **Comics and stories** — dedicated pool and Tailspace comic readers (pool fullscreen continues across chunks; `?post=` resume; Save chunk/all) plus fullscreen story, PDF, RTF, and DOCX previews.
 - **Immersive media** — fullscreen comments rail, notes, slideshows, auto-next, Fluffle reverse-image search, and remembered audio/video playback settings (including optional per-site overrides).
-- **Safer settings** — searchable hub (with synonyms), confirm/preview restore, sanitized backups, partial section reset, System/Dark/Light color scheme, and clear which site profile blacklist/history edits.
+- **Safer settings** — searchable hub (with synonyms), confirm/preview restore, sanitized backups, partial section reset, System/Dark/Light color scheme, auth probe chips, and clear which site profile blacklist/history edits.
 
 ## Preview
 

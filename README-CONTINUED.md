@@ -191,7 +191,8 @@ The bundle identifier is `com.lovelyspacedog.me621`.
 
 - Settings hub search finds pages and rows across groups (including synonyms like “hotkey” → shortcuts, plus playback, route transitions, git pull, and sanitized backup).
 - Appearance includes themes, System/Dark/Light color scheme, navigation density, fullscreen and route transitions (route animations respect reduced motion), an optional paw cursor, and a Prompts subgroup for dismissable banners.
-- Account settings show whether each profile has credentials material; Unified feed source and site presets are also editable there.
+- Account settings show whether each profile has credentials material and last verify/login probe status; Unified feed source and site presets are also editable there.
+- Info → Debug can silence main-thread production console diagnostics (workers unchanged).
 - Blacklist and History settings show which site profile you are editing.
 - Posts settings can set per-site mute/volume/speed overrides (HTML5; SWF unchanged) and insert Save Locally path tokens from chips.
 - Starred-tag / saved-search merge between sites keeps groups by name when possible (Replace still copies the full tree).

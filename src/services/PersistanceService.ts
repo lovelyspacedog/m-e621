@@ -6,7 +6,7 @@ import { DataSaverType, FullscreenZoomUiMode, SITE_MODE_URLS, UNGROUPED_FAVORITE
 import clone from "clone";
 import { nextTick, reactive, toRaw } from "vue";
 import { defaultSettings, focusSearchShortcut, fullscreenFavoriteShortcuts, fullscreenSlideshowShortcut, historyNavigationShortcuts } from "./defaultSettings";
-import { debug } from "@/misc/util/debug";
+import { debug, setDebugLoggingEnabled } from "@/misc/util/debug";
 import { applyActiveProfileToMirrors, createEmptySiteProfile, profileFromMirrors, syncMirrorsToActiveProfile } from "./siteProfiles";
 import { normalizeSavedSearches } from "./savedSearchNormalize";
 import { supportsLocalBrowse } from "@/misc/util/tauriLocalFs";
@@ -648,6 +648,14 @@ class PersistanceService {
       }
       newState.configVersion = 40;
     }
+    if (newState.configVersion < 41) {
+      if (!newState.misc) {
+        newState.misc = { urls: { e621: "https://e621.net/", proxy: "/api/" }, debugLogging: true };
+      } else if (newState.misc.debugLogging === undefined) {
+        newState.misc.debugLogging = true;
+      }
+      newState.configVersion = 41;
+    }
 
     if (!newState.watchedPools || !Array.isArray(newState.watchedPools.entries)) {
       newState.watchedPools = { entries: [] };
@@ -829,10 +837,20 @@ class PersistanceService {
       newState.posts.saveLocal.openInLocalAfterSave = false;
     }
     applyActiveProfileToMirrors(newState);
+    if (!newState.misc) {
+      newState.misc = {
+        urls: { e621: "https://e621.net/", proxy: "/api/" },
+        debugLogging: true,
+      };
+    }
     // Official Vercel proxy only allows avoonix origins; use same-origin /api/.
     if (!newState.misc?.urls?.proxy || newState.misc.urls.proxy.includes("material-e621-proxy.vercel.app")) {
       newState.misc.urls.proxy = "/api/";
     }
+    if (newState.misc.debugLogging === undefined) {
+      newState.misc.debugLogging = true;
+    }
+    setDebugLoggingEnabled(!!newState.misc.debugLogging);
     this.main.$state = newState;
   }
 

@@ -33,7 +33,7 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 40,
+  configVersion: 41,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -194,6 +194,7 @@ export const defaultSettings: ISettingsServiceState = {
       e621: "https://e621.net/",
       proxy: "/api/",
     },
+    debugLogging: true,
   },
 };
 

@@ -88,7 +88,7 @@ UI (Vue pages)
 
 **State**
 
-- `useMainStore` (`src/services/state.ts`) is a clone of `defaultSettings` (`configVersion` **40**).
+- `useMainStore` (`src/services/state.ts`) is a clone of `defaultSettings` (`configVersion` **41**).
 - Domain stores are mostly getters/setters over slices of that tree.
 - **Profile mirrors:** live `account` / `blacklist` / `favorites` / `searches` / `history` on main state are copied into `profiles[activeMode]` on save and mode switch (`siteProfiles.ts`). Always sync both; do not persist only the detached copy.
 - `PersistanceService` (filename spelling is upstream) writes the whole tree to localforage. **Never `JSON.stringify` reactive proxies inside `$subscribe`** — that retriggers the deep watcher and freezes the tab. Snackbar is stripped before save.

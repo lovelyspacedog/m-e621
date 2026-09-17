@@ -220,7 +220,8 @@ export interface ISettingsServiceState {
     | 37
     | 38
     | 39
-    | 40;
+    | 40
+    | 41;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];
@@ -332,5 +333,10 @@ export interface ISettingsServiceState {
       proxy: string;
       e621: string;
     };
+    /**
+     * When false, silences main-thread `debug()` console logs in production.
+     * Synced to localStorage; workers keep previous logging behavior.
+     */
+    debugLogging: boolean;
   };
 }

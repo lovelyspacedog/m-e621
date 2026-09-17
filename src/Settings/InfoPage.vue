@@ -78,6 +78,21 @@
             <install />
           </settings-row>
         </settings-group>
+
+        <settings-group
+          title="Debug"
+          description="Main-thread console diagnostics in production builds. Worker logs are unaffected."
+          anchor="debug"
+        >
+          <settings-row title="Verbose console logging" switch>
+            <v-switch
+              v-model="debugLogging"
+              color="accent"
+              hide-details
+              density="compact"
+            />
+          </settings-row>
+        </settings-group>
       </v-col>
     </v-row>
   </v-container>
@@ -94,8 +109,28 @@ import { getAppName } from "@/misc/util/utilities";
 import { format, formatDistanceToNow } from "date-fns";
 import { prettyBytes } from "@/misc/util/prettyBytes";
 import { useHead } from "@unhead/vue";
+import { useMainStore } from "@/services";
+import { setDebugLoggingEnabled } from "@/misc/util/debug";
 
 useHead({ title: "Info", });
+
+const main = useMainStore();
+const debugLogging = computed({
+  get() {
+    return main.misc?.debugLogging !== false;
+  },
+  set(value: boolean) {
+    if (!main.misc) {
+      main.misc = {
+        urls: { e621: "https://e621.net/", proxy: "/api/" },
+        debugLogging: value,
+      };
+    } else {
+      main.misc.debugLogging = value;
+    }
+    setDebugLoggingEnabled(value);
+  },
+});
 
 const TOKEN_KEY = "m-e621-pull-token";
 const gitPullEnabled = import.meta.env.VITE_ENABLE_GIT_PULL === "true";

@@ -127,6 +127,7 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { label: "Version / Force Update", keywords: ["version", "commit", "update", "storage"], section: "info" },
   { label: "Pull from Git", keywords: ["git", "pull", "sync", "deploy"], section: "info" },
   { label: "Storage persistence", keywords: ["storage", "quota", "persist", "indexeddb"], section: "info" },
+  { label: "Debug logging", keywords: ["debug", "verbose", "console", "logging"], section: "info" },
 ];
 
 /** Synonyms expand the query so e.g. “hotkey” finds Keyboard Shortcuts. */
