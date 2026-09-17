@@ -95,7 +95,7 @@ Upstream's static image remains suitable for e621-only hosting. This fork includ
 - Provides same-origin media URLs for Firefox and Zen playback
 - Supports optional managed-instance git updates
 - Hosts **Scent Marks** (`GET`/`POST` `/api/scent-marks`, admin `DELETE /api/scent-marks/:id`) with JSON at `~/.config/m-e621/scent_marks.json`
-- New scent marks are checked client-side and in `serve.py` against a shared word/spam blocklist (`src/Landing/scentMarksBlocklist.json`); rejected posts report `Blocked: …` with the matched terms
+- New scent marks are checked client-side and in `serve.py` against a shared blocklist (`src/Landing/scentMarksBlocklist.json`) for hate, clear illegal/CSAM terms, and spam links — NSFW language is allowed; rejected posts report `Blocked: …` with the matched terms
 
 Admin delete requires a PBKDF2 password hash at `~/.config/m-e621/scent_marks_admin.hash` (mode `600`). Create once on the host:
 

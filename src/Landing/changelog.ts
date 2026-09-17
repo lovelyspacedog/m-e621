@@ -38,7 +38,7 @@ export const changelogSections: ChangelogSection[] = [
       "Scent Marks: anonymous public guestbook from the landing page (host-moderated)",
       "Scent Marks composer and fields use higher-contrast surface styling",
       "Scent Marks Post button includes a dog emoji",
-      "Scent Marks block obvious profanity, hate, and spam links; the error names what was blocked",
+      "Scent Marks block hate, illegal/CSAM terms, and spam links (NSFW language allowed); the error names what was blocked",
       "Landing hero site chips and Scent Marks / Changelog & TOS buttons use stronger outlines and tinted fills so they stay readable on solid primary and Transparent Zen",
       "Collapsible sidebar disclosure for Unified and search clutter",
       "Unified site presets show which sites are active",
