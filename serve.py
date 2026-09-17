@@ -7,6 +7,8 @@ Optional FA_COOKIE_A / FA_COOKIE_B for host-wide login.
 from __future__ import annotations
 
 import base64
+import fcntl
+import hashlib
 import json
 import os
 import re
@@ -78,6 +80,92 @@ DOMAIN = os.environ.get("M_E621_DOMAIN", "localhost")
 BRANCH = os.environ.get("M_E621_BRANCH", "master")
 TOKEN_PATH = CONFIG_DIR / "pull_token"
 STATUS_PATH = CONFIG_DIR / "pull_status.json"
+SCENT_MARKS_PATH = CONFIG_DIR / "scent_marks.json"
+SCENT_ADMIN_HASH_PATH = CONFIG_DIR / "scent_marks_admin.hash"
+SCENT_MARKS_LIST_PATH = re.compile(r"^/api/scent-marks/?$")
+SCENT_MARK_ITEM_PATH = re.compile(r"^/api/scent-marks/([A-Za-z0-9_-]{8,64})$")
+SCENT_MAX_BODY = 500
+SCENT_MAX_NAME = 32
+SCENT_MAX_MARKS = 500
+SCENT_RATE_SECONDS = 60
+_scent_rate_lock = threading.Lock()
+_scent_rate_by_ip: dict[str, float] = {}
+
+
+def _scent_strip_controls(value: str) -> str:
+    return "".join(ch for ch in value if ch == "\n" or ch == "\t" or ord(ch) >= 32)
+
+
+def _scent_client_ip(handler: SimpleHTTPRequestHandler) -> str:
+    forwarded = (handler.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+    if forwarded:
+        return forwarded
+    return handler.client_address[0] if handler.client_address else "unknown"
+
+
+def _scent_rate_ok(ip: str) -> bool:
+    now = time.time()
+    with _scent_rate_lock:
+        last = _scent_rate_by_ip.get(ip, 0.0)
+        return now - last >= SCENT_RATE_SECONDS
+
+
+def _scent_rate_stamp(ip: str) -> None:
+    now = time.time()
+    with _scent_rate_lock:
+        _scent_rate_by_ip[ip] = now
+        if len(_scent_rate_by_ip) > 2000:
+            cutoff = now - SCENT_RATE_SECONDS * 2
+            stale = [k for k, t in _scent_rate_by_ip.items() if t < cutoff]
+            for k in stale:
+                _scent_rate_by_ip.pop(k, None)
+
+
+def _scent_load_locked(fh) -> list[dict]:
+    fh.seek(0)
+    raw = fh.read()
+    if not raw.strip():
+        return []
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    marks = data.get("marks") if isinstance(data, dict) else data
+    if not isinstance(marks, list):
+        return []
+    return [m for m in marks if isinstance(m, dict)]
+
+
+def _scent_save_locked(fh, marks: list[dict]) -> None:
+    fh.seek(0)
+    fh.truncate()
+    json.dump({"marks": marks}, fh, ensure_ascii=False, separators=(",", ":"))
+    fh.flush()
+    os.fsync(fh.fileno())
+
+
+def _scent_verify_admin(password: str) -> bool:
+    if not password or not SCENT_ADMIN_HASH_PATH.is_file():
+        return False
+    try:
+        line = SCENT_ADMIN_HASH_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        return False
+    parts = line.split("$")
+    if len(parts) != 4 or parts[0] != "pbkdf2_sha256":
+        return False
+    try:
+        iterations = int(parts[1])
+        salt = base64.b64decode(parts[2])
+        expected = base64.b64decode(parts[3])
+    except (ValueError, OSError):
+        return False
+    if iterations < 100_000 or not salt or not expected:
+        return False
+    got = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt, iterations
+    )
+    return secrets.compare_digest(got, expected)
 
 
 def _git_pull_enabled() -> bool:
@@ -962,6 +1050,129 @@ class SpaHandler(SimpleHTTPRequestHandler):
         got = self.headers.get("X-Pull-Token", "").strip()
         return bool(got) and secrets.compare_digest(got, expected)
 
+    def _scent_admin_password(self) -> str:
+        auth = self.headers.get("Authorization", "")
+        if auth.lower().startswith("bearer "):
+            return auth[7:].strip()
+        return (self.headers.get("X-Scent-Admin") or "").strip()
+
+    def _handle_scent_marks_get(self) -> None:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(SCENT_MARKS_PATH, "a+", encoding="utf-8") as fh:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_SH)
+                try:
+                    marks = _scent_load_locked(fh)
+                finally:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        except OSError as exc:
+            self._json(500, {"ok": False, "message": f"storage error: {exc}"})
+            return
+        ordered = sorted(
+            marks,
+            key=lambda m: str(m.get("createdAt") or ""),
+            reverse=True,
+        )
+        public = [
+            {
+                "id": m.get("id"),
+                "text": m.get("text"),
+                "name": m.get("name"),
+                "createdAt": m.get("createdAt"),
+            }
+            for m in ordered
+            if isinstance(m.get("id"), str) and isinstance(m.get("text"), str)
+        ]
+        self._json(200, {"ok": True, "marks": public})
+
+    def _handle_scent_marks_post(self, body: bytes) -> None:
+        ip = _scent_client_ip(self)
+        if not _scent_rate_ok(ip):
+            self._json(
+                429,
+                {
+                    "ok": False,
+                    "message": f"rate limited — try again in {SCENT_RATE_SECONDS}s",
+                },
+            )
+            return
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}") if body else {}
+            if not isinstance(payload, dict):
+                raise ValueError("object required")
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+            self._json(400, {"ok": False, "message": f"invalid json: {exc}"})
+            return
+        text = _scent_strip_controls(str(payload.get("text") or "")).strip()
+        if not text:
+            self._json(400, {"ok": False, "message": "text required"})
+            return
+        if len(text) > SCENT_MAX_BODY:
+            self._json(
+                400,
+                {"ok": False, "message": f"text max {SCENT_MAX_BODY} characters"},
+            )
+            return
+        name_raw = payload.get("name")
+        name: str | None = None
+        if name_raw is not None and str(name_raw).strip():
+            name = _scent_strip_controls(str(name_raw)).strip()
+            if len(name) > SCENT_MAX_NAME:
+                self._json(
+                    400,
+                    {"ok": False, "message": f"name max {SCENT_MAX_NAME} characters"},
+                )
+                return
+        mark = {
+            "id": secrets.token_urlsafe(12),
+            "text": text,
+            "name": name,
+            "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(SCENT_MARKS_PATH, "a+", encoding="utf-8") as fh:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+                try:
+                    marks = _scent_load_locked(fh)
+                    marks.append(mark)
+                    if len(marks) > SCENT_MAX_MARKS:
+                        marks = sorted(
+                            marks,
+                            key=lambda m: str(m.get("createdAt") or ""),
+                        )[-SCENT_MAX_MARKS:]
+                    _scent_save_locked(fh, marks)
+                finally:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        except OSError as exc:
+            self._json(500, {"ok": False, "message": f"storage error: {exc}"})
+            return
+        _scent_rate_stamp(ip)
+        self._json(201, {"ok": True, "mark": mark})
+
+    def _handle_scent_marks_delete(self, mark_id: str) -> None:
+        password = self._scent_admin_password()
+        if not _scent_verify_admin(password):
+            self._json(401, {"ok": False, "message": "unauthorized"})
+            return
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(SCENT_MARKS_PATH, "a+", encoding="utf-8") as fh:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+                try:
+                    marks = _scent_load_locked(fh)
+                    kept = [m for m in marks if m.get("id") != mark_id]
+                    if len(kept) == len(marks):
+                        self._json(404, {"ok": False, "message": "not found"})
+                        return
+                    _scent_save_locked(fh, kept)
+                finally:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        except OSError as exc:
+            self._json(500, {"ok": False, "message": f"storage error: {exc}"})
+            return
+        self._json(200, {"ok": True, "deleted": mark_id})
+
     def _site_base(self) -> str | None:
         raw = (self.headers.get("X-Site-Base") or "https://e621.net/").strip()
         if not raw.endswith("/"):
@@ -1143,7 +1354,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
             self.send_header(
                 "Access-Control-Allow-Headers",
                 "Authorization, Content-Type, X-Pull-Token, X-Site-Base, Range, "
-                "X-Tailspace-Session, X-Sofurry-Cookies",
+                "X-Tailspace-Session, X-Sofurry-Cookies, X-Scent-Admin",
             )
             self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
             self.end_headers()
@@ -2823,6 +3034,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
             else:
                 self._json(200, _git_public_status())
             return
+        if SCENT_MARKS_LIST_PATH.match(path):
+            self._handle_scent_marks_get()
+            return
         if TAILSPACE_POSTS_PATH.match(path):
             self._proxy_tailspace_posts(parsed)
             return
@@ -2937,6 +3151,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
     def do_DELETE(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
+        scent_del = SCENT_MARK_ITEM_PATH.match(path)
+        if scent_del:
+            self._handle_scent_marks_delete(scent_del.group(1))
+            return
         match = FAVORITE_PATH.match(path)
         if match and match.group(1):
             self._proxy_favorite("DELETE", b"", match.group(1))
@@ -2963,6 +3181,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
         path = parsed.path
         length = int(self.headers.get("Content-Length", "0") or 0)
         body = self.rfile.read(length) if length else b""
+
+        if SCENT_MARKS_LIST_PATH.match(path):
+            self._handle_scent_marks_post(body)
+            return
 
         if path == FLUFFLE_PATH:
             self._proxy_fluffle_exact_search(body)

@@ -36,6 +36,7 @@ Tailspace and Local are not included in Unified. When the browser is offline, re
 - Story, PDF, RTF, and DOCX fullscreen previews; legacy `.doc` remains unsupported
 - Fluffle reverse-image search for still images (with copy-URL on results)
 - Compact sidebar site switcher; origin badge icons in Unified
+- **Scent Marks** (`#/scent-marks`) — anonymous public guestbook from the landing page; host operators moderate via a hashed admin password on the VPS
 
 ## Pools and comics
 
@@ -93,6 +94,14 @@ Upstream's static image remains suitable for e621-only hosting. This fork includ
 - Proxies remote APIs, account actions, comments, and downloads
 - Provides same-origin media URLs for Firefox and Zen playback
 - Supports optional managed-instance git updates
+- Hosts **Scent Marks** (`GET`/`POST` `/api/scent-marks`, admin `DELETE /api/scent-marks/:id`) with JSON at `~/.config/m-e621/scent_marks.json`
+
+Admin delete requires a PBKDF2 password hash at `~/.config/m-e621/scent_marks_admin.hash` (mode `600`). Create once on the host:
+
+```bash
+python3 -c "import hashlib,base64,secrets; salt=secrets.token_bytes(16); pw=b'YOUR_PASSWORD'; it=390000; h=hashlib.pbkdf2_hmac('sha256',pw,salt,it); print(f'pbkdf2_sha256\${it}\${base64.b64encode(salt).decode()}\${base64.b64encode(h).decode()}')" > ~/.config/m-e621/scent_marks_admin.hash
+chmod 600 ~/.config/m-e621/scent_marks_admin.hash
+```
 
 Configuration belongs in `~/.config/m-e621/env` or a gitignored `deploy.env`. See [`deploy.env.example`](./deploy.env.example).
 

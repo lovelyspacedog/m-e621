@@ -26,6 +26,7 @@ export const changelogSections: ChangelogSection[] = [
       "Post comments on Furbooru (composer enabled)",
       "Landing page: site chips, honest About copy, capability strip, and changelog excerpt instead of dual git timelines",
       "Landing Changelog dialog beside Browse posts",
+      "Scent Marks: anonymous public guestbook from the landing page (host-moderated)",
       "Collapsible sidebar disclosure for Unified and search clutter",
       "Unified site presets show which sites are active",
       "Tauri Local writes under the picked browse root (save, remux, sidecars)",

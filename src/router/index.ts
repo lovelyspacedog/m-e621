@@ -40,6 +40,15 @@ const router = createRouter({
       },
     },
     {
+      path: "/scent-marks",
+      name: "ScentMarks",
+      component: () =>
+        import(/* webpackChunkName: "misc" */ "@/Landing/ScentMarksPage.vue"),
+      meta: {
+        minimalHeader: true,
+      },
+    },
+    {
       path: "/posts",
       // alias: "/e621",
       name: "Posts",

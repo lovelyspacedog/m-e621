@@ -23,6 +23,14 @@
       </p>
       <div class="d-flex flex-wrap justify-center align-center ga-3">
         <v-btn size="x-large" color="secondary" variant="flat" :to="query"> Browse posts </v-btn>
+        <v-btn
+          size="large"
+          color="secondary"
+          variant="text"
+          :to="{ name: 'ScentMarks' }"
+        >
+          Scent Marks
+        </v-btn>
         <v-btn size="large" color="secondary" variant="text" @click="changelogOpen = true"> Changelog </v-btn>
       </div>
       <ChangelogDialog v-model="changelogOpen" />

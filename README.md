@@ -25,7 +25,7 @@ m-e621 expands [Material e621](https://github.com/avoonix/material-e621) with ad
 - **Local library** — browse a folder on disk with fuzzy search, favorites, remux, and portable sidecars (Chromium or the Tauri desktop build).
 - **Independent accounts** — configure authentication, blacklists, favorites, history, and preferences for each site.
 - **Saved posts** — bookmark posts across federated sites in one mode-independent list.
-- **Community features** — view and post comments, vote, favorite, follow creators, and open posts at their source where supported.
+- **Community features** — view and post comments, vote, favorite, follow creators, and open posts at their source where supported. Anonymous **Scent Marks** guestbook on the landing page for short public notes.
 - **Flexible feeds** — switch between full-width lists, thumbnail grids, and compact cards with rich filtering and media controls.
 - **Powerful browsing tools** — browse and watch pools (e621-family), organize starred tags and saved searches, use the multi-site post suggester and favorite analyzer, and explore artist dashboards (heatmap, top posts, tag ranks).
 - **Comics and stories** — dedicated pool and Tailspace comic readers plus fullscreen story, PDF, RTF, and DOCX previews.
