@@ -15,6 +15,13 @@ export interface ChangelogSection {
  */
 export const changelogSections: ChangelogSection[] = [
   {
+    date: "2026-09-17",
+    title: "Public instance noted",
+    items: [
+      "README notes that the public instance at m-e621.tonypup.box.ca is operable",
+    ],
+  },
+  {
     date: "2026-09-16",
     title: "Unified Following, Local writes, and polish",
     items: [

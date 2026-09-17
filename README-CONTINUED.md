@@ -205,6 +205,8 @@ The bundle identifier is `com.lovelyspacedog.me621`.
 
 m-e621 is an active personal, AI-assisted fork. Features may be experimental, incomplete, or optimized for the maintainer's workflow. It is not affiliated with any supported content site. Users are responsible for following each site's rules, age requirements, and API terms.
 
+A public instance is operable at [m-e621.tonypup.box.ca](https://m-e621.tonypup.box.ca).
+
 For a stable, e621-only client, use [upstream Material e621](https://github.com/avoonix/material-e621).
 
 ## Stack

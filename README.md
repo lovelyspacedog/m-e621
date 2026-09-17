@@ -3,6 +3,8 @@
   <h1>m-e621</h1>
   <p>A multi-site imageboard browser and local media library.</p>
   <p>
+    <a href="https://m-e621.tonypup.box.ca">Live</a>
+    ·
     <a href="./README-CONTINUED.md">Documentation</a>
     ·
     <a href="https://github.com/lovelyspacedog/m-e621">Repository</a>
@@ -14,6 +16,8 @@
 ---
 
 m-e621 expands [Material e621](https://github.com/avoonix/material-e621) with additional sites, a Unified feed, local media management, and richer browsing tools. It is built with Vue 3 and Vuetify.
+
+A public instance is operable at **[m-e621.tonypup.box.ca](https://m-e621.tonypup.box.ca)**.
 
 > [!NOTE]
 > This is an experimental, AI-assisted personal project. For a stable e621-only client, use upstream Material e621.
