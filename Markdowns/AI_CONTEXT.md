@@ -65,7 +65,7 @@ Other notable files:
 - `deploy.env.example` — env template. Real values: `~/.config/m-e621/env` or gitignored `deploy.env`.
 - `public/zen-browser.css` — Zen / Transparent Zen.
 - `public/ffmpeg/` — ffmpeg.wasm assets used under `BASE_URL`.
-- `BUG-ANALYSIS.md` — gitignored internal notes; do not recreate unless asked.
+- `Markdowns/BUG-ANALYSIS.md` — gitignored internal notes; do not recreate unless asked.
 
 ## Architecture and data flow
 

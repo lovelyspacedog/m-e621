@@ -107,7 +107,7 @@ chmod 600 ~/.config/m-e621/scent_marks_admin.hash
 ```
 
 `serve.py` only checks that hash file. If you change the password (or keep a separate reminder file), regenerate the hash — a mismatched hash returns `unauthorized`.
-Configuration belongs in `~/.config/m-e621/env` or a gitignored `deploy.env`. See [`deploy.env.example`](./deploy.env.example).
+Configuration belongs in `~/.config/m-e621/env` or a gitignored `deploy.env`. See [`deploy.env.example`](../deploy.env.example).
 
 ### Development
 
@@ -202,7 +202,7 @@ To serve the same app under a different subdomain:
 3. On the VPS, set `M_E621_DOMAIN` in `~/.config/m-e621/env` (or gitignored `deploy.env`) to the new host **without** `https://`. Example: `M_E621_DOMAIN=pawfeed.tonypup.box.ca`.
 4. Rebuild so Vite picks up the host: `M_E621_FORCE_BUILD=1 ./sync`. That rewrites `.env.local` (`VITE_CANONICAL_URL`, `VITE_APP_DOMAIN`) and regenerates `sitemap.xml`.
 5. Confirm `https://<new-host>` loads and that Settings → Info shows the current commit.
-6. Update the Live links in `README.md` and this file, add a changelog bullet, and change the verification URL in the Cursor skill (`~/.cursor/skills/m-e621/SKILL.md`).
+6. Update the Live links in `Markdowns/README.md` and this file, add a changelog bullet, and change the verification URL in the Cursor skill (`~/.cursor/skills/m-e621/SKILL.md`).
 7. Optional: keep the old custom app on the same port, or turn the old host into a redirect. For a settings-migration interstitial on the old origin, build it with `VITE_MIGRATE_FROM_DOMAIN` / `VITE_MIGRATE_TO_DOMAIN`.
 8. Installed PWAs are origin-scoped. Users who added the old host as an app must install again from the new origin.
 9. Remove the old custom app only after bookmarks and the old URL have moved.
@@ -224,7 +224,7 @@ TLS for `*.tonypup.box.ca` is handled by the Expedition reverse proxy. `serve.py
 ## Additional details
 
 - `start`, `sync`, and `deploy.sh` support a reverse-proxied self-host. `sync` uses `flock` on `~/.config/m-e621/sync.lock` (wait up to `M_E621_SYNC_LOCK_TIMEOUT`, default 600s, then one non-blocking retry) so overlapping agent/cron syncs do not stack. The lock is dropped before `start`, and `serve.py` does not inherit that flock FD.
-- Parallel agents that cannot safely edit README/changelog write untracked notes under `PENDING_DOCS/` for a later survey (see `PENDING_DOCS/README.md`).
+- Parallel agents that cannot safely edit README/changelog write untracked notes under `PENDING_DOCS/` for a later survey (see [`PENDING_DOCS/README.md`](../PENDING_DOCS/README.md)).
 - `public/zen-browser.css` provides Zen Browser and Transparent Zen compatibility (including stronger landing hero chip / action button contrast when theme secondary is forced transparent/black, and darkened landing text panels for What it does / Tag Wiki / About).
 - The PWA checks for updates every ten minutes and shows an update banner with the git short hash when available.
 - The landing page uses site-mode chips, a primary Browse posts action, outlined Scent Marks / Changelog & TOS actions, a capability summary (What it does), a random [e621 tag wiki](https://e621.net/wiki_pages/204) first-paragraph snippet under that section each visit (click the tag to search e621 in-app; Another page loads a new tag definition in place), honest About/limits copy, dual Tony Pup / Avoonix Latest updates commit columns (Show more opens an in-app modal; more on GitHub stays), a Changelog & TOS dialog (Changelog / TOS tabs), and an AGPL/age footer. What it does, Tag Wiki, and About wrap their copy in darkened text panels so they stay readable under Transparent Zen. The TOS tab lists fair-use summaries for supported sites (Tailspace omitted; no public TOS) plus Fluffle, each with a link to the official document. The hero tagline and About copy mention a local folder only when Local browse is available (Chromium File System Access or the Tauri app).
@@ -250,4 +250,4 @@ For a stable, e621-only client, use [upstream Material e621](https://github.com/
 
 ## License
 
-GNU Affero General Public License v3.0. Network use of a modified version requires offering the corresponding source. See [`LICENSE`](./LICENSE).
+GNU Affero General Public License v3.0. Network use of a modified version requires offering the corresponding source. See [`LICENSE`](../LICENSE).

@@ -1,6 +1,6 @@
 # PENDING_DOCS
 
-Untracked survey notes for doc/changelog updates that parallel agents could not apply because `README.md`, `README-CONTINUED.md`, and/or `src/Landing/changelog.ts` were foreign-dirty.
+Untracked survey notes for doc/changelog updates that parallel agents could not apply because `Markdowns/README.md`, `Markdowns/README-CONTINUED.md`, and/or `src/Landing/changelog.ts` were foreign-dirty.
 
 ## Convention
 
