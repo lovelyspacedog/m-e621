@@ -76,7 +76,7 @@ export const unifiedChildIcon = (mode: SiteMode | UnifiedChildMode): string => {
     case "tailspace":
       return "mdi-rocket-launch";
     case "flayrah":
-      return "mdi-newspaper-variant";
+      return "$flayrah";
     default:
       return "mdi-paw";
   }

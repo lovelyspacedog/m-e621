@@ -117,7 +117,7 @@ const modeIcon = (mode: SiteMode) => {
     case "e6ai": return "$tanukiAi";
     case "local": return "mdi-harddisk";
     case "tailspace": return "mdi-rocket-launch";
-    case "flayrah": return "mdi-newspaper-variant";
+    case "flayrah": return "$flayrah";
     case "furbooru": return "mdi-dog";
     case "inkbunny": return "mdi-rabbit";
     case "furaffinity": return "$fox";

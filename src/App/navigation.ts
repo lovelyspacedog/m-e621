@@ -71,7 +71,7 @@ export const useTrailingNavigationItems = () => {
     if (siteMode.isFlayrah) {
       return [
         {
-          icon: "mdi-newspaper-variant",
+          icon: "$flayrah",
           name: "News",
           exact: false,
           to: { name: "FlayrahFeed" },
