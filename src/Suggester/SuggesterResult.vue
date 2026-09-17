@@ -142,6 +142,7 @@ const analyze = async () => {
       !needsUsername.value &&
       siteMode.activeMode !== "local" &&
       siteMode.activeMode !== "furaffinity" &&
+      siteMode.activeMode !== "unified" &&
       !account.auth?.api_key
     ) {
       errorMessage.value = "Sign in for this site to run Post Suggester.";

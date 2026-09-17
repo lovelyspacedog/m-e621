@@ -19,6 +19,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY serve.py fa_proxy.py furbooru_cf.py ./
+COPY src/Landing/scentMarksBlocklist.json ./scentMarksBlocklist.json
 COPY --from=build /app/dist ./dist
 
 ENV M_E621_ROOT=/app/dist \

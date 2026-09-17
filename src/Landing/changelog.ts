@@ -18,6 +18,11 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-17",
     title: "Public instance noted",
     items: [
+      "Hardened media download and Fluffle redirects so each hop is allowlisted (no cookie leak on intermediate redirects)",
+      "Docker image ships the Scent Trail blocklist; posts fail closed if the blocklist is missing",
+      "Flayrah: j/k/s and arrow keys work again on the feed and article reader (no longer stolen by fullscreen shortcuts)",
+      "Flayrah Saved view keeps articles that aged off the current RSS window",
+      "Federated Post Suggester uses per-child logins instead of requiring empty Federated-profile auth",
       "Flayrah site mode: read-only RSS news feed and article reader (not Federated)",
       "Flayrah: taxonomy feed chips, archive deep-links, refresh, prev/next, live body search, copy link",
       "Flayrah: read/unread and saved articles, magazine layout, j/k shortcuts, tag cloud, offline last-good feed",

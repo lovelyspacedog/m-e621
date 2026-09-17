@@ -25,6 +25,21 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlencode, urljoin, urlparse
 
 
+class _NoHTTPRedirect(urllib.request.HTTPRedirectHandler):
+    """Do not auto-follow redirects — callers re-validate each hop (M27)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
+        return None
+
+
+_NO_REDIRECT_OPENER = urllib.request.build_opener(_NoHTTPRedirect)
+
+
+def _urlopen_no_redirect(req: urllib.request.Request, timeout: float | int):
+    """urlopen that raises HTTPError on 3xx instead of following."""
+    return _NO_REDIRECT_OPENER.open(req, timeout=timeout)
+
+
 def _prepend_venv() -> None:
     """Prefer a local .venv so faapi can be installed without system pip."""
     root = Path(__file__).resolve().parent
@@ -82,8 +97,11 @@ TOKEN_PATH = CONFIG_DIR / "pull_token"
 STATUS_PATH = CONFIG_DIR / "pull_status.json"
 SCENT_MARKS_PATH = CONFIG_DIR / "scent_marks.json"
 SCENT_ADMIN_HASH_PATH = CONFIG_DIR / "scent_marks_admin.hash"
-SCENT_BLOCKLIST_PATH = (
-    Path(__file__).resolve().parent / "src" / "Landing" / "scentMarksBlocklist.json"
+_SCENT_ROOT = Path(__file__).resolve().parent
+# Docker copies beside serve.py; checkout keeps the file under src/Landing/.
+SCENT_BLOCKLIST_CANDIDATES = (
+    _SCENT_ROOT / "scentMarksBlocklist.json",
+    _SCENT_ROOT / "src" / "Landing" / "scentMarksBlocklist.json",
 )
 SCENT_MARKS_LIST_PATH = re.compile(r"^/api/scent-marks/?$")
 SCENT_MARKS_AUTH_PATH = re.compile(r"^/api/scent-marks/auth/?$")
@@ -100,6 +118,8 @@ _scent_rate_by_ip: dict[str, float] = {}
 _scent_block_words: list[str] = []
 _scent_block_word_res: list[tuple[str, re.Pattern[str]]] = []
 _scent_block_patterns: list[tuple[str, re.Pattern[str]]] = []
+# "pending" | "ok" | "missing" — POST fails closed when not "ok".
+_scent_blocklist_status = "pending"
 
 
 def _scent_strip_controls(value: str) -> str:
@@ -109,13 +129,25 @@ def _scent_strip_controls(value: str) -> str:
 def _scent_load_blocklist() -> None:
     """Load shared client/server blocklist once (words + spam pattern ids)."""
     global _scent_block_words, _scent_block_word_res, _scent_block_patterns
-    if _scent_block_word_res or _scent_block_patterns or _scent_block_words:
+    global _scent_blocklist_status
+    if _scent_blocklist_status != "pending":
         return
-    try:
-        raw = json.loads(SCENT_BLOCKLIST_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return
-    if not isinstance(raw, dict):
+    raw: object | None = None
+    last_err: Exception | None = None
+    for path in SCENT_BLOCKLIST_CANDIDATES:
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            break
+        except (OSError, json.JSONDecodeError) as exc:
+            last_err = exc
+            continue
+    if raw is None or not isinstance(raw, dict):
+        _scent_blocklist_status = "missing"
+        print(
+            f"[scent-marks] blocklist unavailable ({last_err or 'invalid JSON'}); "
+            "POST /api/scent-marks will return 503",
+            file=sys.stderr,
+        )
         return
     words: list[str] = []
     for item in raw.get("words") or []:
@@ -150,6 +182,12 @@ def _scent_load_blocklist() -> None:
     _scent_block_words = words
     _scent_block_word_res = word_res
     _scent_block_patterns = patterns
+    _scent_blocklist_status = "ok"
+
+
+def _scent_blocklist_ready() -> bool:
+    _scent_load_blocklist()
+    return _scent_blocklist_status == "ok"
 
 
 def _scent_find_blocked(text: str, name: str | None) -> list[str]:
@@ -1196,6 +1234,15 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
     def _handle_scent_marks_post(self, body: bytes) -> None:
         ip = _scent_client_ip(self)
+        if not _scent_blocklist_ready():
+            self._json(
+                503,
+                {
+                    "ok": False,
+                    "message": "moderation blocklist unavailable — cannot accept posts",
+                },
+            )
+            return
         if not _scent_rate_ok(ip):
             self._json(
                 429,
@@ -1632,7 +1679,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 if parts:
                     req.add_header("Cookie", "; ".join(parts))
             try:
-                with urllib.request.urlopen(req, timeout=60) as resp:
+                with _urlopen_no_redirect(req, timeout=60) as resp:
                     final = resp.geturl() if hasattr(resp, "geturl") else current
                     if self._allowed_fluffle_source_url(final) is None:
                         return None
@@ -1783,7 +1830,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
             if host in SOFURRY_MEDIA_HOSTS or host.endswith(".sofurryfiles.com"):
                 req.add_header("Referer", "https://sofurry.com")
             try:
-                with urllib.request.urlopen(req, timeout=120) as resp:
+                with _urlopen_no_redirect(req, timeout=120) as resp:
                     final = resp.geturl() if hasattr(resp, "geturl") else current
                     if self._allowed_media_url(final) is None:
                         self._json(400, {"ok": False, "message": "redirect target not allowed"})

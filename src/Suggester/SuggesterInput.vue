@@ -13,7 +13,11 @@
                 label="Username"
               />
               <div v-else class="text-body-2 text-medium-emphasis mb-4">
-                Using logged-in favorites
+                {{
+                  siteMode.isUnified
+                    ? "Using favorites from each enabled Federated child"
+                    : "Using logged-in favorites"
+                }}
                 <span v-if="!canSubmitOwn" class="text-error d-block mt-1">
                   Sign in for this site to run Post Suggester.
                 </span>
@@ -63,6 +67,8 @@ const showUsername = computed(() =>
 const canSubmitOwn = computed(() => {
   if (siteMode.activeMode === "local") return true;
   if (siteMode.activeMode === "furaffinity") return true;
+  // Federated uses per-child credentials (same as Favorite Analyzer).
+  if (siteMode.activeMode === "unified") return true;
   return Boolean(account.auth?.api_key);
 });
 

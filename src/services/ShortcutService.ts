@@ -59,24 +59,43 @@ class ShortcutService {
             this.emitter.emit("fullscreenExit"); // search can't be focused otherwise
             this.emitter.emit("focusSearch");
             break;
-          case "fullscreen_exit":
+          case "fullscreen_exit": {
+            const ui = useUiStore();
+            // Let page handlers (Flayrah `s` save, etc.) run when not fullscreen.
+            if (!ui.fullscreenOpen) return true;
             this.emitter.emit("fullscreenExit");
             break;
-          case "fullscreen_next_post":
+          }
+          case "fullscreen_next_post": {
+            const ui = useUiStore();
+            if (!ui.fullscreenOpen) return true;
             this.emitter.emit("fullscreenNext");
             break;
-          case "fullscreen_previous_post":
+          }
+          case "fullscreen_previous_post": {
+            const ui = useUiStore();
+            if (!ui.fullscreenOpen) return true;
             this.emitter.emit("fullscreenPrevious");
             break;
-          case "fullscreen_add_favorite":
+          }
+          case "fullscreen_add_favorite": {
+            const ui = useUiStore();
+            if (!ui.fullscreenOpen) return true;
             this.emitter.emit("fullscreenAddFavorite");
             break;
-          case "fullscreen_remove_favorite":
+          }
+          case "fullscreen_remove_favorite": {
+            const ui = useUiStore();
+            if (!ui.fullscreenOpen) return true;
             this.emitter.emit("fullscreenRemoveFavorite");
             break;
-          case "fullscreen_toggle_favorite":
+          }
+          case "fullscreen_toggle_favorite": {
+            const ui = useUiStore();
+            if (!ui.fullscreenOpen) return true;
             this.emitter.emit("fullscreenToggleFavorite");
             break;
+          }
           case "fullscreen_slideshow_toggle": {
             const ui = useUiStore();
             if (!ui.fullscreenOpen) {

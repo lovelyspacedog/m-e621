@@ -293,15 +293,46 @@ watch(tagsQuery, (v) => {
 });
 
 const filtered = computed(() => {
-  let list = articles.value.filter((a) =>
-    articleMatchesQuery(a, queryTerms.value),
-  );
+  const terms = queryTerms.value;
+  if (viewFilter.value === "saved") {
+    // Prefer live RSS rows when present; otherwise synthesize from persisted saves
+    // so articles that aged off the feed still appear in Saved.
+    const byId = new Map(articles.value.map((a) => [a.id, a]));
+    return flayrahNews.saved
+      .map(
+        (s) =>
+          byId.get(s.id) ??
+          ({
+            id: s.id,
+            title: s.title,
+            link: s.link,
+            author: s.author,
+            publishedAt: "",
+            publishedMs: s.savedAt,
+            tags: [],
+            descriptionHtml: "",
+            excerpt: "Saved article — open to read full text.",
+            thumbUrl: s.thumbUrl,
+          } satisfies FlayrahArticle),
+      )
+      .filter((a) => articleMatchesQuery(a, terms));
+  }
+  let list = articles.value.filter((a) => articleMatchesQuery(a, terms));
   if (viewFilter.value === "unread") {
     list = list.filter((a) => !flayrahNews.isRead(a.id));
-  } else if (viewFilter.value === "saved") {
-    list = list.filter((a) => flayrahNews.isSaved(a.id));
   }
   return list;
+});
+
+const emptyMessage = computed(() => {
+  if (viewFilter.value === "saved") {
+    return flayrahNews.savedCount
+      ? "No saved articles match this filter."
+      : "No saved articles yet.";
+  }
+  if (!articles.value.length) return "No articles in the RSS feed.";
+  if (viewFilter.value === "unread") return "No unread articles.";
+  return "No articles match this filter.";
 });
 
 const popularTags = computed(() => {
@@ -321,13 +352,6 @@ const popularTags = computed(() => {
         .find((t) => t.toLowerCase() === key);
       return sample || key;
     });
-});
-
-const emptyMessage = computed(() => {
-  if (!articles.value.length) return "No articles in the RSS feed.";
-  if (viewFilter.value === "unread") return "No unread articles.";
-  if (viewFilter.value === "saved") return "No saved articles yet.";
-  return "No articles match this filter.";
 });
 
 const feedBlurb = computed(() => {
