@@ -19,7 +19,7 @@ export interface TosSummary {
 }
 
 export const tosIntro =
-  "These are unofficial plain-language summaries for quick reference while browsing with m-e621. They are not legal advice and may omit details. Always read the official document before uploading, scraping, or relying on a site’s rules.";
+  "These are unofficial plain-language summaries for quick reference while browsing with PawFeed. They are not legal advice and may omit details. Always read the official document before uploading, scraping, or relying on a site’s rules.";
 
 /**
  * Supported remote sites with a public terms-like document, plus Fluffle.
@@ -341,7 +341,7 @@ export const tosSummaries: TosSummary[] = [
     name: "Fluffle",
     sourceUrl: "https://fluffle.xyz/about/",
     sourceLabel: "About / privacy notes",
-    note: "Fluffle does not publish a formal Terms of Service. This summary is from their About page (privacy and logging practices). m-e621 uses Fluffle for reverse-image search.",
+    note: "Fluffle does not publish a formal Terms of Service. This summary is from their About page (privacy and logging practices). PawFeed uses Fluffle for reverse-image search.",
     sections: [
       {
         heading: "What it is",

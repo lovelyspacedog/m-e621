@@ -5,7 +5,7 @@
     <section class="landing-hero v-toolbar elevation-0 bg-primary d-flex">
       <div class="w-100 d-flex flex-column align-center justify-center fill-height py-10 px-4">
         <app-logo v-view-transition-name="'applogo'" type="face" size="160" />
-        <h1 class="mb-2 text-h1 text-center">m-e621</h1>
+        <h1 class="mb-2 text-h1 text-center">{{ APP_NAME }}</h1>
         <p class="text-h6 text-center landing-tagline mb-4">
           {{ tagline }}
         </p>
@@ -152,6 +152,7 @@ import { computed, ref } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import MigrationInfo from "./MigrationInfo.vue";
 import { useSiteModeStore } from "@/services/SiteModeStore";
+import { APP_NAME } from "@/misc/util/brand";
 
 const router = useRouter();
 const siteMode = useSiteModeStore();
@@ -167,7 +168,7 @@ const openCommitHistory = (source: "fork" | "upstream") => {
 };
 
 useHead({
-  title: "m-e621",
+  title: APP_NAME,
   titleTemplate: null,
 });
 

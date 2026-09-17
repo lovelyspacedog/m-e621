@@ -1,4 +1,4 @@
-/** Curated m-e621 release notes derived from the fork commit history (Tony Pup). */
+/** Curated PawFeed release notes derived from the fork commit history (Tony Pup). */
 
 export interface ChangelogSection {
   /** ISO date for sorting / stable keys */
@@ -18,6 +18,8 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-17",
     title: "Public instance noted",
     items: [
+      "Product renamed to PawFeed (landing, PWA, desktop title, and docs); host paths and GitHub repo stay m-e621",
+      "README documents how to move the public host off m-e621.tonypup.box.ca",
       "Scent Marks: host moderators can pin posts so they stay at the top of the Scent Trail",
       "App logo and favicon refreshed to a basset-hound mark with forehead m, long ears, and the same ear/tail/blink animations",
       "Logo head uses darker e621 blue so it stays visible on the primary landing hero; droopy brows and eyes match the mark",
@@ -135,4 +137,4 @@ export const changelogSections: ChangelogSection[] = [
 ];
 
 export const changelogIntro =
-  "m-e621 is a personal multi-site fork of Material e621. Highlights below cover the fork’s shipped work; older upstream commits are on GitHub.";
+  "PawFeed is a personal multi-site fork of Material e621. Highlights below cover the fork’s shipped work; older upstream commits are on GitHub.";

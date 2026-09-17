@@ -15,7 +15,7 @@ export * from "./returnTypes";
 export * from "./requestTypes";
 
 const version = getGitInfo()[0]?.hash?.substring(0, 7) ?? "0.0.0";
-const clientHeader = `m-e621/${version} (fork of Material e621)`;
+const clientHeader = `PawFeed/${version} (fork of Material e621)`;
 
 const buildUrl = (baseUrl: string, path: string, params: Record<string, any> = {}) => {
   const url = new URL(`${baseUrl}${path}`);

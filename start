@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start m-e621 static server (localhost TCP port for a reverse-proxied custom app).
+# Start PawFeed static server (localhost TCP port for a reverse-proxied custom app).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -31,7 +31,7 @@ if pgrep -f "$APP_DIR/serve.py" >/dev/null 2>&1; then
 fi
 
 if [[ ! -d "$APP_DIR/dist" ]]; then
-  printf 'm-e621: missing %s/dist — run sync first\n' "$APP_DIR" >&2
+  printf 'PawFeed: missing %s/dist — run sync first\n' "$APP_DIR" >&2
   exit 1
 fi
 

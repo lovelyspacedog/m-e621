@@ -1,4 +1,4 @@
-# FEATURES.md — m-e621 recommendation backlog
+# FEATURES.md — PawFeed recommendation backlog
 
 Personal, AI-assisted fork of Material e621. Bias: **works for me** over general polish. Stack: Vue 3, Vuetify 3, Pinia, TypeScript, Vite, **npm only**, Node ≥20. License: **AGPL-3.0**.
 

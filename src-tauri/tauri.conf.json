@@ -7,7 +7,7 @@
     "withGlobalTauri": true
   },
   "package": {
-    "productName": "m-e621",
+    "productName": "PawFeed",
     "version": "0.1.0"
   },
   "tauri": {
@@ -70,7 +70,7 @@
         "fullscreen": false,
         "height": 600,
         "resizable": true,
-        "title": "m-e621",
+        "title": "PawFeed",
         "width": 800
       }
     ]

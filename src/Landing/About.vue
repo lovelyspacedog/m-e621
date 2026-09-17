@@ -3,9 +3,9 @@
     <v-container>
       <v-row>
         <v-col cols="12" md="8" offset-md="2" lg="6" offset-lg="3">
-          <h2 class="text-h4 text-center mb-3">What is m-e621?</h2>
+          <h2 class="text-h4 text-center mb-3">What is PawFeed?</h2>
           <p class="text-center">
-            m-e621 is a personal, AI-assisted fork of
+            PawFeed is a personal, AI-assisted fork of
             <a
               class="text-primary text-decoration-underline"
               target="_blank"

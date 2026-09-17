@@ -1,10 +1,11 @@
 import { useRouter } from "vue-router";
 import { useMainStore } from "@/services/state";
+import { APP_NAME } from "./brand";
 import { getGitInfo } from "./git";
 
 export const getAppName = () => {
   const hash = getGitInfo()[0]?.hash?.substring(0, 7);
-  return hash ? `m-e621 ${hash}` : "m-e621";
+  return hash ? `${APP_NAME} ${hash}` : APP_NAME;
 };
 export const getBaseUrl = () => document.location.origin;
 

@@ -91,7 +91,7 @@
                 <external-link :href="`${fields[site.mode].baseUrl}users/home`" /> and make sure you copied the API key correctly - it
                 should be 24 characters long.
                 <br />
-                Due to a security policy (CORS), m-e621 cannot determine the cause of the error. There might be a
+                Due to a security policy (CORS), PawFeed cannot determine the cause of the error. There might be a
                 general error with the network or {{ site.label }}.
               </template>
             </p>

@@ -75,7 +75,7 @@
             Found a bug or got an idea for a new feature?
           </v-card-title>
           <v-card-text class="py-0">
-            Create, comment on, or react to issues on the m-e621 GitHub page!
+            Create, comment on, or react to issues on the PawFeed GitHub page!
           </v-card-text>
           <v-card-actions class="pb-2">
             <v-spacer />

@@ -139,7 +139,7 @@
               hide-details="auto"
             />
             <p class="text-left text-caption text-medium-emphasis mt-2 mb-0">
-              The old public Vercel proxy only allows the original m-e621 websites, which is why it
+              The old public Vercel proxy only allows the original Material e621 websites, which is why it
               returns “Failed to fetch” here.
             </p>
           </settings-row>

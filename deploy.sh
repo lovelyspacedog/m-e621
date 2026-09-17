@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy m-e621 to a remote host and keep it synced with the GitHub fork.
+# Deploy PawFeed to a remote host and keep it synced with the GitHub fork.
 # Personal host/domain/repo values live in ~/.config/m-e621/env or ./deploy.env
 # (see deploy.env.example). Nothing host-specific is hardcoded here.
 set -euo pipefail
@@ -109,12 +109,13 @@ rm -f "$tmp"
 REMOTE
 
 echo
-echo "Deployed m-e621 on $HOST"
+echo "Deployed PawFeed on $HOST"
 echo "  local port : 127.0.0.1:$PORT"
 echo "  app dir    : $REMOTE_DIR"
 echo "  syncs from : $REPO_URL ($BRANCH) every 15m"
 echo
 echo "If using a reverse-proxied custom app:"
-echo "  App name / subdomain : m-e621"
+echo "  App name / subdomain : ${DOMAIN%%.*}"
 echo "  App port             : $PORT"
 echo "  Public URL           : https://$DOMAIN"
+echo "To change the subdomain later, see README-CONTINUED.md (Rename the public hostname)."

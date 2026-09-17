@@ -1,4 +1,4 @@
-# m-e621 — detailed guide
+# PawFeed — detailed guide
 
 This document expands on the quick overview in the [main README](./README.md).
 
@@ -167,8 +167,8 @@ docker compose up --build
 Or:
 
 ```bash
-docker build -t m-e621 .
-docker run --rm -p 18621:18621 m-e621
+docker build -t pawfeed .
+docker run --rm -p 18621:18621 pawfeed
 ```
 
 CI also publishes this fork’s image (with `serve.py`, not upstream static) to **GHCR** on push to `main`/`master` as `ghcr.io/<owner>/<repo>:latest` (and sha tags). Prefer compose for local work; pull from GHCR when you want a prebuilt personal registry image.
@@ -186,6 +186,24 @@ cargo tauri dev
 ```
 
 The bundle identifier is `com.lovelyspacedog.me621`.
+
+### Rename the public hostname
+
+The product name is **PawFeed**. The live Expedition custom app is still `m-e621`, so the public URL remains [m-e621.tonypup.box.ca](https://m-e621.tonypup.box.ca). Env vars (`M_E621_*`), `~/.config/m-e621/`, the checkout path, Local sidecars (`.me621-*.json`), and the GitHub repo `lovelyspacedog/m-e621` stay unchanged so existing deploys keep working.
+
+To serve the same app under a different subdomain (for example `pawfeed.tonypup.box.ca`):
+
+1. Pick the new Expedition custom-app name. That label is the DNS host under `tonypup.box.ca` (`pawfeed` → `pawfeed.tonypup.box.ca`).
+2. Create a reverse-proxied custom app with that name on the same local port (`M_E621_PORT`, default `18621`). Point it at the existing `serve.py` — do not clone a second checkout.
+3. On the VPS, set `M_E621_DOMAIN` in `~/.config/m-e621/env` (or gitignored `deploy.env`) to the new host **without** `https://`. Example: `M_E621_DOMAIN=pawfeed.tonypup.box.ca`.
+4. Rebuild so Vite picks up the host: `M_E621_FORCE_BUILD=1 ./sync`. That rewrites `.env.local` (`VITE_CANONICAL_URL`, `VITE_APP_DOMAIN`) and regenerates `sitemap.xml`.
+5. Confirm `https://<new-host>` loads and that Settings → Info shows the current commit.
+6. Update the Live links in `README.md` and this file, add a changelog bullet, and change the verification URL in the Cursor skill (`~/.cursor/skills/m-e621/SKILL.md`).
+7. Optional: keep the old custom app on the same port, or turn the old host into a redirect. For a settings-migration interstitial on the old origin, build it with `VITE_MIGRATE_FROM_DOMAIN` / `VITE_MIGRATE_TO_DOMAIN`.
+8. Installed PWAs are origin-scoped. Users who added the old host as an app must install again from the new origin.
+9. Remove the old custom app only after bookmarks and the old URL have moved.
+
+TLS for `*.tonypup.box.ca` is handled by the Expedition reverse proxy. `serve.py` still binds `127.0.0.1:18621`.
 
 ## Settings and appearance
 
@@ -210,9 +228,9 @@ The bundle identifier is `com.lovelyspacedog.me621`.
 
 ## Project expectations
 
-m-e621 is an active personal, AI-assisted fork. Features may be experimental, incomplete, or optimized for the maintainer's workflow. It is not affiliated with any supported content site. Users are responsible for following each site's rules, age requirements, and API terms.
+PawFeed is an active personal, AI-assisted fork. Features may be experimental, incomplete, or optimized for the maintainer's workflow. It is not affiliated with any supported content site. Users are responsible for following each site's rules, age requirements, and API terms.
 
-A public instance is operable at [m-e621.tonypup.box.ca](https://m-e621.tonypup.box.ca).
+A public instance is operable at [m-e621.tonypup.box.ca](https://m-e621.tonypup.box.ca). To serve it under a different subdomain, see [Rename the public hostname](#rename-the-public-hostname).
 
 For a stable, e621-only client, use [upstream Material e621](https://github.com/avoonix/material-e621).
 

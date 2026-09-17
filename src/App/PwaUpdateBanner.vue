@@ -19,13 +19,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { usePwaUpdateStore } from "@/services";
+import { APP_NAME } from "@/misc/util/brand";
 import { getAppName } from "@/misc/util/utilities";
 
 const pwa = usePwaUpdateStore();
 const bannerText = computed(() => {
   const name = getAppName();
-  // getAppName is `m-e621` or `m-e621 <hash>`
-  const hash = name.startsWith("m-e621 ") ? name.slice("m-e621 ".length) : "";
+  const prefix = `${APP_NAME} `;
+  const hash = name.startsWith(prefix) ? name.slice(prefix.length) : "";
   return hash ? `New version available (${hash})` : "New version available";
 });
 </script>

@@ -3,13 +3,13 @@
     <section class="v-toolbar elevation-0 bg-primary d-flex" :style="{ height: '75vh' }">
       <div class="w-100 d-flex flex-column align-center justify-center fill-height">
         <AppLogo type="face" size="200" />
-        <h1 class="mb-2 text-h1 text-center">m-e621</h1>
+        <h1 class="mb-2 text-h1 text-center">{{ APP_NAME }}</h1>
         <div class="text-h4 mb-3">We are moving!</div>
         <v-btn size="x-large" color="accent" variant="flat" :href="domain">
           <v-icon class="mr-2">mdi-open-in-new</v-icon>
           Go to new instance
         </v-btn>
-        <div class="mt-8 text-h5 w-50 text-center">Don't forget to download your settings if you have used m-e621
+        <div class="mt-8 text-h5 w-50 text-center">Don't forget to download your settings if you have used {{ APP_NAME }}
           in the past. You can
           import them in the new instance.</div>
         <v-btn variant="flat" color="accent" class="mb-3 mt-1" @click="download">
@@ -27,6 +27,7 @@
 import AppLogo from '@/App/AppLogo.vue';
 import About from '@/Landing/About.vue';
 import Footer from '@/Landing/Footer.vue';
+import { APP_NAME } from '@/misc/util/brand';
 import { usePersistanceService } from '@/services';
 import { downloadjs } from '@/Settings/download';
 import { onMounted } from 'vue';

@@ -2,7 +2,7 @@
   <v-footer class="bg-primary py-4">
     <v-container class="py-0">
       <div class="text-white text-body-2">
-        m-e621 by Tony Pup · forked from
+        PawFeed by Tony Pup · forked from
         <a href="https://github.com/avoonix/material-e621" class="text-white text-decoration-underline" title="Material e621"
           >Material e621</a
         >

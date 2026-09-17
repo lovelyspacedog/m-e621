@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="./public/favicon.svg" width="88" alt="m-e621 logo">
-  <h1>m-e621</h1>
+  <img src="./public/favicon.svg" width="88" alt="PawFeed logo">
+  <h1>PawFeed</h1>
   <p>A multi-site imageboard browser and local media library.</p>
   <p>
     <a href="https://m-e621.tonypup.box.ca">Live</a>
@@ -15,9 +15,9 @@
 
 ---
 
-m-e621 expands [Material e621](https://github.com/avoonix/material-e621) with additional sites, a Federated feed, local media management, and richer browsing tools. It is built with Vue 3 and Vuetify.
+PawFeed expands [Material e621](https://github.com/avoonix/material-e621) with additional sites, a Federated feed, local media management, and richer browsing tools. It is built with Vue 3 and Vuetify.
 
-A public instance is operable at **[m-e621.tonypup.box.ca](https://m-e621.tonypup.box.ca)**.
+A public instance is operable at **[m-e621.tonypup.box.ca](https://m-e621.tonypup.box.ca)**. Steps for moving that hostname are in the [complete guide](./README-CONTINUED.md#rename-the-public-hostname).
 
 > [!NOTE]
 > This is an experimental, AI-assisted personal project. For a stable e621-only client, use upstream Material e621.
@@ -40,7 +40,7 @@ A public instance is operable at **[m-e621.tonypup.box.ca](https://m-e621.tonypu
 
 > Content shown in screenshots may be NSFW.
 
-[![m-e621 landing page](./screenshots/landing-page.png)](./screenshots/landing-page.png)
+[![PawFeed landing page](./screenshots/landing-page.png)](./screenshots/landing-page.png)
 
 [![Grid layout in Federated mode](./screenshots/grid-and-unified-mode.png)](./screenshots/grid-and-unified-mode.png)
 

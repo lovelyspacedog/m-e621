@@ -1,10 +1,10 @@
-# AI_CONTEXT — m-e621
+# AI_CONTEXT — PawFeed
 
 Onboarding for other AI agents. Prefer this file plus `README.md` / `README-CONTINUED.md`. `FEATURES.md` is a personal backlog, not a product contract.
 
 ## Purpose
 
-**m-e621** (`package.json` name `m-e621`) is a personal, AI-assisted fork of [Material e621](https://github.com/avoonix/material-e621). It is a Vue 3 SPA that browses multiple furry imageboards and a local media folder from one UI.
+**PawFeed** (`package.json` name `pawfeed`, GitHub `lovelyspacedog/m-e621`) is a personal, AI-assisted fork of [Material e621](https://github.com/avoonix/material-e621). It is a Vue 3 SPA that browses multiple furry imageboards and a local media folder from one UI. User-facing branding lives in `src/misc/util/brand.ts` (`APP_NAME`). Host paths, env vars (`M_E621_*`), and Local sidecars stay `m-e621`.
 
 Supported **site modes** (`SiteMode` in `src/services/types.ts`): `e621`, `e6ai`, `furbooru`, `inkbunny`, `furaffinity`, `weasyl`, `itaku`, `sofurry`, `tailspace`, `local`, `unified`.
 
@@ -156,7 +156,7 @@ Deploy helpers: `./deploy.sh` (SSH via `EXPEDITION_HOST` + `EXPEDITION_SECRET`),
 - Product bias (`FEATURES.md`): “works for me” over general polish. Prefer extending `siteCapabilities.ts` and adapters over special-casing every button in templates.
 - Adding a settings field: bump `configVersion` in `defaultSettings.ts` **and** `ISettingsServiceState`, add a `< N` migration in `PersistanceService`.
 - Adding a site mode: types + `SITE_MODE_URLS` + empty profile + `SiteModeStore` + nav/router guards + worker adapter + Vite/`serve.py` proxy + capability flags. Do not fall through to the e621 client.
-- User-Agent / `_client` query: `m-e621/<git>` (`src/worker/api/index.ts`). Fluffle UA: `m-e621/1.0 (by lovelyspacedog on GitHub)`.
+- User-Agent / `_client` query: `PawFeed/<git>` (`src/worker/api/index.ts`). Fluffle UA: `PawFeed/1.0 (by lovelyspacedog on GitHub)`.
 
 ## Configuration and external services
 

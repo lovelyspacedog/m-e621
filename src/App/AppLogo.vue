@@ -7,7 +7,7 @@
       :class="{ loader: type === 'loader' }"
       :style="{ height: `${size}px` }"
       role="img"
-      aria-label="m-e621"
+      aria-label="PawFeed"
     >
       <!-- Tail (face only) -->
       <g class="tail" v-if="type === 'face'">
