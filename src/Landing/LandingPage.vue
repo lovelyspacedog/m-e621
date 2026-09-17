@@ -39,7 +39,7 @@
           class="landing-hero-link"
           @click="changelogOpen = true"
         >
-          Changelog
+          Changelog &amp; TOS
         </v-btn>
       </div>
       <ChangelogDialog v-model="changelogOpen" />
@@ -71,7 +71,9 @@
             <li v-for="(item, idx) in latestPreview" :key="idx">{{ item }}</li>
           </ul>
           <div class="d-flex flex-wrap justify-center ga-2 mt-4">
-            <v-btn color="primary" variant="tonal" @click="changelogOpen = true"> Full changelog </v-btn>
+            <v-btn color="primary" variant="tonal" @click="changelogOpen = true">
+              Changelog &amp; TOS
+            </v-btn>
             <v-btn
               color="primary"
               variant="text"
