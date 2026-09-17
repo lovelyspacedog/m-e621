@@ -5,6 +5,7 @@ import { useSiteLabels } from "@/misc/util/siteLabels";
 import {
   isE621FamilyMode,
   modeSupportsPools,
+  modeSupportsFavoriteAnalyzer,
   modeSupportsSuggester,
 } from "@/misc/util/siteCapabilities";
 import { computed } from "vue";
@@ -111,7 +112,7 @@ export const useTrailingNavigationItems = () => {
           },
         ]
       : [];
-    const e621ToolItems = isE621FamilyMode(siteMode.activeMode)
+    const analyzerItem = modeSupportsFavoriteAnalyzer(siteMode.activeMode)
       ? [
           {
             icon: "mdi-cloud-tags",
@@ -121,6 +122,10 @@ export const useTrailingNavigationItems = () => {
               name: "FavoritesAnalyzer",
             },
           },
+        ]
+      : [];
+    const e621ToolItems = isE621FamilyMode(siteMode.activeMode)
+      ? [
           {
             icon: "mdi-view-dashboard-variant",
             name: `${creatorLabel.value} Dashboard`,
@@ -158,6 +163,7 @@ export const useTrailingNavigationItems = () => {
         : []),
       ...poolItems,
       ...suggesterItem,
+      ...analyzerItem,
       ...e621ToolItems,
       ...starredItem,
       settings,

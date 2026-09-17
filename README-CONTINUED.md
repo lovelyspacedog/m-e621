@@ -6,7 +6,7 @@ This document expands on the quick overview in the [main README](./README.md).
 
 Each mode has its own profile for authentication, blacklist, starred tags, saved searches, history, and favorites where supported.
 
-- **e621** — the original Material e621 experience, including pools (with watch), post suggester, analyzer, and artist dashboard.
+- **e621** — the original Material e621 experience, including pools (with watch), post suggester, favorite analyzer, and artist dashboard.
 - **e6ai** — e6ai browsing with mode-aware terminology (pools with watch like e621; post suggester available).
 - **Furbooru** — API-key authentication, tags, view/post comments, favorites, votes, and post suggester (logged-in favorites).
 - **Inkbunny** — multi-file submission galleries (Save all / Save page), following feed, Flash/SWF playback through Ruffle, and post suggester (logged-in favorites). Submission “pools” appear as metadata, not the e621 `/pools` UI. Favorite toggling is unavailable.
@@ -14,9 +14,9 @@ Each mode has its own profile for authentication, blacklist, starred tags, saved
 - **Weasyl** — API-key authentication, multimedia audio, `favs:me`, and post suggester. Guest browsing is SFW-only; favorite toggling is unavailable. On by default in Unified.
 - **Itaku** — galleries, flattened multi-image posts, comments, stars, following, and post suggester with token authentication. On by default in Unified.
 - **SoFurry** — artwork, music, stories, likes (Remix session), following, and post suggester (any user). Stories have a fullscreen text reader.
-- **Tailspace** — posts, saved searches, following, account actions, and a dedicated comic reader. Post Suggester is not available here.
+- **Tailspace** — posts, saved searches, following, account actions, and a dedicated comic reader. Post Suggester and Favorite Analyzer are not available here.
 - **Local** — a searchable media library backed by a folder on disk, including post suggester over local favorites.
-- **Unified** — a date-merged feed from supported remote children. Switch **Search** vs **Following** (Inkbunny / FurAffinity / Itaku / SoFurry), apply **Defaults** or **Auth only** site presets, and use origin-aware actions with per-site query translation. Failed children and incompatible metatags surface as snackbars. Post Suggester merges per-child favorites and ranks a hybrid candidate pool by score.
+- **Unified** — a date-merged feed from supported remote children. Switch **Search** vs **Following** (Inkbunny / FurAffinity / Itaku / SoFurry), apply **Defaults** or **Auth only** site presets, and use origin-aware actions with per-site query translation. Failed children and incompatible metatags surface as snackbars. Post Suggester and Favorite Analyzer merge per-child favorites.
 
 Tailspace and Local are not included in Unified. When the browser is offline, remote modes are disabled and Local remains available.
 
@@ -48,6 +48,14 @@ The fork adds dedicated pool routes at `/pools` and `/pools/:id` for **e621 and 
 - Hybrid candidates: recent posts plus searches seeded from top favorite tags
 - Results ranked by score; already-favorited posts excluded
 - Unified merges per-child favorites and ranks across origins
+
+## Favorite Analyzer
+
+- Same mode surface as Post Suggester (everything except Tailspace)
+- Ranks tags by frequency in a sample of favorites (320 / 960 / 1920)
+- Other users’ public favorites on e621 / e6ai / FurAffinity / SoFurry; own favorites when signed in elsewhere; Local library favorites; Unified per-child merge
+- Optional blacklist filter, category chips, copy top tags, JSON export, and a link into Post Suggester
+- Uses mode-native favorite queries — never falls through to the e621 API on other sites
 
 ## Saved searches, starred tags, and bookmarks
 

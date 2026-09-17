@@ -1,13 +1,21 @@
 import type { ButtonType, SiteMode } from "@/services/types";
 import { originModeOf } from "@/misc/util/postOrigin";
 
-/** e621 / e6ai shaped features (pools, analyzer, dashboard, wiki). */
+/** e621 / e6ai shaped features (pools, dashboard, wiki). */
 export const isE621FamilyMode = (mode: SiteMode): boolean =>
   mode === "e621" || mode === "e6ai";
 
 /** Post Suggester — all modes except Tailspace (dedicated routes; no getPosts favs). */
 export const modeSupportsSuggester = (mode: SiteMode): boolean =>
   mode !== "tailspace";
+
+/**
+ * Favorite Analyzer — same mode surface as Post Suggester.
+ * Must use mode-native fav queries (`resolveFavoriteTagsQuery` / Local / Unified),
+ * never fall through to e621 APIs on other sites.
+ */
+export const modeSupportsFavoriteAnalyzer = (mode: SiteMode): boolean =>
+  modeSupportsSuggester(mode);
 
 /**
  * Username field for Post Suggester / Analyzer: other users' public favorites.

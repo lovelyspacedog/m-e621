@@ -1,6 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { modeSupportsSavedPosts } from '@/misc/util/postOrigin'
-import { isE621FamilyMode, modeSupportsPools, modeSupportsSuggester } from '@/misc/util/siteCapabilities'
+import { isE621FamilyMode, modeSupportsFavoriteAnalyzer, modeSupportsPools, modeSupportsSuggester } from '@/misc/util/siteCapabilities'
 import { shouldSkipViewTransition } from '@/misc/util/viewTransition'
 import { useMainStore } from '@/services/state'
 
@@ -257,6 +257,7 @@ router.beforeEach((to) => {
       "Suggester",
       "SuggesterResult",
       "FavoritesAnalyzer",
+      "FavoritesAnalyzerResult",
       "Dashboard",
       "DashboardResult",
     ]);
@@ -280,12 +281,14 @@ router.beforeEach((to) => {
       return { name: "Posts" };
     }
     if (
+      !modeSupportsFavoriteAnalyzer(mode) &&
+      (to.name === "FavoritesAnalyzer" || to.name === "FavoritesAnalyzerResult")
+    ) {
+      return { name: "Posts" };
+    }
+    if (
       !isE621FamilyMode(mode) &&
-      [
-        "FavoritesAnalyzer",
-        "Dashboard",
-        "DashboardResult",
-      ].includes(String(to.name))
+      ["Dashboard", "DashboardResult"].includes(String(to.name))
     ) {
       return { name: "Posts" };
     }

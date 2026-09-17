@@ -19,6 +19,7 @@ export const changelogSections: ChangelogSection[] = [
     title: "Unified Following, Local writes, and polish",
     items: [
       "Post Suggester on all modes except Tailspace, with hybrid tag-seed ranking",
+      "Favorite Analyzer on all modes except Tailspace, with ranked tags, export, and Suggester link",
       "Unified Search vs Following feed, with Defaults and Auth-only site presets",
       "Watched pools on the e621-family pool browser",
       "Post comments on Furbooru (composer enabled)",

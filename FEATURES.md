@@ -9,7 +9,7 @@ This backlog is derived from `README.md`, `README-CONTINUED.md`, and `AI_CONTEXT
 - Inkbunny and Weasyl have **no public favorite-toggle API**. Keep `modeSupportsFavoriteToggle` false. Do not invent toggles.
 - **Tailspace and Local are not Unified children.** Do not add them to `UNIFIED_CHILD_MODES` without an explicit product change.
 - Weasyl guests are **SFW-only**.
-- Non-e621 modes must not fall through to e621 comments, notes, pools, analyzer, or dashboard. Post Suggester is multi-mode (not Tailspace); do not route Tailspace through `/suggester`.
+- Non-e621 modes must not fall through to e621 comments, notes, pools, or dashboard. Post Suggester and Favorite Analyzer are multi-mode (not Tailspace); use `resolveFavoriteTagsQuery` / Local / Unified paths — do not route them through the e621 client or through Tailspace `/suggester`/`/analyzer`.
 - Prefer extending adapters, `src/misc/util/siteCapabilities.ts`, and worker/proxy layers over special-casing templates.
 - Do not recommend proprietary-only services or ToS-violating scraping beyond the existing documented proxies.
 - Mark unknowns as `TODO` or `Assumption`. Do not invent APIs.
@@ -509,7 +509,7 @@ This backlog is derived from `README.md`, `README-CONTINUED.md`, and `AI_CONTEXT
 - **Status:** Done (docs). Checklist in `AI_CONTEXT.md` + comment on `resolveApiBackend`. No plugin system. No new sites.
 - **User problem / motivation:** Adding a mode requires: types + `SITE_MODE_URLS` + empty profile + `SiteModeStore` + nav/router guards + worker adapter + Vite/`serve.py` proxy + capability flags. Do not fall through to the e621 client. User-Agent / `_client`: `m-e621/<git>`.
 - **Proposed behavior:** Keep this list in `AI_CONTEXT.md` (already). Optionally a `src/worker/api/` README comment. Do not add a plugin system. **No new sites in this backlog unless the maintainer names one** — nine + Local + Unified is enough.
-- **Why it fits m-e621 specifically:** Fall-through to e621 is the documented failure mode (SoFurry comments/notes/pools/analyzer/dashboard; Tailspace must not use `/suggester`).
+- **Why it fits m-e621 specifically:** Fall-through to e621 is the documented failure mode (SoFurry comments/notes/pools/dashboard; Tailspace must not use `/suggester` or `/analyzer`).
 - **Affected areas/files:** `AI_CONTEXT.md`, `ApiService.ts` `resolveApiBackend`.
 - **Effort / risk:** S · **Impact:** medium
 - **Dependencies / blockers:** ToS/API for any hypothetical tenth site. AGPL for new deps.

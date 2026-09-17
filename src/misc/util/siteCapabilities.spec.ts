@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isE621FamilyMode,
+  modeSupportsFavoriteAnalyzer,
   modeSupportsOtherUserFavorites,
   modeSupportsPools,
   modeSupportsSuggester,
@@ -45,8 +46,10 @@ describe("modeSupportsSuggester", () => {
     ];
     for (const mode of modes) {
       expect(modeSupportsSuggester(mode)).toBe(true);
+      expect(modeSupportsFavoriteAnalyzer(mode)).toBe(true);
     }
     expect(modeSupportsSuggester("tailspace")).toBe(false);
+    expect(modeSupportsFavoriteAnalyzer("tailspace")).toBe(false);
   });
 });
 

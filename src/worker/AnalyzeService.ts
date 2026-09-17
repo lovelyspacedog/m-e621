@@ -144,6 +144,7 @@ export class AnalyzeService {
     auth?: SuggestAuth,
     userId?: number | null,
     unified?: UnifiedFetchArgs,
+    blacklist?: string[][],
   ) {
     const service = new ApiService();
     const posts: Post[] = [];
@@ -156,6 +157,7 @@ export class AnalyzeService {
       auth: auth?.login || null,
       userId: userId ?? null,
       unifiedChildren: unified?.children?.map((c) => c.mode),
+      blacklist: blacklist?.length ? blacklist : null,
     });
     log("start fetch");
     if (key && this.cache[key]) {
@@ -164,6 +166,7 @@ export class AnalyzeService {
       while (posts.length < postLimit) {
         const { posts: newPosts } = await service.getPosts({
           blacklistMode: BlacklistMode.blur,
+          blacklist: blacklist || [],
           limit: PAGE_SIZE,
           tags,
           baseUrl,
@@ -174,7 +177,10 @@ export class AnalyzeService {
           unified,
         });
         page += 1;
-        posts.push(...newPosts);
+        const kept = blacklist?.length
+          ? newPosts.filter((p) => !(p as EnhancedPost).__meta?.isBlacklisted)
+          : newPosts;
+        posts.push(...kept);
         onProgress({
           message: `got ${posts.length} of ${postLimit} posts`,
           progress: Math.min(1, posts.length / postLimit),
@@ -237,6 +243,8 @@ export class AnalyzeService {
     auth?: SuggestAuth,
     userId?: number | null,
     unified?: UnifiedFetchArgs,
+    postLimit: number = FAV_POST_LIMIT,
+    blacklist?: string[][],
   ): Promise<FavoriteTagsResult> {
     if (mode === "local") {
       throw new Error(
@@ -245,7 +253,12 @@ export class AnalyzeService {
     }
 
     if (mode === "unified") {
-      return this.getUnifiedFavoriteTags(username, onProgress, unified);
+      return this.getUnifiedFavoriteTags(
+        username,
+        onProgress,
+        unified,
+        postLimit,
+      );
     }
 
     const resolved = resolveFavoriteTagsQuery({ mode: mode || "e621", username });
@@ -255,12 +268,14 @@ export class AnalyzeService {
 
     const posts = await this.fetchPostsCached(
       resolved.tags,
-      FAV_POST_LIMIT,
+      postLimit,
       baseUrl,
       onProgress,
       mode,
       auth,
       userId,
+      undefined,
+      blacklist,
     );
 
     return buildFavoriteTagsResult(posts);
@@ -270,6 +285,7 @@ export class AnalyzeService {
     username: string,
     onProgress: (event: IProgressEvent) => void,
     unified?: UnifiedFetchArgs,
+    postLimit: number = FAV_POST_LIMIT,
   ): Promise<FavoriteTagsResult> {
     const children = unified?.children || [];
     if (!children.length) {
@@ -310,7 +326,7 @@ export class AnalyzeService {
       try {
         const childPosts: EnhancedPost[] = [];
         let page = 1;
-        while (childPosts.length < FAV_POST_LIMIT) {
+        while (childPosts.length < postLimit) {
           const { posts: batch } = await service.getPosts({
             blacklistMode: BlacklistMode.blur,
             blacklist: [...(unified?.sharedBlacklist || []), ...child.blacklist],
@@ -334,7 +350,7 @@ export class AnalyzeService {
           page += 1;
           if (batch.length < PAGE_SIZE) break;
         }
-        allPosts.push(...childPosts.slice(0, FAV_POST_LIMIT));
+        allPosts.push(...childPosts.slice(0, postLimit));
       } catch (err) {
         log("unified fav child failed", child.mode, err);
       }
