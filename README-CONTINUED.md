@@ -189,11 +189,11 @@ The bundle identifier is `com.lovelyspacedog.me621`.
 
 ### Rename the public hostname
 
-The product name is **PawFeed**. The live Expedition custom app is still `m-e621`, so the public URL remains [m-e621.tonypup.box.ca](https://m-e621.tonypup.box.ca). Env vars (`M_E621_*`), `~/.config/m-e621/`, the checkout path, Local sidecars (`.me621-*.json`), and the GitHub repo `lovelyspacedog/m-e621` stay unchanged so existing deploys keep working.
+The product name is **PawFeed**. The public URL is [pawfeed.tonypup.box.ca](https://pawfeed.tonypup.box.ca) (Expedition custom app `pawfeed`). Env vars (`M_E621_*`), `~/.config/m-e621/`, the checkout path, Local sidecars (`.me621-*.json`), and the GitHub repo `lovelyspacedog/m-e621` stay unchanged so existing deploys keep working.
 
-To serve the same app under a different subdomain (for example `pawfeed.tonypup.box.ca`):
+To serve the same app under a different subdomain:
 
-1. Pick the new Expedition custom-app name. That label is the DNS host under `tonypup.box.ca` (`pawfeed` → `pawfeed.tonypup.box.ca`).
+1. Pick the new Expedition custom-app name. That label is the DNS host under `tonypup.box.ca` (example: `pawfeed` → `pawfeed.tonypup.box.ca`).
 2. Create a reverse-proxied custom app with that name on the same local port (`M_E621_PORT`, default `18621`). Point it at the existing `serve.py` — do not clone a second checkout.
 3. On the VPS, set `M_E621_DOMAIN` in `~/.config/m-e621/env` (or gitignored `deploy.env`) to the new host **without** `https://`. Example: `M_E621_DOMAIN=pawfeed.tonypup.box.ca`.
 4. Rebuild so Vite picks up the host: `M_E621_FORCE_BUILD=1 ./sync`. That rewrites `.env.local` (`VITE_CANONICAL_URL`, `VITE_APP_DOMAIN`) and regenerates `sitemap.xml`.
@@ -230,7 +230,7 @@ TLS for `*.tonypup.box.ca` is handled by the Expedition reverse proxy. `serve.py
 
 PawFeed is an active personal, AI-assisted fork. Features may be experimental, incomplete, or optimized for the maintainer's workflow. It is not affiliated with any supported content site. Users are responsible for following each site's rules, age requirements, and API terms.
 
-A public instance is operable at [m-e621.tonypup.box.ca](https://m-e621.tonypup.box.ca). To serve it under a different subdomain, see [Rename the public hostname](#rename-the-public-hostname).
+A public instance is operable at [pawfeed.tonypup.box.ca](https://pawfeed.tonypup.box.ca). To serve it under a different subdomain, see [Rename the public hostname](#rename-the-public-hostname).
 
 For a stable, e621-only client, use [upstream Material e621](https://github.com/avoonix/material-e621).
 

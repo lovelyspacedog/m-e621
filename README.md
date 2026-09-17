@@ -3,7 +3,7 @@
   <h1>PawFeed</h1>
   <p>A multi-site imageboard browser and local media library.</p>
   <p>
-    <a href="https://m-e621.tonypup.box.ca">Live</a>
+    <a href="https://pawfeed.tonypup.box.ca">Live</a>
     ·
     <a href="./README-CONTINUED.md">Documentation</a>
     ·
@@ -17,7 +17,7 @@
 
 PawFeed expands [Material e621](https://github.com/avoonix/material-e621) with additional sites, a Federated feed, local media management, and richer browsing tools. It is built with Vue 3 and Vuetify.
 
-A public instance is operable at **[m-e621.tonypup.box.ca](https://m-e621.tonypup.box.ca)**. Steps for moving that hostname are in the [complete guide](./README-CONTINUED.md#rename-the-public-hostname).
+A public instance is operable at **[pawfeed.tonypup.box.ca](https://pawfeed.tonypup.box.ca)**. Steps for moving that hostname are in the [complete guide](./README-CONTINUED.md#rename-the-public-hostname).
 
 > [!NOTE]
 > This is an experimental, AI-assisted personal project. For a stable e621-only client, use upstream Material e621.

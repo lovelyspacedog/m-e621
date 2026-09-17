@@ -18,8 +18,9 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-17",
     title: "Public instance noted",
     items: [
+      "Public instance Live URL is pawfeed.tonypup.box.ca (docs and README updated)",
       "Product renamed to PawFeed (landing, PWA, desktop title, and docs); host paths and GitHub repo stay m-e621",
-      "README documents how to move the public host off m-e621.tonypup.box.ca",
+      "README documents how to rename the public Expedition subdomain",
       "Scent Marks: host moderators can pin posts so they stay at the top of the Scent Trail",
       "App logo and favicon refreshed to a basset-hound mark with forehead m, long ears, and the same ear/tail/blink animations",
       "Logo head uses darker e621 blue so it stays visible on the primary landing hero; droopy brows and eyes match the mark",
