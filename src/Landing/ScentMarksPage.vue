@@ -59,7 +59,7 @@
               :disabled="!draftText.trim() || posting"
               @click="submitMark"
             >
-              Post scent mark 🐾
+              Post scent mark 🐶
             </v-btn>
             <span v-if="formError" class="text-error text-body-2">{{
               formError
