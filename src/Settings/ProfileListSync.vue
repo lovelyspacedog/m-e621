@@ -1,8 +1,11 @@
 <template>
   <div class="profile-list-sync">
     <p class="text-caption text-medium-emphasis mb-2">
-      {{ kind === "favorites" ? "Starred tags" : "Blacklist" }} are per site.
+      {{ kindLabel }} are per site.
       Copy from another mode into the current one.
+      <template v-if="kind === 'searches'">
+        Same query language only (e621↔e6ai OK; cross-site refused).
+      </template>
     </p>
     <div class="d-flex flex-wrap ga-2 align-center">
       <v-select
@@ -48,6 +51,7 @@ import type { SiteMode } from "@/services/types";
 import { unifiedChildLabel } from "@/misc/util/postOrigin";
 import {
   PROFILE_SYNC_MODES,
+  canCopySavedSearches,
   copyProfileLists,
   type ProfileListKind,
 } from "@/services/profileListSync";
@@ -62,8 +66,20 @@ const snackbar = useSnackbarStore();
 const fromMode = ref<SiteMode | null>(null);
 const busy = ref(false);
 
+const kindLabel = computed(() => {
+  if (props.kind === "favorites") return "Starred tags";
+  if (props.kind === "blacklist") return "Blacklist";
+  return "Saved searches";
+});
+
 const sourceItems = computed(() =>
-  PROFILE_SYNC_MODES.filter((m) => m !== siteMode.activeMode).map((m) => ({
+  PROFILE_SYNC_MODES.filter((m) => {
+    if (m === siteMode.activeMode) return false;
+    if (props.kind === "searches") {
+      return canCopySavedSearches(m, siteMode.activeMode);
+    }
+    return true;
+  }).map((m) => ({
     title: unifiedChildLabel(m),
     value: m,
   })),
@@ -74,9 +90,8 @@ const run = (mode: "merge" | "replace") => {
   const from = fromMode.value;
   const to = siteMode.activeMode;
   if (mode === "replace") {
-    const label = props.kind === "favorites" ? "starred tags" : "blacklist";
     const ok = window.confirm(
-      `Replace this mode's ${label} with ${unifiedChildLabel(from)}'s?`,
+      `Replace this mode's ${kindLabel.value.toLowerCase()} with ${unifiedChildLabel(from)}'s?`,
     );
     if (!ok) return;
   }

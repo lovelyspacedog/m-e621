@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { EnhancedPost } from "@/worker/ApiService";
-import { fluffleImageUrl, isFluffleStillPost } from "./fluffleSearch";
+import { fluffleImageUrl, FLUFFLE_MAX_BYTES, isFluffleStillPost, postSupportsFluffle } from "./fluffleSearch";
 
 const still = (urls: {
   sample?: string;
   preview?: string;
   file?: string;
   ext?: string;
+  size?: number;
 }): EnhancedPost =>
   ({
     id: 1,
@@ -15,7 +16,7 @@ const still = (urls: {
       ext: urls.ext ?? "jpg",
       width: 100,
       height: 100,
-      size: 1,
+      size: urls.size ?? 1,
       md5: "",
     },
     preview: { url: urls.preview || "", width: 100, height: 100 },
@@ -31,6 +32,37 @@ describe("isFluffleStillPost", () => {
   it("allows common still extensions", () => {
     expect(isFluffleStillPost(still({ ext: "png" }))).toBe(true);
     expect(isFluffleStillPost(still({ ext: "webm" }))).toBe(false);
+  });
+});
+
+describe("postSupportsFluffle", () => {
+  it("rejects video and oversized stills", () => {
+    expect(
+      postSupportsFluffle(
+        still({
+          ext: "webm",
+          file: "https://cdn.example/x.webm",
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      postSupportsFluffle(
+        still({
+          ext: "jpg",
+          file: "https://cdn.example/x.jpg",
+          size: FLUFFLE_MAX_BYTES + 1,
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      postSupportsFluffle(
+        still({
+          ext: "jpg",
+          file: "https://cdn.example/x.jpg",
+          size: 1000,
+        }),
+      ),
+    ).toBe(true);
   });
 });
 

@@ -114,6 +114,51 @@ fn resolve_under_root(root: &str, relative_or_abs: &str) -> Result<PathBuf, Stri
   Ok(canonical)
 }
 
+/// Resolve a path that may not exist yet (for writes). Canonicalize parents only.
+fn resolve_for_write(root: &str, relative_path: &str) -> Result<PathBuf, String> {
+  let root_path = PathBuf::from(root)
+    .canonicalize()
+    .map_err(|e| format!("Invalid root folder: {}", e))?;
+  let rel = relative_path.replace('\\', "/");
+  if rel.is_empty() || rel.contains("..") {
+    return Err("Invalid relative path".into());
+  }
+  let candidate = root_path.join(&rel);
+  let parent = candidate
+    .parent()
+    .ok_or_else(|| "Invalid relative path".to_string())?;
+  if parent.exists() {
+    let parent_canon = parent
+      .canonicalize()
+      .map_err(|e| format!("Invalid parent path: {}", e))?;
+    if !parent_canon.starts_with(&root_path) {
+      return Err("Path escapes Local browse root".into());
+    }
+    let name = candidate
+      .file_name()
+      .ok_or_else(|| "Invalid relative path".to_string())?;
+    Ok(parent_canon.join(name))
+  } else {
+    // Ensure every ancestor we create stays under root via component walk.
+    let mut cur = root_path.clone();
+    let parts: Vec<&str> = rel.split('/').filter(|p| !p.is_empty()).collect();
+    if parts.is_empty() {
+      return Err("Invalid relative path".into());
+    }
+    for part in &parts[..parts.len() - 1] {
+      if *part == "." || *part == ".." {
+        return Err("Invalid relative path".into());
+      }
+      cur = cur.join(part);
+    }
+    let name = parts[parts.len() - 1];
+    if name == "." || name == ".." {
+      return Err("Invalid relative path".into());
+    }
+    Ok(cur.join(name))
+  }
+}
+
 #[tauri::command]
 fn pick_local_folder() -> Result<Option<String>, String> {
   let folder = tauri::api::dialog::blocking::FileDialogBuilder::new()
@@ -142,12 +187,51 @@ fn read_local_file(root: String, relative_path: String) -> Result<Vec<u8>, Strin
   fs::read(path).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn write_local_file(root: String, relative_path: String, bytes: Vec<u8>) -> Result<(), String> {
+  let path = resolve_for_write(&root, &relative_path)?;
+  if let Some(parent) = path.parent() {
+    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+  }
+  // Re-check after create_dir_all: final path must stay under root.
+  let root_path = PathBuf::from(&root)
+    .canonicalize()
+    .map_err(|e| format!("Invalid root folder: {}", e))?;
+  let parent_canon = path
+    .parent()
+    .ok_or_else(|| "Invalid relative path".to_string())?
+    .canonicalize()
+    .map_err(|e| format!("Invalid parent path: {}", e))?;
+  if !parent_canon.starts_with(&root_path) {
+    return Err("Path escapes Local browse root".into());
+  }
+  fs::write(&path, bytes).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn remove_local_file(root: String, relative_path: String) -> Result<(), String> {
+  let path = resolve_under_root(&root, &relative_path)?;
+  if path.is_dir() {
+    return Err("Refusing to remove a directory".into());
+  }
+  fs::remove_file(path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn read_local_text(root: String, relative_path: String) -> Result<String, String> {
+  let path = resolve_under_root(&root, &relative_path)?;
+  fs::read_to_string(path).map_err(|e| e.to_string())
+}
+
 fn main() {
   tauri::Builder::default()
     .invoke_handler(tauri::generate_handler![
       pick_local_folder,
       list_local_media,
-      read_local_file
+      read_local_file,
+      write_local_file,
+      remove_local_file,
+      read_local_text
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

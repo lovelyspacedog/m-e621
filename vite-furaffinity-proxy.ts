@@ -125,12 +125,19 @@ const guestSession = async (): Promise<Cookie[]> => {
   return cookies;
 };
 
-const resolveCookies = async (payload: Record<string, unknown>): Promise<Cookie[]> => {
+const resolveCookiesWithSource = async (
+  payload: Record<string, unknown>,
+): Promise<{ cookies: Cookie[]; source: "profile" | "env" | "guest" }> => {
   const fromBody = parseCookieString(typeof payload.cookies === "string" ? payload.cookies : "");
-  if (fromBody.length) return fromBody;
+  if (fromBody.length) return { cookies: fromBody, source: "profile" };
   const env = envCookies();
-  if (env.length) return env;
-  return guestSession();
+  if (env.length) return { cookies: env, source: "env" };
+  return { cookies: await guestSession(), source: "guest" };
+};
+
+const resolveCookies = async (payload: Record<string, unknown>): Promise<Cookie[]> => {
+  const { cookies } = await resolveCookiesWithSource(payload);
+  return cookies;
 };
 
 const parseFigures = (html: string) => {
@@ -410,13 +417,20 @@ async function handleAction(action: string, payload: Record<string, unknown>) {
     };
   }
 
-  const cookies = await resolveCookies(payload);
+  const { cookies, source: cookieSource } = await resolveCookiesWithSource(payload);
 
   if (action === "me") {
     const html = await (await faFetch("/", cookies)).text();
     const username = parseLoggedIn(html);
     if (!username) return { status: 401, body: { ok: false, message: "Not logged in to FurAffinity" } };
-    return { status: 200, body: { username, env: envCookies().length > 0 } };
+    return {
+      status: 200,
+      body: {
+        username,
+        env: envCookies().length > 0,
+        cookieSource,
+      },
+    };
   }
 
   if (action === "browse" || action === "frontpage") {

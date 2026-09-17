@@ -110,13 +110,21 @@ def _guest_cookies() -> list[dict[str, str]]:
 
 
 def resolve_cookies(payload: dict[str, Any]) -> list[dict[str, str]]:
+    """Profile cookies win, then host FA_COOKIE_*, then guest session."""
+    cookies, _source = resolve_cookies_with_source(payload)
+    return cookies
+
+
+def resolve_cookies_with_source(
+    payload: dict[str, Any],
+) -> tuple[list[dict[str, str]], str]:
     cookies = parse_cookie_string(payload.get("cookies"))
     if cookies:
-        return cookies
+        return cookies, "profile"
     env = _env_cookies()
     if env:
-        return env
-    return _guest_cookies()
+        return env, "env"
+    return _guest_cookies(), "guest"
 
 
 def _api_for(cookies: list[dict[str, str]]) -> faapi.FAAPI:
@@ -419,7 +427,7 @@ def _login(username: str, password: str) -> dict[str, Any]:
     return {"username": name, "cookies": cookie_string(cookies)}
 
 
-def _me(api: faapi.FAAPI) -> dict[str, Any]:
+def _me(api: faapi.FAAPI, cookie_source: str = "unknown") -> dict[str, Any]:
     user = api.me()
     if user is None:
         raise FaProxyError("Not logged in to FurAffinity", 401)
@@ -428,6 +436,8 @@ def _me(api: faapi.FAAPI) -> dict[str, Any]:
         "title": user.title,
         "avatar_url": _abs_url(user.avatar_url),
         "env": bool(_env_cookies()),
+        # profile | env | guest — profile overrides host FA_COOKIE_*
+        "cookieSource": cookie_source,
     }
 
 
@@ -577,10 +587,10 @@ def handle(action: str, payload: dict[str, Any] | None = None) -> tuple[int, dic
         with _LOCK:
             if action == "login":
                 return 200, _login(str(payload.get("username") or ""), str(payload.get("password") or ""))
-            cookies = resolve_cookies(payload)
+            cookies, cookie_source = resolve_cookies_with_source(payload)
             api = _api_for(cookies)
             if action == "me":
-                return 200, _me(api)
+                return 200, _me(api, cookie_source)
             if action == "frontpage":
                 return 200, {"results": [serialize_partial(s) for s in api.frontpage()], "next": None}
             if action == "browse":

@@ -35,11 +35,12 @@ import {
 import {
   bufferedCount,
   initUnifiedMergeState,
+  resetUnifiedMergeState,
   seedUnifiedMergeAfterLegacy,
   takeMergedFromBuffers,
   type UnifiedMergeState,
 } from "@/misc/util/unifiedMerge";
-import { prepareUnifiedChildTags } from "@/misc/util/unifiedTags";
+import { formatUnifiedTagWarning, prepareUnifiedChildTags } from "@/misc/util/unifiedTags";
 
 const isFurbooruUrl = (baseUrl: string) => baseUrl.includes("furbooru.org");
 const isInkbunnyUrl = (baseUrl: string) => baseUrl.includes("inkbunny.net");
@@ -57,6 +58,13 @@ const isSofurryUrl = (baseUrl: string) =>
 /** Prefer explicit mode; fall back to hostname only when mode omitted (M17). */
 type ApiBackend = "e621" | "furbooru" | "inkbunny" | "tailspace" | "furaffinity" | "weasyl" | "itaku" | "sofurry";
 
+/**
+ * Site-mode checklist (do NOT invent a plugin framework; refuse drive-by sites):
+ * types + SITE_MODE_URLS + empty profile + SiteModeStore + nav/router guards +
+ * worker adapter + Vite/serve.py proxy + siteCapabilities flags.
+ * Never fall through to the e621 client (comments/notes/pools/suggester/…).
+ * UA / `_client`: `m-e621/<git>`. See AI_CONTEXT.md.
+ */
 const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
   if (mode === "furbooru") return "furbooru";
   if (mode === "inkbunny") return "inkbunny";
@@ -137,6 +145,7 @@ const unifiedStateKey = (args: {
     tags: args.tags,
     limit: args.limit,
     blacklistMode: args.blacklistMode,
+    feedSource: args.unified?.feedSource || "search",
     children: (args.unified?.children || []).map((c) => ({
       mode: c.mode,
       baseUrl: c.baseUrl,
@@ -148,6 +157,11 @@ const unifiedStateKey = (args: {
 export class ApiService {
   /** Sticky per-child leftovers for sequential Unified pagination. */
   private unifiedMerge: UnifiedMergeState<EnhancedPost> | null = null;
+
+  /** Drop sticky Unified leftovers (tags / children / feed-source / mode change). */
+  async resetUnifiedMerge(): Promise<void> {
+    this.unifiedMerge = resetUnifiedMergeState();
+  }
 
   async getPosts(args: {
     page: number;
@@ -175,6 +189,8 @@ export class ApiService {
     shared: string[][],
     pageNumber: number,
   ): EnhancedPost[] {
+    // Origin profile + Unified shared tags (not Unified-only live slice).
+    const originAndShared = [...(child.blacklist || []), ...shared];
     return posts.map((post) => ({
       ...post,
       __meta: {
@@ -182,7 +198,8 @@ export class ApiService {
         originMode: child.mode,
         originBaseUrl: child.baseUrl,
         isBlacklisted:
-          post.__meta.isBlacklisted || isPostBlacklisted(post, shared),
+          post.__meta.isBlacklisted ||
+          isPostBlacklisted(post, originAndShared),
         pageNumber,
       },
     }));
@@ -197,16 +214,11 @@ export class ApiService {
     for (const child of children) {
       const prepared = prepareUnifiedChildTags(child.mode, tags);
       tagsByMode.set(child.mode, prepared.tags);
-      if (prepared.stripped.length) {
-        const sample = prepared.stripped.slice(0, 4).join(", ");
-        const more =
-          prepared.stripped.length > 4
-            ? ` (+${prepared.stripped.length - 4})`
-            : "";
-        warnings.push(
-          `${unifiedChildLabel(child.mode)}: ignored ${sample}${more}`,
-        );
-      }
+      const warning = formatUnifiedTagWarning(
+        unifiedChildLabel(child.mode),
+        prepared,
+      );
+      if (warning) warnings.push(warning);
     }
     return { tagsByMode, warnings };
   }
@@ -246,14 +258,18 @@ export class ApiService {
           return this.stampUnifiedPosts(posts, child, shared, args.page);
         } catch (error: any) {
           warnings.push(
-            `${unifiedChildLabel(child.mode)}: ${error?.message || String(error)}`,
+            `${unifiedChildLabel(child.mode)} skipped: ${error?.message || String(error)}`,
           );
           return [] as EnhancedPost[];
         }
       }),
     );
     const { taken } = takeMergedFromBuffers(groups, args.limit);
-    const hardFailures = warnings.filter((w) => !w.includes(": ignored "));
+    const hardFailures = warnings.filter(
+      (w) =>
+        !/: (dropped|remapped|ignored) /.test(w) &&
+        !/; remapped /.test(w),
+    );
     if (!taken.length && hardFailures.length === children.length) {
       throw new Error(hardFailures.join(" · "));
     }
@@ -296,9 +312,11 @@ export class ApiService {
         ...this.stampUnifiedPosts(posts, child, shared, cursor.nextPage - 1),
       );
     } catch (error: any) {
+      // Isolate failure: drop this child's leftovers so stale posts don't linger.
       cursor.exhausted = true;
+      cursor.buffer = [];
       warnings.push(
-        `${unifiedChildLabel(child.mode)}: ${error?.message || String(error)}`,
+        `${unifiedChildLabel(child.mode)} skipped: ${error?.message || String(error)}`,
       );
     }
   }
@@ -313,11 +331,18 @@ export class ApiService {
   }): Promise<GetPostsResult> {
     const children = args.unified?.children || [];
     const shared = args.unified?.sharedBlacklist || args.blacklist || [];
+    const feedSource = args.unified?.feedSource || "search";
+    const effectiveTags =
+      feedSource === "following" ? ["following:me"] : args.tags;
     if (!children.length) {
-      throw new Error("No sites enabled for Unified search");
+      throw new Error(
+        feedSource === "following"
+          ? "No following-capable sites enabled (Inkbunny, FurAffinity, Itaku, SoFurry)"
+          : "No sites enabled for Unified search",
+      );
     }
 
-    const key = unifiedStateKey(args);
+    const key = unifiedStateKey({ ...args, tags: effectiveTags });
     const sequential =
       this.unifiedMerge?.key === key &&
       args.page === this.unifiedMerge.lastEmittedPage + 1;
@@ -329,7 +354,10 @@ export class ApiService {
       );
     } else if (!sequential) {
       // Jump / previous page: keep old behavior; seed cursors for later forward scroll.
-      const legacy = await this.getUnifiedPostsLegacy(args);
+      const legacy = await this.getUnifiedPostsLegacy({
+        ...args,
+        tags: effectiveTags,
+      });
       this.unifiedMerge = seedUnifiedMergeAfterLegacy(
         key,
         children.map((c) => c.mode),
@@ -341,9 +369,14 @@ export class ApiService {
     const state = this.unifiedMerge!;
     const { tagsByMode, warnings: tagWarnings } = this.prepareUnifiedTagsByChild(
       children,
-      args.tags,
+      effectiveTags,
     );
     const warnings = args.page <= 1 ? [...tagWarnings] : [];
+    if (feedSource === "following" && args.page <= 1) {
+      warnings.unshift(
+        "Unified Following: merging watch feeds (search tags ignored)",
+      );
+    }
     const childByMode = new Map(children.map((c) => [c.mode, c]));
 
     // Fill until we can emit `limit` posts or every child is exhausted.
@@ -392,7 +425,12 @@ export class ApiService {
     }));
     state.lastEmittedPage = args.page;
 
-    const hardFailures = warnings.filter((w) => !w.includes(": ignored "));
+    const hardFailures = warnings.filter(
+      (w) =>
+        !/: (dropped|remapped|ignored) /.test(w) &&
+        !/; remapped /.test(w) &&
+        !w.startsWith("Unified Following:"),
+    );
     if (!posts.length && hardFailures.length === children.length) {
       throw new Error(hardFailures.join(" · "));
     }

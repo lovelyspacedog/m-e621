@@ -410,7 +410,7 @@ export function faMetaFrom(hit: FaPartial, detailsLoaded = false): FaMeta {
   };
 }
 
-let cachedMe: { cookies: string; username: string } | null = null;
+let cachedMe: { cookies: string; username: string; cookieSource?: string } | null = null;
 const favPageCache = new Map<string, string[]>();
 
 function cookieField(cookies?: string | null): Record<string, string> {
@@ -442,17 +442,32 @@ export function cookiesFromAb(cookieA: string, cookieB: string): string {
 export async function loginWithCookies(
   cookieA: string,
   cookieB: string,
-): Promise<{ username: string; cookies: string }> {
+): Promise<{ username: string; cookies: string; cookieSource?: string }> {
   const cookies = cookiesFromAb(cookieA, cookieB);
   const data = await me(cookies);
-  return { username: data.username, cookies };
+  return {
+    username: data.username,
+    cookies,
+    cookieSource: data.cookieSource,
+  };
 }
 
-export async function me(cookies?: string | null): Promise<{ username: string }> {
+export async function me(
+  cookies?: string | null,
+): Promise<{ username: string; cookieSource?: string }> {
   const key = cookies || "";
-  if (cachedMe && cachedMe.cookies === key) return { username: cachedMe.username };
-  const data = await faRequest<{ username: string }>("me", cookieField(cookies));
-  cachedMe = { cookies: key, username: data.username };
+  if (cachedMe && cachedMe.cookies === key) {
+    return { username: cachedMe.username, cookieSource: cachedMe.cookieSource };
+  }
+  const data = await faRequest<{ username: string; cookieSource?: string }>(
+    "me",
+    cookieField(cookies),
+  );
+  cachedMe = {
+    cookies: key,
+    username: data.username,
+    cookieSource: data.cookieSource,
+  };
   return data;
 }
 

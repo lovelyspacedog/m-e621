@@ -109,7 +109,7 @@
           </settings-row>
           <settings-row
             title="Video volume"
-            description="Remembered for feed cards and fullscreen. Default muted helps autoplay."
+            description="Remembered for feed cards and fullscreen. Default muted helps autoplay. Audio can use separate overrides below."
             stack
           >
             <v-switch
@@ -139,6 +139,53 @@
               label="Playback speed"
               :items="playbackRateItems"
               v-model="posts.videoPlaybackRate"
+            />
+          </settings-row>
+          <settings-row
+            title="Separate audio prefs"
+            description="Music posts (FurAffinity, Weasyl, SoFurry, Local audio) use their own mute/volume/speed. Off = same as video globals. SWF/Ruffle unchanged."
+            switch
+          >
+            <v-switch
+              :model-value="audioPrefsEnabled"
+              @update:model-value="onAudioPrefsEnabled"
+              color="accent"
+              hide-details
+              density="compact"
+            />
+          </settings-row>
+          <settings-row
+            v-if="audioPrefsEnabled"
+            title="Audio volume"
+            stack
+          >
+            <v-switch
+              v-model="audioMuted"
+              label="Muted"
+              color="accent"
+              hide-details
+              density="compact"
+              class="mb-2"
+            />
+            <v-slider
+              color="accent"
+              class="my-0"
+              v-model="audioVolume"
+              :disabled="audioMuted"
+              thumb-label
+              :min="0"
+              :max="1"
+              :step="0.05"
+              label="Volume"
+            />
+            <v-select
+              class="mt-2"
+              variant="outlined"
+              hide-details
+              density="comfortable"
+              label="Playback speed"
+              :items="playbackRateItems"
+              v-model="audioPlaybackRate"
             />
           </settings-row>
         </settings-group>
@@ -252,7 +299,7 @@
               density="comfortable"
               label="Path template"
               v-model="posts.saveLocalPathTemplate"
-              hint="%artist%  %tags 1-5% (2 species + 3 tags)  %ext%  %id%"
+              hint="%artist%  %tags 1-5%  %ext%  %id%  %origin%  (collision → foo (1).ext)"
               persistent-hint
             />
             <local-folder-picker v-if="supportsLocalMode" purpose="save" />
@@ -281,8 +328,12 @@
 </template>
 
 <script setup lang="ts">
-import { usePostsStore, useSiteModeStore } from "@/services";
+import { useMainStore, usePostsStore, useSiteModeStore } from "@/services";
 import { DataSaverType, FullscreenZoomUiMode } from "@/services/types";
+import {
+  clearKindPlaybackPrefs,
+  ensureKindPlaybackPrefs,
+} from "@/misc/util/playbackPrefs";
 import { computed } from "vue";
 import AutomaticDataSaverInfo from "./AutomaticDataSaverInfo.vue";
 import LocalFolderPicker from "./LocalFolderPicker.vue";
@@ -297,6 +348,7 @@ useHead({
 });
 
 const posts = usePostsStore();
+const main = useMainStore();
 const siteMode = useSiteModeStore();
 const supportsLocalMode = computed(() => siteMode.supportsLocalMode);
 const saveLocallyDescription = computed(() =>
@@ -304,6 +356,64 @@ const saveLocallyDescription = computed(() =>
     ? "Chromium can write into a chosen folder with subfolders. Folder grant is not included in settings export/restore."
     : "This browser downloads files with a flattened filename. Choosing a save folder needs Chromium (File System Access API).",
 );
+
+const audioPrefsEnabled = computed(
+  () => Boolean(main.posts.playbackPrefs?.byKind?.audio),
+);
+const onAudioPrefsEnabled = (enabled: boolean) => {
+  if (enabled) {
+    ensureKindPlaybackPrefs(main.posts, "audio", {
+      volume: posts.videoVolume,
+      muted: posts.videoMuted,
+      playbackRate: posts.videoPlaybackRate || 1,
+    });
+  } else {
+    clearKindPlaybackPrefs(main.posts, "audio");
+  }
+};
+const audioMuted = computed({
+  get() {
+    return main.posts.playbackPrefs?.byKind?.audio?.muted ?? posts.videoMuted;
+  },
+  set(value: boolean) {
+    ensureKindPlaybackPrefs(main.posts, "audio", {
+      volume: posts.videoVolume,
+      muted: posts.videoMuted,
+      playbackRate: posts.videoPlaybackRate || 1,
+    });
+    main.posts.playbackPrefs!.byKind!.audio!.muted = value;
+  },
+});
+const audioVolume = computed({
+  get() {
+    return main.posts.playbackPrefs?.byKind?.audio?.volume ?? posts.videoVolume;
+  },
+  set(value: number) {
+    ensureKindPlaybackPrefs(main.posts, "audio", {
+      volume: posts.videoVolume,
+      muted: posts.videoMuted,
+      playbackRate: posts.videoPlaybackRate || 1,
+    });
+    main.posts.playbackPrefs!.byKind!.audio!.volume = value;
+  },
+});
+const audioPlaybackRate = computed({
+  get() {
+    return (
+      main.posts.playbackPrefs?.byKind?.audio?.playbackRate ??
+      posts.videoPlaybackRate ??
+      1
+    );
+  },
+  set(value: number) {
+    ensureKindPlaybackPrefs(main.posts, "audio", {
+      volume: posts.videoVolume,
+      muted: posts.videoMuted,
+      playbackRate: posts.videoPlaybackRate || 1,
+    });
+    main.posts.playbackPrefs!.byKind!.audio!.playbackRate = value;
+  },
+});
 
 const navChips = computed<SettingsNavChip[]>(() => {
   const chips: SettingsNavChip[] = [

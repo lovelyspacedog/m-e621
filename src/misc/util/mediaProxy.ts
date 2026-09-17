@@ -40,3 +40,93 @@ export function unwrapProxyDownloadUrl(url?: string | null): string | null {
     return null;
   }
 }
+
+export type DownloadProxyFailureKind = "blocked" | "network" | "upstream" | "unknown";
+
+export type DownloadProxyFailure = {
+  kind: DownloadProxyFailureKind;
+  message: string;
+  status: number;
+};
+
+/** Classify `/api/download` failure for snackbars (dev Vite + serve.py). */
+export function describeDownloadProxyFailure(
+  status: number,
+  bodyText?: string | null,
+): DownloadProxyFailure {
+  const raw = (bodyText || "").trim();
+  let messageFromBody: string | null = null;
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as { message?: unknown; ok?: unknown };
+      if (typeof parsed?.message === "string" && parsed.message.trim()) {
+        messageFromBody = parsed.message.trim();
+      }
+    } catch {
+      messageFromBody = raw.slice(0, 200);
+    }
+  }
+  const lower = (messageFromBody || "").toLowerCase();
+  if (
+    status === 400 ||
+    /not allowed|host not allowed|url not allowed|redirect target/.test(lower)
+  ) {
+    return {
+      kind: "blocked",
+      status,
+      message: "Media proxy blocked host (not allowlisted)",
+    };
+  }
+  if (status >= 500 || status === 0) {
+    return {
+      kind: "network",
+      status,
+      message: messageFromBody
+        ? `Media proxy network error: ${messageFromBody}`
+        : "Media proxy network error",
+    };
+  }
+  if (status === 401 || status === 403) {
+    return {
+      kind: "upstream",
+      status,
+      message:
+        messageFromBody ||
+        "Media proxy denied (auth/cookies may be required)",
+    };
+  }
+  return {
+    kind: "upstream",
+    status,
+    message: messageFromBody
+      ? `Download failed (${status}): ${messageFromBody}`
+      : `Download failed (${status})`,
+  };
+}
+
+/** Fetch `/api/download` (or any URL); one retry on 5xx; throw classified Error. */
+export async function fetchViaDownloadProxy(
+  fetchUrl: string,
+  init?: RequestInit,
+): Promise<Response> {
+  const attempt = async () => fetch(fetchUrl, init);
+  let response = await attempt();
+  if (response.status >= 500) {
+    try {
+      response = await attempt();
+    } catch {
+      /* keep first response if retry throws */
+    }
+  }
+  if (response.ok || (response.status >= 200 && response.status < 300)) {
+    return response;
+  }
+  let bodyText = "";
+  try {
+    bodyText = await response.clone().text();
+  } catch {
+    /* ignore */
+  }
+  const described = describeDownloadProxyFailure(response.status, bodyText);
+  throw new Error(described.message);
+}

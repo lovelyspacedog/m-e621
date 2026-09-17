@@ -55,17 +55,49 @@
 
         <settings-group
           title="Unified feed"
-          description="Uses each site's login when present, otherwise guest search."
+          description="Uses each site's login when present, otherwise guest search. Following merges watch feeds from Inkbunny, FurAffinity, Itaku, and SoFurry only."
           anchor="unified"
         >
+          <settings-row title="Source">
+            <v-btn-toggle
+              color="accent"
+              density="compact"
+              divided
+              mandatory
+              :model-value="siteMode.unifiedFeedSource"
+              @update:model-value="onUnifiedFeedSource"
+            >
+              <v-btn value="search" size="small">Search</v-btn>
+              <v-btn value="following" size="small">Following</v-btn>
+            </v-btn-toggle>
+          </settings-row>
+          <settings-row title="Presets">
+            <div class="d-flex flex-wrap ga-2">
+              <v-btn size="small" variant="text" color="accent" @click="siteMode.applyUnifiedSitesPreset('default')">
+                Defaults
+              </v-btn>
+              <v-btn size="small" variant="text" color="accent" @click="siteMode.applyUnifiedSitesPreset('authenticated')">
+                Auth only
+              </v-btn>
+            </div>
+          </settings-row>
           <settings-row
             v-for="child in unifiedChildren"
             :key="child"
             :title="unifiedChildLabel(child)"
+            :description="
+              siteMode.unifiedFeedSource === 'following' && !modeSupportsFollowing(child)
+                ? 'Not used in Following'
+                : undefined
+            "
             switch
           >
             <v-switch
               :model-value="siteMode.unifiedSites[child]"
+              :disabled="
+                siteMode.unifiedFeedSource === 'following' &&
+                !modeSupportsFollowing(child)
+              "
               color="accent"
               hide-details
               density="compact"
@@ -90,7 +122,7 @@
                     :color="keySiteConnected(site) ? 'success' : undefined"
                     :variant="keySiteConnected(site) ? 'tonal' : 'outlined'"
                   >
-                    {{ keySiteConnected(site) ? "Connected" : "Guest" }}
+                    {{ keySiteConnected(site) ? "Auth saved" : "No credentials" }}
                   </v-chip>
                 </div>
               </v-expansion-panel-title>
@@ -207,7 +239,7 @@
                     :color="inkbunnyLoggedIn ? 'success' : undefined"
                     :variant="inkbunnyLoggedIn ? 'tonal' : 'outlined'"
                   >
-                    {{ inkbunnyLoggedIn ? "Connected" : "Guest" }}
+                    {{ inkbunnyLoggedIn ? "Auth saved" : "No credentials" }}
                   </v-chip>
                 </div>
               </v-expansion-panel-title>
@@ -316,7 +348,7 @@
                     :color="faLoggedIn ? 'success' : undefined"
                     :variant="faLoggedIn ? 'tonal' : 'outlined'"
                   >
-                    {{ faLoggedIn ? "Connected" : "Guest" }}
+                    {{ faLoggedIn ? "Auth saved" : "No credentials" }}
                   </v-chip>
                 </div>
               </v-expansion-panel-title>
@@ -365,10 +397,12 @@
                   </summary>
                   <p class="text-left text-caption mt-1 mb-0">
                     Paste <code>a</code>/<code>b</code> cookies here to sign in — they are stored in
-                    settings and included in Backup JSON. Host <code>FA_COOKIE_A</code> /
-                    <code>FA_COOKIE_B</code> still work for every browser on the server without
-                    pasting per client. Password login is a fallback; the password is not saved.
-                    Do not log out of the FurAffinity session those cookies belong to. Open
+                    settings and included in Backup JSON.
+                    <strong>Precedence:</strong> profile cookies override host
+                    <code>FA_COOKIE_A</code>/<code>FA_COOKIE_B</code>; if the profile has none,
+                    the host env is used; otherwise guest/SFW. Password login is a fallback; the
+                    password is not saved. Do not log out of the FurAffinity session those cookies
+                    belong to. Open
                     <external-link href="https://www.furaffinity.net/login/">
                       FurAffinity login
                     </external-link>
@@ -461,7 +495,7 @@
                     :color="weasylConnected ? 'success' : undefined"
                     :variant="weasylConnected ? 'tonal' : 'outlined'"
                   >
-                    {{ weasylConnected ? "Connected" : "Guest" }}
+                    {{ weasylConnected ? "Auth saved" : "No credentials" }}
                   </v-chip>
                 </div>
               </v-expansion-panel-title>
@@ -528,7 +562,7 @@
                     :color="itakuConnected ? 'success' : undefined"
                     :variant="itakuConnected ? 'tonal' : 'outlined'"
                   >
-                    {{ itakuConnected ? "Connected" : "Guest" }}
+                    {{ itakuConnected ? "Auth saved" : "No credentials" }}
                   </v-chip>
                 </div>
               </v-expansion-panel-title>
@@ -608,7 +642,7 @@
                     :color="sofurryLoggedIn ? 'success' : undefined"
                     :variant="sofurryLoggedIn ? 'tonal' : 'outlined'"
                   >
-                    {{ sofurryLoggedIn ? "Connected" : "Guest" }}
+                    {{ sofurryLoggedIn ? "Auth saved" : "No credentials" }}
                   </v-chip>
                 </div>
               </v-expansion-panel-title>
@@ -722,7 +756,7 @@
                     :color="tsLoggedIn ? 'success' : undefined"
                     :variant="tsLoggedIn ? 'tonal' : 'outlined'"
                   >
-                    {{ tsLoggedIn ? "Connected" : "Guest" }}
+                    {{ tsLoggedIn ? "Auth saved" : "No credentials" }}
                   </v-chip>
                 </div>
               </v-expansion-panel-title>
@@ -835,20 +869,15 @@ import ProfileListSync from "./ProfileListSync.vue";
 import { computed, reactive, ref, watch } from "vue";
 import ExternalLink from "@/App/ExternalLink.vue";
 import { useMainStore, useSiteModeStore, useUrlStore } from "@/services";
-import { UNIFIED_CHILD_MODES, type SiteMode } from "@/services/types";
-import {
-  liveAccount,
-  liveSearches,
-  setLiveAccount,
-  liveBaseUrl,
-  setLiveBaseUrl,
-} from "@/services/siteProfiles";
+import { UNIFIED_CHILD_MODES, type SiteMode, type UnifiedFeedSource } from "@/services/types";
+import { liveAccount, liveSearches, setLiveAccount, liveBaseUrl, setLiveBaseUrl, profileHasAuthMaterial } from "@/services/siteProfiles";
 import {
   addSearchTag,
   searchesHaveTag,
   toggleSearchTag,
 } from "@/services/savedSearchNormalize";
 import { unifiedChildLabel } from "@/misc/util/postOrigin";
+import { modeSupportsFollowing } from "@/misc/util/siteCapabilities";
 import { openUrlInNewTab } from "@/misc/util/url";
 import { getApiService } from "@/worker/services";
 import { useHead } from "@unhead/vue";
@@ -861,6 +890,11 @@ const main = useMainStore();
 const url = useUrlStore();
 const siteMode = useSiteModeStore();
 const unifiedChildren = UNIFIED_CHILD_MODES;
+const onUnifiedFeedSource = (value: unknown) => {
+  if (value === "search" || value === "following") {
+    siteMode.setUnifiedFeedSource(value as UnifiedFeedSource);
+  }
+};
 const activeModeLabel = computed(() => unifiedChildLabel(siteMode.activeMode));
 const showSitesMore = ref(false);
 
@@ -977,16 +1011,14 @@ const verification = reactive<Record<KeySiteMode, ReturnType<typeof emptyAuth>>>
   furbooru: emptyAuth(),
 });
 
-const keySiteConnected = (site: KeySite) => {
-  const account = fields[site.mode];
-  if (site.mode === "furbooru") return !!account.apiKey;
-  return !!account.username && !!account.apiKey;
-};
+const keySiteConnected = (site: KeySite) =>
+  profileHasAuthMaterial(site.mode, fields[site.mode]);
 
 const keySiteStatus = (site: KeySite) => {
   const account = fields[site.mode];
-  if (site.mode === "furbooru") return account.apiKey ? "API key saved" : "Not signed in";
-  return account.username ? `Signed in as ${account.username}` : "Not signed in";
+  if (!profileHasAuthMaterial(site.mode, account)) return "No credentials saved";
+  if (site.mode === "furbooru") return "API key saved";
+  return account.username ? `Signed in as ${account.username}` : "Credentials saved";
 };
 
 const keySiteFavsTag = (site: KeySite) => site.favsTag(fields[site.mode].username);
@@ -1040,14 +1072,14 @@ const inkbunnyWatchlistLoading = ref(false);
 const inkbunnyAuth = ref(emptyAuth());
 const inkbunnyLoggedIn = computed(
   () =>
-    !!fields.inkbunny.apiKey &&
+    profileHasAuthMaterial("inkbunny", fields.inkbunny) &&
     !!fields.inkbunny.username &&
     fields.inkbunny.username.toLowerCase() !== "guest",
 );
 const inkbunnyStatus = computed(() =>
   inkbunnyLoggedIn.value
     ? `Signed in as ${fields.inkbunny.username}`
-    : "Guest",
+    : "No credentials saved",
 );
 
 const INKBUNNY_UNREAD_TAG = "unread:yes";
@@ -1160,7 +1192,7 @@ const showFaCookies = ref(false);
 const faWatchlistLoading = ref(false);
 const faAuth = ref(emptyAuth());
 const faLoggedIn = computed(
-  () => !!fields.furaffinity.apiKey && !!fields.furaffinity.username,
+  () => profileHasAuthMaterial("furaffinity", fields.furaffinity),
 );
 const canFaPasswordLogin = computed(
   () => !!(fields.furaffinity.username && faPassword.value),
@@ -1173,8 +1205,10 @@ const faNeedsBrowserLogin = computed(() => {
 const openFaLoginPage = () => openUrlInNewTab(FA_LOGIN_URL);
 const faStatus = computed(() =>
   faLoggedIn.value
-    ? `Signed in as ${fields.furaffinity.username}`
-    : "Cookies, host env, or password",
+    ? fields.furaffinity.username
+      ? `Signed in as ${fields.furaffinity.username}`
+      : "Cookies saved (profile)"
+    : "No credentials saved (host FA_COOKIE_* not shown)",
 );
 const FA_FAVS_TAG = "favs:me";
 const FA_FOLLOWING_TAG = "following:me";
@@ -1189,7 +1223,11 @@ const toggleFaFavsSearch = () =>
 const toggleFaFollowingSearch = () =>
   toggleSearchTag(liveSearches(main.$state, "furaffinity"), FA_FOLLOWING_TAG, "Following");
 
-const applyFaLoginResult = (result: { username: string; cookies: string }) => {
+const applyFaLoginResult = (result: {
+  username: string;
+  cookies: string;
+  cookieSource?: string;
+}) => {
   setLiveAccount(main.$state, "furaffinity", {
     username: result.username,
     apiKey: result.cookies,
@@ -1201,7 +1239,15 @@ const applyFaLoginResult = (result: { username: string; cookies: string }) => {
   addSearchTag(liveSearches(main.$state, "furaffinity"), FA_FOLLOWING_TAG, "Following");
   addSearchTag(liveSearches(main.$state, "furaffinity"), FA_FAVS_TAG, "My Favs");
   faAuth.value.success = true;
-  faAuth.value.message = `Logged in as ${result.username}`;
+  const sourceHint =
+    result.cookieSource === "profile"
+      ? " (using profile cookies)"
+      : result.cookieSource === "env"
+        ? " (using host FA_COOKIE_*)"
+        : result.cookieSource === "guest"
+          ? " (guest)"
+          : "";
+  faAuth.value.message = `Logged in as ${result.username}${sourceHint}`;
 };
 
 const loginFurAffinity = async () => {
@@ -1265,13 +1311,15 @@ const logoutFurAffinity = async () => {
 
 // Weasyl auth
 const weasylAuth = ref(emptyAuth());
-const weasylConnected = computed(() => !!fields.weasyl.apiKey);
+const weasylConnected = computed(() =>
+  profileHasAuthMaterial("weasyl", fields.weasyl),
+);
 const weasylStatus = computed(() =>
-  fields.weasyl.apiKey
+  weasylConnected.value
     ? fields.weasyl.username
       ? `Signed in as ${fields.weasyl.username}`
       : "API key saved"
-    : "Not signed in",
+    : "No credentials saved",
 );
 const WEASYL_FAVS_TAG = "favs:me";
 const weasylFavsExists = computed(() =>
@@ -1312,13 +1360,15 @@ watch(
 
 // Itaku auth
 const itakuAuth = ref(emptyAuth());
-const itakuConnected = computed(() => !!fields.itaku.apiKey);
+const itakuConnected = computed(() =>
+  profileHasAuthMaterial("itaku", fields.itaku),
+);
 const itakuStatus = computed(() =>
-  fields.itaku.apiKey
+  itakuConnected.value
     ? fields.itaku.username
       ? `Signed in as ${fields.itaku.username}`
       : "Token saved"
-    : "Not signed in",
+    : "No credentials saved",
 );
 const ITAKU_STARS_TAG = "stars:me";
 const ITAKU_FOLLOWING_TAG = "following:me";
@@ -1380,8 +1430,8 @@ const sofurryPassword = ref("");
 const sofurryCookiePaste = ref("");
 const showSofurryCookies = ref(false);
 const sofurryAuth = ref(emptyAuth());
-const sofurryLoggedIn = computed(
-  () => !!fields.sofurry.apiKey && !!fields.sofurry.username,
+const sofurryLoggedIn = computed(() =>
+  profileHasAuthMaterial("sofurry", fields.sofurry),
 );
 const canSofurryPasswordLogin = computed(
   () => !!(sofurryEmail.value.trim() && sofurryPassword.value),
@@ -1389,8 +1439,10 @@ const canSofurryPasswordLogin = computed(
 const canSofurryCookieLogin = computed(() => !!sofurryCookiePaste.value.trim());
 const sofurryStatus = computed(() =>
   sofurryLoggedIn.value
-    ? `Signed in as ${fields.sofurry.username}`
-    : "Email/password or cookies",
+    ? fields.sofurry.username
+      ? `Signed in as ${fields.sofurry.username}`
+      : "Session cookies saved"
+    : "No credentials saved",
 );
 const sofurryLikesExists = computed(() =>
   searchesHaveTag(liveSearches(main.$state, "sofurry"), SOFURRY_LIKES_TAG),
@@ -1491,8 +1543,8 @@ const tsPassword = ref("");
 const tsCookie = ref("");
 const showTsCookie = ref(false);
 const tsAuth = ref(emptyAuth());
-const tsLoggedIn = computed(
-  () => !!fields.tailspace.apiKey && !!fields.tailspace.username,
+const tsLoggedIn = computed(() =>
+  profileHasAuthMaterial("tailspace", fields.tailspace),
 );
 const canTsPasswordLogin = computed(
   () => !!(fields.tailspace.username && tsPassword.value),
@@ -1500,8 +1552,10 @@ const canTsPasswordLogin = computed(
 const canTsCookieLogin = computed(() => !!tsCookie.value.trim());
 const tsStatus = computed(() =>
   tsLoggedIn.value
-    ? `Signed in as ${fields.tailspace.username}`
-    : "Cookie or password",
+    ? fields.tailspace.username
+      ? `Signed in as ${fields.tailspace.username}`
+      : "Session cookie saved"
+    : "No credentials saved",
 );
 
 const applyTsLoginResult = (result: {

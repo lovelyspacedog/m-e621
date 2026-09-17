@@ -5,14 +5,25 @@ import { audioMimeFromExt } from "@/misc/util/audioExts";
 import { getCreatorTags } from "@/misc/util/siteLabels";
 import {
   flattenPostTagsForSidecar,
+  getTauriLocalRoot,
   mergeSidecarTagsForPath,
+  mergeSidecarTagsForTauriRoot,
   setLocalDirectoryFromHandle,
+  setLocalDirectoryFromTauriRoot,
   setPendingLocalFocusPath,
 } from "@/misc/util/localMedia";
-import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
+import { fetchViaDownloadProxy, proxyDownloadUrl } from "@/misc/util/mediaProxy";
+import { isTauriShell, supportsLocalWrites, tauriWriteLocalFile } from "@/misc/util/tauriLocalFs";
+import {
+  injectMultiFilePageSuffix,
+  inkbunnyFileExt,
+  inkbunnyFileUrl,
+  postInkbunnyGalleryFiles,
+} from "@/misc/util/inkbunnyGallery";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { getApiService } from "@/worker/services";
 import type { SiteMode } from "@/services/types";
+import { toRaw } from "vue";
 
 const DIR_HANDLE_KEY = "save_local_dir_handle";
 const TAG_COUNT_CACHE = new Map<string, number>();
@@ -159,12 +170,17 @@ export const buildSaveRelativePath = async (
     : "_untagged";
   const ext = sanitizeSegment(post.file.ext || "bin", 16);
   const id = String(post.id);
+  const origin = sanitizeSegment(
+    String(post.__meta?.originMode || useSiteModeStore().activeMode || "unknown"),
+    32,
+  );
 
   let path = template;
   path = path.replace(/%artist%/gi, artistStr);
   path = path.replace(/%tags\s*1-5%/gi, tagsStr);
   path = path.replace(/%ext%/gi, ext);
   path = path.replace(/%id%/gi, id);
+  path = path.replace(/%origin%/gi, origin);
 
   // Normalize separators and sanitize each segment (keep / for directories).
   const parts = path
@@ -184,6 +200,84 @@ export const buildSaveRelativePath = async (
   }
 
   return parts.join("/");
+};
+
+/** Pick unused filename: `foo.ext`, then `foo (1).ext`, … Never overwrite silently. */
+export const allocateUniqueFileName = async (
+  exists: (name: string) => Promise<boolean>,
+  fileName: string,
+): Promise<string> => {
+  if (!(await exists(fileName))) return fileName;
+  const dot = fileName.lastIndexOf(".");
+  const base = dot > 0 ? fileName.slice(0, dot) : fileName;
+  const ext = dot > 0 ? fileName.slice(dot) : "";
+  for (let i = 1; i < 1000; i++) {
+    const candidate = `${base} (${i})${ext}`;
+    if (!(await exists(candidate))) return candidate;
+  }
+  return `${base} (${Date.now()})${ext}`;
+};
+
+const fsaFileExists = async (
+  dir: FileSystemDirectoryHandle,
+  fileName: string,
+): Promise<boolean> => {
+  try {
+    await dir.getFileHandle(fileName);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const writeToDirectory = async (
+  root: FileSystemDirectoryHandle,
+  relativePath: string,
+  data: ArrayBuffer,
+  mimeType: string,
+): Promise<string> => {
+  const parts = relativePath.split("/");
+  const fileName = parts.pop()!;
+  let dir = root;
+  for (const part of parts) {
+    dir = await dir.getDirectoryHandle(part, { create: true });
+  }
+  const uniqueName = await allocateUniqueFileName(
+    (name) => fsaFileExists(dir, name),
+    fileName,
+  );
+  const fileHandle = await dir.getFileHandle(uniqueName, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(new Blob([data], { type: mimeType }));
+  await writable.close();
+  return [...parts, uniqueName].join("/");
+};
+
+const tauriRelativePathExists = async (
+  root: string,
+  relativePath: string,
+): Promise<boolean> => {
+  try {
+    const { tauriReadLocalFile } = await import("@/misc/util/tauriLocalFs");
+    await tauriReadLocalFile(root, relativePath);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const allocateUniqueRelativePath = async (
+  exists: (path: string) => Promise<boolean>,
+  relativePath: string,
+): Promise<string> => {
+  const parts = relativePath.replace(/\\/g, "/").split("/");
+  const fileName = parts.pop()!;
+  const dirPrefix = parts.length ? `${parts.join("/")}/` : "";
+  const uniqueName = await allocateUniqueFileName(
+    (name) => exists(`${dirPrefix}${name}`),
+    fileName,
+  );
+  return `${dirPrefix}${uniqueName}`;
 };
 
 export const ensurePermission = async (
@@ -207,24 +301,6 @@ export const ensurePermission = async (
   return true;
 };
 
-const writeToDirectory = async (
-  root: FileSystemDirectoryHandle,
-  relativePath: string,
-  data: ArrayBuffer,
-  mimeType: string,
-) => {
-  const parts = relativePath.split("/");
-  const fileName = parts.pop()!;
-  let dir = root;
-  for (const part of parts) {
-    dir = await dir.getDirectoryHandle(part, { create: true });
-  }
-  const fileHandle = await dir.getFileHandle(fileName, { create: true });
-  const writable = await fileHandle.createWritable();
-  await writable.write(new Blob([data], { type: mimeType }));
-  await writable.close();
-};
-
 const fetchPostBytes = async (post: EnhancedPost): Promise<{ data: ArrayBuffer; mimeType: string }> => {
   if (!post.file?.url) {
     throw new Error("Post file URL is unavailable");
@@ -238,10 +314,7 @@ const fetchPostBytes = async (post: EnhancedPost): Promise<{ data: ArrayBuffer; 
     url.startsWith("/api/download")
       ? url
       : proxyDownloadUrl(url) || url;
-  const response = await fetch(fetchUrl);
-  if (!response.ok) {
-    throw new Error(`Download failed (${response.status})`);
-  }
+  const response = await fetchViaDownloadProxy(fetchUrl);
   const data = await response.arrayBuffer();
   const mimeType =
     response.headers.get("content-type") ||
@@ -253,13 +326,114 @@ const fetchPostBytes = async (post: EnhancedPost): Promise<{ data: ArrayBuffer; 
   return { data, mimeType };
 };
 
+/**
+ * Save every downloadable file from an Inkbunny multi-file submission.
+ * Paths get `_pNN` before the extension. Not pools — submission files only.
+ */
+export const saveInkbunnyGalleryLocally = async (
+  post: EnhancedPost,
+  files = postInkbunnyGalleryFiles(post),
+  opts?: { quiet?: boolean; skipOfflineQueue?: boolean },
+) => {
+  const snackbar = useSnackbarStore();
+  const template =
+    usePostsStore().saveLocalPathTemplate || "%artist%/%tags 1-5%.%ext%";
+  if (files.length <= 1) {
+    return savePostLocally(post, { ...opts, skipGalleryExpand: true });
+  }
+
+  let saved = 0;
+  let lastPath = "";
+  let lastDir: FileSystemDirectoryHandle | null = null;
+  const raw = toRaw(post);
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]!;
+    const url = inkbunnyFileUrl(file);
+    if (!url) continue;
+    const ext = inkbunnyFileExt(file);
+    const pagePost = {
+      ...raw,
+      file: {
+        ...raw.file,
+        url,
+        ext,
+        size: 0,
+        width: file.full_size_x || raw.file.width,
+        height: file.full_size_y || raw.file.height,
+      },
+    } as EnhancedPost;
+    const basePath = await buildSaveRelativePath(pagePost, template);
+    const relativePath = injectMultiFilePageSuffix(
+      basePath,
+      i + 1,
+      files.length,
+    );
+    const result = await savePostLocally(pagePost, {
+      quiet: true,
+      skipOfflineQueue: opts?.skipOfflineQueue,
+      skipGalleryExpand: true,
+      relativePathOverride: relativePath,
+    });
+    if (result.queued) {
+      if (!opts?.quiet) {
+        snackbar.addMessage(
+          `Offline — queued Inkbunny gallery (${saved}/${files.length} saved before queue)`,
+        );
+      }
+      return result;
+    }
+    saved += 1;
+    lastPath = result.relativePath || lastPath;
+    lastDir = result.dirHandle;
+  }
+
+  if (!opts?.quiet) {
+    const postsStore = usePostsStore();
+    if (!saved) {
+      snackbar.addMessage("No downloadable Inkbunny files");
+    } else if (lastDir && lastPath) {
+      const message = `Saved ${saved} Inkbunny files`;
+      if (postsStore.openInLocalAfterSave) {
+        snackbar.addMessage(message);
+        void openSavedPathInLocal(lastDir, lastPath);
+      } else {
+        snackbar.addMessage(message, {
+          label: "Open in Local",
+          onClick: () => openSavedPathInLocal(lastDir!, lastPath),
+        });
+      }
+    } else {
+      snackbar.addMessage(`Saved ${saved} Inkbunny files`);
+    }
+  }
+  return {
+    relativePath: lastPath,
+    dirHandle: lastDir,
+    saved,
+  };
+};
+
 export const savePostLocally = async (
   post: EnhancedPost,
-  opts?: { quiet?: boolean; skipOfflineQueue?: boolean },
+  opts?: {
+    quiet?: boolean;
+    skipOfflineQueue?: boolean;
+    relativePathOverride?: string;
+    /** When true, do not expand Inkbunny multi-file galleries. */
+    skipGalleryExpand?: boolean;
+  },
 ) => {
   const posts = usePostsStore();
   const snackbar = useSnackbarStore();
   const template = posts.saveLocalPathTemplate || "%artist%/%tags 1-5%.%ext%";
+
+  if (!opts?.skipGalleryExpand) {
+    const gallery = postInkbunnyGalleryFiles(post);
+    if (gallery.length > 1) {
+      return saveInkbunnyGalleryLocally(post, gallery, opts);
+    }
+  }
 
   const queueIfNeeded = async (err?: unknown) => {
     if (opts?.skipOfflineQueue) {
@@ -282,7 +456,9 @@ export const savePostLocally = async (
     return queueIfNeeded();
   }
 
-  const relativePath = await buildSaveRelativePath(post, template);
+  const relativePath =
+    opts?.relativePathOverride ||
+    (await buildSaveRelativePath(post, template));
 
   let data: ArrayBuffer;
   let mimeType: string;
@@ -313,11 +489,11 @@ export const savePostLocally = async (
   }
 
   if (dirHandle) {
-    await writeToDirectory(dirHandle, relativePath, data, mimeType);
+    const savedPath = await writeToDirectory(dirHandle, relativePath, data, mimeType);
     try {
       await mergeSidecarTagsForPath(
         dirHandle,
-        relativePath,
+        savedPath,
         flattenPostTagsForSidecar(post),
       );
     } catch (err) {
@@ -325,9 +501,35 @@ export const savePostLocally = async (
       console.warn("Failed to write Local sidecar tags", err);
     }
     if (!opts?.quiet) {
-      offerOpenInLocal(snackbar, posts, dirHandle, relativePath);
+      offerOpenInLocal(snackbar, posts, dirHandle, savedPath);
     }
-    return { relativePath, dirHandle };
+    return { relativePath: savedPath, dirHandle };
+  }
+
+  // Tauri: write into the current Local browse root when available.
+  const tauriRoot =
+    supportsLocalWrites() && isTauriShell()
+      ? await getTauriLocalRoot()
+      : null;
+  if (tauriRoot) {
+    const savedPath = await allocateUniqueRelativePath(
+      (path) => tauriRelativePathExists(tauriRoot, path),
+      relativePath,
+    );
+    await tauriWriteLocalFile(tauriRoot, savedPath, new Uint8Array(data));
+    try {
+      await mergeSidecarTagsForTauriRoot(
+        tauriRoot,
+        savedPath,
+        flattenPostTagsForSidecar(post),
+      );
+    } catch (err) {
+      console.warn("Failed to write Local sidecar tags", err);
+    }
+    if (!opts?.quiet) {
+      offerOpenInLocalTauri(snackbar, posts, tauriRoot, savedPath);
+    }
+    return { relativePath: savedPath, dirHandle: null as FileSystemDirectoryHandle | null };
   }
 
   // Firefox/Zen (or no folder chosen): flatten path for Downloads.
@@ -351,11 +553,31 @@ export const openSavedPathInLocal = async (
   const siteMode = useSiteModeStore();
   if (!siteMode.supportsLocalMode) {
     useSnackbarStore().addMessage(
-      "Local mode needs the File System Access API (Chromium).",
+      "Local mode needs the File System Access API (Chromium) or the Tauri desktop app.",
     );
     return;
   }
   await setLocalDirectoryFromHandle(dirHandle);
+  setPendingLocalFocusPath(relativePath || null);
+  if (siteMode.isLocal) {
+    siteMode.bumpModeChange();
+  } else {
+    siteMode.setMode("local");
+  }
+};
+
+export const openSavedPathInLocalTauri = async (
+  root: string,
+  relativePath?: string | null,
+) => {
+  const siteMode = useSiteModeStore();
+  if (!siteMode.supportsLocalMode) {
+    useSnackbarStore().addMessage(
+      "Local mode needs the File System Access API (Chromium) or the Tauri desktop app.",
+    );
+    return;
+  }
+  await setLocalDirectoryFromTauriRoot(root);
   setPendingLocalFocusPath(relativePath || null);
   if (siteMode.isLocal) {
     siteMode.bumpModeChange();
@@ -378,6 +600,26 @@ const offerOpenInLocal = (
   if (posts.openInLocalAfterSave) {
     snackbar.addMessage(message);
     void openSavedPathInLocal(dirHandle, relativePath);
+    return;
+  }
+  snackbar.addMessage(message, openAction);
+};
+
+const offerOpenInLocalTauri = (
+  snackbar: ReturnType<typeof useSnackbarStore>,
+  posts: ReturnType<typeof usePostsStore>,
+  root: string,
+  relativePath: string,
+) => {
+  const name = root.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || "Local";
+  const openAction = {
+    label: "Open in Local",
+    onClick: () => openSavedPathInLocalTauri(root, relativePath),
+  };
+  const message = `Saved to ${name}/${relativePath}`;
+  if (posts.openInLocalAfterSave) {
+    snackbar.addMessage(message);
+    void openSavedPathInLocalTauri(root, relativePath);
     return;
   }
   snackbar.addMessage(message, openAction);

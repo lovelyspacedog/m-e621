@@ -77,6 +77,23 @@ DOMAIN = os.environ.get("M_E621_DOMAIN", "localhost")
 BRANCH = os.environ.get("M_E621_BRANCH", "master")
 TOKEN_PATH = CONFIG_DIR / "pull_token"
 STATUS_PATH = CONFIG_DIR / "pull_status.json"
+
+
+def _git_pull_enabled() -> bool:
+    """Managed git-pull API. Off when M_E621_GIT_PULL=0; on when =1; else if token file exists."""
+    raw = os.environ.get("M_E621_GIT_PULL", "").strip().lower()
+    if raw in ("0", "false", "no", "off"):
+        return False
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    try:
+        return TOKEN_PATH.is_file() and bool(
+            TOKEN_PATH.read_text(encoding="utf-8").strip()
+        )
+    except OSError:
+        return False
+
+
 FAVORITE_HOSTS = frozenset({"e621.net", "e926.net", "e6ai.net"})
 FAVORITE_PATH = re.compile(r"^/api/favorites(?:/(\d+))?$")
 VOTES_PATH = re.compile(r"^/api/votes/?$")
@@ -198,6 +215,31 @@ def _ensure_token() -> str:
     TOKEN_PATH.chmod(0o600)
     print(f"m-e621 created pull token at {TOKEN_PATH}", flush=True)
     return token
+
+
+def _git_public_status() -> dict:
+    """Unauthenticated: no head/log_tail (avoid leaking host state)."""
+    return {
+        "pull_enabled": _git_pull_enabled(),
+        "branch": BRANCH,
+        "running": bool(_state.get("running")) if _git_pull_enabled() else False,
+    }
+
+
+def _git_authed_status() -> dict:
+    """Authenticated status for Settings → Info. Never expose log_tail to the browser."""
+    return {
+        "running": _state.get("running"),
+        "started_at": _state.get("started_at"),
+        "finished_at": _state.get("finished_at"),
+        "ok": _state.get("ok"),
+        "message": _state.get("message"),
+        "before": _state.get("before"),
+        "after": _state.get("after"),
+        "head": _git_head(),
+        "branch": BRANCH,
+        "pull_enabled": True,
+    }
 
 
 def _write_status() -> None:
@@ -2678,15 +2720,13 @@ class SpaHandler(SimpleHTTPRequestHandler):
             self._proxy_media(raw)
             return
         if path == "/api/git":
-            self._json(
-                200,
-                {
-                    **_state,
-                    "head": _git_head(),
-                    "branch": BRANCH,
-                    "pull_enabled": True,
-                },
-            )
+            if not _git_pull_enabled():
+                self._json(200, {"pull_enabled": False, "branch": BRANCH, "running": False})
+                return
+            if self._authorized():
+                self._json(200, _git_authed_status())
+            else:
+                self._json(200, _git_public_status())
             return
         if TAILSPACE_POSTS_PATH.match(path):
             self._proxy_tailspace_posts(parsed)
@@ -2899,6 +2939,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
         if path != "/api/git/pull":
             self._json(404, {"ok": False, "message": "not found"})
+            return
+        if not _git_pull_enabled():
+            self._json(403, {"ok": False, "message": "git pull disabled on this host"})
             return
         if not self._authorized():
             self._json(401, {"ok": False, "message": "unauthorized"})

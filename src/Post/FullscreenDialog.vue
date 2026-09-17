@@ -88,12 +88,15 @@
               />
               <v-icon v-else size="96" class="mb-4">mdi-music</v-icon>
               <audio
+                ref="audioEl"
                 class="fullscreen-audio"
                 controls
                 autoplay
                 preload="metadata"
                 :src="String(currentFileUrl)"
                 @ended="onVideoEnded"
+                @volumechange="onFullscreenVolumeChange"
+                @ratechange="onFullscreenRateChange"
               />
             </div>
             <div v-else class="overflow">
@@ -278,6 +281,12 @@ import { useBlacklistClasses } from "../misc/util/blacklist";
 import { isAudioExt } from "@/misc/util/audioExts";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
 import { isDocumentPost as postIsDocument } from "@/misc/util/documentPost";
+import { prefersReducedMotion } from "@/misc/util/reducedMotion";
+import {
+  applyPlaybackPrefsWriteback,
+  resolvePlaybackPrefs,
+  type PlaybackMediaKind,
+} from "@/misc/util/playbackPrefs";
 import { docxToText, isDocx } from "@/misc/util/docxToText";
 import { isRtf, rtfToText } from "@/misc/util/rtfToText";
 import { openPostOnSourceSite } from "@/misc/util/url";
@@ -467,6 +476,7 @@ const isZoomed = ref(false);
 const slideshowPlaying = ref(false);
 const slideshowTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const videoEl = ref<HTMLVideoElement | null>(null);
+const audioEl = ref<HTMLAudioElement | null>(null);
 const fullImageEl = ref<HTMLImageElement | null>(null);
 const notes = ref<Note[]>([]);
 const notesVisible = ref(true);
@@ -618,7 +628,7 @@ const loadDocumentContent = async (post: EnhancedPost) => {
   if (ext === "doc") {
     documentBody.value = post.description || "";
     documentLoadError.value =
-      "This file format can't be previewed here — use Download or open externally.";
+      "Legacy .doc isn't supported — press o to open at source, or Download.";
     return;
   }
 
@@ -747,24 +757,67 @@ watch(
 );
 
 const applyFullscreenPlaybackPrefs = () => {
-  const el = videoEl.value;
+  const kind: PlaybackMediaKind | null = isAudioPost.value
+    ? "audio"
+    : isVideoPost.value
+      ? "video"
+      : null;
+  if (!kind) return;
+  const el = isAudioPost.value ? audioEl.value : videoEl.value;
   if (!el) return;
-  el.muted = posts.videoMuted;
-  el.volume = Math.min(1, Math.max(0, posts.videoVolume));
-  el.playbackRate = posts.videoPlaybackRate || 1;
+  const origin = props.current
+    ? originModeOf(props.current, siteMode.activeMode)
+    : null;
+  const prefs = resolvePlaybackPrefs(
+    {
+      volume: posts.videoVolume,
+      muted: posts.videoMuted,
+      playbackRate: posts.videoPlaybackRate || 1,
+    },
+    main.posts.playbackPrefs,
+    { kind, origin },
+  );
+  el.muted = prefs.muted;
+  el.volume = prefs.volume;
+  el.playbackRate = prefs.playbackRate;
 };
 
 const onFullscreenVolumeChange = () => {
-  const el = videoEl.value;
+  const kind: PlaybackMediaKind | null = isAudioPost.value
+    ? "audio"
+    : isVideoPost.value
+      ? "video"
+      : null;
+  if (!kind) return;
+  const el = isAudioPost.value ? audioEl.value : videoEl.value;
   if (!el) return;
-  posts.videoMuted = el.muted;
-  posts.videoVolume = el.volume;
+  const origin = props.current
+    ? originModeOf(props.current, siteMode.activeMode)
+    : null;
+  applyPlaybackPrefsWriteback(
+    main.posts,
+    { kind, origin },
+    { muted: el.muted, volume: el.volume },
+  );
 };
 
 const onFullscreenRateChange = () => {
-  const el = videoEl.value;
+  const kind: PlaybackMediaKind | null = isAudioPost.value
+    ? "audio"
+    : isVideoPost.value
+      ? "video"
+      : null;
+  if (!kind) return;
+  const el = isAudioPost.value ? audioEl.value : videoEl.value;
   if (!el) return;
-  posts.videoPlaybackRate = el.playbackRate;
+  const origin = props.current
+    ? originModeOf(props.current, siteMode.activeMode)
+    : null;
+  applyPlaybackPrefsWriteback(
+    main.posts,
+    { kind, origin },
+    { playbackRate: el.playbackRate },
+  );
 };
 
 const { enterTransitionName, leaveTransitionName, setTransitionNames } =
@@ -822,6 +875,11 @@ const stopSlideshow = () => {
 const scheduleSlideshowAdvance = () => {
   clearSlideshowTimer();
   if (!slideshowPlaying.value || !props.current || isZoomed.value) return;
+  if (prefersReducedMotion()) {
+    // Auto-advance is non-essential motion; Space still toggles play state off.
+    stopSlideshow();
+    return;
+  }
   if (isDocumentPost.value) {
     // Stories/PDFs are skipped — jump to the next media post.
     void advanceSlideshow();
@@ -839,6 +897,10 @@ const scheduleSlideshowAdvance = () => {
 
 const advanceSlideshow = () => {
   if (!slideshowPlaying.value) return;
+  if (prefersReducedMotion()) {
+    stopSlideshow();
+    return;
+  }
   if (!props.hasNextFullscreenPost) {
     stopSlideshow();
     return;
@@ -855,12 +917,20 @@ const toggleSlideshow = () => {
     stopSlideshow();
     return;
   }
+  if (prefersReducedMotion()) {
+    // Honor OS reduced-motion: no auto-advance slideshow.
+    return;
+  }
   slideshowPlaying.value = true;
   scheduleSlideshowAdvance();
 };
 
 const onVideoEnded = () => {
   if (!slideshowPlaying.value) return;
+  if (prefersReducedMotion()) {
+    stopSlideshow();
+    return;
+  }
   void advanceSlideshow();
 };
 

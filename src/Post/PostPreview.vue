@@ -172,8 +172,13 @@ import { isAudioExt } from "@/misc/util/audioExts";
 import { useDataSaverInfo } from "@/misc/util/dataSaver";
 import { remuxLocalPath } from "@/misc/util/localMedia";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
-import { usePostsStore, useSnackbarStore } from "@/services";
-import { DataSaverType } from "@/services/types";
+import {
+  applyPlaybackPrefsWriteback,
+  resolvePlaybackPrefs,
+  type PlaybackMediaKind,
+} from "@/misc/util/playbackPrefs";
+import { useMainStore, usePostsStore, useSnackbarStore } from "@/services";
+import { DataSaverType, type SiteMode } from "@/services/types";
 import type { File, Preview, Sample } from "@/worker/api";
 import type { PropType } from "vue";
 import { computed, defineComponent, nextTick, onBeforeUnmount, ref, watch } from "vue";
@@ -221,10 +226,15 @@ export default defineComponent({
       type: String,
       default: "",
     },
+    originMode: {
+      type: String as PropType<SiteMode | "">,
+      default: "",
+    },
   },
   emits: ["open-post", "remuxed"],
   setup(props, context) {
     const posts = usePostsStore();
+    const main = useMainStore();
     const snackbar = useSnackbarStore();
     const remuxing = ref(false);
     const remuxError = ref("");
@@ -234,6 +244,27 @@ export default defineComponent({
     const isSwf = computed(() => props.file.ext === "swf");
     const isVideo = computed(() => VIDEO_EXTS.has(props.file.ext));
     const isAudio = computed(() => isAudioExt(props.file.ext));
+    const playbackKind = computed((): PlaybackMediaKind | null => {
+      if (isAudio.value) return "audio";
+      if (isVideo.value) return "video";
+      return null;
+    });
+    const originForPrefs = computed((): SiteMode | null =>
+      props.originMode ? (props.originMode as SiteMode) : null,
+    );
+    const resolvedPlayback = () =>
+      resolvePlaybackPrefs(
+        {
+          volume: posts.videoVolume,
+          muted: posts.videoMuted,
+          playbackRate: posts.videoPlaybackRate || 1,
+        },
+        posts.playbackPrefs,
+        {
+          kind: playbackKind.value || "video",
+          origin: originForPrefs.value,
+        },
+      );
     const audioCoverSrc = computed(
       () =>
         proxyDownloadUrl(props.preview.url) ||
@@ -276,6 +307,7 @@ export default defineComponent({
         ? "pdf"
         : props.file.ext || fileUrlExt.value;
       if (ext === "pdf") return "PDF";
+      if (ext === "doc") return "DOC (unsupported)";
       if (props.documentKind === "story" || ext === "txt") return "Story";
       if (ext === "html") return "HTML";
       return (ext || "DOC").toUpperCase();
@@ -339,10 +371,11 @@ export default defineComponent({
     const videoSrcLive = ref(!posts.autoplayFeedVideo);
 
     const applyPlaybackPrefs = (el: HTMLVideoElement, forAutoplay = false) => {
+      const prefs = resolvedPlayback();
       const forceSilent = forAutoplay && posts.autoplayFeedVideoSilent;
-      el.muted = forceSilent || posts.videoMuted;
-      el.volume = Math.min(1, Math.max(0, posts.videoVolume));
-      el.playbackRate = posts.videoPlaybackRate || 1;
+      el.muted = forceSilent || prefs.muted;
+      el.volume = prefs.volume;
+      el.playbackRate = prefs.playbackRate;
       // Loop so feed previews keep moving; card auto-next uses a dwell timer when looped.
       el.loop = true;
     };
@@ -446,6 +479,7 @@ export default defineComponent({
           posts.videoMuted,
           posts.videoVolume,
           posts.videoPlaybackRate,
+          posts.playbackPrefs,
           posts.autoplayFeedVideo,
           posts.autoplayFeedVideoSilent,
         ] as const,
@@ -475,17 +509,25 @@ export default defineComponent({
     );
 
     const onVolumeChange = () => {
-      if (!boundVideo) return;
+      if (!boundVideo || !playbackKind.value) return;
       // Silent autoplay forces mute; don't overwrite the remembered mute preference.
-      if (!posts.autoplayFeedVideoSilent) {
-        posts.videoMuted = boundVideo.muted;
-      }
-      posts.videoVolume = boundVideo.volume;
+      applyPlaybackPrefsWriteback(
+        main.posts,
+        { kind: playbackKind.value, origin: originForPrefs.value },
+        {
+          muted: posts.autoplayFeedVideoSilent ? undefined : boundVideo.muted,
+          volume: boundVideo.volume,
+        },
+      );
     };
 
     const onRateChange = () => {
-      if (!boundVideo) return;
-      posts.videoPlaybackRate = boundVideo.playbackRate;
+      if (!boundVideo || !playbackKind.value) return;
+      applyPlaybackPrefsWriteback(
+        main.posts,
+        { kind: playbackKind.value, origin: originForPrefs.value },
+        { playbackRate: boundVideo.playbackRate },
+      );
     };
 
     onBeforeUnmount(() => {
@@ -509,6 +551,12 @@ export default defineComponent({
 
     const onRemux = async () => {
       if (!props.localPath || remuxing.value) return;
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        remuxError.value =
+          "Remux needs a network connection the first time (ffmpeg core). It is not queued offline.";
+        snackbar.addMessage(remuxError.value);
+        return;
+      }
       remuxing.value = true;
       remuxError.value = "";
       try {

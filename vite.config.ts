@@ -118,16 +118,19 @@ function e621MediaProxy(): Plugin {
         }
         const raw = new URL(req.url, 'http://127.0.0.1').searchParams.get('url') || '';
         let target: URL;
+        const endJson = (code: number, message: string) => {
+          res.statusCode = code;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ ok: false, message }));
+        };
         try {
           target = new URL(raw);
         } catch {
-          res.statusCode = 400;
-          res.end('bad url');
+          endJson(400, 'bad url');
           return;
         }
         if (target.protocol !== 'https:' || !MEDIA_HOST_OK(target.hostname.toLowerCase())) {
-          res.statusCode = 400;
-          res.end('host not allowed');
+          endJson(400, 'host not allowed');
           return;
         }
         const rangeHeader = typeof req.headers.range === 'string' ? req.headers.range : undefined;
@@ -207,8 +210,11 @@ function e621MediaProxy(): Plugin {
           })
           .catch((err) => {
             if (!res.headersSent) {
+              const message =
+                err instanceof Error ? err.message : String(err);
               res.statusCode = 502;
-              res.end(String(err));
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ ok: false, message }));
             } else {
               res.destroy(err instanceof Error ? err : undefined);
             }

@@ -46,7 +46,9 @@ export const createEmptySiteProfile = (mode: SiteMode): SiteProfile => ({
     entries: [],
     maxLength: 100,
   },
-  ...(mode === "unified" ? { unifiedSites: defaultUnifiedSites() } : {}),
+  ...(mode === "unified"
+    ? { unifiedSites: defaultUnifiedSites(), unifiedFeedSource: "search" as const }
+    : {}),
 });
 
 export const profileFromMirrors = (state: ISettingsServiceState): SiteProfile => {
@@ -65,6 +67,9 @@ export const profileFromMirrors = (state: ISettingsServiceState): SiteProfile =>
     unifiedSites:
       existing?.unifiedSites ||
       (state.activeMode === "unified" ? defaultUnifiedSites() : undefined),
+    unifiedFeedSource:
+      existing?.unifiedFeedSource ||
+      (state.activeMode === "unified" ? "search" : undefined),
   };
 };
 
@@ -72,6 +77,46 @@ export const profileFromMirrors = (state: ISettingsServiceState): SiteProfile =>
 export const syncMirrorsToActiveProfile = (state: ISettingsServiceState) => {
   if (!state.profiles || !state.activeMode) return;
   state.profiles[state.activeMode] = profileFromMirrors(state);
+};
+
+/** Alias preferred by FEATURES / agents — same as syncMirrorsToActiveProfile. */
+export const syncActiveProfileFromLive = syncMirrorsToActiveProfile;
+
+/**
+ * Display-only: profile has reusable auth material (passwords are never stored).
+ * Does not probe the network. Host-wide FA_COOKIE_* is invisible here.
+ */
+export const profileHasAuthMaterial = (
+  mode: SiteMode,
+  account: {
+    username?: string | null;
+    apiKey?: string | null;
+    userId?: number | null;
+  } | null | undefined,
+): boolean => {
+  if (!account) return false;
+  const key = (account.apiKey || "").trim();
+  const user = (account.username || "").trim();
+  switch (mode) {
+    case "furbooru":
+    case "weasyl":
+      return !!key;
+    case "e621":
+    case "e6ai":
+      return !!user && !!key;
+    case "inkbunny":
+      return !!key; // SID; userId optional metadata
+    case "furaffinity":
+      return !!key; // a=…;b=… cookies
+    case "itaku":
+      return !!key; // Authorization token
+    case "sofurry":
+      return !!key; // session cookies
+    case "tailspace":
+      return !!key; // session cookie
+    default:
+      return false;
+  }
 };
 
 export const ensureSiteProfile = (

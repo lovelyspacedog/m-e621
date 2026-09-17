@@ -87,9 +87,36 @@
       @remuxed="reloadLocal" />
     <portal to="sidebar-suggestions">
       <v-list v-if="siteMode.isUnified" class="pa-0 mt-1 mb-2" density="compact">
-        <v-list-subheader class="text-overline">Sites in this search</v-list-subheader>
+        <v-list-subheader class="text-overline">Unified source</v-list-subheader>
+        <v-list-item>
+          <v-btn-toggle
+            class="w-100"
+            color="accent"
+            density="compact"
+            divided
+            mandatory
+            :model-value="siteMode.unifiedFeedSource"
+            @update:model-value="onUnifiedFeedSource"
+          >
+            <v-btn class="flex-grow-1" value="search" size="small">Search</v-btn>
+            <v-btn class="flex-grow-1" value="following" size="small">Following</v-btn>
+          </v-btn-toggle>
+        </v-list-item>
+        <v-list-item v-if="siteMode.unifiedFeedSource === 'search'">
+          <div class="d-flex flex-wrap ga-1">
+            <v-btn size="x-small" variant="text" color="accent" @click="siteMode.applyUnifiedSitesPreset('default')">
+              Defaults
+            </v-btn>
+            <v-btn size="x-small" variant="text" color="accent" @click="siteMode.applyUnifiedSitesPreset('authenticated')">
+              Auth only
+            </v-btn>
+          </div>
+        </v-list-item>
+        <v-list-subheader class="text-overline">
+          {{ siteMode.unifiedFeedSource === "following" ? "Sites in Following" : "Sites in this search" }}
+        </v-list-subheader>
         <v-list-item
-          v-for="child in unifiedChildModes"
+          v-for="child in unifiedSidebarChildren"
           :key="child"
         >
           <template #prepend>
@@ -106,6 +133,12 @@
               @update:model-value="siteMode.setUnifiedChild(child, !!$event)"
             />
           </template>
+        </v-list-item>
+        <v-list-item
+          v-if="siteMode.unifiedFeedSource === 'following'"
+          class="text-caption text-medium-emphasis"
+        >
+          Tag search is ignored. Needs login on each site.
         </v-list-item>
       </v-list>
       <v-list class="pa-0 mt-1 mb-2" density="compact">
@@ -206,7 +239,8 @@ import {
   unifiedChildIcon,
   unifiedChildLabel,
 } from "../misc/util/postOrigin";
-import { UNIFIED_CHILD_MODES } from "@/services/types";
+import { UNIFIED_CHILD_MODES, type UnifiedFeedSource } from "@/services/types";
+import { modeSupportsFollowing } from "@/misc/util/siteCapabilities";
 import {
   findLocalPathTarget,
   findLocalResumeTarget,
@@ -236,7 +270,16 @@ const compactToolbarActions = computed(
 const siteMode = useSiteModeStore();
 const snackbar = useSnackbarStore();
 const main = useMainStore();
-const unifiedChildModes = UNIFIED_CHILD_MODES;
+const unifiedSidebarChildren = computed(() =>
+  siteMode.unifiedFeedSource === "following"
+    ? UNIFIED_CHILD_MODES.filter((mode) => modeSupportsFollowing(mode))
+    : UNIFIED_CHILD_MODES,
+);
+const onUnifiedFeedSource = (value: unknown) => {
+  if (value === "search" || value === "following") {
+    siteMode.setUnifiedFeedSource(value as UnifiedFeedSource);
+  }
+};
 const localEmptyMessage = ref(localStatusMessage("no-folder"));
 const restorePath = ref<string | null>(null);
 const restoreVideoTime = ref<number | undefined>(undefined);
@@ -297,6 +340,8 @@ const {
       return result.posts;
     }
     // e621/e6ai only — hide-mode blacklist is folded into the 40-tag API cap (M9).
+    // Unified must NOT use this path: child queries are prepared separately and
+    // origin blacklists are applied per child / stamped client-side (FEATURES 8.3).
     if (
       page <= 1 &&
       !siteMode.isFurbooru &&
@@ -376,6 +421,12 @@ const toggleBulkRemux = async () => {
   if (!siteMode.isLocal) return;
   if (bulkRemuxing.value) {
     remuxAbort?.abort();
+    return;
+  }
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    snackbar.addMessage(
+      "Remux needs a network connection the first time (ffmpeg core). Remux jobs are not added to the offline save queue.",
+    );
     return;
   }
   bulkRemuxing.value = true;
@@ -743,7 +794,8 @@ const toolbarActions = computed((): ToolbarAction[] => {
         loading: bulkRemuxing.value,
         active: bulkRemuxing.value,
         error: bulkRemuxing.value,
-        title: "Remux unplayable videos in the current Local filter to MP4",
+        title:
+          "Remux unplayable videos in the current Local filter to MP4 (not queued offline; ffmpeg may need network on first use)",
         run: () => {
           void toggleBulkRemux();
         },

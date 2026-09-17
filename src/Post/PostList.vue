@@ -33,6 +33,7 @@
 import { usePostsStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { isDocumentPost } from "@/misc/util/documentPost";
+import { prefersReducedMotion } from "@/misc/util/reducedMotion";
 import { postFeedKey } from "@/misc/util/postOrigin";
 import { saveLocalResume } from "@/misc/util/localMedia";
 import type { ComponentPublicInstance, PropType} from "vue";
@@ -298,6 +299,7 @@ export default defineComponent({
       !props.autoNextPaused &&
       !userPaused.value &&
       !hoverPaused.value &&
+      !prefersReducedMotion() &&
       typeof document !== "undefined" &&
       document.visibilityState === "visible" &&
       props.visiblePosts.length > 0;
@@ -457,6 +459,7 @@ export default defineComponent({
         !postsStore.cardAutoNext ||
         props.autoNextPaused ||
         props.loading ||
+        prefersReducedMotion() ||
         typeof document === "undefined" ||
         document.visibilityState !== "visible" ||
         !props.visiblePosts.length

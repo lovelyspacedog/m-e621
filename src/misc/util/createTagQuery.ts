@@ -1,5 +1,11 @@
 import { BlacklistMode } from "@/services/types";
 
+/**
+ * e621/e6ai posts.json tag cap. Only use via {@link createTagQuery} /
+ * {@link buildTagQuery} on e621-family backends — never fold Unified's shared
+ * query string with this (Unified children get private prepared tags; hide-mode
+ * blacklist is applied per child / client-side). See PostsPage Unified skip.
+ */
 export const E621_API_TAG_LIMIT = 40;
 
 export type BuiltTagQuery = {

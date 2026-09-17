@@ -273,8 +273,11 @@ function clearPostMediaUrls(post: Post): void {
 export function shouldUseInkbunnyViewer(meta?: {
   pagecount?: number;
   typeId?: number;
+  files?: { length: number };
 }): boolean {
   if (!meta) return false;
+  // Multi-file gallery (files from details, or pagecount from search hit).
+  if ((meta.files?.length ?? 0) > 1) return true;
   if ((meta.pagecount ?? 1) > 1) return true;
   return (
     meta.typeId === 3 ||

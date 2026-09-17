@@ -7,7 +7,7 @@
     icon="mdi-update"
     lines="one"
     sticky
-    text="New version available"
+    :text="bannerText"
   >
     <template #actions>
       <v-btn variant="text" @click.stop="pwa.dismiss()">Later</v-btn>
@@ -17,9 +17,17 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { usePwaUpdateStore } from "@/services";
+import { getAppName } from "@/misc/util/utilities";
 
 const pwa = usePwaUpdateStore();
+const bannerText = computed(() => {
+  const name = getAppName();
+  // getAppName is `m-e621` or `m-e621 <hash>`
+  const hash = name.startsWith("m-e621 ") ? name.slice("m-e621 ".length) : "";
+  return hash ? `New version available (${hash})` : "New version available";
+});
 </script>
 
 <style scoped>

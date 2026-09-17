@@ -79,7 +79,7 @@ const emit = defineEmits<{
 const posts = usePostsStore();
 const snackbar = useSnackbarStore();
 const isSave = computed(() => props.purpose === "save");
-/** Save Locally still needs Chromium FSA; Local browse also works in Tauri. */
+/** Dedicated save-folder picker is Chromium FSA; Tauri Save Locally uses the Local browse root. */
 const folderPickerSupported = computed(() =>
   isSave.value ? supportsDirectoryPicker() : supportsLocalBrowse(),
 );
@@ -92,7 +92,7 @@ const exporting = ref(false);
 const status = computed(() => {
   if (!folderPickerSupported.value) {
     return isSave.value
-      ? "Save folders need Chromium (File System Access). Firefox downloads to Downloads."
+      ? "Save folders need Chromium (File System Access). In Tauri, Save Locally writes into the Local browse folder; Firefox downloads to Downloads."
       : "Local browse needs Chromium or the Tauri desktop app.";
   }
   if (directoryName.value) {

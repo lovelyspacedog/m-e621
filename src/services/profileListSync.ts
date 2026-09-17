@@ -3,6 +3,7 @@ import { toRaw } from "vue";
 import type {
   FavoriteTagEntry,
   ISettingsServiceState,
+  SavedSearchEntry,
   SiteMode,
   SiteProfile,
 } from "./types";
@@ -10,12 +11,17 @@ import {
   BlacklistMode,
   SITE_MODE_URLS,
   UNGROUPED_FAVORITE_GROUP_ID,
+  UNGROUPED_SAVED_SEARCH_GROUP_ID,
 } from "./types";
 import {
   applyActiveProfileToMirrors,
   ensureSiteProfile,
   syncMirrorsToActiveProfile,
 } from "./siteProfiles";
+import {
+  emptySavedSearchGroups,
+  normalizeSavedSearches,
+} from "./savedSearchNormalize";
 
 const cloneRaw = <T>(value: T, fallback: T): T => {
   if (value == null) return clone(fallback);
@@ -43,6 +49,11 @@ const emptyBlacklist = (): SiteProfile["blacklist"] => ({
   hideServerSideBlacklisted: false,
 });
 
+const emptySearches = (): SiteProfile["searches"] => ({
+  groups: emptySavedSearchGroups(),
+  entries: [],
+});
+
 const stripTag = (tag: string) =>
   tag.trim().toLowerCase().replaceAll(/^--/g, "");
 
@@ -51,6 +62,9 @@ const blacklistLineKey = (line: string[]) =>
     .map(stripTag)
     .filter(Boolean)
     .join(" ");
+
+const searchEntryKey = (entry: SavedSearchEntry) =>
+  entry.tags.map(stripTag).filter(Boolean).join(" ");
 
 const ensureUngrouped = (favorites: SiteProfile["favorites"]) => {
   if (!favorites.groups.some((g) => g.id === UNGROUPED_FAVORITE_GROUP_ID)) {
@@ -61,6 +75,39 @@ const ensureUngrouped = (favorites: SiteProfile["favorites"]) => {
       order: 0,
     });
   }
+};
+
+const ensureUngroupedSearches = (searches: SiteProfile["searches"]) => {
+  const normalized = normalizeSavedSearches(searches);
+  searches.groups = normalized.groups;
+  searches.entries = normalized.entries;
+};
+
+/**
+ * Query-language family for saved-search copy.
+ * Same family = safe blind paste. Cross-family refused (no invented remap).
+ */
+export const queryLanguageFamily = (mode: SiteMode): string | null => {
+  switch (mode) {
+    case "e621":
+    case "e6ai":
+      return "e6";
+    case "furbooru":
+    case "inkbunny":
+    case "furaffinity":
+    case "weasyl":
+    case "itaku":
+    case "sofurry":
+      return mode;
+    default:
+      return null;
+  }
+};
+
+export const canCopySavedSearches = (from: SiteMode, to: SiteMode): boolean => {
+  const a = queryLanguageFamily(from);
+  const b = queryLanguageFamily(to);
+  return Boolean(a && b && a === b);
 };
 
 /** Merge source starred tags into target (by name+category). New tags land in Ungrouped. */
@@ -115,16 +162,51 @@ export const mergeBlacklistTags = (
   return added;
 };
 
-export type ProfileListKind = "favorites" | "blacklist";
+/** Merge saved searches by normalized tag list; new entries land in Ungrouped. */
+export const mergeSavedSearches = (
+  target: SiteProfile["searches"],
+  source: SiteProfile["searches"],
+): number => {
+  ensureUngroupedSearches(target);
+  const existing = new Set(
+    target.entries.map(searchEntryKey).filter(Boolean),
+  );
+  const ungrouped = target.entries.filter(
+    (e) => e.groupId === UNGROUPED_SAVED_SEARCH_GROUP_ID,
+  );
+  let nextOrder = ungrouped.length
+    ? Math.max(...ungrouped.map((e) => e.order)) + 1
+    : 0;
+  let added = 0;
+  for (const entry of source.entries) {
+    const tags = entry.tags.map(stripTag).filter(Boolean);
+    const key = tags.join(" ");
+    if (!key || existing.has(key)) continue;
+    const next: SavedSearchEntry = {
+      id: makeId("search"),
+      name: entry.name.trim() || tags.join(" ") || "Untitled",
+      tags,
+      groupId: UNGROUPED_SAVED_SEARCH_GROUP_ID,
+      order: nextOrder++,
+    };
+    target.entries.push(next);
+    existing.add(key);
+    added += 1;
+  }
+  return added;
+};
+
+export type ProfileListKind = "favorites" | "blacklist" | "searches";
 export type ProfileListCopyMode = "merge" | "replace";
 
 export const PROFILE_SYNC_MODES: SiteMode[] = (
   Object.keys(SITE_MODE_URLS) as SiteMode[]
-).filter((m) => m !== "tailspace"); // Tailspace has no tag star/blacklist UX
+).filter((m) => m !== "tailspace" && m !== "local" && m !== "unified");
 
 /**
- * One-shot copy/merge of starred tags or blacklist from one site profile to another.
+ * One-shot copy/merge of starred tags, blacklist, or saved searches between profiles.
  * Flushes active mirrors first; refreshes mirrors when the target is the active mode.
+ * Saved searches refuse cross query-language paste.
  */
 export const copyProfileLists = (
   state: ISettingsServiceState,
@@ -141,6 +223,23 @@ export const copyProfileLists = (
   const from = ensureSiteProfile(state, args.from);
   const to = ensureSiteProfile(state, args.to);
   let added = 0;
+
+  if (args.kind === "searches") {
+    if (!canCopySavedSearches(args.from, args.to)) {
+      throw new Error(
+        `Cannot copy saved searches: ${args.from} and ${args.to} use different query languages`,
+      );
+    }
+    if (args.mode === "replace") {
+      to.searches = cloneRaw(from.searches, emptySearches());
+      ensureUngroupedSearches(to.searches);
+      added = to.searches.entries.length;
+    } else {
+      added = mergeSavedSearches(to.searches, from.searches);
+    }
+    if (state.activeMode === args.to) applyActiveProfileToMirrors(state);
+    return { added, total: to.searches.entries.length };
+  }
 
   if (args.kind === "favorites") {
     if (args.mode === "replace") {

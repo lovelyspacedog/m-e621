@@ -147,8 +147,16 @@
 import { computed, ref, watch } from "vue";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
+import {
+  buildChunkButtons,
+  loadComicFullWidthScroll,
+  loadComicViewMode,
+  saveComicFullWidthScroll,
+  saveComicViewMode,
+  type ComicReaderViewMode,
+} from "@/misc/util/comicReader";
 
-export type PoolViewMode = "gallery" | "scroll";
+export type PoolViewMode = ComicReaderViewMode;
 
 const VIEW_MODE_KEY = "pools-view-mode";
 const FULL_WIDTH_KEY = "pools-scroll-full-width";
@@ -168,46 +176,20 @@ const emit = defineEmits<{
   (e: "view-mode-change", mode: PoolViewMode): void;
 }>();
 
-const loadViewMode = (): PoolViewMode => {
-  try {
-    const v = localStorage.getItem(VIEW_MODE_KEY);
-    if (v === "scroll" || v === "gallery") return v;
-  } catch {
-    /* ignore */
-  }
-  return "gallery";
-};
-
-const loadFullWidth = (): boolean => {
-  try {
-    return localStorage.getItem(FULL_WIDTH_KEY) === "1";
-  } catch {
-    return false;
-  }
-};
-
-const viewMode = ref<PoolViewMode>(loadViewMode());
-const fullWidthScroll = ref(loadFullWidth());
+const viewMode = ref<PoolViewMode>(loadComicViewMode(VIEW_MODE_KEY));
+const fullWidthScroll = ref(loadComicFullWidthScroll(FULL_WIDTH_KEY));
 
 watch(
   viewMode,
   (mode) => {
-    try {
-      localStorage.setItem(VIEW_MODE_KEY, mode);
-    } catch {
-      /* ignore */
-    }
+    saveComicViewMode(VIEW_MODE_KEY, mode);
     emit("view-mode-change", mode);
   },
   { immediate: true },
 );
 
 watch(fullWidthScroll, (value) => {
-  try {
-    localStorage.setItem(FULL_WIDTH_KEY, value ? "1" : "0");
-  } catch {
-    /* ignore */
-  }
+  saveComicFullWidthScroll(FULL_WIDTH_KEY, value);
 });
 
 const sequenceNumber = (post: EnhancedPost, index: number) => {
@@ -225,20 +207,9 @@ const chunkRangeLabel = computed(() => {
   return `${first}–${last} / ${total}`;
 });
 
-const chunkButtons = computed((): (number | "...")[] => {
-  const n = props.chunkCount;
-  const cur = props.chunk;
-  const add = (pages: (number | "...")[], p: number) => {
-    if (!pages.includes(p)) pages.push(p);
-  };
-  const pages: (number | "...")[] = [];
-  add(pages, 1);
-  if (cur > 3) pages.push("...");
-  for (let p = Math.max(2, cur - 1); p <= Math.min(n - 1, cur + 1); p++) add(pages, p);
-  if (cur < n - 2) pages.push("...");
-  if (n > 1) add(pages, n);
-  return pages;
-});
+const chunkButtons = computed(() =>
+  buildChunkButtons(props.chunkCount, props.chunk),
+);
 
 const thumbUrl = (post: EnhancedPost) =>
   proxyDownloadUrl(post.preview?.url || post.sample?.url || post.file?.url);

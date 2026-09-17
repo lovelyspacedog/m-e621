@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   mergeBlacklistTags,
   mergeFavoriteTags,
+  mergeSavedSearches,
+  canCopySavedSearches,
   copyProfileLists,
 } from "./profileListSync";
 import { createEmptySiteProfile } from "./siteProfiles";
@@ -9,6 +11,7 @@ import {
   BlacklistMode,
   SITE_MODE_URLS,
   UNGROUPED_FAVORITE_GROUP_ID,
+  UNGROUPED_SAVED_SEARCH_GROUP_ID,
   type ISettingsServiceState,
   type SiteMode,
 } from "./types";
@@ -149,5 +152,68 @@ describe("copyProfileLists", () => {
     expect(result.total).toBe(1);
     expect(state.profiles.furbooru.blacklist.tags).toEqual([["ib-only"]]);
     expect(state.blacklist.tags).toEqual([["keep-me"]]);
+  });
+
+  it("merges saved searches e621→e6ai and refuses FA→e621", () => {
+    expect(canCopySavedSearches("e621", "e6ai")).toBe(true);
+    expect(canCopySavedSearches("furaffinity", "e621")).toBe(false);
+
+    const state = blankState("e6ai");
+    state.profiles.e621.searches.entries.push({
+      id: "s1",
+      name: "wolves",
+      tags: ["wolf", "score:>10"],
+      groupId: UNGROUPED_SAVED_SEARCH_GROUP_ID,
+      order: 0,
+    });
+    const result = copyProfileLists(state, {
+      from: "e621",
+      to: "e6ai",
+      kind: "searches",
+      mode: "merge",
+    });
+    expect(result.added).toBe(1);
+    expect(state.searches.entries.some((e) => e.name === "wolves")).toBe(true);
+
+    expect(() =>
+      copyProfileLists(state, {
+        from: "furaffinity",
+        to: "e6ai",
+        kind: "searches",
+        mode: "merge",
+      }),
+    ).toThrow(/different query languages/);
+  });
+});
+
+describe("mergeSavedSearches", () => {
+  it("skips duplicate tag lists", () => {
+    const target = createEmptySiteProfile("e621").searches;
+    target.entries.push({
+      id: "a",
+      name: "a",
+      tags: ["wolf"],
+      groupId: UNGROUPED_SAVED_SEARCH_GROUP_ID,
+      order: 0,
+    });
+    const source = createEmptySiteProfile("e6ai").searches;
+    source.entries.push(
+      {
+        id: "b",
+        name: "b",
+        tags: ["wolf"],
+        groupId: UNGROUPED_SAVED_SEARCH_GROUP_ID,
+        order: 0,
+      },
+      {
+        id: "c",
+        name: "c",
+        tags: ["dragon"],
+        groupId: UNGROUPED_SAVED_SEARCH_GROUP_ID,
+        order: 1,
+      },
+    );
+    expect(mergeSavedSearches(target, source)).toBe(1);
+    expect(target.entries).toHaveLength(2);
   });
 });

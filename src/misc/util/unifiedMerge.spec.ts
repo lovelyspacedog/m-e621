@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   bufferedCount,
   initUnifiedMergeState,
+  resetUnifiedMergeState,
+  seedUnifiedMergeAfterLegacy,
   takeMergedFromBuffers,
 } from "./unifiedMerge";
 import type { MergeablePost } from "./unifiedMerge";
+import { postFeedKey } from "./postOrigin";
 
 const post = (
   originMode: string,
@@ -33,6 +36,11 @@ describe("takeMergedFromBuffers", () => {
       "e621:9",
       "e621:8",
     ]);
+    expect(taken.map((p) => postFeedKey(p))).toEqual([
+      "e621:10",
+      "e621:9",
+      "e621:8",
+    ]);
     expect(remaining[0]).toEqual([]);
     expect(remaining[1].map((p) => p.id)).toEqual([1, 2]);
   });
@@ -53,5 +61,18 @@ describe("initUnifiedMergeState", () => {
     expect(state.lastEmittedPage).toBe(0);
     expect(state.children.map((c) => c.nextPage)).toEqual([1, 1]);
     expect(bufferedCount(state)).toBe(0);
+  });
+});
+
+describe("seedUnifiedMergeAfterLegacy / resetUnifiedMergeState", () => {
+  it("seeds nextPage after a page jump", () => {
+    const state = seedUnifiedMergeAfterLegacy("k", ["e621", "inkbunny"], 3);
+    expect(state.lastEmittedPage).toBe(3);
+    expect(state.children.map((c) => c.nextPage)).toEqual([4, 4]);
+    expect(state.children.every((c) => c.buffer.length === 0)).toBe(true);
+  });
+
+  it("reset clears sticky state", () => {
+    expect(resetUnifiedMergeState()).toBeNull();
   });
 });

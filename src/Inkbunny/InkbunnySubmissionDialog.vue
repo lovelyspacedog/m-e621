@@ -35,7 +35,7 @@
         />
 
         <div class="ib-media-wrap">
-          <div v-if="loadingDetails" class="ib-writing">Loading…</div>
+          <div v-if="showLoading" class="ib-writing">Loading pages…</div>
           <ruffle-player v-else-if="isFlash" class="ib-media" style="min-height: 400px" :url="currentFileUrl || null" />
           <video
             v-else-if="isVideo && currentFileUrl"
@@ -108,6 +108,25 @@
             <div class="ib-info-artist">{{ artist || "Unknown artist" }}</div>
           </div>
           <div class="ib-info-actions">
+            <v-btn
+              v-if="canSaveLocal"
+              variant="tonal"
+              size="x-small"
+              :loading="savingLocal"
+              prepend-icon="mdi-content-save"
+              @click.stop="saveCurrentOrAll"
+            >
+              {{ files.length > 1 ? "Save all" : "Save" }}
+            </v-btn>
+            <v-btn
+              v-if="canSaveLocal && files.length > 1"
+              variant="text"
+              size="x-small"
+              :loading="savingLocal"
+              @click.stop="saveCurrentFileOnly"
+            >
+              Save page
+            </v-btn>
             <v-btn
               :href="submissionHref"
               target="_blank"
@@ -210,8 +229,20 @@ import {
 } from "@/worker/inkbunny/api";
 import TagWithMenu from "@/Tag/TagWithMenu.vue";
 import RufflePlayer from "@/Post/RufflePlayer.vue";
-import { useShortcutService, useUiStore } from "@/services";
+import { usePostsStore, useShortcutService, useSnackbarStore, useUiStore } from "@/services";
 import { openPostOnSourceSite } from "@/misc/util/url";
+import {
+  inkbunnyFileExt,
+  inkbunnyFileUrl,
+  injectMultiFilePageSuffix,
+  postInkbunnyGalleryFiles,
+} from "@/misc/util/inkbunnyGallery";
+import {
+  buildSaveRelativePath,
+  saveInkbunnyGalleryLocally,
+  savePostLocally,
+} from "@/misc/util/saveLocal";
+import { toRaw } from "vue";
 
 const KEYWORD_LIMIT = 6;
 
@@ -226,8 +257,12 @@ const emit = defineEmits(["close", "next-post", "previous-post"]);
 
 const fileIndex = ref(0);
 const keywordsExpanded = ref(false);
+const savingLocal = ref(false);
 const shortcutService = useShortcutService();
 const ui = useUiStore();
+const snackbar = useSnackbarStore();
+
+const canSaveLocal = computed(() => Boolean(props.current));
 
 const open = computed({
   get: () => !!props.current,
@@ -386,6 +421,72 @@ const ratingLabel = computed(() => {
 
 const thumbUrl = (file: InkbunnyFile) =>
   file.thumbnail_url_medium || file.thumbnail_url_large || file.file_url_preview || "";
+
+const awaitingGalleryFiles = computed(() => {
+  const m = meta.value;
+  if (!m || m.detailsLoaded) return false;
+  return (m.pagecount ?? 1) > 1 && (m.files?.length || 0) <= 1;
+});
+const showLoading = computed(
+  () => props.loadingDetails || awaitingGalleryFiles.value,
+);
+
+const saveCurrentOrAll = async () => {
+  if (!props.current || savingLocal.value) return;
+  savingLocal.value = true;
+  try {
+    const gallery = postInkbunnyGalleryFiles(props.current);
+    if (gallery.length > 1) {
+      await saveInkbunnyGalleryLocally(props.current, gallery);
+    } else {
+      await savePostLocally(props.current, { skipGalleryExpand: true });
+    }
+  } catch (e: any) {
+    snackbar.addMessage(e?.message || String(e));
+  } finally {
+    savingLocal.value = false;
+  }
+};
+
+const saveCurrentFileOnly = async () => {
+  if (!props.current || savingLocal.value) return;
+  const file = currentFile.value;
+  const url = file ? inkbunnyFileUrl(file) : "";
+  if (!file || !url) {
+    snackbar.addMessage("No file URL on this page");
+    return;
+  }
+  savingLocal.value = true;
+  try {
+    const raw = toRaw(props.current);
+    const ext = inkbunnyFileExt(file);
+    const pagePost = {
+      ...raw,
+      file: {
+        ...raw.file,
+        url,
+        ext,
+        size: 0,
+        width: file.full_size_x || raw.file.width,
+        height: file.full_size_y || raw.file.height,
+      },
+    } as EnhancedPost;
+    const base = await buildSaveRelativePath(
+      pagePost,
+      usePostsStore().saveLocalPathTemplate || "%artist%/%tags 1-5%.%ext%",
+    );
+    const total = Math.max(files.value.length, 1);
+    const path = injectMultiFilePageSuffix(base, fileIndex.value + 1, total);
+    await savePostLocally(pagePost, {
+      skipGalleryExpand: true,
+      relativePathOverride: path,
+    });
+  } catch (e: any) {
+    snackbar.addMessage(e?.message || String(e));
+  } finally {
+    savingLocal.value = false;
+  }
+};
 
 watch(
   () => props.current?.id,

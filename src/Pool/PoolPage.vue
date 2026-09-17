@@ -82,9 +82,10 @@ import {
 } from "@/misc/util/createTagQuery";
 import type { Pool } from "@/worker/api";
 import type { EnhancedPost } from "@/worker/ApiService";
-
-const GALLERY_CHUNK_SIZE = 24;
-const SCROLL_CHUNK_SIZE = 10;
+import {
+  GALLERY_CHUNK_SIZE,
+  SCROLL_CHUNK_SIZE,
+} from "@/misc/util/comicReader";
 
 const route = useRoute();
 const account = useAccountStore();

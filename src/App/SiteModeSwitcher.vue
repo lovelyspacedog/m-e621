@@ -40,6 +40,7 @@
       class="text-none"
       :variant="siteMode.activeMode === mode ? 'flat' : 'outlined'"
       :color="siteMode.activeMode === mode ? 'secondary' : 'white'"
+      :disabled="!siteMode.isModeOnlineCapable(mode)"
       @click="onSelect(mode)"
     >
       <v-icon start size="18">{{ modeIcon(mode) }}</v-icon>
@@ -105,6 +106,9 @@ const selectItems = computed(() =>
   siteMode.siteModes.map((mode) => ({
     value: mode,
     title: modeLabel(mode),
+    props: {
+      disabled: !siteMode.isModeOnlineCapable(mode),
+    },
   })),
 );
 

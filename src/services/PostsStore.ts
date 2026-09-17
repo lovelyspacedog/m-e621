@@ -173,6 +173,14 @@ export const usePostsStore = defineStore("posts", () => {
       main.posts.videoPlaybackRate = value;
     },
   });
+  const playbackPrefs = computed({
+    get() {
+      return main.posts.playbackPrefs || {};
+    },
+    set(value) {
+      main.posts.playbackPrefs = value || {};
+    },
+  });
   const animateFeedGifs = computed({
     get() {
       return main.posts.animateFeedGifs;
@@ -261,6 +269,7 @@ export const usePostsStore = defineStore("posts", () => {
     videoVolume,
     videoMuted,
     videoPlaybackRate,
+    playbackPrefs,
     animateFeedGifs,
     autoplayFeedVideo,
     autoplayFeedVideoSilent,

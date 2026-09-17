@@ -1,4 +1,4 @@
-/** Tauri Local FS bridge — pick/list/read for Firefox desktop shell. */
+/** Tauri Local FS bridge — pick/list/read/write for desktop shell. */
 
 export type TauriLocalFileEntry = {
   relativePath: string;
@@ -27,6 +27,21 @@ export const isTauriShell = (): boolean => getInvoke() !== null;
 
 /** Local mode works with Chromium FSA or the Tauri desktop shell. */
 export const supportsLocalBrowse = (): boolean => {
+  if (typeof window === "undefined") return false;
+  if (
+    typeof (window as Window & { showDirectoryPicker?: unknown })
+      .showDirectoryPicker === "function"
+  ) {
+    return true;
+  }
+  return isTauriShell();
+};
+
+/**
+ * Writes (remux, sidecar, save-into-folder): Chromium FSA, or Tauri once a
+ * browse root is picked (caller must supply the root path).
+ */
+export const supportsLocalWrites = (): boolean => {
   if (typeof window === "undefined") return false;
   if (
     typeof (window as Window & { showDirectoryPicker?: unknown })
@@ -84,6 +99,36 @@ export const tauriReadLocalFile = async (
     relativePath,
   });
   return Uint8Array.from(bytes || []);
+};
+
+export const tauriWriteLocalFile = async (
+  root: string,
+  relativePath: string,
+  data: ArrayBuffer | Uint8Array,
+): Promise<void> => {
+  const invoke = getInvoke();
+  if (!invoke) throw new Error("Not running inside Tauri");
+  const bytes =
+    data instanceof Uint8Array ? Array.from(data) : Array.from(new Uint8Array(data));
+  await invoke<void>("write_local_file", { root, relativePath, bytes });
+};
+
+export const tauriRemoveLocalFile = async (
+  root: string,
+  relativePath: string,
+): Promise<void> => {
+  const invoke = getInvoke();
+  if (!invoke) throw new Error("Not running inside Tauri");
+  await invoke<void>("remove_local_file", { root, relativePath });
+};
+
+export const tauriReadLocalText = async (
+  root: string,
+  relativePath: string,
+): Promise<string> => {
+  const invoke = getInvoke();
+  if (!invoke) throw new Error("Not running inside Tauri");
+  return invoke<string>("read_local_text", { root, relativePath });
 };
 
 export const tauriRootDisplayName = (root: string): string => {

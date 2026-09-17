@@ -79,6 +79,9 @@ export const UNIFIED_CHILD_MODES: UnifiedChildMode[] = ["e621", "e6ai", "furboor
 
 export type UnifiedSites = Record<UnifiedChildMode, boolean>;
 
+/** Unified Posts feed: tag search vs following/watch merge. */
+export type UnifiedFeedSource = "search" | "following";
+
 export const defaultUnifiedSites = (): UnifiedSites => ({
   e621: true,
   e6ai: true,
@@ -148,12 +151,28 @@ export interface SiteProfile {
   };
   /** Which backends Unified mode queries. Only used on the unified profile. */
   unifiedSites?: UnifiedSites;
+  /** Unified Posts source: tag search (default) or following/watch merge. */
+  unifiedFeedSource?: UnifiedFeedSource;
 }
 
 // export interface FavoritedSearch {
 //   tags: string[];
 //   firstPost?: number;
 // }
+
+export type PlaybackMediaKind = "video" | "audio";
+
+export type PlaybackPrefSlice = {
+  volume?: number;
+  muted?: boolean;
+  playbackRate?: number;
+};
+
+/** Optional HTML5 playback overrides. SWF/Ruffle not covered. */
+export type PlaybackPrefs = {
+  byKind?: Partial<Record<PlaybackMediaKind, PlaybackPrefSlice>>;
+  byOrigin?: Partial<Record<SiteMode, PlaybackPrefSlice>>;
+};
 
 export interface ISettingsServiceState {
   configVersion:
@@ -190,7 +209,9 @@ export interface ISettingsServiceState {
     | 30
     | 31
     | 32
-    | 33;
+    | 33
+    | 34
+    | 35;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];
@@ -251,6 +272,12 @@ export interface ISettingsServiceState {
     videoVolume: number;
     videoMuted: boolean;
     videoPlaybackRate: number;
+    /**
+     * Optional HTML5 playback overrides by media kind and/or origin.
+     * Missing keys fall back to videoVolume / videoMuted / videoPlaybackRate.
+     * SWF/Ruffle is not covered (TODO).
+     */
+    playbackPrefs: PlaybackPrefs;
     /** Load full GIF file.url in feed so previews animate (sample/preview are still). */
     animateFeedGifs: boolean;
     /** Autoplay looped video while the feed card is on screen. */

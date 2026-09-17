@@ -1,8 +1,12 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 
-// See here how to get started:
-// https://playwright.dev/docs/intro
-test('visits the app root url', async ({ page }) => {
-  await page.goto('/');
-  await expect(page.locator('h1')).toHaveText('You did it!');
-})
+/** Hash-router smoke — not a full e2e suite. Prefer `npm run test:unit` as the merge gate. */
+test("landing hash route loads app shell", async ({ page }) => {
+  await page.goto("/#/");
+  await expect(page.locator("#app")).toBeVisible();
+});
+
+test("posts hash route loads", async ({ page }) => {
+  await page.goto("/#/posts");
+  await expect(page.locator("#app")).toBeVisible();
+});

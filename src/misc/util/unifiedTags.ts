@@ -11,8 +11,12 @@ const E621_CATEGORY_PREFIXES = new Set([
   "lore",
 ]);
 
-/** order:* tags each child mapper already understands (besides e621 family = all). */
-const ORDER_ALLOWED: Record<UnifiedChildMode, ReadonlySet<string>> = {
+/**
+ * Explicit per-mode order:* allowlist (supported).
+ * e621/e6ai keep all order:* (empty set = unused).
+ * Assumption: values match existing child mappers — do not invent new operators.
+ */
+export const ORDER_ALLOWED: Record<UnifiedChildMode, ReadonlySet<string>> = {
   e621: new Set(), // unused — all kept
   e6ai: new Set(),
   furbooru: new Set([
@@ -55,7 +59,13 @@ const PHILOMENA_BARE_RATINGS = new Set([
 
 export type PreparedChildTags = {
   tags: string[];
-  /** Original tokens dropped or rewritten away for this child. */
+  /** Tokens rewritten to a different form for this child. */
+  remapped: string[];
+  /** Tokens removed with no replacement. */
+  dropped: string[];
+  /**
+   * @deprecated Prefer remapped + dropped. Union for older callers/tests.
+   */
   stripped: string[];
 };
 
@@ -71,17 +81,28 @@ const translateFurbooruRating = (lower: string): string | null => {
   return null;
 };
 
+const finish = (
+  tags: string[],
+  remapped: string[],
+  dropped: string[],
+): PreparedChildTags => ({
+  tags,
+  remapped,
+  dropped,
+  stripped: [...remapped, ...dropped],
+});
+
 /**
  * Rewrite Unified query tags for one federated child.
- * Content tags pass through; site-foreign metatags are stripped or remapped.
+ * Content tags pass through; site-foreign metatags are dropped or remapped.
  */
 export const prepareUnifiedChildTags = (
   mode: UnifiedChildMode,
   tags: string[],
 ): PreparedChildTags => {
-    if (isE621Family(mode)) {
+  if (isE621Family(mode)) {
     const out: string[] = [];
-    const stripped: string[] = [];
+    const dropped: string[] = [];
     for (const raw of tags.filter(Boolean)) {
       const tag = raw.trim();
       const lower = tag.toLowerCase().replace(/^-/, "");
@@ -91,16 +112,17 @@ export const prepareUnifiedChildTags = (
         lower === "stars:me" ||
         lower === "type:audio"
       ) {
-        stripped.push(tag);
+        dropped.push(tag);
         continue;
       }
       out.push(tag);
     }
-    return { tags: out, stripped };
+    return finish(out, [], dropped);
   }
 
   const out: string[] = [];
-  const stripped: string[] = [];
+  const remapped: string[] = [];
+  const dropped: string[] = [];
 
   for (const raw of tags.filter(Boolean)) {
     const tag = raw.trim();
@@ -115,20 +137,16 @@ export const prepareUnifiedChildTags = (
       if (ORDER_ALLOWED[mode].has(core)) {
         out.push(negated ? `-${coreRaw}` : tag);
       } else {
-        stripped.push(tag);
+        dropped.push(tag);
       }
       continue;
     }
 
     // --- favorites ---
-    if (
-      core === "favs:me" ||
-      core === "fav:me" ||
-      core === "stars:me"
-    ) {
+    if (core === "favs:me" || core === "fav:me" || core === "stars:me") {
       if (mode === "furbooru") {
         out.push(negated ? "-my:faves" : "my:faves");
-        stripped.push(tag);
+        remapped.push(tag);
       } else if (
         mode === "inkbunny" ||
         mode === "furaffinity" ||
@@ -136,15 +154,14 @@ export const prepareUnifiedChildTags = (
         mode === "itaku" ||
         mode === "sofurry"
       ) {
-        // Itaku mapper also accepts stars:me; normalize favs→stars there.
         if (mode === "itaku" && (core === "favs:me" || core === "fav:me")) {
           out.push(negated ? "-stars:me" : "stars:me");
-          stripped.push(tag);
+          remapped.push(tag);
         } else {
           out.push(tag);
         }
       } else {
-        stripped.push(tag);
+        dropped.push(tag);
       }
       continue;
     }
@@ -159,7 +176,7 @@ export const prepareUnifiedChildTags = (
       ) {
         out.push(tag);
       } else {
-        stripped.push(tag);
+        dropped.push(tag);
       }
       continue;
     }
@@ -172,12 +189,12 @@ export const prepareUnifiedChildTags = (
         const mapped = translateFurbooruRating(core);
         if (mapped) {
           out.push(negated ? `-${mapped}` : mapped);
-          if (mapped !== core) stripped.push(tag);
+          if (mapped !== core) remapped.push(tag);
         } else {
-          stripped.push(tag);
+          dropped.push(tag);
         }
       } else {
-        stripped.push(tag);
+        dropped.push(tag);
       }
       continue;
     }
@@ -192,7 +209,7 @@ export const prepareUnifiedChildTags = (
       ) {
         out.push(tag);
       } else {
-        stripped.push(tag);
+        dropped.push(tag);
       }
       continue;
     }
@@ -208,10 +225,9 @@ export const prepareUnifiedChildTags = (
       ) {
         out.push(tag);
       } else if (mode === "furbooru") {
-        // Philomena uses bare names / uploader filters — drop structured user:
-        stripped.push(tag);
+        dropped.push(tag);
       } else {
-        stripped.push(tag);
+        dropped.push(tag);
       }
       continue;
     }
@@ -234,17 +250,17 @@ export const prepareUnifiedChildTags = (
           } else {
             out.push(negated ? `-${value}` : value);
           }
-          stripped.push(tag);
+          remapped.push(tag);
           continue;
         }
         if (value) {
           out.push(negated ? `-${value}` : value);
-          stripped.push(tag);
+          remapped.push(tag);
           continue;
         }
       }
       // Unknown metatag for this child — don't search as literal junk
-      stripped.push(tag);
+      dropped.push(tag);
       continue;
     }
 
@@ -252,5 +268,27 @@ export const prepareUnifiedChildTags = (
     out.push(tag);
   }
 
-  return { tags: out, stripped };
+  return finish(out, remapped, dropped);
+};
+
+/** Human-readable Unified tag-prep warning for one child. */
+export const formatUnifiedTagWarning = (
+  childLabel: string,
+  prepared: PreparedChildTags,
+): string | null => {
+  const parts: string[] = [];
+  if (prepared.dropped.length) {
+    const sample = prepared.dropped.slice(0, 4).join(", ");
+    const more =
+      prepared.dropped.length > 4 ? ` (+${prepared.dropped.length - 4})` : "";
+    parts.push(`dropped ${sample}${more}`);
+  }
+  if (prepared.remapped.length) {
+    const sample = prepared.remapped.slice(0, 4).join(", ");
+    const more =
+      prepared.remapped.length > 4 ? ` (+${prepared.remapped.length - 4})` : "";
+    parts.push(`remapped ${sample}${more}`);
+  }
+  if (!parts.length) return null;
+  return `${childLabel}: ${parts.join("; ")}`;
 };

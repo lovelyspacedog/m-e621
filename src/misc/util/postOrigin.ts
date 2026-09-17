@@ -1,10 +1,11 @@
-import type { ISettingsServiceState, SiteMode, UnifiedChildMode } from "@/services/types";
+import type { ISettingsServiceState, SiteMode, UnifiedChildMode, UnifiedFeedSource } from "@/services/types";
 import {
   SITE_MODE_URLS,
   UNIFIED_CHILD_MODES,
   defaultUnifiedSites,
 } from "@/services/types";
 import { createEmptySiteProfile } from "@/services/siteProfiles";
+import { modeSupportsFollowing } from "@/misc/util/siteCapabilities";
 import { toRaw } from "vue";
 
 export type UnifiedChildFetchArgs = {
@@ -18,6 +19,7 @@ export type UnifiedChildFetchArgs = {
 export type UnifiedFetchArgs = {
   children: UnifiedChildFetchArgs[];
   sharedBlacklist: string[][];
+  feedSource: UnifiedFeedSource;
 };
 
 /** Unified itself or any federated child backend (not Local / Tailspace). */
@@ -172,9 +174,21 @@ export const buildUnifiedFetchArgs = (
     ...defaultUnifiedSites(),
     ...(toRaw(state.profiles.unified?.unifiedSites) || {}),
   };
+  const feedSource: UnifiedFeedSource =
+    state.profiles.unified?.unifiedFeedSource === "following"
+      ? "following"
+      : "search";
   const children: UnifiedChildFetchArgs[] = [];
   for (const mode of UNIFIED_CHILD_MODES) {
     if (!options?.includeDisabled && !sites[mode]) continue;
+    // Following source only queries capable children; bookmark fetches use includeDisabled.
+    if (
+      feedSource === "following" &&
+      !options?.includeDisabled &&
+      !modeSupportsFollowing(mode)
+    ) {
+      continue;
+    }
     const profile = toRaw(state.profiles[mode]) || createEmptySiteProfile(mode);
     const account = toRaw(profile.account) || {
       username: null,
@@ -195,6 +209,7 @@ export const buildUnifiedFetchArgs = (
   return {
     children,
     sharedBlacklist: shared.map((line) => [...(toRaw(line) || [])]),
+    feedSource,
   };
 };
 

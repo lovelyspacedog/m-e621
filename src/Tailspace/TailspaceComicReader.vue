@@ -409,30 +409,20 @@ import {
   type TailspaceComicDetail,
 } from "@/worker/tailspace/api";
 import { useTailspaceSession } from "./useTailspaceSession";
+import {
+  buildChunkButtons,
+  GALLERY_CHUNK_SIZE,
+  loadComicFullWidthScroll,
+  loadComicViewMode,
+  saveComicFullWidthScroll,
+  saveComicViewMode,
+  SCROLL_CHUNK_SIZE,
+  type ComicReaderViewMode,
+} from "@/misc/util/comicReader";
 
-type ViewMode = "gallery" | "scroll";
+type ViewMode = ComicReaderViewMode;
 const VIEW_MODE_KEY = "tailspace-comic-view-mode";
 const FULL_WIDTH_KEY = "tailspace-comic-scroll-full-width";
-/** Thumbs are cheap — show more per chunk. */
-const GALLERY_CHUNK_SIZE = 24;
-/** Full-res scroll images are heavy — smaller chunks. */
-const SCROLL_CHUNK_SIZE = 10;
-
-function loadViewMode(): ViewMode {
-  try {
-    const v = localStorage.getItem(VIEW_MODE_KEY);
-    if (v === "scroll" || v === "gallery") return v;
-  } catch { /* ignore */ }
-  return "gallery";
-}
-
-function loadFullWidthScroll(): boolean {
-  try {
-    return localStorage.getItem(FULL_WIDTH_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
 
 const route = useRoute();
 const router = useRouter();
@@ -445,8 +435,8 @@ const error = ref<string | null>(null);
 const viewerOpen = ref(false);
 const pageIndex = ref(0);
 const viewerEl = ref<HTMLElement | null>(null);
-const viewMode = ref<ViewMode>(loadViewMode());
-const fullWidthScroll = ref(loadFullWidthScroll());
+const viewMode = ref<ViewMode>(loadComicViewMode(VIEW_MODE_KEY));
+const fullWidthScroll = ref(loadComicFullWidthScroll(FULL_WIDTH_KEY));
 /** 1-based chunk within gallery/scroll (not the comic page number). */
 const chunkPage = ref(Number(route.query.chunk) || 1);
 const yourStars = ref(0);
@@ -458,13 +448,11 @@ const commentSending = ref(false);
 const actionError = ref<string | null>(null);
 
 watch(viewMode, (mode) => {
-  try { localStorage.setItem(VIEW_MODE_KEY, mode); } catch { /* ignore */ }
+  saveComicViewMode(VIEW_MODE_KEY, mode);
 });
 
 watch(fullWidthScroll, (on) => {
-  try {
-    localStorage.setItem(FULL_WIDTH_KEY, on ? "1" : "0");
-  } catch { /* ignore */ }
+  saveComicFullWidthScroll(FULL_WIDTH_KEY, on);
 });
 
 const comicName = computed(() => {
@@ -520,20 +508,9 @@ const chunkRangeLabel = computed(() => {
   return `${first}–${last} / ${pages.length}`;
 });
 
-const chunkButtons = computed((): (number | "...")[] => {
-  const n = chunkCount.value;
-  const cur = chunkPage.value;
-  const add = (pages: (number | "...")[], p: number) => {
-    if (!pages.includes(p)) pages.push(p);
-  };
-  const pages: (number | "...")[] = [];
-  add(pages, 1);
-  if (cur > 3) pages.push("...");
-  for (let p = Math.max(2, cur - 1); p <= Math.min(n - 1, cur + 1); p++) add(pages, p);
-  if (cur < n - 2) pages.push("...");
-  if (n > 1) add(pages, n);
-  return pages;
-});
+const chunkButtons = computed(() =>
+  buildChunkButtons(chunkCount.value, chunkPage.value),
+);
 
 function readerRoute(name: string) {
   return { name: "TailspaceComic", params: { name } };

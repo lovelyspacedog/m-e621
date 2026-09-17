@@ -122,6 +122,8 @@ Tailspace accepts a password or `tailspace_session` cookie. Itaku accepts an `Au
 
 FurAffinity search scrapes its HTML search endpoint and deliberately waits between requests.
 
+Vite sets DNS `ipv4first` for Furbooru Cloudflare IPv6 520s from some hosts. **`serve.py` / Docker do not apply that Node setting** — if Furbooru 520s under Docker, prefer IPv4 at the host resolver or ensure `curl_cffi` is installed in the image (it is, via `requirements.txt`).
+
 ### Docker
 
 ```bash
@@ -135,6 +137,8 @@ Or:
 docker build -t m-e621 .
 docker run --rm -p 18621:18621 m-e621
 ```
+
+CI also publishes this fork’s image (with `serve.py`, not upstream static) to **GHCR** on push to `main`/`master` as `ghcr.io/<owner>/<repo>:latest` (and sha tags). Prefer compose for local work; pull from GHCR when you want a prebuilt personal registry image.
 
 The container defaults to `M_E621_HOST=0.0.0.0`, `M_E621_PORT=18621`, `M_E621_ROOT=/app/dist`, and `M_E621_CONFIG=/data/config`.
 

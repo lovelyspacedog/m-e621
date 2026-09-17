@@ -80,6 +80,14 @@ print(f"created pull token at {p}")
 PY
 fi
 
+# Server-side gate for POST /api/git/pull (see serve.py _git_pull_enabled).
+mkdir -p "$CONFIG_DIR"
+if [[ -f "$CONFIG_DIR/env" ]] && grep -q '^M_E621_GIT_PULL=' "$CONFIG_DIR/env" 2>/dev/null; then
+  :
+else
+  echo "M_E621_GIT_PULL=true" >>"$CONFIG_DIR/env"
+fi
+
 need_build=0
 if [[ "$before" != "$after" ]]; then
   need_build=1

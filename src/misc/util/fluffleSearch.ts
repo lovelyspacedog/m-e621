@@ -33,11 +33,23 @@ export interface FluffleSearchResponse {
 }
 
 const FLUFFLE_STILL_EXTS = new Set(["jpg", "jpeg", "png", "webp", "gif"]);
+/** Fluffle exact-search max upload (matches serve.py / Vite proxy). */
+export const FLUFFLE_MAX_BYTES = 4 * 1024 * 1024;
 
 export function isFluffleStillPost(post: EnhancedPost | null | undefined): boolean {
   if (!post) return false;
   const ext = (post.file?.ext || "").toLowerCase();
   return FLUFFLE_STILL_EXTS.has(ext);
+}
+
+/** Still + resolvable URL + known size under 4 MiB (unknown size allowed until fetch). */
+export function postSupportsFluffle(post: EnhancedPost | null | undefined): boolean {
+  if (!isFluffleStillPost(post) || !fluffleImageUrl(post!)) return false;
+  const size = post?.file?.size;
+  if (typeof size === "number" && size > 0 && size > FLUFFLE_MAX_BYTES) {
+    return false;
+  }
+  return true;
 }
 
 /** Prefer sample → preview → file for smaller payloads. */
@@ -58,6 +70,13 @@ export async function searchFluffle(
   post: EnhancedPost,
   limit = 8,
 ): Promise<FluffleResult[]> {
+  if (!isFluffleStillPost(post)) {
+    throw new Error("Fluffle only supports still images");
+  }
+  const size = post.file?.size;
+  if (typeof size === "number" && size > FLUFFLE_MAX_BYTES) {
+    throw new Error("Image is over Fluffle’s 4 MiB limit");
+  }
   const url = fluffleImageUrl(post);
   if (!url) {
     throw new Error("No searchable still image on this post");

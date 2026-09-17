@@ -2,7 +2,7 @@ import { useSavedSearchStore } from "@/services";
 import { useFavoritesStore } from "@/services/FavoriteStore";
 import { useSiteModeStore } from "@/services/SiteModeStore";
 import { useSiteLabels } from "@/misc/util/siteLabels";
-import { isE621FamilyMode } from "@/misc/util/siteCapabilities";
+import { isE621FamilyMode, modeSupportsPools } from "@/misc/util/siteCapabilities";
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 
@@ -83,15 +83,19 @@ export const useTrailingNavigationItems = () => {
       ].map((item) => resolveItem(router, item));
     }
 
+    const poolItems = modeSupportsPools(siteMode.activeMode)
+      ? [
+          {
+            icon: "mdi-bookshelf",
+            name: "Pools",
+            exact: false,
+            to: {
+              name: "Pools",
+            },
+          },
+        ]
+      : [];
     const remoteItems = [
-      {
-        icon: "mdi-bookshelf",
-        name: "Pools",
-        exact: false,
-        to: {
-          name: "Pools",
-        },
-      },
       {
         icon: "mdi-chart-timeline-variant-shimmer",
         name: "Post Suggester",
@@ -142,6 +146,7 @@ export const useTrailingNavigationItems = () => {
             },
           ]
         : []),
+      ...poolItems,
       ...(isE621FamilyMode(siteMode.activeMode) ? remoteItems : []),
       settings,
     ].map((item) => resolveItem(router, item));

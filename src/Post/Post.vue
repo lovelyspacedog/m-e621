@@ -29,6 +29,7 @@
         :unplayable="isUnplayable"
         :unavailable="isUnavailable"
         :local-path="post.__meta?.localPath || ''"
+        :origin-mode="post.__meta?.originMode || ''"
         @open-post="setClicked"
         @remuxed="$emit('remuxed')"
       />

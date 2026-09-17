@@ -20,7 +20,8 @@ localforage.config({
 
 const log = debug("app:PersistanceService");
 
-const toPlain = (value: unknown): unknown => {
+/** Plain clone for localforage. Must not run inside deep `$subscribe` (freezes tab). */
+export const toPlain = (value: unknown): unknown => {
   const raw = toRaw(value);
   if (Array.isArray(raw)) return raw.map(toPlain);
   if (raw && typeof raw === "object") {
@@ -485,6 +486,23 @@ class PersistanceService {
       newState.watchedPools = { entries: [] };
       newState.configVersion = 33;
     }
+    if (newState.configVersion < 34) {
+      if (newState.profiles?.unified) {
+        if (
+          newState.profiles.unified.unifiedFeedSource !== "search" &&
+          newState.profiles.unified.unifiedFeedSource !== "following"
+        ) {
+          newState.profiles.unified.unifiedFeedSource = "search";
+        }
+      }
+      newState.configVersion = 34;
+    }
+    if (newState.configVersion < 35) {
+      if (!newState.posts.playbackPrefs) {
+        newState.posts.playbackPrefs = {};
+      }
+      newState.configVersion = 35;
+    }
 
     if (!newState.watchedPools || !Array.isArray(newState.watchedPools.entries)) {
       newState.watchedPools = { entries: [] };
@@ -539,6 +557,12 @@ class PersistanceService {
     }
     if (newState.profiles.unified.unifiedSites.sofurry === undefined) {
       newState.profiles.unified.unifiedSites.sofurry = true;
+    }
+    if (
+      newState.profiles.unified.unifiedFeedSource !== "search" &&
+      newState.profiles.unified.unifiedFeedSource !== "following"
+    ) {
+      newState.profiles.unified.unifiedFeedSource = "search";
     }
     if (!newState.profiles.e621.account) {
       // Do NOT copy active-mode mirrors here: account/blacklist/etc. may
@@ -617,6 +641,9 @@ class PersistanceService {
     }
     if (newState.posts.videoPlaybackRate == null) {
       newState.posts.videoPlaybackRate = 1;
+    }
+    if (!newState.posts.playbackPrefs) {
+      newState.posts.playbackPrefs = {};
     }
     if (newState.posts.animateFeedGifs === undefined) {
       newState.posts.animateFeedGifs = true;

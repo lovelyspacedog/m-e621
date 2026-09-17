@@ -33,7 +33,7 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 33,
+  configVersion: 35,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -163,6 +163,7 @@ export const defaultSettings: ISettingsServiceState = {
     videoVolume: 1,
     videoMuted: true,
     videoPlaybackRate: 1,
+    playbackPrefs: {},
     animateFeedGifs: true,
     autoplayFeedVideo: true,
     autoplayFeedVideoSilent: true,

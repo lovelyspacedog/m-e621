@@ -86,3 +86,10 @@ export const seedUnifiedMergeAfterLegacy = <T extends MergeablePost>(
     exhausted: false,
   })),
 });
+
+/**
+ * Drop sticky Unified leftovers. Call whenever tags, children, feed source,
+ * or mode change so sequential pages cannot reuse discarded posts.
+ */
+export const resetUnifiedMergeState = <T extends MergeablePost>(): UnifiedMergeState<T> | null =>
+  null;

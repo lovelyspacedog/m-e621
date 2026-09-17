@@ -41,3 +41,19 @@ export function isDocumentPost(post: DocumentLikePost | null | undefined): boole
     /^(text|story|poetry)$/i.test(faType)
   );
 }
+
+/** Legacy OLE `.doc` — no in-app preview (RTF/DOCX only). */
+export function isUnsupportedLegacyDoc(
+  post: DocumentLikePost | null | undefined,
+): boolean {
+  if (!post) return false;
+  const ext = (post.file?.ext || urlExt(post.file?.url) || "").toLowerCase();
+  return ext === "doc";
+}
+
+/** RTF/DOCX/text/pdf/html and story kinds — not legacy `.doc`. */
+export function postSupportsInAppDocumentPreview(
+  post: DocumentLikePost | null | undefined,
+): boolean {
+  return isDocumentPost(post) && !isUnsupportedLegacyDoc(post);
+}

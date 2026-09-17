@@ -88,7 +88,7 @@ UI (Vue pages)
 
 **State**
 
-- `useMainStore` (`src/services/state.ts`) is a clone of `defaultSettings` (`configVersion` **33**).
+- `useMainStore` (`src/services/state.ts`) is a clone of `defaultSettings` (`configVersion` **35**).
 - Domain stores are mostly getters/setters over slices of that tree.
 - **Profile mirrors:** live `account` / `blacklist` / `favorites` / `searches` / `history` on main state are copied into `profiles[activeMode]` on save and mode switch (`siteProfiles.ts`). Always sync both; do not persist only the detached copy.
 - `PersistanceService` (filename spelling is upstream) writes the whole tree to localforage. **Never `JSON.stringify` reactive proxies inside `$subscribe`** — that retriggers the deep watcher and freezes the tab. Snackbar is stripped before save.
@@ -222,10 +222,9 @@ PWA: `registerType: 'prompt'`, update poll every 10 minutes, Workbox max cache *
 - **Story preview:** RTF + DOCX yes; legacy `.doc` remains blocked.
 - **Vuetify defaults:** global `transition: 'no'`, `ripple: false`; `VBtn` variant `text`.
 - **PWA Reload** needs the `controllerchange` workaround in `misc/serviceWorker/register.ts`.
-- **e2e/vue.spec.ts** is leftover Vue scaffold (`h1` “You did it!”). It does not match this app. **Assumption:** Playwright CI is not a reliable gate.
-- **`.github/workflows/playwright.yml` still uses Node 16 + pnpm**, which this repo forbids. **Assumption:** stale upstream CI; prefer local `npm run test:unit`.
-- **`.github/workflows/docker.yml`** still publishes to GHCR on push to main/master. Local docs tell people to `docker compose up --build` instead of the old upstream static image.
-- **`tsconfig.node.json` `include`** lists `vite-furaffinity-proxy.ts` but not the other `vite-*-proxy.ts` files (they are imported from `vite.config.ts`).
+- **`.github/workflows/docker.yml`** publishes the fork Docker image (`serve.py` runtime) to GHCR on push to main/master (`latest` + sha). Local docs still prefer `docker compose up --build`; GHCR is the optional personal registry (FEATURES 7.1 — **keep**).
+- **e2e:** hash-route Playwright smoke; CI uses npm + Node 20. Prefer local `npm run test:unit` as the merge gate.
+- **`tsconfig.node.json` `include`** covers `vite-*-proxy.ts`.
 - Default Unified children (`defaultUnifiedSites`): Weasyl and Itaku default **off**; others on except Tailspace/Local which are never children.
 - `getAppName()` appends a short git hash when `VITE_GIT_COMMIT_INFO` parsed successfully.
 - Fork vs upstream commit URLs use author matching `tony pup` / `lovelyspacedog` (`src/misc/util/git.ts`).

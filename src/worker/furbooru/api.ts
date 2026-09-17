@@ -137,9 +137,30 @@ async function fetchJson<T>(url: string, options: RequestInit = {}, retries = 2)
     );
     try {
       const text = await response.clone().text();
-      if (/Attention Required|cf-browser-verification|Just a moment/i.test(text)) {
+      try {
+        const parsed = JSON.parse(text) as { message?: unknown };
+        if (typeof parsed?.message === "string" && parsed.message.trim()) {
+          lastError = new Error(parsed.message.trim());
+        }
+      } catch {
+        /* not JSON */
+      }
+      if (
+        /Attention Required|cf-browser-verification|Just a moment|I'm not a robot/i.test(
+          text,
+        )
+      ) {
         lastError = new Error(
           `Furbooru blocked by Cloudflare (${response.status}). Retry shortly.`,
+        );
+      } else if (
+        response.status === 501 &&
+        /curl_cffi/i.test(lastError.message)
+      ) {
+        // Keep curl_cffi install hint from furbooru_cf.py
+      } else if (response.status === 501) {
+        lastError = new Error(
+          `Furbooru blocked by Cloudflare (${response.status}). Check curl_cffi / .venv.`,
         );
       }
     } catch {

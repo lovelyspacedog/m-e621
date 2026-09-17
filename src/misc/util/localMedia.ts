@@ -9,7 +9,10 @@ import {
   tauriListLocalMedia,
   tauriPickLocalFolder,
   tauriReadLocalFile,
+  tauriReadLocalText,
+  tauriRemoveLocalFile,
   tauriRootDisplayName,
+  tauriWriteLocalFile,
 } from "@/misc/util/tauriLocalFs";
 import { usePostsStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
@@ -46,6 +49,15 @@ const setTauriLocalRoot = async (root: string | null) => {
   } else {
     await localforage.removeItem(LOCAL_TAURI_ROOT_KEY);
   }
+};
+
+/** Reuse a Tauri path as the Local browse root (e.g. after Save Locally). */
+export const setLocalDirectoryFromTauriRoot = async (root: string) => {
+  await localforage.removeItem(LOCAL_DIR_HANDLE_KEY);
+  await setTauriLocalRoot(root);
+  browseRoot = null;
+  usePostsStore().localDirectoryName = tauriRootDisplayName(root);
+  invalidateLocalMediaIndex();
 };
 
 export const getLocalDirectoryHandle = async (): Promise<FileSystemDirectoryHandle | null> => {
@@ -193,6 +205,8 @@ const POSTER_DIR = ".me621-posters";
 const POSTER_META_KEY = "local_mode_poster_meta";
 const FAVORITES_KEY = "local_mode_favorites";
 const FAVORITES_SIDECAR = ".me621-favorites.json";
+/** Portable resume (and future library fields). Favorites stay in `.me621-favorites.json`. */
+const LIBRARY_SIDECAR = ".me621-library.json";
 const RESUME_KEY = "local_mode_resume";
 
 type ExtraTagsStore = Record<string, Record<string, string[]>>;
@@ -211,6 +225,10 @@ export type LocalResumeState = {
   savedAt: number;
 };
 type ResumeStore = Record<string, LocalResumeState>;
+type LibrarySidecar = {
+  version: 1;
+  resume?: LocalResumeState | null;
+};
 
 const folderName = () => cachedRootName || browseRoot?.name || null;
 const folderKey = () => cachedFolderKey || folderName();
@@ -480,6 +498,20 @@ const readSidecar = async (
 };
 
 const writeSidecar = async () => {
+  const tauriRoot = await getTauriLocalRoot();
+  if (tauriRoot && isTauriShell()) {
+    try {
+      const body = `${JSON.stringify(extraTagsByPath, null, 2)}\n`;
+      await tauriWriteLocalFile(
+        tauriRoot,
+        SIDECAR_NAME,
+        new TextEncoder().encode(body),
+      );
+    } catch {
+      // Folder may be read-only; localforage still has the tags.
+    }
+    return;
+  }
   if (!browseRoot) return;
   try {
     const writableHandle = await browseRoot.getFileHandle(SIDECAR_NAME, {
@@ -592,6 +624,74 @@ export const mergeSidecarTagsForPath = async (
   });
 };
 
+/** Merge tags into `.me621-tags.json` under a Tauri Local browse root. */
+export const mergeSidecarTagsForTauriRoot = async (
+  root: string,
+  relativePath: string,
+  tags: string[],
+): Promise<string[]> => {
+  const cleaned = uniqueTags(
+    tags
+      .map((tag) => tag.trim().toLowerCase())
+      .filter(
+        (tag) =>
+          tag &&
+          !tag.startsWith("order:") &&
+          !tag.startsWith("type:"),
+      ),
+  );
+  if (!cleaned.length || !relativePath) return [];
+
+  return withSidecarMergeLock(async () => {
+    const key = `path:${hashLocalPath(root)}`;
+    const displayName = tauriRootDisplayName(root);
+    const all =
+      (await localforage.getItem<ExtraTagsStore>(EXTRA_TAGS_KEY)) || {};
+    const bucket: Record<string, string[]> = {
+      ...(storeBucket(all, key, displayName) || {}),
+    };
+    try {
+      const text = await tauriReadLocalText(root, SIDECAR_NAME);
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        for (const [path, pathTags] of Object.entries(parsed)) {
+          if (!Array.isArray(pathTags)) continue;
+          bucket[path] = uniqueTags([
+            ...(bucket[path] || []),
+            ...pathTags.filter((t): t is string => typeof t === "string"),
+          ]);
+        }
+      }
+    } catch {
+      /* no sidecar yet */
+    }
+    bucket[relativePath] = uniqueTags([
+      ...(bucket[relativePath] || []),
+      ...cleaned,
+    ]);
+    all[key] = bucket;
+    await localforage.setItem(EXTRA_TAGS_KEY, all);
+    try {
+      const body = `${JSON.stringify(bucket, null, 2)}\n`;
+      await tauriWriteLocalFile(root, SIDECAR_NAME, new TextEncoder().encode(body));
+    } catch {
+      /* localforage still has tags */
+    }
+    const active = await getTauriLocalRoot();
+    if (active === root) {
+      extraTagsByPath = bucket;
+      cachedFolderKey = key;
+      for (const entry of cachedIndex || []) {
+        if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+      }
+      for (const entry of cachedOrdered || []) {
+        if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+      }
+    }
+    return bucket[relativePath] || [];
+  });
+};
+
 /** Flatten e621-shaped post tags for Local sidecar search. */
 export const flattenPostTagsForSidecar = (
   post: { tags?: object | null } | null | undefined,
@@ -642,7 +742,7 @@ const loadExtraTags = async (
   }
 };
 
-/** localforage-only tag load (Tauri path mode — no FSA sidecar yet). */
+/** localforage + optional disk sidecar (Tauri path mode). */
 const loadExtraTagsForKey = async (key: string, legacyName: string) => {
   browseRoot = null;
   try {
@@ -651,6 +751,22 @@ const loadExtraTagsForKey = async (key: string, legacyName: string) => {
     extraTagsByPath = { ...(storeBucket(all, key, legacyName) || {}) };
   } catch {
     extraTagsByPath = {};
+  }
+  const tauriRoot = await getTauriLocalRoot();
+  if (!tauriRoot || !isTauriShell()) return;
+  try {
+    const text = await tauriReadLocalText(tauriRoot, SIDECAR_NAME);
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+    for (const [path, tags] of Object.entries(parsed)) {
+      if (!Array.isArray(tags)) continue;
+      extraTagsByPath[path] = uniqueTags([
+        ...(extraTagsByPath[path] || []),
+        ...tags.filter((tag): tag is string => typeof tag === "string"),
+      ]);
+    }
+  } catch {
+    // No sidecar yet or unreadable.
   }
 };
 
@@ -766,19 +882,119 @@ const readFavoritesSidecar = async (
   }
 };
 
+const readFavoritesSidecarText = (text: string): string[] | null => {
+  try {
+    const parsed = JSON.parse(text);
+    if (!Array.isArray(parsed)) return null;
+    return uniqueTags(
+      parsed.filter((path): path is string => typeof path === "string"),
+    );
+  } catch {
+    return null;
+  }
+};
+
 const writeFavoritesSidecar = async () => {
+  const body = `${JSON.stringify([...favoritedPaths].sort(), null, 2)}\n`;
+  const tauriRoot = await getTauriLocalRoot();
+  if (tauriRoot && isTauriShell()) {
+    try {
+      await tauriWriteLocalFile(
+        tauriRoot,
+        FAVORITES_SIDECAR,
+        new TextEncoder().encode(body),
+      );
+    } catch {
+      // Folder may be read-only; localforage still has favorites.
+    }
+    return;
+  }
   if (!browseRoot) return;
   try {
     const writableHandle = await browseRoot.getFileHandle(FAVORITES_SIDECAR, {
       create: true,
     });
     const writable = await writableHandle.createWritable();
-    await writable.write(
-      `${JSON.stringify([...favoritedPaths].sort(), null, 2)}\n`,
-    );
+    await writable.write(body);
     await writable.close();
   } catch {
     // Folder may be read-only; localforage still has favorites.
+  }
+};
+
+const parseLibrarySidecar = (raw: unknown): LibrarySidecar | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as { version?: unknown; resume?: unknown };
+  if (obj.version !== 1) return null;
+  const resumeRaw = obj.resume;
+  if (resumeRaw == null) return { version: 1, resume: null };
+  if (typeof resumeRaw !== "object") return { version: 1 };
+  const r = resumeRaw as {
+    path?: unknown;
+    videoTime?: unknown;
+    savedAt?: unknown;
+  };
+  if (typeof r.path !== "string" || !r.path) return { version: 1, resume: null };
+  const resume: LocalResumeState = {
+    path: r.path,
+    savedAt: typeof r.savedAt === "number" && Number.isFinite(r.savedAt) ? r.savedAt : 0,
+  };
+  if (
+    typeof r.videoTime === "number" &&
+    Number.isFinite(r.videoTime) &&
+    r.videoTime > 0
+  ) {
+    resume.videoTime = r.videoTime;
+  }
+  return { version: 1, resume };
+};
+
+const readLibrarySidecar = async (): Promise<LibrarySidecar | null> => {
+  const tauriRoot = await getTauriLocalRoot();
+  if (tauriRoot && isTauriShell()) {
+    try {
+      const text = await tauriReadLocalText(tauriRoot, LIBRARY_SIDECAR);
+      return parseLibrarySidecar(JSON.parse(text));
+    } catch {
+      return null;
+    }
+  }
+  if (!browseRoot) return null;
+  try {
+    const fileHandle = await browseRoot.getFileHandle(LIBRARY_SIDECAR);
+    const file = await fileHandle.getFile();
+    return parseLibrarySidecar(JSON.parse(await file.text()));
+  } catch {
+    return null;
+  }
+};
+
+const writeLibrarySidecar = async (resume: LocalResumeState | null) => {
+  const payload: LibrarySidecar = { version: 1, resume };
+  const body = `${JSON.stringify(payload, null, 2)}\n`;
+  const tauriRoot = await getTauriLocalRoot();
+  if (tauriRoot && isTauriShell()) {
+    try {
+      await tauriWriteLocalFile(
+        tauriRoot,
+        LIBRARY_SIDECAR,
+        new TextEncoder().encode(body),
+      );
+    } catch {
+      // read-only folder
+    }
+    return;
+  }
+  if (!browseRoot) return;
+  try {
+    const writableHandle = await browseRoot.getFileHandle(LIBRARY_SIDECAR, {
+      create: true,
+    });
+    const writable = await writableHandle.createWritable();
+    await writable.write(body);
+    await writable.close();
+  } catch {
+    // read-only folder
   }
 };
 
@@ -821,6 +1037,35 @@ const loadFavoritesForKey = async (key: string, legacyName: string) => {
   } catch {
     favoritedPaths = new Set();
   }
+  const tauriRoot = await getTauriLocalRoot();
+  if (tauriRoot && isTauriShell()) {
+    try {
+      const text = await tauriReadLocalText(tauriRoot, FAVORITES_SIDECAR);
+      const sidecar = readFavoritesSidecarText(text);
+      if (sidecar) {
+        for (const path of sidecar) favoritedPaths.add(path);
+      }
+    } catch {
+      // no favorites sidecar yet
+    }
+  }
+};
+
+/** Prefer newer of IDB resume vs `.me621-library.json`; write winner back to IDB. */
+const mergeResumeFromLibrarySidecar = async (key: string) => {
+  const library = await readLibrarySidecar();
+  const disk = library?.resume ?? null;
+  if (!disk?.path) return;
+  try {
+    const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
+    const existing = all[key];
+    if (!existing || (disk.savedAt || 0) >= (existing.savedAt || 0)) {
+      all[key] = disk;
+      await localforage.setItem(RESUME_KEY, all);
+    }
+  } catch {
+    // ignore
+  }
 };
 
 export const setLocalFavorite = async (
@@ -860,8 +1105,7 @@ export const saveLocalResume = async (
       : `name:${folderOverride}`
     : folderKey();
   if (!key || !path) return;
-  const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
-  all[key] = {
+  const state: LocalResumeState = {
     path,
     videoTime:
       typeof videoTime === "number" && Number.isFinite(videoTime) && videoTime > 0
@@ -869,7 +1113,10 @@ export const saveLocalResume = async (
         : undefined,
     savedAt: Date.now(),
   };
+  const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
+  all[key] = state;
   await localforage.setItem(RESUME_KEY, all);
+  await writeLibrarySidecar(state);
 };
 
 export const getLocalResume = async (
@@ -884,6 +1131,7 @@ export const getLocalResume = async (
   if (!key) return null;
   const legacyName =
     key.startsWith("name:") ? key.slice(5) : folderName() || displayName || "";
+  await mergeResumeFromLibrarySidecar(key);
   try {
     const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
     return storeBucket(all, key, legacyName) || (legacyName ? all[legacyName] : null) || null;
@@ -912,6 +1160,7 @@ export const clearLocalResume = async (folderOverride?: string | null) => {
   } catch {
     // ignore
   }
+  await writeLibrarySidecar(null);
 };
 
 export const findLocalResumeTarget = async (
@@ -1000,6 +1249,7 @@ export const scanLocalMedia = async (
     await loadExtraTagsForKey(key, displayName);
     await loadPosterMeta(key, displayName);
     await loadFavoritesForKey(key, displayName);
+    await mergeResumeFromLibrarySidecar(key);
     if (
       cachedIndex &&
       cachedRootName === displayName &&
@@ -1069,6 +1319,7 @@ export const scanLocalMedia = async (
   await loadExtraTags(handle, key, handle.name);
   await loadPosterMeta(key, handle.name);
   await loadFavorites(handle, key, handle.name);
+  await mergeResumeFromLibrarySidecar(key);
   if (cachedIndex && cachedRootName === handle.name && cachedFolderKey === key && !force) {
     return {
       entries: cachedIndex,
@@ -1150,6 +1401,15 @@ export const fuzzyFilenameMatch = (relativePath: string, term: string) => {
   return false;
 };
 
+/** Sidecar/general tags ranked same as path tokens (exact or fuzzyFilenameMatch). */
+export const fuzzyTagsMatch = (tags: string[], term: string) => {
+  const needle = term.trim().toLowerCase();
+  if (!needle) return true;
+  return tags.some(
+    (tag) => tag.toLowerCase() === needle || fuzzyFilenameMatch(tag, needle),
+  );
+};
+
 export const filterLocalMedia = (
   index: LocalMediaEntry[],
   tags: string[],
@@ -1164,13 +1424,13 @@ export const filterLocalMedia = (
         const positive = term.slice(1);
         if (!positive) return true;
         return !(
-          entry.tags.includes(positive) ||
+          fuzzyTagsMatch(entry.tags, positive) ||
           fuzzyFilenameMatch(entry.relativePath, positive) ||
           fuzzyFilenameMatch(entry.name, positive)
         );
       }
       return (
-        entry.tags.includes(term) ||
+        fuzzyTagsMatch(entry.tags, term) ||
         fuzzyFilenameMatch(entry.relativePath, term) ||
         fuzzyFilenameMatch(entry.name, term)
       );
@@ -1615,10 +1875,45 @@ export const remuxLocalPath = async (
   onProgress?: (ratio: number) => void,
   opts?: { skipInvalidate?: boolean },
 ): Promise<{ newPath: string }> => {
-  if (await getTauriLocalRoot()) {
-    throw new Error("Remux needs Chromium Local (File System Access write)");
-  }
   const { remuxBlobToMp4 } = await import("@/misc/util/localRemux");
+  const tauriRoot = await getTauriLocalRoot();
+  if (tauriRoot && isTauriShell()) {
+    const bytes = await tauriReadLocalFile(tauriRoot, relativePath);
+    const name = relativePath.split("/").pop() || relativePath;
+    const remuxed = await remuxBlobToMp4(
+      new Blob([new Uint8Array(bytes)]),
+      name,
+      onProgress,
+    );
+    const lower = name.toLowerCase();
+    const keepSameName = lower.endsWith(".mp4");
+    const newName = keepSameName
+      ? name
+      : `${name.replace(/\.[^.]+$/, "")}.mp4`;
+    const prefix = relativePath.includes("/")
+      ? relativePath.slice(0, relativePath.lastIndexOf("/") + 1)
+      : "";
+    const newPath = `${prefix}${newName}`;
+    const outBuf = new Uint8Array(await remuxed.arrayBuffer());
+    await tauriWriteLocalFile(tauriRoot, newPath, outBuf);
+    if (!keepSameName) {
+      try {
+        await tauriRemoveLocalFile(tauriRoot, relativePath);
+      } catch {
+        // keep original if delete fails
+      }
+      await migratePathKeys(relativePath, newPath);
+    } else {
+      delete posterMetaByPath[relativePath];
+      await persistPosterMeta();
+    }
+    if (!opts?.skipInvalidate) {
+      invalidateLocalMediaIndex();
+      revokeLocalBlobUrls();
+    }
+    return { newPath };
+  }
+
   const root = browseRoot || (await getLocalDirectoryHandle());
   if (!root) throw new Error("No Local browse folder");
   const allowed = await ensurePermission(root, "readwrite");

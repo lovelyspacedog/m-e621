@@ -2,16 +2,19 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { modeSupportsSavedPosts, originModeOf } from "@/misc/util/postOrigin";
 import { supportsLocalBrowse } from "@/misc/util/tauriLocalFs";
-import { hiddenButtonsForMode } from "@/misc/util/siteCapabilities";
+import { hiddenButtonsForMode, modeSupportsFollowing } from "@/misc/util/siteCapabilities";
+import { postSupportsFluffle } from "@/misc/util/fluffleSearch";
 import { useMainStore } from "./state";
 import { useSnackbarStore } from "./SnackbarStore";
-import type { ButtonType, SiteMode, UnifiedChildMode } from "./types";
+import type { ButtonType, SiteMode, UnifiedChildMode, UnifiedFeedSource } from "./types";
 import { SITE_MODE_URLS, defaultUnifiedSites } from "./types";
 import {
   applyActiveProfileToMirrors,
   createEmptySiteProfile,
+  profileHasAuthMaterial,
   syncMirrorsToActiveProfile,
 } from "./siteProfiles";
+import { getApiService } from "@/worker/services";
 
 const ALL_SITE_MODES: SiteMode[] = [
   "unified",
@@ -39,7 +42,27 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   /** Incremented on every mode switch; pages can watch this to force-reload
    *  even when the route query doesn't change (e.g. blank /posts). */
   const modeChangeCount = ref(0);
+  const isOnline = ref(
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+  if (typeof window !== "undefined") {
+    window.addEventListener("online", () => {
+      isOnline.value = true;
+    });
+    window.addEventListener("offline", () => {
+      isOnline.value = false;
+    });
+  }
   const supportsLocalMode = computed(() => supportsLocalBrowse());
+  /** Remote modes need network; Local still works offline. */
+  const isModeOnlineCapable = (mode: SiteMode) =>
+    mode === "local" || isOnline.value;
+  const siteModes = computed(() =>
+    ALL_SITE_MODES.filter((mode) => isModeSupported(mode)),
+  );
+  const selectableSiteModes = computed(() =>
+    siteModes.value.filter((mode) => isModeOnlineCapable(mode)),
+  );
   const isLocal = computed(() => main.activeMode === "local");
   const isTailspace = computed(() => main.activeMode === "tailspace");
   const isFurbooru = computed(() => main.activeMode === "furbooru");
@@ -49,9 +72,6 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const isItaku = computed(() => main.activeMode === "itaku");
   const isSofurry = computed(() => main.activeMode === "sofurry");
   const isUnified = computed(() => main.activeMode === "unified");
-  const siteModes = computed(() =>
-    ALL_SITE_MODES.filter((mode) => isModeSupported(mode)),
-  );
   const activeLabel = computed(() => {
     switch (main.activeMode) {
       case "e6ai": return "e6ai";
@@ -72,6 +92,77 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     ...(main.profiles.unified?.unifiedSites || {}),
   }));
 
+  const unifiedFeedSource = computed<UnifiedFeedSource>(
+    () => main.profiles.unified?.unifiedFeedSource || "search",
+  );
+
+  const setUnifiedFeedSource = (source: UnifiedFeedSource) => {
+    if (!main.profiles.unified) {
+      main.profiles.unified = createEmptySiteProfile("unified");
+    }
+    if (main.profiles.unified.unifiedFeedSource === source) return;
+    if (source === "following") {
+      const enabled = Object.entries(unifiedSites.value).filter(
+        ([mode, on]) => on && modeSupportsFollowing(mode as UnifiedChildMode),
+      );
+      if (!enabled.length) {
+        snackbar.addMessage(
+          "Enable Inkbunny, FurAffinity, Itaku, or SoFurry for Following",
+        );
+        return;
+      }
+    }
+    main.profiles.unified.unifiedFeedSource = source;
+    if (main.activeMode === "unified") {
+      void getApiService().then((api) => api.resetUnifiedMerge());
+      modeChangeCount.value++;
+    }
+  };
+
+  const applyUnifiedSitesPreset = (preset: "default" | "authenticated") => {
+    if (!main.profiles.unified) {
+      main.profiles.unified = createEmptySiteProfile("unified");
+    }
+    let next: Record<UnifiedChildMode, boolean>;
+    if (preset === "default") {
+      next = defaultUnifiedSites();
+    } else {
+      next = { ...defaultUnifiedSites() };
+      for (const mode of Object.keys(next) as UnifiedChildMode[]) {
+        const profile = main.profiles[mode] || createEmptySiteProfile(mode);
+        // Profile credentials only — host FA_COOKIE_* does not count.
+        next[mode] = profileHasAuthMaterial(mode, profile.account);
+      }
+      if (!Object.values(next).some(Boolean)) {
+        snackbar.addMessage(
+          "No site profiles have auth saved — enable sites manually or sign in first",
+        );
+        return;
+      }
+    }
+    if (
+      main.profiles.unified.unifiedFeedSource === "following" &&
+      !Object.entries(next).some(
+        ([mode, on]) => on && modeSupportsFollowing(mode as UnifiedChildMode),
+      )
+    ) {
+      snackbar.addMessage(
+        "Following needs Inkbunny, FurAffinity, Itaku, or SoFurry with auth",
+      );
+      return;
+    }
+    main.profiles.unified.unifiedSites = next;
+    snackbar.addMessage(
+      preset === "default"
+        ? "Unified sites reset to defaults"
+        : "Unified sites set to profiles with auth saved",
+    );
+    if (main.activeMode === "unified") {
+      void getApiService().then((api) => api.resetUnifiedMerge());
+      modeChangeCount.value++;
+    }
+  };
+
   const setUnifiedChild = (child: UnifiedChildMode, enabled: boolean) => {
     if (!main.profiles.unified) {
       main.profiles.unified = createEmptySiteProfile("unified");
@@ -85,8 +176,20 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       snackbar.addMessage("Keep at least one site enabled");
       return;
     }
+    if (
+      main.profiles.unified.unifiedFeedSource === "following" &&
+      !Object.entries(next).some(
+        ([mode, on]) => on && modeSupportsFollowing(mode as UnifiedChildMode),
+      )
+    ) {
+      snackbar.addMessage(
+        "Following needs Inkbunny, FurAffinity, Itaku, or SoFurry enabled",
+      );
+      return;
+    }
     main.profiles.unified.unifiedSites = next;
     if (main.activeMode === "unified") {
+      void getApiService().then((api) => api.resetUnifiedMerge());
       modeChangeCount.value++;
     }
   };
@@ -99,6 +202,11 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       );
       return;
     }
+    if (!isModeOnlineCapable(mode)) {
+      snackbar.addMessage("Offline — only Local mode is available");
+      return;
+    }
+    const previousWasUnified = main.activeMode === "unified";
     syncMirrorsToActiveProfile(main.$state);
     if (!main.profiles[mode]) {
       main.profiles[mode] = createEmptySiteProfile(mode);
@@ -110,6 +218,9 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     applyActiveProfileToMirrors(main.$state);
     snackbar.addMessage(`Switched to ${mode}`);
     modeChangeCount.value++;
+    if (mode === "unified" || previousWasUnified) {
+      void getApiService().then((api) => api.resetUnifiedMerge());
+    }
   };
 
   /** If restored settings point at an unsupported mode, fall back quietly. */
@@ -144,6 +255,9 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const filterButtonsForPost = (
     buttons: ButtonType[],
     post?: {
+      file?: { ext?: string; size?: number; url?: string | null };
+      sample?: { url?: string };
+      preview?: { url?: string };
       __meta?: {
         originMode?: string;
         furaffinity?: { kind?: string };
@@ -163,6 +277,9 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     }
     if (post?.__meta?.furaffinity?.kind === "journal") {
       list = list.filter((button) => button !== "favorite");
+    }
+    if (post && list.includes("fluffle") && !postSupportsFluffle(post as any)) {
+      list = list.filter((button) => button !== "fluffle");
     }
     return list;
   };
@@ -186,7 +303,13 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     isSofurry,
     isUnified,
     unifiedSites,
+    unifiedFeedSource,
     setUnifiedChild,
+    setUnifiedFeedSource,
+    applyUnifiedSitesPreset,
+    isOnline,
+    selectableSiteModes,
+    isModeOnlineCapable,
     activeLabel,
     setMode,
     bumpModeChange,

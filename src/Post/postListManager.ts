@@ -101,10 +101,26 @@ export const usePostListManager = ({
     pumpFaFeedEnrich();
   };
 
+  const applyEnrichedPost = (updated: EnhancedPost, gen: number) => {
+    // Drop stale enrich after tag/children/mode reset (generation bump).
+    if (gen !== generation.value) return false;
+    const key = postFeedKey(updated);
+    const idx = posts.value.findIndex((p) => postFeedKey(p) === key);
+    if (idx >= 0) posts.value[idx] = updated;
+    if (detailsPost.value && postFeedKey(detailsPost.value) === key) {
+      detailsPost.value = updated;
+    }
+    if (fullscreenPost.value && postFeedKey(fullscreenPost.value) === key) {
+      fullscreenPost.value = updated;
+    }
+    return true;
+  };
+
   const enrichRemote = async (
     post: EnhancedPost,
     opts?: { silent?: boolean },
   ) => {
+    const gen = generation.value;
     const originInkbunny =
       post.__meta.originMode === "inkbunny" || siteMode.isInkbunny;
     const originFa =
@@ -149,14 +165,7 @@ export const usePostListManager = ({
           blacklist: toRaw(origin.blacklist),
         });
       }
-      const idx = posts.value.findIndex((p) => postFeedKey(p) === postFeedKey(updated));
-      if (idx >= 0) posts.value[idx] = updated;
-      if (detailsPost.value && postFeedKey(detailsPost.value) === postFeedKey(updated)) {
-        detailsPost.value = updated;
-      }
-      if (fullscreenPost.value && postFeedKey(fullscreenPost.value) === postFeedKey(updated)) {
-        fullscreenPost.value = updated;
-      }
+      if (!applyEnrichedPost(updated, gen)) return post;
       return updated;
     } catch (error) {
       if (originFa && isFaNotFoundError(error)) {
@@ -170,14 +179,7 @@ export const usePostListManager = ({
             furaffinity: faUnavailableMeta(post.__meta.furaffinity),
           },
         } satisfies EnhancedPost;
-        const idx = posts.value.findIndex((p) => postFeedKey(p) === postFeedKey(updated));
-        if (idx >= 0) posts.value[idx] = updated;
-        if (detailsPost.value && postFeedKey(detailsPost.value) === postFeedKey(updated)) {
-          detailsPost.value = updated;
-        }
-        if (fullscreenPost.value && postFeedKey(fullscreenPost.value) === postFeedKey(updated)) {
-          fullscreenPost.value = updated;
-        }
+        if (!applyEnrichedPost(updated, gen)) return post;
         return updated;
       }
       if (opts?.silent) {
@@ -391,8 +393,20 @@ export const usePostListManager = ({
   );
 
   // Recompute blacklist flags when the user edits the blacklist (M18).
+  // Unified: origin profile tags + live Unified tags (shared).
   watch(
-    () => JSON.stringify(blacklistStore.tags),
+    () =>
+      siteMode.isUnified
+        ? JSON.stringify({
+            live: blacklistStore.tags,
+            profiles: Object.fromEntries(
+              Object.entries(main.$state.profiles || {}).map(([mode, profile]) => [
+                mode,
+                profile?.blacklist?.tags || [],
+              ]),
+            ),
+          })
+        : JSON.stringify(blacklistStore.tags),
     () => {
       for (const post of posts.value) {
         if (siteMode.isUnified) {
@@ -507,6 +521,9 @@ export const usePostListManager = ({
     fullscreenPost.value = null;
     detailsPost.value = null;
     useUiStore().fullscreenOpen = false;
+    if (siteMode.isUnified) {
+      void getApiService().then((api) => api.resetUnifiedMerge());
+    }
   };
 
   /** Replace the in-memory list without page-window trimming (Saved posts). */

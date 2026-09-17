@@ -1,5 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { modeSupportsSavedPosts } from '@/misc/util/postOrigin'
+import { isE621FamilyMode, modeSupportsPools } from '@/misc/util/siteCapabilities'
+import { shouldSkipViewTransition } from '@/misc/util/viewTransition'
 import { useMainStore } from '@/services/state'
 
 // TODO?
@@ -264,18 +266,22 @@ router.beforeEach((to) => {
     if (mode !== "tailspace" && tailspaceRoutes.has(String(to.name))) {
       return { name: "Posts" };
     }
+    // Pools reader is e621-family only — never fall through to SoFurry/Itaku/IB chrome.
     if (
-      (mode === "furbooru" ||
-        mode === "inkbunny" ||
-        mode === "furaffinity" ||
-        mode === "weasyl" ||
-        mode === "itaku" ||
-        mode === "sofurry" ||
-        mode === "local" ||
-        mode === "unified") &&
-      ["Pools", "Pool", "Suggester", "SuggesterResult", "FavoritesAnalyzer", "Dashboard", "DashboardResult"].includes(
-        String(to.name),
-      )
+      !modeSupportsPools(mode) &&
+      (to.name === "Pools" || to.name === "Pool")
+    ) {
+      return { name: "Posts" };
+    }
+    if (
+      !isE621FamilyMode(mode) &&
+      [
+        "Suggester",
+        "SuggesterResult",
+        "FavoritesAnalyzer",
+        "Dashboard",
+        "DashboardResult",
+      ].includes(String(to.name))
     ) {
       return { name: "Posts" };
     }
@@ -289,10 +295,11 @@ router.beforeEach((to) => {
 });
 
 router.beforeResolve(async (to, from) => {
+  // FEATURES 8.2 / AI_CONTEXT: never start a view transition on first load.
   // First load has no `from` route. Starting a view transition there captures the
   // empty shell, then persist() replaces the whole store and the overlay never
   // clears — every label renders twice and Posts looks stuck loading.
-  if (!from.name || from.name === to.name) {
+  if (shouldSkipViewTransition(from, to)) {
     return true;
   }
   const viewTransition = startViewTransition(async () => {

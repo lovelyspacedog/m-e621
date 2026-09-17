@@ -11,6 +11,9 @@
 
         <settings-group title="Saved Searches" anchor="saved">
           <settings-row stack>
+            <profile-list-sync kind="searches" />
+          </settings-row>
+          <settings-row stack>
             <saved-search-list
               :entries="savedSearches"
               @delete-entry="deleteSavedSearch($event)"
@@ -50,6 +53,7 @@ import HistoryList from "../Tag/HistoryList.vue";
 import { computed } from "vue";
 import { useHistoryStore, useSavedSearchStore } from "@/services";
 import SavedSearchList from "@/Tag/SavedSearchList.vue";
+import ProfileListSync from "./ProfileListSync.vue";
 import { useHead } from "@unhead/vue";
 import { useRouter } from "vue-router";
 

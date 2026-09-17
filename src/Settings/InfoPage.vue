@@ -165,10 +165,20 @@ const clearPullToken = () => {
 
 const refreshGitStatus = async () => {
   try {
-    const res = await fetch("/api/git", { cache: "no-store" });
+    const headers: Record<string, string> = {};
+    const saved = sessionStorage.getItem(TOKEN_KEY);
+    if (saved) {
+      headers.Authorization = `Bearer ${saved}`;
+      headers["X-Pull-Token"] = saved;
+    }
+    const res = await fetch("/api/git", { cache: "no-store", headers });
     if (!res.ok) return;
-    const data = (await res.json()) as GitStatus;
-    serverHead.value = data.head ?? null;
+    const data = (await res.json()) as GitStatus & { pull_enabled?: boolean };
+    if (data.pull_enabled === false) {
+      pullStatus.value = "git pull disabled on host";
+      return;
+    }
+    serverHead.value = data.head ?? serverHead.value;
     if (data.running) {
       pullRunning.value = true;
       pullStatus.value = data.message || "running";
