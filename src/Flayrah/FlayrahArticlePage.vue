@@ -13,7 +13,7 @@
         icon
         :disabled="!prevId"
         aria-label="Previous article"
-        @click="prevId && router.push(articleRoute(prevId))"
+        @click="goPrev"
       >
         <v-icon>mdi-chevron-up</v-icon>
       </v-btn>
@@ -22,11 +22,19 @@
         icon
         :disabled="!nextId"
         aria-label="Next article"
-        @click="nextId && router.push(articleRoute(nextId))"
+        @click="goNext"
       >
         <v-icon>mdi-chevron-down</v-icon>
       </v-btn>
       <v-spacer />
+      <v-btn
+        v-if="article"
+        variant="text"
+        :prepend-icon="saved ? 'mdi-bookmark' : 'mdi-bookmark-outline'"
+        @click="toggleSave"
+      >
+        {{ saved ? "Saved" : "Save" }}
+      </v-btn>
       <v-btn
         v-if="article"
         variant="text"
@@ -94,7 +102,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   fetchFlayrahArticles,
@@ -107,11 +115,12 @@ import {
   parseFlayrahQueryTerms,
 } from "@/worker/flayrah/parseRss";
 import { sanitizeFlayrahHtml } from "@/misc/util/flayrahHtml";
-import { useSnackbarStore } from "@/services/SnackbarStore";
+import { useFlayrahNewsStore, useSnackbarStore } from "@/services";
 
 const route = useRoute();
 const router = useRouter();
 const snackbar = useSnackbarStore();
+const flayrahNews = useFlayrahNewsStore();
 
 const article = ref<FlayrahArticle | null>(null);
 const siblings = ref<FlayrahArticle[]>([]);
@@ -129,11 +138,16 @@ const tagsQuery = computed(() => {
   const raw = route.query.tags;
   return typeof raw === "string" ? raw : "";
 });
+const viewQuery = computed(() => {
+  const raw = route.query.view;
+  return raw === "unread" || raw === "saved" ? raw : "";
+});
 
 const feedQuery = computed(() => {
   const q: Record<string, string> = {};
   if (feedId.value !== "full") q.feed = feedId.value;
   if (tagsQuery.value.trim()) q.tags = tagsQuery.value.trim();
+  if (viewQuery.value) q.view = viewQuery.value;
   return q;
 });
 
@@ -167,7 +181,13 @@ function articleRoute(id: number) {
 
 const filteredSiblings = computed(() => {
   const terms = parseFlayrahQueryTerms(tagsQuery.value);
-  return siblings.value.filter((a) => articleMatchesQuery(a, terms));
+  let list = siblings.value.filter((a) => articleMatchesQuery(a, terms));
+  if (viewQuery.value === "unread") {
+    list = list.filter((a) => !flayrahNews.isRead(a.id) || a.id === articleId.value);
+  } else if (viewQuery.value === "saved") {
+    list = list.filter((a) => flayrahNews.isSaved(a.id) || a.id === articleId.value);
+  }
+  return list;
 });
 
 const siblingIndex = computed(() =>
@@ -185,6 +205,10 @@ const nextId = computed(() => {
   if (i < 0 || i >= filteredSiblings.value.length - 1) return null;
   return filteredSiblings.value[i + 1]?.id ?? null;
 });
+
+const saved = computed(() =>
+  article.value ? flayrahNews.isSaved(article.value.id) : false,
+);
 
 const bodyHtml = computed(() =>
   article.value ? sanitizeFlayrahHtml(article.value.descriptionHtml) : "",
@@ -205,6 +229,20 @@ const dateLabel = computed(() => {
   }
 });
 
+function goPrev() {
+  if (prevId.value) void router.push(articleRoute(prevId.value));
+}
+
+function goNext() {
+  if (nextId.value) void router.push(articleRoute(nextId.value));
+}
+
+function toggleSave() {
+  if (!article.value) return;
+  const nowSaved = flayrahNews.toggleSaved(article.value);
+  snackbar.addMessage(nowSaved ? "Saved article" : "Removed from saved");
+}
+
 async function copyInAppLink() {
   if (!article.value) return;
   const origin = `${location.origin}${location.pathname}${location.search}`;
@@ -214,6 +252,37 @@ async function copyInAppLink() {
     snackbar.addMessage("Copied in-app link");
   } catch {
     snackbar.addMessage("Could not copy link");
+  }
+}
+
+function isTypingTarget(el: EventTarget | null) {
+  if (!(el instanceof HTMLElement)) return false;
+  const tag = el.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    el.isContentEditable
+  );
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (isTypingTarget(e.target)) return;
+  if (e.key === "j" || e.key === "ArrowDown" || e.key === "ArrowRight") {
+    if (!nextId.value) return;
+    e.preventDefault();
+    goNext();
+    return;
+  }
+  if (e.key === "k" || e.key === "ArrowUp" || e.key === "ArrowLeft") {
+    if (!prevId.value) return;
+    e.preventDefault();
+    goPrev();
+    return;
+  }
+  if (e.key === "s") {
+    e.preventDefault();
+    toggleSave();
   }
 }
 
@@ -239,6 +308,7 @@ async function load() {
       return;
     }
     article.value = hit;
+    flayrahNews.markRead(hit.id);
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : "Failed to load article.";
   } finally {
@@ -253,6 +323,14 @@ watch(
   },
   { immediate: true },
 );
+
+onMounted(() => {
+  window.addEventListener("keydown", onKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", onKeydown);
+});
 </script>
 
 <style scoped>
@@ -265,7 +343,20 @@ watch(
   height: auto;
 }
 .flayrah-body :deep(figure) {
-  margin: 1rem 0;
+  float: right;
+  margin: 0 0 1rem 1.25rem;
+  max-width: min(45%, 20rem);
+  text-align: center;
+}
+.flayrah-body :deep(figure img) {
+  width: 100%;
+  height: auto;
+}
+.flayrah-body :deep(figcaption) {
+  font-style: italic;
+  font-size: 0.875em;
+  opacity: 0.85;
+  margin-top: 0.35rem;
 }
 .flayrah-body :deep(blockquote) {
   border-inline-start: 3px solid rgba(var(--v-theme-primary), 0.5);
@@ -275,6 +366,13 @@ watch(
 }
 .flayrah-body :deep(a) {
   color: rgb(var(--v-theme-primary));
+}
+@media (max-width: 600px) {
+  .flayrah-body :deep(figure) {
+    float: none;
+    margin: 1rem 0;
+    max-width: 100%;
+  }
 }
 .flayrah-inline-link {
   color: inherit;

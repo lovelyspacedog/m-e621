@@ -360,7 +360,7 @@ export const tosSummaries: TosSummary[] = [
       {
         heading: "PawFeed use",
         bullets: [
-          "Read-only RSS browsing with taxonomy feeds, in-app reading, archive deep-links, and a link back to flayrah.com",
+          "Read-only RSS browsing with taxonomy feeds, in-app reading, archive deep-links, local read/saved state, and a link back to flayrah.com",
           "No Flayrah login, comments, or ratings through PawFeed",
         ],
       },

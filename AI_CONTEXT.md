@@ -10,7 +10,7 @@ Supported **site modes** (`SiteMode` in `src/services/types.ts`): `e621`, `e6ai`
 
 - **Unified** date-merges remote gallery children. **Tailspace, Flayrah, and Local are not Unified children.**
 - Flayrah uses dedicated news routes (`/#/flayrah`) backed by RSS — never `getPosts` / e621 fall-through (same dedicated-chrome pattern as Tailspace).
-- Flayrah proxy: `GET /api/flayrah/rss?feed=` (allowlisted taxonomy feeds) and `GET /api/flayrah/article/:id` (HTML archive fallback).
+- Flayrah proxy: `GET /api/flayrah/rss?feed=` (allowlisted taxonomy feeds) and `GET /api/flayrah/article/:id` (HTML archive fallback). Offline last-good RSS is cached in IndexedDB; Flayrah stays selectable when offline.
 - Each mode has an independent **site profile** (auth, blacklist, starred tags, saved searches, history).
 - License: **AGPL-3.0**. Network use of a modified version must offer corresponding source.
 - Not affiliated with the sites or upstream. Follow each site’s rules and API terms.

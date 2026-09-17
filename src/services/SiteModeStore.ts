@@ -55,9 +55,9 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     });
   }
   const supportsLocalMode = computed(() => supportsLocalBrowse());
-  /** Remote modes need network; Local still works offline. */
+  /** Remote modes need network; Local and Flayrah (last-good RSS cache) still work offline. */
   const isModeOnlineCapable = (mode: SiteMode) =>
-    mode === "local" || isOnline.value;
+    mode === "local" || mode === "flayrah" || isOnline.value;
   const siteModes = computed(() =>
     ALL_SITE_MODES.filter((mode) => isModeSupported(mode)),
   );

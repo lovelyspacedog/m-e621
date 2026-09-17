@@ -3,6 +3,10 @@
  * Fetches via local proxy (/api/flayrah/…) — no CORS on flayrah.com.
  */
 import { normalizeFlayrahFeedId } from "./feeds";
+import {
+  loadFlayrahFeedOffline,
+  saveFlayrahFeedOffline,
+} from "./offlineCache";
 import { parseFlayrahArticleHtml } from "./parseArticleHtml";
 import {
   parseFlayrahRss,
@@ -16,6 +20,7 @@ const CACHE_MS = 10 * 60 * 1000;
 
 const cacheByFeed = new Map<string, { articles: FlayrahArticle[]; at: number }>();
 const articleCache = new Map<number, FlayrahArticle>();
+let lastFetchSource: "network" | "memory" | "offline" = "memory";
 
 function proxyBase(): string {
   const origin = typeof location !== "undefined" ? location.origin : "";
@@ -28,6 +33,21 @@ export function getFlayrahCacheAgeMs(feedId = "full"): number | null {
   return Date.now() - hit.at;
 }
 
+export function getFlayrahLastFetchSource() {
+  return lastFetchSource;
+}
+
+function rememberArticles(
+  feed: string,
+  articles: FlayrahArticle[],
+  at = Date.now(),
+  persist = true,
+) {
+  cacheByFeed.set(feed, { articles, at });
+  for (const a of articles) articleCache.set(a.id, a);
+  if (persist) void saveFlayrahFeedOffline(feed, articles);
+}
+
 export async function fetchFlayrahArticles(opts?: {
   force?: boolean;
   feed?: string;
@@ -36,20 +56,31 @@ export async function fetchFlayrahArticles(opts?: {
   const now = Date.now();
   const cached = cacheByFeed.get(feed);
   if (!opts?.force && cached && now - cached.at < CACHE_MS) {
+    lastFetchSource = "memory";
     return cached.articles;
   }
   const qs = feed === "full" ? "" : `?feed=${encodeURIComponent(feed)}`;
-  const response = await fetch(`${proxyBase()}/rss${qs}`, {
-    headers: { Accept: "application/rss+xml, application/xml, text/xml, */*" },
-  });
-  if (!response.ok) {
-    throw new Error(`Flayrah RSS failed (${response.status})`);
+  try {
+    const response = await fetch(`${proxyBase()}/rss${qs}`, {
+      headers: { Accept: "application/rss+xml, application/xml, text/xml, */*" },
+    });
+    if (!response.ok) {
+      throw new Error(`Flayrah RSS failed (${response.status})`);
+    }
+    const xml = await response.text();
+    const articles = parseFlayrahRss(xml);
+    rememberArticles(feed, articles, now, true);
+    lastFetchSource = "network";
+    return articles;
+  } catch (err) {
+    const offline = await loadFlayrahFeedOffline(feed);
+    if (offline?.articles?.length) {
+      rememberArticles(feed, offline.articles, offline.savedAt, false);
+      lastFetchSource = "offline";
+      return offline.articles;
+    }
+    throw err instanceof Error ? err : new Error(String(err));
   }
-  const xml = await response.text();
-  const articles = parseFlayrahRss(xml);
-  cacheByFeed.set(feed, { articles, at: now });
-  for (const a of articles) articleCache.set(a.id, a);
-  return articles;
 }
 
 /** Resolve an article from RSS caches, then HTML archive fallback. */

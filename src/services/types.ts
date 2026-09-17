@@ -67,6 +67,24 @@ export interface SavedPostEntry {
   savedAt: number;
 }
 
+export interface FlayrahSavedArticle {
+  id: number;
+  title: string;
+  link: string;
+  author: string;
+  thumbUrl: string | null;
+  savedAt: number;
+}
+
+export type FlayrahFeedLayout = "list" | "magazine";
+
+export interface FlayrahNewsState {
+  /** MRU article ids marked read (capped). */
+  readIds: number[];
+  saved: FlayrahSavedArticle[];
+  layout: FlayrahFeedLayout;
+}
+
 export type PoolOriginMode = "e621" | "e6ai";
 
 export interface WatchedPoolEntry {
@@ -313,6 +331,8 @@ export interface ISettingsServiceState {
   savedPosts: {
     entries: SavedPostEntry[];
   };
+  /** Flayrah news read-state, saved articles, and feed layout. Not under profiles. */
+  flayrahNews: FlayrahNewsState;
   /** Mode-independent registry; views filter entries by their origin site. */
   watchedPools: {
     entries: WatchedPoolEntry[];

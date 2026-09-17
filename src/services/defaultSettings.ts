@@ -33,7 +33,7 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 42,
+  configVersion: 43,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -139,6 +139,11 @@ export const defaultSettings: ISettingsServiceState = {
   },
   savedPosts: {
     entries: [],
+  },
+  flayrahNews: {
+    readIds: [],
+    saved: [],
+    layout: "list",
   },
   watchedPools: {
     entries: [],

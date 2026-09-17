@@ -20,6 +20,7 @@ export const changelogSections: ChangelogSection[] = [
     items: [
       "Flayrah site mode: read-only RSS news feed and article reader (not Federated)",
       "Flayrah: taxonomy feed chips, archive deep-links, refresh, prev/next, live body search, copy link",
+      "Flayrah: read/unread and saved articles, magazine layout, j/k shortcuts, tag cloud, offline last-good feed",
       "Public instance Live URL is pawfeed.tonypup.box.ca (docs and README updated)",
       "Product renamed to PawFeed (landing, PWA, desktop title, and docs); host paths and GitHub repo stay m-e621",
       "README documents how to rename the public Expedition subdomain",

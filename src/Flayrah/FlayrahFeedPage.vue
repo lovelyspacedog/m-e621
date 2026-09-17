@@ -1,5 +1,5 @@
 <template>
-  <div class="flayrah-feed-page">
+  <div class="flayrah-feed-page" tabindex="-1" ref="pageEl">
     <div class="flayrah-feed-header">
       <div class="flayrah-header-inner">
         <div class="flayrah-header-left">
@@ -8,10 +8,12 @@
           <p class="text-caption text-medium-emphasis mb-0">
             {{ feedBlurb }}
             <template v-if="updatedLabel"> · {{ updatedLabel }}</template>
+            <template v-if="fromOffline"> · Offline cache</template>
           </p>
         </div>
         <div class="flayrah-header-right">
           <v-text-field
+            ref="searchField"
             v-model="searchInput"
             label="Filter title, author, tags, body"
             prepend-inner-icon="mdi-magnify"
@@ -23,6 +25,14 @@
             @keydown.enter="applySearch"
             @click:clear="clearSearch"
           />
+          <v-btn
+            icon
+            variant="text"
+            :aria-label="layout === 'magazine' ? 'List layout' : 'Magazine layout'"
+            @click="toggleLayout"
+          >
+            <v-icon>{{ layout === "magazine" ? "mdi-view-list" : "mdi-view-grid" }}</v-icon>
+          </v-btn>
           <v-btn
             icon
             variant="text"
@@ -56,10 +66,43 @@
           {{ opt.label }}
         </v-chip>
       </div>
+      <div class="flayrah-view-chips d-flex flex-wrap ga-1 mt-2">
+        <v-chip
+          v-for="opt in viewOptions"
+          :key="opt.id"
+          size="small"
+          :variant="viewFilter === opt.id ? 'flat' : 'tonal'"
+          :color="viewFilter === opt.id ? 'secondary' : undefined"
+          @click="setView(opt.id)"
+        >
+          {{ opt.label }}
+        </v-chip>
+      </div>
+      <div v-if="popularTags.length" class="flayrah-tag-cloud d-flex flex-wrap ga-1 mt-2">
+        <span class="text-caption text-medium-emphasis align-self-center mr-1">Tags</span>
+        <v-chip
+          v-for="tag in popularTags"
+          :key="tag"
+          size="x-small"
+          variant="outlined"
+          @click="filterTag(tag)"
+        >
+          {{ tag }}
+        </v-chip>
+      </div>
     </div>
 
     <v-alert v-if="error" type="error" class="ma-4" closable @click:close="error = null">
       {{ error }}
+    </v-alert>
+    <v-alert
+      v-else-if="fromOffline"
+      type="info"
+      variant="tonal"
+      class="ma-4"
+      density="compact"
+    >
+      Showing last saved Flayrah feed (offline or RSS unavailable).
     </v-alert>
 
     <div v-if="loading && !articles.length" class="pa-4">
@@ -67,14 +110,63 @@
     </div>
 
     <div v-else-if="!filtered.length" class="pa-6 text-center text-medium-emphasis">
-      {{ articles.length ? "No articles match this filter." : "No articles in the RSS feed." }}
+      {{ emptyMessage }}
+    </div>
+
+    <div
+      v-else-if="layout === 'magazine'"
+      class="flayrah-magazine pa-3"
+    >
+      <router-link
+        v-for="(article, idx) in filtered"
+        :key="article.id"
+        class="flayrah-card"
+        :class="{
+          'flayrah-unread': !flayrahNews.isRead(article.id),
+          'flayrah-focused': idx === focusIndex,
+        }"
+        :to="articleRoute(article.id)"
+      >
+        <img
+          v-if="article.thumbUrl"
+          class="flayrah-card-thumb"
+          :src="thumbSrc(article.thumbUrl)"
+          :alt="article.title"
+          loading="lazy"
+        />
+        <div class="flayrah-card-body">
+          <div class="flayrah-card-title">{{ article.title }}</div>
+          <div class="text-caption text-medium-emphasis">
+            {{ article.author }}
+            <template v-if="formatDate(article)"> · {{ formatDate(article) }}</template>
+          </div>
+          <p class="text-body-2 mt-1 mb-0">{{ article.excerpt }}</p>
+          <div class="d-flex align-center ga-1 mt-2">
+            <v-btn
+              icon
+              size="x-small"
+              variant="text"
+              :aria-label="flayrahNews.isSaved(article.id) ? 'Unsave' : 'Save'"
+              @click.prevent.stop="toggleSave(article)"
+            >
+              <v-icon size="small">
+                {{ flayrahNews.isSaved(article.id) ? "mdi-bookmark" : "mdi-bookmark-outline" }}
+              </v-icon>
+            </v-btn>
+          </div>
+        </div>
+      </router-link>
     </div>
 
     <v-list v-else class="flayrah-list pa-0" lines="three">
       <v-list-item
-        v-for="article in filtered"
+        v-for="(article, idx) in filtered"
         :key="article.id"
         class="flayrah-item"
+        :class="{
+          'flayrah-unread': !flayrahNews.isRead(article.id),
+          'flayrah-focused': idx === focusIndex,
+        }"
         :to="articleRoute(article.id)"
       >
         <template v-if="article.thumbUrl" #prepend>
@@ -85,7 +177,10 @@
             loading="lazy"
           />
         </template>
-        <v-list-item-title class="text-wrap font-weight-medium">
+        <v-list-item-title
+          class="text-wrap"
+          :class="flayrahNews.isRead(article.id) ? '' : 'font-weight-bold'"
+        >
           {{ article.title }}
         </v-list-item-title>
         <v-list-item-subtitle class="text-wrap">
@@ -110,17 +205,31 @@
             {{ tag }}
           </v-chip>
         </div>
+        <template #append>
+          <v-btn
+            icon
+            size="small"
+            variant="text"
+            :aria-label="flayrahNews.isSaved(article.id) ? 'Unsave' : 'Save'"
+            @click.prevent.stop="toggleSave(article)"
+          >
+            <v-icon>
+              {{ flayrahNews.isSaved(article.id) ? "mdi-bookmark" : "mdi-bookmark-outline" }}
+            </v-icon>
+          </v-btn>
+        </template>
       </v-list-item>
     </v-list>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   fetchFlayrahArticles,
   getFlayrahCacheAgeMs,
+  getFlayrahLastFetchSource,
   type FlayrahArticle,
 } from "@/worker/flayrah/api";
 import {
@@ -132,20 +241,46 @@ import {
   parseFlayrahQueryTerms,
 } from "@/worker/flayrah/parseRss";
 import { proxyDownloadUrl } from "@/misc/util/flayrahHtml";
+import { useFlayrahNewsStore, useShortcutService } from "@/services";
+
+type ViewFilter = "all" | "unread" | "saved";
 
 const route = useRoute();
 const router = useRouter();
+const flayrahNews = useFlayrahNewsStore();
+const shortcutService = useShortcutService();
 
 const articles = ref<FlayrahArticle[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const fromOffline = ref(false);
 const cacheAgeTick = ref(0);
+const focusIndex = ref(0);
+const searchField = ref<{ focus?: () => void } | null>(null);
+const pageEl = ref<HTMLElement | null>(null);
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
 let ageTimer: ReturnType<typeof setInterval> | null = null;
 
 const feedOptions = FLAYRAH_FEED_OPTIONS;
+const viewOptions: { id: ViewFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "unread", label: "Unread" },
+  { id: "saved", label: "Saved" },
+];
+
+const layout = computed({
+  get: () => flayrahNews.layout,
+  set: (v) => {
+    flayrahNews.layout = v;
+  },
+});
 
 const feedId = computed(() => normalizeFlayrahFeedId(route.query.feed));
+const viewFilter = computed((): ViewFilter => {
+  const raw = route.query.view;
+  if (raw === "unread" || raw === "saved") return raw;
+  return "all";
+});
 const tagsQuery = computed(() => {
   const raw = route.query.tags;
   return typeof raw === "string" ? raw : "";
@@ -157,9 +292,43 @@ watch(tagsQuery, (v) => {
   if (searchInput.value !== v) searchInput.value = v;
 });
 
-const filtered = computed(() =>
-  articles.value.filter((a) => articleMatchesQuery(a, queryTerms.value)),
-);
+const filtered = computed(() => {
+  let list = articles.value.filter((a) =>
+    articleMatchesQuery(a, queryTerms.value),
+  );
+  if (viewFilter.value === "unread") {
+    list = list.filter((a) => !flayrahNews.isRead(a.id));
+  } else if (viewFilter.value === "saved") {
+    list = list.filter((a) => flayrahNews.isSaved(a.id));
+  }
+  return list;
+});
+
+const popularTags = computed(() => {
+  const counts = new Map<string, number>();
+  for (const a of articles.value) {
+    for (const tag of a.tags) {
+      const key = tag.toLowerCase();
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 12)
+    .map(([key]) => {
+      const sample = articles.value
+        .flatMap((a) => a.tags)
+        .find((t) => t.toLowerCase() === key);
+      return sample || key;
+    });
+});
+
+const emptyMessage = computed(() => {
+  if (!articles.value.length) return "No articles in the RSS feed.";
+  if (viewFilter.value === "unread") return "No unread articles.";
+  if (viewFilter.value === "saved") return "No saved articles yet.";
+  return "No articles match this filter.";
+});
 
 const feedBlurb = computed(() => {
   const opt = feedOptions.find((f) => f.id === feedId.value);
@@ -181,19 +350,30 @@ function listQuery(extra?: Record<string, string>) {
   const q: Record<string, string> = { ...extra };
   if (feedId.value !== "full") q.feed = feedId.value;
   if (tagsQuery.value.trim()) q.tags = tagsQuery.value.trim();
+  if (viewFilter.value !== "all") q.view = viewFilter.value;
   return q;
 }
 
 function articleRoute(id: number) {
-  return { name: "FlayrahArticle" as const, params: { id: String(id) }, query: listQuery() };
+  return {
+    name: "FlayrahArticle" as const,
+    params: { id: String(id) },
+    query: listQuery(),
+  };
 }
 
-function replaceListQuery( partial: { tags?: string; feed?: string }) {
+function replaceListQuery(partial: {
+  tags?: string;
+  feed?: string;
+  view?: ViewFilter;
+}) {
   const q: Record<string, string> = {};
   const feed = partial.feed ?? feedId.value;
   const tags = partial.tags !== undefined ? partial.tags : tagsQuery.value;
+  const view = partial.view ?? viewFilter.value;
   if (feed && feed !== "full") q.feed = feed;
   if (tags.trim()) q.tags = tags.trim();
+  if (view && view !== "all") q.view = view;
   return router.replace({ query: q });
 }
 
@@ -220,12 +400,30 @@ function setFeed(id: string) {
   void replaceListQuery({ feed: normalizeFlayrahFeedId(id) });
 }
 
+function setView(id: ViewFilter) {
+  void replaceListQuery({ view: id });
+}
+
+function toggleLayout() {
+  layout.value = layout.value === "magazine" ? "list" : "magazine";
+}
+
+function toggleSave(article: FlayrahArticle) {
+  flayrahNews.toggleSaved(article);
+}
+
 watch(searchInput, (v) => {
   if (searchTimer) clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
     if (v.trim() === tagsQuery.value.trim()) return;
     void replaceListQuery({ tags: v });
   }, 300);
+});
+
+watch(filtered, () => {
+  if (focusIndex.value >= filtered.value.length) {
+    focusIndex.value = Math.max(0, filtered.value.length - 1);
+  }
 });
 
 function formatDate(article: FlayrahArticle): string {
@@ -249,8 +447,10 @@ function thumbSrc(url: string): string {
 async function load(force = false) {
   loading.value = true;
   error.value = null;
+  fromOffline.value = false;
   try {
     articles.value = await fetchFlayrahArticles({ force, feed: feedId.value });
+    fromOffline.value = getFlayrahLastFetchSource() === "offline";
     cacheAgeTick.value += 1;
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : "Failed to load Flayrah RSS.";
@@ -263,6 +463,55 @@ function refresh() {
   void load(true);
 }
 
+function isTypingTarget(el: EventTarget | null) {
+  if (!(el instanceof HTMLElement)) return false;
+  const tag = el.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    el.isContentEditable
+  );
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (isTypingTarget(e.target)) return;
+  const key = e.key;
+  if (key === "j" || key === "ArrowDown") {
+    e.preventDefault();
+    if (!filtered.value.length) return;
+    focusIndex.value = Math.min(focusIndex.value + 1, filtered.value.length - 1);
+    return;
+  }
+  if (key === "k" || key === "ArrowUp") {
+    e.preventDefault();
+    if (!filtered.value.length) return;
+    focusIndex.value = Math.max(focusIndex.value - 1, 0);
+    return;
+  }
+  if (key === "Enter" || key === "o") {
+    const hit = filtered.value[focusIndex.value];
+    if (!hit) return;
+    e.preventDefault();
+    void router.push(articleRoute(hit.id));
+  }
+}
+
+function focusSearch() {
+  void nextTick(() => {
+    const field = searchField.value as unknown as {
+      focus?: () => void;
+      $el?: HTMLElement;
+    } | null;
+    if (field?.focus) {
+      field.focus();
+      return;
+    }
+    const input = pageEl.value?.querySelector("input");
+    input?.focus();
+  });
+}
+
 watch(feedId, () => {
   void load();
 });
@@ -272,11 +521,15 @@ onMounted(() => {
   ageTimer = setInterval(() => {
     cacheAgeTick.value += 1;
   }, 30000);
+  window.addEventListener("keydown", onKeydown);
+  shortcutService.emitter.on("focusSearch", focusSearch);
 });
 
 onUnmounted(() => {
   if (searchTimer) clearTimeout(searchTimer);
   if (ageTimer) clearInterval(ageTimer);
+  window.removeEventListener("keydown", onKeydown);
+  shortcutService.emitter.off("focusSearch", focusSearch);
 });
 </script>
 
@@ -317,5 +570,41 @@ onUnmounted(() => {
   color: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+.flayrah-unread :deep(.v-list-item-title),
+.flayrah-card.flayrah-unread .flayrah-card-title {
+  font-weight: 700;
+}
+.flayrah-focused {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: -2px;
+}
+.flayrah-magazine {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.flayrah-card {
+  display: flex;
+  flex-direction: column;
+  color: inherit;
+  text-decoration: none;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(var(--v-theme-surface), 1);
+}
+.flayrah-card-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  background: rgba(var(--v-border-color), 0.12);
+}
+.flayrah-card-body {
+  padding: 12px;
+}
+.flayrah-card-title {
+  font-weight: 600;
+  line-height: 1.3;
 }
 </style>

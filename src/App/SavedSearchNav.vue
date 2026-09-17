@@ -1,7 +1,9 @@
 <template>
   <div>
     <v-list-item>
-      <v-list-item-title class="text-overline">Saved searches</v-list-item-title>
+      <v-list-item-title class="text-overline">
+        {{ siteMode.isFlayrah ? "Saved filters" : "Saved searches" }}
+      </v-list-item-title>
       <template #append>
         <v-btn
           icon
@@ -321,6 +323,14 @@ const toSearch = (tags: string[]) =>
           name: "FlayrahFeed",
           query: {
             tags: tags.join(" "),
+            ...(typeof route.query.feed === "string" &&
+            route.query.feed &&
+            route.query.feed !== "full"
+              ? { feed: route.query.feed }
+              : {}),
+            ...(route.query.view === "unread" || route.query.view === "saved"
+              ? { view: String(route.query.view) }
+              : {}),
           },
         }
     : {

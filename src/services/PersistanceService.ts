@@ -42,6 +42,7 @@ export type SettingsImportPreview = {
   historyEntries: number;
   savedSearchEntries: number;
   savedPosts: number;
+  flayrahSaved: number;
   watchedPools: number;
 };
 
@@ -54,6 +55,7 @@ export type SettingsResetSlice =
   | "searches"
   | "favorites"
   | "savedPosts"
+  | "flayrahNews"
   | "watchedPools";
 
 const clearAccountSecrets = (account: {
@@ -94,6 +96,7 @@ export const summarizeSettingsImport = (
     historyEntries: settings.history?.entries?.length ?? 0,
     savedSearchEntries: settings.searches?.entries?.length ?? 0,
     savedPosts: settings.savedPosts?.entries?.length ?? 0,
+    flayrahSaved: settings.flayrahNews?.saved?.length ?? 0,
     watchedPools: settings.watchedPools?.entries?.length ?? 0,
   };
 };
@@ -229,6 +232,9 @@ class PersistanceService {
         break;
       case "savedPosts":
         this.main.savedPosts = { entries: [] };
+        break;
+      case "flayrahNews":
+        this.main.flayrahNews = { readIds: [], saved: [], layout: "list" };
         break;
       case "watchedPools":
         this.main.watchedPools = { entries: [] };
@@ -679,12 +685,47 @@ class PersistanceService {
       }
       newState.configVersion = 42;
     }
+    if (newState.configVersion < 43) {
+      if (!newState.flayrahNews) {
+        newState.flayrahNews = { readIds: [], saved: [], layout: "list" };
+      } else {
+        if (!Array.isArray(newState.flayrahNews.readIds)) {
+          newState.flayrahNews.readIds = [];
+        }
+        if (!Array.isArray(newState.flayrahNews.saved)) {
+          newState.flayrahNews.saved = [];
+        }
+        if (
+          newState.flayrahNews.layout !== "list" &&
+          newState.flayrahNews.layout !== "magazine"
+        ) {
+          newState.flayrahNews.layout = "list";
+        }
+      }
+      newState.configVersion = 43;
+    }
 
     if (!newState.watchedPools || !Array.isArray(newState.watchedPools.entries)) {
       newState.watchedPools = { entries: [] };
     }
     if (!newState.savedPosts || !Array.isArray(newState.savedPosts.entries)) {
       newState.savedPosts = { entries: [] };
+    }
+    if (!newState.flayrahNews) {
+      newState.flayrahNews = { readIds: [], saved: [], layout: "list" };
+    } else {
+      if (!Array.isArray(newState.flayrahNews.readIds)) {
+        newState.flayrahNews.readIds = [];
+      }
+      if (!Array.isArray(newState.flayrahNews.saved)) {
+        newState.flayrahNews.saved = [];
+      }
+      if (
+        newState.flayrahNews.layout !== "list" &&
+        newState.flayrahNews.layout !== "magazine"
+      ) {
+        newState.flayrahNews.layout = "list";
+      }
     }
     if (!newState.artistDashboard || !Array.isArray(newState.artistDashboard.recentArtists)) {
       newState.artistDashboard = { recentArtists: [] };

@@ -11,6 +11,7 @@ export * from "./UrlStore";
 export * from "./SavedSearchStore";
 export * from "./ArtistDashboardStore";
 export * from "./SavedPostsStore";
+export * from "./FlayrahNewsStore";
 export * from "./WatchedPoolsStore";
 export * from "./SiteModeStore";
 export * from "./PwaUpdateStore";
