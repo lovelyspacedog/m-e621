@@ -1,112 +1,116 @@
 <template>
-  <section class="landing-hero v-toolbar elevation-0 bg-primary d-flex">
-    <div class="w-100 d-flex flex-column align-center justify-center fill-height py-10 px-4">
-      <app-logo v-view-transition-name="'applogo'" type="face" size="160" />
-      <h1 class="mb-2 text-h1 text-center">m-e621</h1>
-      <p class="text-h6 text-center landing-tagline mb-4">
-        {{ tagline }}
-      </p>
-      <site-mode-switcher class="mb-5" variant="chips" :navigate-on-change="false" />
-      <div v-if="showTagSearch" class="landing-search mb-4">
-        <tag-search
-          v-view-transition-name="'tagsearch'"
-          class="landing-search-field"
-          :tags="tags"
-          @add-tag="addTag"
-          @remove-tag="removeTag"
-          @confirm-search="router.push(query)"
-          :label="searchLabel"
-        />
-      </div>
-      <p v-else class="text-body-2 text-center mb-4 landing-search-hint">
-        Tailspace uses its own browse feed — pick a site above or open posts.
-      </p>
-      <div class="d-flex flex-wrap justify-center align-center ga-3">
-        <v-btn size="x-large" color="secondary" variant="flat" :to="query"> Browse posts </v-btn>
-        <v-btn
-          size="large"
-          color="white"
-          variant="outlined"
-          class="landing-hero-link"
-          :to="{ name: 'ScentMarks' }"
-        >
-          Scent Marks
-        </v-btn>
-        <v-btn
-          size="large"
-          color="white"
-          variant="outlined"
-          class="landing-hero-link"
-          @click="changelogOpen = true"
-        >
-          Changelog &amp; TOS
-        </v-btn>
-      </div>
-      <ChangelogDialog v-model="changelogOpen" />
-    </div>
-  </section>
-  <MigrationInfo />
-  <section class="mt-8 mb-2">
-    <v-container>
-      <v-row justify="center">
-        <v-col cols="12" md="8" lg="6">
-          <h2 class="text-h4 text-center mb-4">What it does</h2>
-          <ul class="landing-capabilities">
-            <li v-for="item in capabilities" :key="item">{{ item }}</li>
-          </ul>
-        </v-col>
-      </v-row>
-    </v-container>
-  </section>
-  <About />
-  <section class="ma-1 mb-6">
-    <v-row wrap justify="center" align="start">
-      <v-col cols="12" class="pt-5">
-        <div class="text-center">
-          <h2 class="text-h4">Latest updates</h2>
-          <p class="text-center text-medium-emphasis text-body-2 mt-1 mb-0">
-            Recent commits from this fork and upstream Material e621
-          </p>
+  <!-- Single root required: router-view uses <Transition mode="out-in">.
+       Multi-root fragments never finish leave → blank v-main (Scent Marks). -->
+  <div class="landing-page">
+    <section class="landing-hero v-toolbar elevation-0 bg-primary d-flex">
+      <div class="w-100 d-flex flex-column align-center justify-center fill-height py-10 px-4">
+        <app-logo v-view-transition-name="'applogo'" type="face" size="160" />
+        <h1 class="mb-2 text-h1 text-center">m-e621</h1>
+        <p class="text-h6 text-center landing-tagline mb-4">
+          {{ tagline }}
+        </p>
+        <site-mode-switcher class="mb-5" variant="chips" :navigate-on-change="false" />
+        <div v-if="showTagSearch" class="landing-search mb-4">
+          <tag-search
+            v-view-transition-name="'tagsearch'"
+            class="landing-search-field"
+            :tags="tags"
+            @add-tag="addTag"
+            @remove-tag="removeTag"
+            @confirm-search="router.push(query)"
+            :label="searchLabel"
+          />
         </div>
-      </v-col>
-      <v-col cols="12" md="6" xl="4" class="py-5">
-        <h3 class="text-h6 text-center mb-3">Tony Pup</h3>
-        <commit-timeline :limit="3" source="fork" />
-        <v-btn
-          block
-          class="mt-0"
-          color="primary"
-          href="https://github.com/lovelyspacedog/m-e621/commits/master"
-          target="_blank"
-          rel="noopener"
-        >
-          more on GitHub
-        </v-btn>
-      </v-col>
-      <v-col cols="12" md="6" xl="4" class="py-5">
-        <h3 class="text-h6 text-center mb-3">Avoonix</h3>
-        <commit-timeline :limit="3" source="upstream" />
-        <v-btn
-          block
-          class="mt-0"
-          color="primary"
-          href="https://github.com/avoonix/material-e621/commits/master"
-          target="_blank"
-          rel="noopener"
-        >
-          more on GitHub
-        </v-btn>
-      </v-col>
-      <v-col cols="12" class="pb-2">
-        <div class="d-flex flex-wrap justify-center ga-2">
-          <v-btn color="primary" variant="tonal" @click="changelogOpen = true">
+        <p v-else class="text-body-2 text-center mb-4 landing-search-hint">
+          Tailspace uses its own browse feed — pick a site above or open posts.
+        </p>
+        <div class="d-flex flex-wrap justify-center align-center ga-3">
+          <v-btn size="x-large" color="secondary" variant="flat" :to="query"> Browse posts </v-btn>
+          <v-btn
+            size="large"
+            color="white"
+            variant="outlined"
+            class="landing-hero-link"
+            :to="{ name: 'ScentMarks' }"
+          >
+            Scent Marks
+          </v-btn>
+          <v-btn
+            size="large"
+            color="white"
+            variant="outlined"
+            class="landing-hero-link"
+            @click="changelogOpen = true"
+          >
             Changelog &amp; TOS
           </v-btn>
         </div>
-      </v-col>
-    </v-row>
-  </section>
-  <Footer />
+        <ChangelogDialog v-model="changelogOpen" />
+      </div>
+    </section>
+    <MigrationInfo />
+    <section class="mt-8 mb-2">
+      <v-container>
+        <v-row justify="center">
+          <v-col cols="12" md="8" lg="6">
+            <h2 class="text-h4 text-center mb-4">What it does</h2>
+            <ul class="landing-capabilities">
+              <li v-for="item in capabilities" :key="item">{{ item }}</li>
+            </ul>
+          </v-col>
+        </v-row>
+      </v-container>
+    </section>
+    <About />
+    <section class="ma-1 mb-6">
+      <v-row wrap justify="center" align="start">
+        <v-col cols="12" class="pt-5">
+          <div class="text-center">
+            <h2 class="text-h4">Latest updates</h2>
+            <p class="text-center text-medium-emphasis text-body-2 mt-1 mb-0">
+              Recent commits from this fork and upstream Material e621
+            </p>
+          </div>
+        </v-col>
+        <v-col cols="12" md="6" xl="4" class="py-5">
+          <h3 class="text-h6 text-center mb-3">Tony Pup</h3>
+          <commit-timeline :limit="3" source="fork" />
+          <v-btn
+            block
+            class="mt-0"
+            color="primary"
+            href="https://github.com/lovelyspacedog/m-e621/commits/master"
+            target="_blank"
+            rel="noopener"
+          >
+            more on GitHub
+          </v-btn>
+        </v-col>
+        <v-col cols="12" md="6" xl="4" class="py-5">
+          <h3 class="text-h6 text-center mb-3">Avoonix</h3>
+          <commit-timeline :limit="3" source="upstream" />
+          <v-btn
+            block
+            class="mt-0"
+            color="primary"
+            href="https://github.com/avoonix/material-e621/commits/master"
+            target="_blank"
+            rel="noopener"
+          >
+            more on GitHub
+          </v-btn>
+        </v-col>
+        <v-col cols="12" class="pb-2">
+          <div class="d-flex flex-wrap justify-center ga-2">
+            <v-btn color="primary" variant="tonal" @click="changelogOpen = true">
+              Changelog &amp; TOS
+            </v-btn>
+          </div>
+        </v-col>
+      </v-row>
+    </section>
+    <Footer />
+  </div>
 </template>
 
 <script setup lang="ts">
