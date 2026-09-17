@@ -30,7 +30,26 @@
           @confirm-search="runTagSearch"
         />
 
-        <v-select v-model="order" class="pools-toolbar-select" density="compact" hide-details variant="solo" :items="orderItems" :disabled="searchMode === 'tags'" label="Sort" />
+        <v-text-field
+          v-model="creator"
+          class="pools-toolbar-creator"
+          density="compact"
+          hide-details
+          clearable
+          label="Creator"
+          variant="solo"
+          @keyup.enter="runSearch"
+        />
+
+        <v-select
+          v-model="order"
+          class="pools-toolbar-select"
+          density="compact"
+          hide-details
+          variant="solo"
+          :items="orderItems"
+          label="Sort"
+        />
         <v-select
           v-model="category"
           class="pools-toolbar-select"
@@ -38,9 +57,28 @@
           hide-details
           variant="solo"
           :items="categoryItems"
-          :disabled="searchMode === 'tags'"
           label="Category"
         />
+        <v-select
+          v-model="activeFilter"
+          class="pools-toolbar-select"
+          density="compact"
+          hide-details
+          variant="solo"
+          :items="activeItems"
+          label="Status"
+        />
+
+        <v-btn
+          v-if="searchMode === 'name'"
+          size="small"
+          variant="outlined"
+          :color="alsoDescriptions ? 'primary' : undefined"
+          title="Also match pool descriptions (merged results; pagination is approximate)"
+          @click="alsoDescriptions = !alsoDescriptions"
+        >
+          Desc
+        </v-btn>
 
         <v-btn-toggle v-model="browseLayout" mandatory density="compact" variant="outlined" divided class="pools-layout-toggle">
           <v-btn value="grid" size="small" title="Grid">
@@ -87,7 +125,12 @@
 
       <v-divider class="mb-6" />
 
-      <div v-if="searchMode === 'tags'" class="text-caption text-medium-emphasis mb-3">Pools discovered from posts matching your tags (sort/category disabled).</div>
+      <div v-if="searchMode === 'tags'" class="text-caption text-medium-emphasis mb-3">
+        Pools whose posts match your tags (native pool search).
+      </div>
+      <div v-else-if="alsoDescriptions && queryText()" class="text-caption text-medium-emphasis mb-3">
+        Matching names or descriptions (merged; Load more may repeat until both sides exhaust).
+      </div>
       <div v-if="error" class="text-medium-emphasis mb-4">{{ error }}</div>
       <div v-else-if="loading && !pools.length" class="text-center py-8">
         <v-progress-circular indeterminate color="accent" />
@@ -125,7 +168,7 @@ import type { Pool } from "@/worker/api";
 import TagSearch from "@/Tag/TagSearch.vue";
 import PoolCollection from "@/Pool/PoolCollection.vue";
 import { useRouterTagManager } from "@/Post/routerTagManager";
-import { useAccountStore, useBlacklistStore, usePostsStore, useSiteModeStore, useUrlStore, useWatchedPoolsStore } from "@/services";
+import { useAccountStore, usePostsStore, useSiteModeStore, useUrlStore, useWatchedPoolsStore } from "@/services";
 import type { PoolOriginMode } from "@/services/types";
 import { BlacklistMode } from "@/services/types";
 import { useRouterQueryHelpers } from "@/misc/util/utilities";
@@ -135,20 +178,23 @@ useHead({ title: "Pools" });
 
 type PoolOrder = "post_count" | "updated_at" | "created_at" | "name";
 type PoolCategoryFilter = "all" | "series" | "collection";
+type ActiveFilter = "all" | "active" | "inactive";
 type SearchMode = "name" | "tags";
 type BrowseLayout = "grid" | "list";
 
 const ORDER_VALUES: PoolOrder[] = ["post_count", "updated_at", "created_at", "name"];
 const CATEGORY_VALUES: PoolCategoryFilter[] = ["all", "series", "collection"];
+const ACTIVE_VALUES: ActiveFilter[] = ["all", "active", "inactive"];
 const LAYOUT_KEY = "pools-browse-layout";
-const TAG_FETCH_CONCURRENCY = 8;
+const DESC_KEY = "pools-also-descriptions";
+const COVER_CANDIDATES = 4;
+const ID_BATCH = 40;
 
 const route = useRoute();
 const urlStore = useUrlStore();
 const siteMode = useSiteModeStore();
 const postsStore = usePostsStore();
 const account = useAccountStore();
-const blacklist = useBlacklistStore();
 const watchedPoolStore = useWatchedPoolsStore();
 const { updateRouterQuery, removeRouterQuery } = useRouterQueryHelpers();
 const { tags, addTag, removeTag } = useRouterTagManager();
@@ -164,6 +210,11 @@ const categoryItems = [
   { title: "Series", value: "series" },
   { title: "Collection", value: "collection" },
 ];
+const activeItems = [
+  { title: "Any status", value: "all" },
+  { title: "Active", value: "active" },
+  { title: "Inactive", value: "inactive" },
+];
 
 const parseOrder = (raw: unknown): PoolOrder => {
   const value = Array.isArray(raw) ? raw[0] : raw;
@@ -171,7 +222,13 @@ const parseOrder = (raw: unknown): PoolOrder => {
 };
 const parseCategory = (raw: unknown): PoolCategoryFilter => {
   const value = Array.isArray(raw) ? raw[0] : raw;
-  return CATEGORY_VALUES.includes(value as PoolCategoryFilter) ? (value as PoolCategoryFilter) : "all";
+  return CATEGORY_VALUES.includes(value as PoolCategoryFilter)
+    ? (value as PoolCategoryFilter)
+    : "all";
+};
+const parseActive = (raw: unknown): ActiveFilter => {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return ACTIVE_VALUES.includes(value as ActiveFilter) ? (value as ActiveFilter) : "all";
 };
 const parseQuery = (raw: unknown): string => {
   const value = Array.isArray(raw) ? raw[0] : raw;
@@ -180,6 +237,10 @@ const parseQuery = (raw: unknown): string => {
 const parseMode = (raw: unknown): SearchMode => {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return value === "tags" ? "tags" : "name";
+};
+const parseBoolFlag = (raw: unknown): boolean => {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value === "1" || value === "true";
 };
 const loadBrowseLayout = (): BrowseLayout => {
   try {
@@ -190,11 +251,22 @@ const loadBrowseLayout = (): BrowseLayout => {
   }
   return "grid";
 };
+const loadAlsoDescriptions = (): boolean => {
+  if (route.query.desc != null) return parseBoolFlag(route.query.desc);
+  try {
+    return localStorage.getItem(DESC_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
 
 const query = ref<string | null>(parseQuery(route.query.q));
+const creator = ref(parseQuery(route.query.creator));
 const order = ref<PoolOrder>(parseOrder(route.query.order));
 const category = ref<PoolCategoryFilter>(parseCategory(route.query.category));
+const activeFilter = ref<ActiveFilter>(parseActive(route.query.active));
 const searchMode = ref<SearchMode>(parseMode(route.query.mode));
+const alsoDescriptions = ref(loadAlsoDescriptions());
 const browseLayout = ref<BrowseLayout>(loadBrowseLayout());
 const pools = ref<Pool[]>([]);
 const watchedPoolResults = ref<Pool[]>([]);
@@ -206,9 +278,6 @@ const searched = ref(false);
 const page = ref(1);
 const hasMore = ref(true);
 const syncingFromRoute = ref(false);
-/** Posts page cursor for tags-mode discovery */
-const tagPostsPage = ref(0);
-const seenPoolIds = ref<Set<number>>(new Set());
 /** Bumps on each tags fetch so overlapping resets cannot wipe results. */
 let tagsFetchGeneration = 0;
 
@@ -229,12 +298,8 @@ const unavailableWatchedIds = computed(() => {
   return watchedEntries.value.map((entry) => entry.id).filter((id) => !loaded.has(id));
 });
 const queryText = () => (query.value || "").trim();
+const creatorText = () => (creator.value || "").trim();
 const browseLimit = () => postsStore.postListFetchLimit || 40;
-
-const poolSnapshot = (pool: Pool) => ({
-  postCount: pool.post_count || pool.post_ids?.length || 0,
-  updatedAt: pool.updated_at,
-});
 
 const mergePools = (lists: Pool[][], existingIds?: Set<number>) => {
   const seen = existingIds ? new Set(existingIds) : new Set<number>();
@@ -249,6 +314,18 @@ const mergePools = (lists: Pool[][], existingIds?: Set<number>) => {
   return out;
 };
 
+const sharedPoolArgs = () =>
+  ({
+    limit: browseLimit(),
+    order: order.value,
+    category: category.value === "all" ? undefined : category.value,
+    isActive:
+      activeFilter.value === "all" ? undefined : activeFilter.value === "active",
+    creatorName: creatorText() || undefined,
+    baseUrl: toRaw(urlStore.e621Url),
+    mode: toRaw(siteMode.activeMode),
+  }) as const;
+
 const syncQueryToRoute = async () => {
   const next: Record<string, string | undefined> = {};
   const keysToRemove: string[] = [];
@@ -256,44 +333,63 @@ const syncQueryToRoute = async () => {
   if (searchMode.value === "tags") {
     next.mode = "tags";
     keysToRemove.push("q");
+    keysToRemove.push("desc");
   } else {
     keysToRemove.push("mode");
     const q = queryText();
     if (q) next.q = q;
     else keysToRemove.push("q");
+    if (alsoDescriptions.value) next.desc = "1";
+    else keysToRemove.push("desc");
   }
 
-  if (searchMode.value === "name") {
-    if (order.value !== "post_count") next.order = order.value;
-    else keysToRemove.push("order");
-    if (category.value !== "all") next.category = category.value;
-    else keysToRemove.push("category");
-  }
+  if (order.value !== "post_count") next.order = order.value;
+  else keysToRemove.push("order");
+  if (category.value !== "all") next.category = category.value;
+  else keysToRemove.push("category");
+  if (activeFilter.value !== "all") next.active = activeFilter.value;
+  else keysToRemove.push("active");
+  const c = creatorText();
+  if (c) next.creator = c;
+  else keysToRemove.push("creator");
 
   if (Object.keys(next).length) await updateRouterQuery(next);
   if (keysToRemove.length) await removeRouterQuery(keysToRemove);
 };
 
 const fetchCovers = async (list: Pool[]) => {
-  const ids = [...new Set(list.map((pool) => pool.post_ids?.[0]).filter((id): id is number => typeof id === "number" && id > 0))].filter((id) => !covers.value[id]);
+  const needed = new Set<number>();
+  for (const pool of list) {
+    const candidates = (pool.post_ids || [])
+      .filter((id): id is number => typeof id === "number" && id > 0)
+      .slice(0, COVER_CANDIDATES);
+    if (!candidates.length) continue;
+    if (candidates.some((id) => covers.value[id])) continue;
+    for (const id of candidates) needed.add(id);
+  }
+  const ids = [...needed];
   if (!ids.length) return;
 
   try {
     const service = await getApiService();
-    const { posts } = await service.getPosts({
-      page: 1,
-      limit: ids.length,
-      tags: [`id:${ids.join(",")}`],
-      blacklist: [],
-      blacklistMode: BlacklistMode.hide,
-      auth: toRaw(account.auth),
-      baseUrl: toRaw(urlStore.e621Url),
-      mode: toRaw(siteMode.activeMode),
-    });
+    // id: queries can be long; batch modestly.
     const next = { ...covers.value };
-    for (const post of posts) {
-      const url = post.preview?.url || post.sample?.url;
-      if (url) next[post.id] = url;
+    for (let i = 0; i < ids.length; i += ID_BATCH) {
+      const slice = ids.slice(i, i + ID_BATCH);
+      const { posts } = await service.getPosts({
+        page: 1,
+        limit: slice.length,
+        tags: [`id:${slice.join(",")}`],
+        blacklist: [],
+        blacklistMode: BlacklistMode.hide,
+        auth: toRaw(account.auth),
+        baseUrl: toRaw(urlStore.e621Url),
+        mode: toRaw(siteMode.activeMode),
+      });
+      for (const post of posts) {
+        const url = post.preview?.url || post.sample?.url;
+        if (url) next[post.id] = url;
+      }
     }
     covers.value = next;
   } catch {
@@ -301,34 +397,36 @@ const fetchCovers = async (list: Pool[]) => {
   }
 };
 
-const mapWithConcurrency = async <T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R | null>): Promise<R[]> => {
-  const results: (R | null)[] = new Array(items.length).fill(null);
-  let index = 0;
-  const workers = Array.from({ length: Math.min(concurrency, Math.max(items.length, 1)) }, async () => {
-    while (index < items.length) {
-      const currentIndex = index++;
-      results[currentIndex] = await fn(items[currentIndex]);
-    }
-  });
-  await Promise.all(workers);
-  return results.filter((value): value is R => value != null);
-};
-
 const hydratePools = async (ids: number[]): Promise<Pool[]> => {
   if (!ids.length) return [];
   const service = await getApiService();
-  return mapWithConcurrency(ids, TAG_FETCH_CONCURRENCY, async (id) => {
+  const unique = [...new Set(ids.filter((id) => Number.isFinite(id) && id > 0))];
+  const out: Pool[] = [];
+  for (let i = 0; i < unique.length; i += ID_BATCH) {
+    const slice = unique.slice(i, i + ID_BATCH);
     try {
-      return await service.getPool({
-        id,
-        baseUrl: toRaw(urlStore.e621Url),
-        mode: toRaw(siteMode.activeMode),
+      const result = await service.getPools({
+        ...sharedPoolArgs(),
+        limit: Math.max(slice.length, 1),
+        page: 1,
+        order: "post_count",
+        category: undefined,
+        isActive: undefined,
+        creatorName: undefined,
+        ids: slice,
       });
+      if (Array.isArray(result)) out.push(...result);
     } catch {
-      return null;
+      // Fall through — missing ids show as unavailable watches.
     }
-  });
+  }
+  return out;
 };
+
+const poolSnapshot = (pool: Pool) => ({
+  postCount: pool.post_count || pool.post_ids?.length || 0,
+  updatedAt: pool.updated_at,
+});
 
 const loadWatchedPools = async () => {
   watchedLoading.value = true;
@@ -341,7 +439,6 @@ const loadWatchedPools = async () => {
     for (const pool of watchedPoolResults.value) {
       watchedPoolStore.ensureBaseline(poolOrigin.value, pool.id, poolSnapshot(pool));
     }
-    // Prefer pools with new pages first within the watched section.
     watchedPoolResults.value = [...watchedPoolResults.value].sort((a, b) => {
       const delta =
         watchedPoolStore.newCount(poolOrigin.value, b.id, b.post_count || 0) -
@@ -377,18 +474,13 @@ const fetchPoolsByName = async (pageNumber: number, append: boolean) => {
     const q = queryText();
     const limit = browseLimit();
     const shared = {
+      ...sharedPoolArgs(),
       limit,
       page: pageNumber,
-      order: order.value,
-      category: category.value === "all" ? undefined : category.value,
-      baseUrl: toRaw(urlStore.e621Url),
-      mode: toRaw(siteMode.activeMode),
-    } as const;
+    };
 
     let list: Pool[];
-    if (q) {
-      // Name and description are separate filters (AND if combined). Merge two
-      // pages so either field can match.
+    if (q && alsoDescriptions.value) {
       const [byName, byDesc] = await Promise.all([
         service.getPools({ ...shared, query: `*${q}*` }),
         service.getPools({
@@ -400,6 +492,10 @@ const fetchPoolsByName = async (pageNumber: number, append: boolean) => {
       const descList = Array.isArray(byDesc) ? byDesc : [];
       list = mergePools([nameList, descList], append ? new Set(pools.value.map((p) => p.id)) : undefined);
       hasMore.value = nameList.length >= limit || descList.length >= limit;
+    } else if (q) {
+      const result = await service.getPools({ ...shared, query: `*${q}*` });
+      list = Array.isArray(result) ? result : [];
+      hasMore.value = list.length >= limit;
     } else {
       const result = await service.getPools(shared);
       list = Array.isArray(result) ? result : [];
@@ -419,25 +515,17 @@ const fetchPoolsByName = async (pageNumber: number, append: boolean) => {
   }
 };
 
-/**
- * Discover pools from posts matching tags (+ inpool:true). Advances posts pages
- * until we collect `browseLimit` new pools or posts run out.
- *
- * Search + route watchers can start overlapping resets; each call owns a local
- * seen-set and only commits UI state if it is still the latest generation.
- */
-const fetchPoolsByTags = async (reset: boolean) => {
+const fetchPoolsByTags = async (pageNumber: number, append: boolean) => {
   const generation = ++tagsFetchGeneration;
 
   if (!tags.value.length) {
     if (generation !== tagsFetchGeneration) return;
     pools.value = [];
     covers.value = {};
-    seenPoolIds.value = new Set();
-    tagPostsPage.value = 0;
     hasMore.value = false;
     searched.value = true;
     error.value = null;
+    page.value = 1;
     return;
   }
 
@@ -446,72 +534,30 @@ const fetchPoolsByTags = async (reset: boolean) => {
   try {
     const service = await getApiService();
     const limit = browseLimit();
-    const postPageSize = Math.min(limit, 40);
-    if (reset) {
-      pools.value = [];
-      covers.value = {};
-      tagPostsPage.value = 0;
-    }
-
-    // Local set: concurrent resets must not poison each other's id tracking.
-    const seen = reset ? new Set<number>() : new Set(seenPoolIds.value);
-    const collected: Pool[] = [];
-    let postsPage = tagPostsPage.value;
-    let postsExhausted = false;
-
-    while (collected.length < limit && !postsExhausted) {
-      if (generation !== tagsFetchGeneration) return;
-      postsPage += 1;
-      const { posts } = await service.getPosts({
-        page: postsPage,
-        limit: postPageSize,
-        tags: [...toRaw(tags.value), "inpool:true"],
-        blacklist: toRaw(blacklist.tags),
-        blacklistMode: toRaw(blacklist.mode),
-        auth: toRaw(account.auth),
-        baseUrl: toRaw(urlStore.e621Url),
-        mode: toRaw(siteMode.activeMode),
-      });
-      if (generation !== tagsFetchGeneration) return;
-      if (!posts.length) {
-        postsExhausted = true;
-        break;
-      }
-      if (posts.length < postPageSize) postsExhausted = true;
-
-      const newIds: number[] = [];
-      for (const post of posts) {
-        for (const poolId of post.pools || []) {
-          if (seen.has(poolId)) continue;
-          seen.add(poolId);
-          newIds.push(poolId);
-        }
-      }
-      if (newIds.length) {
-        const hydrated = await hydratePools(newIds);
-        if (generation !== tagsFetchGeneration) return;
-        collected.push(...hydrated);
-      }
-    }
-
+    const result = await service.getPools({
+      ...sharedPoolArgs(),
+      limit,
+      page: pageNumber,
+      postTagsMatch: toRaw(tags.value).join(" "),
+    });
     if (generation !== tagsFetchGeneration) return;
-    seenPoolIds.value = seen;
-    tagPostsPage.value = postsPage;
-    pools.value = reset ? collected : [...pools.value, ...collected];
-    hasMore.value = !postsExhausted;
+    const list = Array.isArray(result) ? result : [];
+    pools.value = append ? [...pools.value, ...list] : list;
+    if (!append) covers.value = {};
+    hasMore.value = list.length >= limit;
     searched.value = true;
-    void fetchCovers(collected);
+    page.value = pageNumber;
+    void fetchCovers(list);
   } catch (err: any) {
     if (generation !== tagsFetchGeneration) return;
     error.value = err?.message || String(err);
-    if (reset) pools.value = [];
+    if (!append) pools.value = [];
   } finally {
     if (generation === tagsFetchGeneration) loading.value = false;
   }
 };
 
 const runSearch = async () => {
-  // Suppress route watchers while we push query + start the fetch ourselves.
   syncingFromRoute.value = true;
   try {
     await syncQueryToRoute();
@@ -521,7 +567,7 @@ const runSearch = async () => {
   } finally {
     syncingFromRoute.value = false;
   }
-  if (searchMode.value === "tags") void fetchPoolsByTags(true);
+  if (searchMode.value === "tags") void fetchPoolsByTags(1, false);
   else void fetchPoolsByName(1, false);
 };
 
@@ -533,20 +579,19 @@ const runTagSearch = async () => {
   } finally {
     syncingFromRoute.value = false;
   }
-  void fetchPoolsByTags(true);
+  void fetchPoolsByTags(1, false);
 };
 
 const loadMore = () => {
   if (!hasMore.value || loading.value) return;
   if (searchMode.value === "tags") {
-    void fetchPoolsByTags(false);
+    void fetchPoolsByTags(page.value + 1, true);
   } else {
     void fetchPoolsByName(page.value + 1, true);
   }
 };
 
 const debouncedSearch = debounce(() => {
-  if (searchMode.value !== "name") return;
   runSearch();
 }, 400);
 
@@ -555,7 +600,22 @@ watch(query, () => {
   debouncedSearch();
 });
 
-watch([order, category], () => {
+watch(creator, () => {
+  if (syncingFromRoute.value) return;
+  debouncedSearch();
+});
+
+watch([order, category, activeFilter], () => {
+  if (syncingFromRoute.value) return;
+  runSearch();
+});
+
+watch(alsoDescriptions, (value) => {
+  try {
+    localStorage.setItem(DESC_KEY, value ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
   if (syncingFromRoute.value || searchMode.value !== "name") return;
   runSearch();
 });
@@ -574,13 +634,33 @@ watch(browseLayout, (layout) => {
 });
 
 watch(
-  () => [route.query.q, route.query.order, route.query.category, route.query.mode] as const,
-  ([q, o, c, m]) => {
+  () =>
+    [
+      route.query.q,
+      route.query.order,
+      route.query.category,
+      route.query.mode,
+      route.query.active,
+      route.query.creator,
+      route.query.desc,
+    ] as const,
+  ([q, o, c, m, a, cr, d]) => {
     const nextQuery = parseQuery(q);
     const nextOrder = parseOrder(o);
     const nextCategory = parseCategory(c);
     const nextMode = parseMode(m);
-    if (nextQuery === (query.value || "") && nextOrder === order.value && nextCategory === category.value && nextMode === searchMode.value) {
+    const nextActive = parseActive(a);
+    const nextCreator = parseQuery(cr);
+    const nextDesc = d != null ? parseBoolFlag(d) : alsoDescriptions.value;
+    if (
+      nextQuery === (query.value || "") &&
+      nextOrder === order.value &&
+      nextCategory === category.value &&
+      nextMode === searchMode.value &&
+      nextActive === activeFilter.value &&
+      nextCreator === (creator.value || "") &&
+      nextDesc === alsoDescriptions.value
+    ) {
       return;
     }
     syncingFromRoute.value = true;
@@ -588,8 +668,11 @@ watch(
     order.value = nextOrder;
     category.value = nextCategory;
     searchMode.value = nextMode;
+    activeFilter.value = nextActive;
+    creator.value = nextCreator;
+    alsoDescriptions.value = nextDesc;
     syncingFromRoute.value = false;
-    if (nextMode === "tags") void fetchPoolsByTags(true);
+    if (nextMode === "tags") void fetchPoolsByTags(1, false);
     else void fetchPoolsByName(1, false);
   },
 );
@@ -599,13 +682,13 @@ watch(
   () => {
     if (syncingFromRoute.value) return;
     if (searchMode.value !== "tags") return;
-    void fetchPoolsByTags(true);
+    void fetchPoolsByTags(1, false);
   },
 );
 
 onMounted(() => {
   void loadWatchedPools();
-  if (searchMode.value === "tags") void fetchPoolsByTags(true);
+  if (searchMode.value === "tags") void fetchPoolsByTags(1, false);
   else void fetchPoolsByName(1, false);
 });
 
@@ -614,7 +697,7 @@ watch(
   () => {
     watchedPoolResults.value = [];
     void loadWatchedPools();
-    if (searchMode.value === "tags") void fetchPoolsByTags(true);
+    if (searchMode.value === "tags") void fetchPoolsByTags(1, false);
     else void fetchPoolsByName(1, false);
   },
 );
@@ -633,6 +716,12 @@ watch(
 .pools-toolbar-search {
   flex: 1 1 12rem;
   min-width: 8rem;
+}
+
+.pools-toolbar-creator {
+  flex: 0 1 8rem;
+  min-width: 6rem;
+  max-width: 10rem;
 }
 
 .pools-toolbar-select {

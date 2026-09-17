@@ -37,6 +37,14 @@ export interface IPoolsArgs extends IBaseArgs {
   category?: "series" | "collection";
   /** e621 search[description_matches] */
   descriptionMatches?: string;
+  /** e621 search[post_tags_match] — pools whose posts match these tags */
+  postTagsMatch?: string;
+  /** e621 search[id] — one or more pool ids (comma-separated) */
+  ids?: number[] | string;
+  /** e621 search[is_active] */
+  isActive?: boolean;
+  /** e621 search[creator_name] */
+  creatorName?: string;
 }
 
 export interface IGetPoolArgs extends IBaseArgs {

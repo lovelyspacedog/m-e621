@@ -11,10 +11,10 @@ Checklist for improving e621/e6ai pools (`src/Pool/`, `WatchedPoolsStore`, share
 
 ## Browse & search
 
-- [ ] **Tags-mode API** — Prefer native pools filter (e.g. e621 `search[post_tags_match]`) instead of posts→`getPool` N+1; restore sort/category when possible.
-- [ ] **Name search pagination** — Avoid approximate `hasMore` from dual name+description fetches; single primary query or honest “also search descriptions” toggle.
-- [ ] **Batch hydration / covers** — Batch watched-pool and cover fetches; fall through later `post_ids` when first cover is missing, deleted, or blacklisted.
-- [ ] **Browse filters** — Hide inactive; filter by creator; show updated time in grid/list.
+- [x] **Tags-mode API** — Prefer native pools filter (e.g. e621 `search[post_tags_match]`) instead of posts→`getPool` N+1; restore sort/category when possible.
+- [x] **Name search pagination** — Avoid approximate `hasMore` from dual name+description fetches; single primary query or honest “also search descriptions” toggle.
+- [x] **Batch hydration / covers** — Batch watched-pool and cover fetches; fall through later `post_ids` when first cover is missing, deleted, or blacklisted.
+- [x] **Browse filters** — Hide inactive; filter by creator; show updated time in grid/list.
 
 ## Reader polish
 
@@ -44,4 +44,5 @@ Checklist for improving e621/e6ai pools (`src/Pool/`, `WatchedPoolsStore`, share
 | Cross-chunk fullscreen | Done | PoolPage loadPosts |
 | Resume / deep-link | Done | `?post=` + localStorage resume |
 | Keyboard chunks | Done | ←/→ and `[`/`]` |
-| Rest | Pending | |
+| Browse/search API | Done | post_tags_match, Desc toggle, batch ids, filters |
+| Rest | Pending | reader polish |

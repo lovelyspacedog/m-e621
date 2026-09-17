@@ -21,7 +21,10 @@
         </div>
         <div class="pools-card-info">
           <div class="pools-card-title">{{ displayName(pool.name) }}</div>
-          <div class="pools-card-meta">{{ pool.creator_name }}</div>
+          <div class="pools-card-meta">
+            {{ pool.creator_name }}
+            <span v-if="updatedLabel(pool)"> · {{ updatedLabel(pool) }}</span>
+          </div>
         </div>
       </router-link>
       <v-btn
@@ -52,6 +55,7 @@
       <v-list-item-title>{{ displayName(pool.name) }}</v-list-item-title>
       <v-list-item-subtitle>
         {{ pool.post_count }} posts · {{ pool.creator_name }}
+        <span v-if="updatedLabel(pool)"> · {{ updatedLabel(pool) }}</span>
         <span v-if="pool.category"> · {{ pool.category }}</span>
         <span v-if="!pool.is_active"> · inactive</span>
         <span v-if="newCount(pool) > 0"> · +{{ newCount(pool) }} new</span>
@@ -103,11 +107,26 @@ defineEmits<{
 
 const displayName = (name: string) => name.replace(/_/g, " ");
 const coverUrl = (pool: Pool) => {
-  const firstId = pool.post_ids?.[0];
-  return firstId ? props.covers[firstId] || null : null;
+  for (const id of pool.post_ids || []) {
+    if (typeof id === "number" && id > 0 && props.covers[id]) {
+      return props.covers[id];
+    }
+  }
+  return null;
 };
 const isWatched = (id: number) => props.watchedIds.has(id);
 const newCount = (pool: Pool) => props.newCounts?.[pool.id] || 0;
+const updatedLabel = (pool: Pool) => {
+  const raw = pool.updated_at;
+  if (!raw) return null;
+  const date = raw instanceof Date ? raw : new Date(raw);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
 </script>
 
 <style scoped>

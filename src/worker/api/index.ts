@@ -28,6 +28,16 @@ const buildUrl = (baseUrl: string, path: string, params: Record<string, any> = {
   return url.toString();
 };
 
+/** Serialize pool id filter for `search[id]` (comma-separated). */
+export const serializePoolSearchIds = (ids?: number[] | string) => {
+  if (ids == null) return undefined;
+  if (Array.isArray(ids)) {
+    const joined = ids.filter((id) => Number.isFinite(id) && id > 0).join(",");
+    return joined || undefined;
+  }
+  return String(ids).trim() || undefined;
+};
+
 const fetchErrorMessage = async (response: Response, fallback: string) => {
   try {
     const data = (await response.clone().json()) as { message?: string; reason?: string };
@@ -123,12 +133,18 @@ export const e621 = {
           : args.order === "date"
             ? "updated_at"
             : args.order;
+      const ids = serializePoolSearchIds(args.ids);
       const url = buildUrl(args.baseUrl, "pools.json", {
         limit: args.limit,
         page: args.page,
         "search[order]": order,
         "search[name_matches]": args.query,
         "search[description_matches]": args.descriptionMatches,
+        "search[post_tags_match]": args.postTagsMatch,
+        "search[id]": ids,
+        "search[is_active]":
+          args.isActive === undefined ? undefined : args.isActive ? "true" : "false",
+        "search[creator_name]": args.creatorName,
         "search[category]": args.category,
       });
       return fetchJson<Pool[]>(url);

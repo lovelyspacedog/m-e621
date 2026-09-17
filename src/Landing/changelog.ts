@@ -24,6 +24,7 @@ export const changelogSections: ChangelogSection[] = [
       "Pool fullscreen next/previous continues across gallery/scroll chunks",
       "Pool deep-link `?post=` and resume last page; Open at this page from post details",
       "Pool reader: arrow keys / [ ] change chunks when not in fullscreen",
+      "Pools browse: native post-tag search, status/creator filters, optional description match, faster watched/cover loading",
     ],
   },
   {
