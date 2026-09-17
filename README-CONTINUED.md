@@ -36,7 +36,7 @@ Tailspace and Local are not included in Federated. When the browser is offline, 
 - Story, PDF, RTF, and DOCX fullscreen previews; legacy `.doc` remains unsupported
 - Fluffle reverse-image search for still images (with copy-URL on results)
 - Compact sidebar site switcher; origin badge icons in Federated
-- **Scent Marks** (`#/scent-marks`) — anonymous public guestbook from the landing page; host operators moderate via a hashed admin password on the VPS
+- **Scent Marks** (`#/scent-marks`) — anonymous public guestbook from the landing page; host operators moderate via a hashed admin password on the VPS (pin and delete)
 
 ## Pools and comics
 
@@ -94,7 +94,7 @@ Upstream's static image remains suitable for e621-only hosting. This fork includ
 - Proxies remote APIs, account actions, comments, and downloads
 - Provides same-origin media URLs for Firefox and Zen playback
 - Supports optional managed-instance git updates
-- Hosts **Scent Marks** (`GET`/`POST` `/api/scent-marks`, `POST /api/scent-marks/auth`, admin `DELETE /api/scent-marks/:id`) with JSON at `~/.config/m-e621/scent_marks.json`
+- Hosts **Scent Marks** (`GET`/`POST` `/api/scent-marks`, `POST /api/scent-marks/auth`, admin `POST /api/scent-marks/:id/pin`, admin `DELETE /api/scent-marks/:id`) with JSON at `~/.config/m-e621/scent_marks.json`; pinned marks sort to the top of the trail
 - New scent marks are checked client-side and in `serve.py` against a shared blocklist (`src/Landing/scentMarksBlocklist.json`) for hate, clear illegal/CSAM terms, and spam links — NSFW language is allowed; rejected posts report `Blocked: …` with the matched terms
 
 Admin delete requires a PBKDF2 password hash at `~/.config/m-e621/scent_marks_admin.hash` (mode `600`). Unlock in the UI calls `/api/scent-marks/auth` so a wrong or stale hash fails before delete. Create once on the host (replace `YOUR_PASSWORD`):

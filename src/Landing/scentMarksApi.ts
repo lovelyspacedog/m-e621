@@ -3,6 +3,7 @@ export interface ScentMark {
   text: string;
   name: string | null;
   createdAt: string;
+  pinned?: boolean;
 }
 
 export interface ScentMarksListResponse {
@@ -86,4 +87,27 @@ export async function deleteScentMark(
     },
   });
   if (!res.ok) throw new Error(await readError(res));
+}
+
+export async function setScentMarkPinned(
+  id: string,
+  pinned: boolean,
+  password: string,
+): Promise<ScentMark> {
+  const res = await fetch(
+    `/api/scent-marks/${encodeURIComponent(id)}/pin`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${password}`,
+        "X-Scent-Admin": password,
+      },
+      body: JSON.stringify({ pinned }),
+    },
+  );
+  if (!res.ok) throw new Error(await readError(res));
+  const data = (await res.json()) as { mark?: ScentMark; message?: string };
+  if (!data.mark) throw new Error(data.message || "pin update failed");
+  return data.mark;
 }

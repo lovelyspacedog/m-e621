@@ -18,6 +18,7 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-17",
     title: "Public instance noted",
     items: [
+      "Scent Marks: host moderators can pin posts so they stay at the top of the Scent Trail",
       "App logo and favicon refreshed to a basset-hound mark with forehead m, long ears, and the same ear/tail/blink animations",
       "Logo head uses darker e621 blue so it stays visible on the primary landing hero; droopy brows and eyes match the mark",
       "Logo head restored to a pointy-top hexagon (rounded forehead reverted)",

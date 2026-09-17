@@ -88,6 +88,9 @@ SCENT_BLOCKLIST_PATH = (
 SCENT_MARKS_LIST_PATH = re.compile(r"^/api/scent-marks/?$")
 SCENT_MARKS_AUTH_PATH = re.compile(r"^/api/scent-marks/auth/?$")
 SCENT_MARK_ITEM_PATH = re.compile(r"^/api/scent-marks/([A-Za-z0-9_-]{8,64})$")
+SCENT_MARK_PIN_PATH = re.compile(
+    r"^/api/scent-marks/([A-Za-z0-9_-]{8,64})/pin/?$"
+)
 SCENT_MAX_BODY = 500
 SCENT_MAX_NAME = 32
 SCENT_MAX_MARKS = 500
@@ -1150,10 +1153,15 @@ class SpaHandler(SimpleHTTPRequestHandler):
         except OSError as exc:
             self._json(500, {"ok": False, "message": f"storage error: {exc}"})
             return
+        # Newest first, then stable-sort pinned marks to the top.
         ordered = sorted(
             marks,
             key=lambda m: str(m.get("createdAt") or ""),
             reverse=True,
+        )
+        ordered = sorted(
+            ordered,
+            key=lambda m: 0 if m.get("pinned") else 1,
         )
         public = [
             {
@@ -1161,6 +1169,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 "text": m.get("text"),
                 "name": m.get("name"),
                 "createdAt": m.get("createdAt"),
+                "pinned": bool(m.get("pinned")),
             }
             for m in ordered
             if isinstance(m.get("id"), str) and isinstance(m.get("text"), str)
@@ -1221,6 +1230,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
             "text": text,
             "name": name,
             "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "pinned": False,
         }
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         try:
@@ -1282,6 +1292,54 @@ class SpaHandler(SimpleHTTPRequestHandler):
             self._json(500, {"ok": False, "message": f"storage error: {exc}"})
             return
         self._json(200, {"ok": True, "deleted": mark_id})
+
+    def _handle_scent_marks_pin(self, mark_id: str, body: bytes) -> None:
+        password = self._scent_admin_password()
+        if not _scent_verify_admin(password):
+            self._json(401, {"ok": False, "message": "unauthorized"})
+            return
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}") if body else {}
+            if not isinstance(payload, dict):
+                raise ValueError("object required")
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+            self._json(400, {"ok": False, "message": f"invalid json: {exc}"})
+            return
+        if "pinned" not in payload:
+            self._json(400, {"ok": False, "message": "pinned required"})
+            return
+        pinned = payload.get("pinned")
+        if not isinstance(pinned, bool):
+            self._json(400, {"ok": False, "message": "pinned must be boolean"})
+            return
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        updated: dict | None = None
+        try:
+            with open(SCENT_MARKS_PATH, "a+", encoding="utf-8") as fh:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+                try:
+                    marks = _scent_load_locked(fh)
+                    for mark in marks:
+                        if mark.get("id") == mark_id:
+                            mark["pinned"] = pinned
+                            updated = {
+                                "id": mark.get("id"),
+                                "text": mark.get("text"),
+                                "name": mark.get("name"),
+                                "createdAt": mark.get("createdAt"),
+                                "pinned": bool(mark.get("pinned")),
+                            }
+                            break
+                    if updated is None:
+                        self._json(404, {"ok": False, "message": "not found"})
+                        return
+                    _scent_save_locked(fh, marks)
+                finally:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        except OSError as exc:
+            self._json(500, {"ok": False, "message": f"storage error: {exc}"})
+            return
+        self._json(200, {"ok": True, "mark": updated})
 
     def _site_base(self) -> str | None:
         raw = (self.headers.get("X-Site-Base") or "https://e621.net/").strip()
@@ -3294,6 +3352,11 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
         if SCENT_MARKS_AUTH_PATH.match(path):
             self._handle_scent_marks_auth()
+            return
+
+        scent_pin = SCENT_MARK_PIN_PATH.match(path)
+        if scent_pin:
+            self._handle_scent_marks_pin(scent_pin.group(1), body)
             return
 
         if SCENT_MARKS_LIST_PATH.match(path):

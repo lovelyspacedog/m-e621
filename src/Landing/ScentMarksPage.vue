@@ -112,17 +112,40 @@
           v-for="mark in marks"
           :key="mark.id"
           class="scent-item mb-3 rounded"
+          :class="{ 'scent-item--pinned': mark.pinned }"
           border
         >
+          <template v-if="mark.pinned" #prepend>
+            <v-icon
+              color="primary"
+              size="small"
+              class="me-1"
+              aria-label="Pinned"
+            >
+              mdi-pin
+            </v-icon>
+          </template>
           <v-list-item-title class="text-wrap text-body-1 text-high-emphasis mb-1">
             {{ mark.text }}
           </v-list-item-title>
           <v-list-item-subtitle class="text-wrap text-medium-emphasis">
+            <span v-if="mark.pinned" class="text-primary">Pinned · </span>
             {{ mark.name?.trim() || "Anonymous" }}
             ·
             {{ formatWhen(mark.createdAt) }}
           </v-list-item-subtitle>
           <template v-if="modUnlocked" #append>
+            <v-btn
+              icon
+              variant="text"
+              color="primary"
+              size="small"
+              :aria-label="mark.pinned ? 'Unpin mark' : 'Pin mark'"
+              :loading="pinningId === mark.id"
+              @click="togglePin(mark)"
+            >
+              <v-icon>{{ mark.pinned ? "mdi-pin-off" : "mdi-pin-outline" }}</v-icon>
+            </v-btn>
             <v-btn
               icon
               variant="text"
@@ -143,8 +166,8 @@
           <v-expansion-panel-title>Moderation</v-expansion-panel-title>
           <v-expansion-panel-text>
             <p class="text-body-2 text-medium-emphasis mb-3">
-              Host operators can unlock delete controls with the admin password
-              stored as a hash on the VPS.
+              Host operators can unlock pin and delete controls with the admin
+              password stored as a hash on the VPS.
             </p>
             <div v-if="!modUnlocked" class="d-flex flex-wrap ga-2 align-center">
               <v-text-field
@@ -171,7 +194,7 @@
               </v-btn>
             </div>
             <div v-else class="d-flex flex-wrap ga-2 align-center">
-              <span class="text-body-2">Delete controls unlocked for this tab.</span>
+              <span class="text-body-2">Pin and delete controls unlocked for this tab.</span>
               <v-btn variant="text" @click="lockMod">Lock</v-btn>
             </div>
             <p v-if="modError" class="text-error text-body-2 mt-2 mb-0">
@@ -194,6 +217,7 @@ import {
   getScentAdminPassword,
   listScentMarks,
   setScentAdminPassword,
+  setScentMarkPinned,
   verifyScentAdminPassword,
   type ScentMark,
 } from "./scentMarksApi";
@@ -219,6 +243,7 @@ const modUnlocked = ref(Boolean(getScentAdminPassword()));
 const modError = ref("");
 const unlocking = ref(false);
 const deletingId = ref<string | null>(null);
+const pinningId = ref<string | null>(null);
 
 const formatWhen = (iso: string) => {
   const d = new Date(iso);
@@ -327,6 +352,30 @@ const removeMark = async (id: string) => {
   }
 };
 
+const togglePin = async (mark: ScentMark) => {
+  const pw = getScentAdminPassword();
+  if (!pw) {
+    modUnlocked.value = false;
+    modError.value = "Unlock moderation first";
+    return;
+  }
+  pinningId.value = mark.id;
+  modError.value = "";
+  try {
+    await setScentMarkPinned(mark.id, !mark.pinned, pw);
+    await refresh();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Pin update failed";
+    modError.value = message;
+    if (/unauthor/i.test(message)) {
+      clearScentAdminPassword();
+      modUnlocked.value = false;
+    }
+  } finally {
+    pinningId.value = null;
+  }
+};
+
 onMounted(() => {
   void refresh();
 });
@@ -374,6 +423,10 @@ onMounted(() => {
 .scent-item {
   background: rgb(var(--v-theme-surface));
   color: rgb(var(--v-theme-on-surface));
+}
+
+.scent-item--pinned {
+  border-color: rgba(var(--v-theme-primary), 0.55) !important;
 }
 
 .scent-admin-field {
