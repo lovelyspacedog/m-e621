@@ -101,6 +101,8 @@ export const findPostIndex = (
       (p) => p.id === id && p.__meta?.originMode === target.originMode,
     );
     if (idx >= 0) return idx;
+    // Origin was supplied but unmatched — do not guess by numeric id alone.
+    return -1;
   }
   return posts.findIndex((p) => p.id === id);
 };
@@ -234,9 +236,17 @@ export const originAuthForPost = (
       SITE_MODE_URLS[mode],
     auth: authFromAccount(mode, profile.account),
     userId: profile.account.userId ?? null,
-    blacklist: [
-      ...(state.blacklist?.tags || []),
-      ...(profile.blacklist?.tags || []),
-    ],
+    // When this origin is the active mode, live mirrors are authoritative
+    // (profile copy may lag until save sync). Otherwise use the origin profile,
+    // and for Federated also fold in the live shared blacklist.
+    blacklist:
+      state.activeMode === mode
+        ? [...(state.blacklist?.tags || [])]
+        : [
+            ...(state.activeMode === "unified"
+              ? state.blacklist?.tags || []
+              : []),
+            ...(profile.blacklist?.tags || []),
+          ],
   };
 };

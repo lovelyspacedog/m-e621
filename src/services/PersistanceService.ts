@@ -632,9 +632,14 @@ class PersistanceService {
     }
     if (newState.configVersion < 37) {
       // Weasyl / Itaku join the other Unified children as on-by-default.
+      // Only fill missing keys — do not wipe intentional disables.
       if (newState.profiles?.unified?.unifiedSites) {
-        newState.profiles.unified.unifiedSites.weasyl = true;
-        newState.profiles.unified.unifiedSites.itaku = true;
+        if (newState.profiles.unified.unifiedSites.weasyl === undefined) {
+          newState.profiles.unified.unifiedSites.weasyl = true;
+        }
+        if (newState.profiles.unified.unifiedSites.itaku === undefined) {
+          newState.profiles.unified.unifiedSites.itaku = true;
+        }
       }
       newState.configVersion = 37;
     }

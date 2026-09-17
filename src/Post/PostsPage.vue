@@ -422,11 +422,10 @@ const {
     return Number(route.query.page) || 0;
   },
   savePageNumber(page) {
-    console.log("save page number", page)
     if (page === 1 || !page) {
-      removeRouterQuery(["page"]);
+      void removeRouterQuery(["page"]);
     } else {
-      updateRouterQuery({
+      void updateRouterQuery({
         page: String(page),
       });
     }
@@ -722,11 +721,33 @@ watch(
   query,
   (cur, prev) => {
     if (!isEqual(cur, prev)) {
-      console.log("query updated", { prev, cur });
       onSearchClick();
     }
   },
   { immediate: false },
+);
+
+// Browser back/forward (or typed ?page=) must reload — tags-only watch misses this.
+// Skip when the URL page already sits inside the in-memory window (own savePageNumber).
+watch(
+  () => Number(route.query.page) || 0,
+  (rawPage) => {
+    const target = rawPage > 0 ? rawPage : 1;
+    if (posts.value.length) {
+      const first = posts.value[0].__meta.pageNumber;
+      const last = posts.value[posts.value.length - 1].__meta.pageNumber;
+      if (target >= first && target <= last) return;
+    }
+    onSearchClick.cancel();
+    if (siteMode.isLocal) {
+      invalidateLocalMediaIndex();
+      revokeLocalBlobUrls();
+      restorePath.value = null;
+      restoreVideoTime.value = undefined;
+    }
+    clearPosts();
+    void loadNextPage();
+  },
 );
 
 // When the user switches site mode from the nav drawer, router.push to the

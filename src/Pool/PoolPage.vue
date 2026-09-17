@@ -249,9 +249,18 @@ const {
     return chunk.value;
   },
   savePageNumber(id) {
-    // Keep ?chunk= in sync when fullscreen advance loads adjacent chunks.
-    if (id == null || id === chunk.value) return;
-    const clamped = Math.min(Math.max(1, id), chunkCount.value);
+    // Prefer the fullscreen post's chunk — posts[0] stays on the first loaded
+    // chunk after loadNextPage appends, which left ?chunk= stale on advance.
+    let chunkId = id;
+    const anchorId = fullscreenPost.value?.id;
+    if (anchorId && poolMeta.value?.post_ids?.length) {
+      const index = poolMeta.value.post_ids.indexOf(anchorId);
+      if (index >= 0) {
+        chunkId = chunkForIndex(index, chunkSize.value);
+      }
+    }
+    if (chunkId == null || chunkId === chunk.value) return;
+    const clamped = Math.min(Math.max(1, chunkId), chunkCount.value);
     syncingChunkFromList.value = true;
     void (async () => {
       try {
@@ -366,6 +375,8 @@ const sequenceLabel = computed(() => {
 
 const setChunk = (next: number) => {
   const clamped = Math.min(Math.max(1, next), chunkCount.value);
+  // Chunk buttons leave a stale ?post= that no longer matches the visible slice.
+  void removeRouterQuery(["post"]);
   if (clamped <= 1) {
     void removeRouterQuery(["chunk"]);
   } else {
@@ -390,8 +401,8 @@ const fetchChunk = async () => {
 const resolveFocusPostId = (ids: number[]): { postId: number; fromQuery: boolean } => {
   const fromQuery = queryPostId.value;
   if (fromQuery && ids.includes(fromQuery)) return { postId: fromQuery, fromQuery: true };
-  // Resume only when the URL does not already pin a chunk or post.
-  if (route.query.post != null || route.query.chunk != null) {
+  // Resume when the URL does not pin a post (?chunk= alone should not block resume).
+  if (route.query.post != null) {
     return { postId: 0, fromQuery: false };
   }
   const resumed = loadPoolResumePost(resumeOrigin.value, poolId.value);
@@ -544,6 +555,22 @@ watch(fullscreenPost, (post) => {
   if (!post) return;
   rememberPost(post.id);
   void syncPostQuery(post.id);
+  // Keep ?chunk= aligned with the fullscreen post across chunk boundaries.
+  if (!poolMeta.value?.post_ids?.length) return;
+  const index = poolMeta.value.post_ids.indexOf(post.id);
+  if (index < 0) return;
+  const nextChunk = chunkForIndex(index, chunkSize.value);
+  if (nextChunk === chunk.value) return;
+  syncingChunkFromList.value = true;
+  void (async () => {
+    try {
+      if (nextChunk <= 1) await removeRouterQuery(["chunk"]);
+      else await updateRouterQuery({ chunk: String(nextChunk) });
+    } finally {
+      await nextTick();
+      syncingChunkFromList.value = false;
+    }
+  })();
 });
 
 watch(queryPostId, (postId, prev) => {

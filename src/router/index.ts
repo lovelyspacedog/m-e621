@@ -284,16 +284,16 @@ router.beforeEach((to) => {
       "DashboardResult",
     ]);
     if (mode === "tailspace" && e621ShapedRoutes.has(String(to.name))) {
-      return { name: "TailspacePosts" };
+      return { name: "TailspacePosts", query: to.query };
     }
     if (mode === "flayrah" && e621ShapedRoutes.has(String(to.name))) {
-      return { name: "FlayrahFeed" };
+      return { name: "FlayrahFeed", query: to.query };
     }
     if (mode !== "tailspace" && tailspaceRoutes.has(String(to.name))) {
-      return { name: "Posts" };
+      return { name: "Posts", query: to.query };
     }
     if (mode !== "flayrah" && flayrahRoutes.has(String(to.name))) {
-      return { name: "Posts" };
+      return { name: "Posts", query: to.query };
     }
     // Dedicated chrome: never strand on Posts via suggester/analyzer redirects.
     if (mode === "flayrah" && flayrahRoutes.has(String(to.name))) {
@@ -304,28 +304,38 @@ router.beforeEach((to) => {
       !modeSupportsPools(mode) &&
       (to.name === "Pools" || to.name === "Pool")
     ) {
-      return mode === "flayrah" ? { name: "FlayrahFeed" } : { name: "Posts" };
+      return mode === "flayrah"
+        ? { name: "FlayrahFeed", query: to.query }
+        : { name: "Posts", query: to.query };
     }
     if (
       !modeSupportsSuggester(mode) &&
       (to.name === "Suggester" || to.name === "SuggesterResult")
     ) {
-      return mode === "flayrah" ? { name: "FlayrahFeed" } : { name: "Posts" };
+      return mode === "flayrah"
+        ? { name: "FlayrahFeed", query: to.query }
+        : { name: "Posts", query: to.query };
     }
     if (
       !modeSupportsFavoriteAnalyzer(mode) &&
       (to.name === "FavoritesAnalyzer" || to.name === "FavoritesAnalyzerResult")
     ) {
-      return mode === "flayrah" ? { name: "FlayrahFeed" } : { name: "Posts" };
+      return mode === "flayrah"
+        ? { name: "FlayrahFeed", query: to.query }
+        : { name: "Posts", query: to.query };
     }
     if (
       !isE621FamilyMode(mode) &&
       ["Dashboard", "DashboardResult"].includes(String(to.name))
     ) {
-      return mode === "flayrah" ? { name: "FlayrahFeed" } : { name: "Posts" };
+      return mode === "flayrah"
+        ? { name: "FlayrahFeed", query: to.query }
+        : { name: "Posts", query: to.query };
     }
     if (to.name === "SavedPosts" && !modeSupportsSavedPosts(mode)) {
-      return mode === "flayrah" ? { name: "FlayrahFeed" } : { name: "Posts" };
+      return mode === "flayrah"
+        ? { name: "FlayrahFeed", query: to.query }
+        : { name: "Posts", query: to.query };
     }
   } catch {
     // Pinia not ready yet

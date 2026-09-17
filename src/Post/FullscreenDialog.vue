@@ -292,6 +292,7 @@ import { isRtf, rtfToText } from "@/misc/util/rtfToText";
 import { openPostOnSourceSite } from "@/misc/util/url";
 import { originAuthForPost, originModeOf, postFeedKey } from "@/misc/util/postOrigin";
 import {
+  modeSupportsFavoriteToggle,
   modeSupportsNotes,
   postSupportsComments,
 } from "@/misc/util/siteCapabilities";
@@ -471,7 +472,7 @@ watch(isPoolsFullscreen, (pools) => {
   commentsVisible.value = readCommentsPref(pools);
 });
 
-const lastFullscreenId = ref<number | null>();
+const lastFullscreenKey = ref<string | null>(null);
 const isZoomed = ref(false);
 const slideshowPlaying = ref(false);
 const slideshowTimer = ref<ReturnType<typeof setTimeout> | null>(null);
@@ -989,12 +990,17 @@ const showPreviousImage = () => {
   setTransitionNames("left");
 };
 
-const updateFavorite = (favorited: (current: boolean) => boolean) => () =>
-  props.current && !props.current?.__meta.isFavoriteLoading && props.current.is_favorited !== favorited(props.current.is_favorited) && emit("set-post-favorite", {
+const updateFavorite = (favorited: (current: boolean) => boolean) => () => {
+  if (!props.current || props.current.__meta.isFavoriteLoading) return;
+  const origin = originModeOf(props.current, siteMode.activeMode);
+  if (!modeSupportsFavoriteToggle(origin)) return;
+  if (props.current.is_favorited === favorited(props.current.is_favorited)) return;
+  emit("set-post-favorite", {
     postId: props.current.id,
     favorited: favorited(props.current.is_favorited),
     originMode: props.current.__meta?.originMode,
   } as Parameters<ReturnType<typeof usePostListManager>["setPostFavorite"]>["0"]);
+};
 
 const addFavorite = updateFavorite(() => true)
 const removeFavorite = updateFavorite(() => false)
@@ -1071,8 +1077,10 @@ const audioCoverUrl = computed(() => {
 watch(
   () => props.current,
   async (val, prev) => {
-    if (val) lastFullscreenId.value = val.id;
-    if (val && (!prev || val.id != prev.id)) {
+    if (val) lastFullscreenKey.value = postFeedKey(val);
+    const changed =
+      !!val && (!prev || postFeedKey(val) !== postFeedKey(prev));
+    if (val && changed) {
       clearSlideshowTimer();
       scrollToPost(props.current!);
       switched.value = true;
@@ -1126,8 +1134,16 @@ watch(open, () => {
     document.querySelector("#app")?.requestFullscreen();
   } else {
     if (document.fullscreenElement) document.exitFullscreen();
-    if (lastFullscreenId.value) {
-      scrollToPost(lastFullscreenId.value);
+    if (lastFullscreenKey.value) {
+      // DOM ids are post_<origin>-<id>; never scroll by raw numeric id.
+      const [originMode, idStr] = lastFullscreenKey.value.split(":");
+      const id = Number(idStr);
+      if (Number.isFinite(id)) {
+        scrollToPost({
+          id,
+          __meta: originMode ? { originMode } : undefined,
+        });
+      }
     }
   }
 });
