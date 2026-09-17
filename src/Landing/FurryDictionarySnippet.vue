@@ -1,5 +1,5 @@
 <template>
-  <section v-if="entry" class="mt-6 mb-2">
+  <section v-if="entry" class="mt-2 mb-2">
     <v-container>
       <v-row justify="center">
         <v-col cols="12" md="8" lg="6">

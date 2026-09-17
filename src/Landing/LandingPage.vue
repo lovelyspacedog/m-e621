@@ -49,7 +49,6 @@
       </div>
     </section>
     <MigrationInfo />
-    <FurryDictionarySnippet />
     <section class="mt-8 mb-2">
       <v-container>
         <v-row justify="center">
@@ -62,6 +61,7 @@
         </v-row>
       </v-container>
     </section>
+    <FurryDictionarySnippet />
     <About />
     <section class="ma-1 mb-6">
       <v-row wrap justify="center" align="start">
