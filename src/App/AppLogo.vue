@@ -33,24 +33,6 @@
         fill="rgb(0, 84, 159)"
       />
 
-      <!-- Brand m on forehead (always) -->
-      <path
-        class="brand-m"
-        d="M 418 420 L 418 318
-           C 418 298 430 288 448 288
-           C 466 288 478 302 488 328
-           C 498 302 510 288 528 288
-           C 546 288 558 298 558 318
-           L 558 420 L 528 420 L 528 340
-           C 528 328 522 320 512 320
-           C 502 320 496 328 496 342
-           L 496 420 L 480 420 L 480 342
-           C 480 328 474 320 464 320
-           C 454 320 448 328 448 340
-           L 448 420 Z"
-        fill="rgb(255,255,255)"
-      />
-
       <!-- Face under ears so the blink rect never paints over them -->
       <g class="face" v-if="type === 'face'">
         <path
@@ -133,7 +115,7 @@
         />
       </g>
 
-      <!-- Text wordmark under forehead m -->
+      <!-- Text wordmark -->
       <g v-if="type === 'text'" class="wordmark">
         <text
           x="500"
