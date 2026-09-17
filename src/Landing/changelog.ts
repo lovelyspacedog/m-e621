@@ -55,6 +55,7 @@ export const changelogSections: ChangelogSection[] = [
       "Logo forehead letter m removed",
       "Loading spinner shows the same eyes and face as the sidebar mark",
       "Landing Furry Dictionary slang snippet replaced by a random e621 tag wiki first paragraph (Another page refreshes in place)",
+      "Landing tag wiki title opens an in-app e621 posts search for that tag",
       "Landing Scent Marks / Browse posts no longer open a blank page (single-root landing + skip view transition when leaving Home)",
       "Scent Marks feed heading renamed from Wall to Scent Trail",
       "Site mode renamed from Unified to Federated (same date-merge feed; settings key unchanged)",

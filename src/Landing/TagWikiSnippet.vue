@@ -18,9 +18,8 @@
             <p class="text-h5 mb-2">
               <a
                 class="text-primary text-decoration-underline"
-                :href="pageUrl"
-                target="_blank"
-                rel="noopener"
+                href="#"
+                @click.prevent="openE621Search"
                 >{{ displayTitle }}</a
               >
             </p>
@@ -55,6 +54,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import { useSiteModeStore } from "@/services/SiteModeStore";
 import {
   displayWikiTitle,
   fetchRandomTagWikiSnippet,
@@ -62,6 +63,9 @@ import {
   wikiPageUrl,
   type TagWikiSnippet,
 } from "./tagWikiSnippetApi";
+
+const router = useRouter();
+const siteMode = useSiteModeStore();
 
 const snippet = ref<TagWikiSnippet | null>(null);
 const loading = ref(false);
@@ -72,6 +76,19 @@ const pageUrl = computed(() =>
 const displayTitle = computed(() =>
   snippet.value ? displayWikiTitle(snippet.value.title) : "",
 );
+
+async function openE621Search() {
+  const tag = snippet.value?.title?.trim();
+  if (!tag) return;
+  // Match SiteModeSwitcher: setMode before push so route guards see e621.
+  if (siteMode.activeMode !== "e621") {
+    siteMode.setMode("e621");
+  }
+  await router.push({
+    name: "Posts",
+    query: { tags: tag },
+  });
+}
 
 async function loadSnippet(excludeTitle?: string) {
   loading.value = true;
