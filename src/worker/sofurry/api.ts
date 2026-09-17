@@ -631,8 +631,20 @@ export async function whoami(cookies?: string | null): Promise<{
 } | null> {
   if (cookies) setActiveSofurryCookies(cookies);
   if (!activeCookies) return null;
+  const browse = await sofurryFetch("/browse", {
+    headers: { Accept: "text/html,application/xhtml+xml" },
+  });
+  if (browse.status === 401) {
+    notifySessionCleared();
+    return null;
+  }
+  if (browse.ok) {
+    const html = await browse.text();
+    const handle = /"USER_HANDLE":"([^"]+)"/.exec(html)?.[1];
+    if (handle) return { name: handle };
+  }
   const response = await sofurryFetch("/api/profile");
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     notifySessionCleared();
     return null;
   }
@@ -951,7 +963,7 @@ export async function favoriteSubmission(args: {
         `/api/submission-like/${encodeURIComponent(softId)}`,
         { method: "POST" },
       );
-      if (response.status === 401 || response.status === 403) {
+      if (response.status === 401) {
         notifySessionCleared();
         return null;
       }

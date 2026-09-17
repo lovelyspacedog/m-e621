@@ -2179,29 +2179,52 @@ class SpaHandler(SimpleHTTPRequestHandler):
         return "; ".join(f"{k}={v}" for k, v in jar.items())
 
     @staticmethod
-    def _sofurry_csrf(cookie: str) -> str:
-        """CSRF for Soft's Remix API (`_session.csrfToken`) or legacy Laravel XSRF."""
+    def _sofurry_session_payload(cookie: str) -> dict:
         for part in cookie.split(";"):
             part = part.strip()
-            if part.lower().startswith("_session="):
-                val = part.split("=", 1)[1]
-                try:
-                    raw = unquote(val)
-                    payload = raw.split(".", 1)[0]
-                    pad = "=" * ((4 - len(payload) % 4) % 4)
-                    data = json.loads(base64.urlsafe_b64decode(payload + pad))
-                    token = data.get("csrfToken") or data.get("csrf_token") or ""
-                    if token:
-                        return str(token)
-                except Exception:  # noqa: BLE001
-                    pass
-            if part.lower().startswith("xsrf-token="):
-                val = part.split("=", 1)[1]
-                try:
-                    return unquote(val)
-                except Exception:  # noqa: BLE001
-                    return val
-        return ""
+            if not part.lower().startswith("_session="):
+                continue
+            val = part.split("=", 1)[1]
+            try:
+                raw = unquote(val)
+                payload = raw.split(".", 1)[0]
+                pad = "=" * ((4 - len(payload) % 4) % 4)
+                data = json.loads(base64.urlsafe_b64decode(payload + pad))
+                return data if isinstance(data, dict) else {}
+            except Exception:  # noqa: BLE001
+                return {}
+        return {}
+
+    @classmethod
+    def _sofurry_csrf(cls, cookie: str) -> str:
+        """Remix CSRF lives on `_session.csrfToken`. Never use Laravel XSRF-TOKEN."""
+        data = cls._sofurry_session_payload(cookie)
+        token = data.get("csrfToken") or data.get("csrf_token") or ""
+        return str(token) if token else ""
+
+    @classmethod
+    def _sofurry_remix_authed(cls, cookie: str) -> bool:
+        data = cls._sofurry_session_payload(cookie)
+        return any(k not in ("csrfToken", "csrf_token") for k in data)
+
+    def _sofurry_upgrade_remix_session(self, cookie: str) -> str:
+        """Turn a Laravel `sofurry_session` into a Remix `_session` via OAuth PKCE."""
+        if not cookie or self._sofurry_remix_authed(cookie):
+            return cookie
+        if re.search(r"(?:^|;\s*)sofurry_session=", cookie, re.I):
+            _, _, _, cookie = self._sofurry_request(
+                f"{SOFURRY_BASE}/fe/auth/sofurry",
+                cookie=cookie,
+                accept="text/html,application/xhtml+xml",
+                redirects=8,
+            )
+        if not self._sofurry_csrf(cookie):
+            _, _, _, cookie = self._sofurry_request(
+                f"{SOFURRY_BASE}/browse",
+                cookie=cookie,
+                accept="text/html,application/xhtml+xml",
+            )
+        return cookie
 
     def _sofurry_request(
         self,
@@ -2232,11 +2255,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 req.add_header("Cookie", current_cookie)
             csrf = self._sofurry_csrf(current_cookie)
             if csrf:
-                # Soft Remix validates X-CSRF-Token; Laravel login still accepts X-CSRF-TOKEN.
                 req.add_header("X-CSRF-Token", csrf)
                 req.add_header("X-CSRF-TOKEN", csrf)
-                if "xsrf-token=" in current_cookie.lower():
-                    req.add_header("X-XSRF-TOKEN", csrf)
             if extra_headers:
                 for k, v in extra_headers.items():
                     req.add_header(k, v)
@@ -2259,7 +2279,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
                     loc = exc.headers.get("Location")
                     if loc:
                         current_url = urljoin(current_url, loc)
-                        if exc.code == 303:
+                        host = (urlparse(current_url).hostname or "").lower()
+                        if host not in ("sofurry.com", "www.sofurry.com"):
+                            break
+                        if exc.code in (301, 302, 303) and method == "POST":
                             method = "GET"
                             body = b""
                         continue
@@ -2367,12 +2390,25 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if profile_status in (401, 403):
             self._json(401, {"ok": False, "error": "Login did not establish a usable session"})
             return
+        cookie = self._sofurry_upgrade_remix_session(cookie)
         username = None
         try:
             data = json.loads(profile_body.decode("utf-8") or "{}")
             username = (data.get("user") or {}).get("name")
         except Exception:  # noqa: BLE001
             pass
+        if not username:
+            browse_body, _, _, cookie = self._sofurry_request(
+                f"{SOFURRY_BASE}/browse",
+                cookie=cookie,
+                accept="text/html,application/xhtml+xml",
+            )
+            handle = re.search(
+                r'"USER_HANDLE":"([^"]+)"',
+                browse_body.decode("utf-8", errors="ignore"),
+            )
+            if handle:
+                username = handle.group(1)
         self._json(200, {"ok": True, "cookies": cookie, "username": username})
 
     def _proxy_sofurry_login_cookies(self, body: bytes) -> None:
@@ -2393,12 +2429,25 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if profile_status in (401, 403):
             self._json(401, {"ok": False, "error": "Cookies rejected by SoFurry"})
             return
+        cookie = self._sofurry_upgrade_remix_session(cookie)
         username = None
         try:
             data = json.loads(profile_body.decode("utf-8") or "{}")
             username = (data.get("user") or {}).get("name")
         except Exception:  # noqa: BLE001
             pass
+        if not username:
+            browse_body, _, _, cookie = self._sofurry_request(
+                f"{SOFURRY_BASE}/browse",
+                cookie=cookie,
+                accept="text/html,application/xhtml+xml",
+            )
+            handle = re.search(
+                r'"USER_HANDLE":"([^"]+)"',
+                browse_body.decode("utf-8", errors="ignore"),
+            )
+            if handle:
+                username = handle.group(1)
         self._json(200, {"ok": True, "cookies": cookie, "username": username})
 
     def _proxy_sofurry(self, path: str, parsed, method: str = "GET", body: bytes = b"") -> None:
@@ -2459,14 +2508,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 "X-Inertia": "true",
                 "X-Requested-With": "XMLHttpRequest",
             }
-        # Soft Remix APIs need a fresh `_session` CSRF cookie; Laravel login cookies alone
-        # do not carry it. Refresh before mutating so X-CSRF-Token matches Soft.
+        # Soft likes/mutates need Remix `_session` + matching X-CSRF-Token.
+        # Laravel `sofurry_session` alone is not enough — complete OAuth first.
         if method not in ("GET", "HEAD") and cookie:
-            _, _, _, cookie = self._sofurry_request(
-                f"{SOFURRY_BASE}/",
-                cookie=cookie,
-                accept="text/html,application/xhtml+xml",
-            )
+            cookie = self._sofurry_upgrade_remix_session(cookie)
         ct_in = self.headers.get("Content-Type")
         resp_body, status, ct, _ = self._sofurry_request(
             url,

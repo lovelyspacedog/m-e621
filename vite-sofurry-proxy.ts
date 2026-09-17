@@ -98,30 +98,28 @@ function upstreamHeaders(
   return h;
 }
 
-function csrfFromCookie(cookie: string): string {
+function sessionPayload(cookie: string): Record<string, unknown> {
   const session = /(?:^|;\s*)_session=([^;]+)/i.exec(cookie);
-  if (session?.[1]) {
-    try {
-      const raw = decodeURIComponent(session[1]);
-      const payload = raw.split(".", 1)[0] || "";
-      const pad = "=".repeat((4 - (payload.length % 4)) % 4);
-      const data = JSON.parse(Buffer.from(payload + pad, "base64url").toString("utf8")) as {
-        csrfToken?: string;
-        csrf_token?: string;
-      };
-      const token = data.csrfToken || data.csrf_token || "";
-      if (token) return token;
-    } catch {
-      /* fall through to Laravel XSRF */
-    }
-  }
-  const m = /(?:^|;\s*)XSRF-TOKEN=([^;]+)/i.exec(cookie);
-  if (!m?.[1]) return "";
+  if (!session?.[1]) return {};
   try {
-    return decodeURIComponent(m[1]);
+    const raw = decodeURIComponent(session[1]);
+    const payload = raw.split(".", 1)[0] || "";
+    const pad = "=".repeat((4 - (payload.length % 4)) % 4);
+    const data = JSON.parse(Buffer.from(payload + pad, "base64url").toString("utf8"));
+    return data && typeof data === "object" ? (data as Record<string, unknown>) : {};
   } catch {
-    return m[1];
+    return {};
   }
+}
+
+function csrfFromCookie(cookie: string): string {
+  const data = sessionPayload(cookie);
+  const token = data.csrfToken || data.csrf_token;
+  return typeof token === "string" ? token : "";
+}
+
+function remixSessionAuthed(cookie: string): boolean {
+  return Object.keys(sessionPayload(cookie)).some((k) => k !== "csrfToken" && k !== "csrf_token");
 }
 
 async function sofurryRequest(
@@ -133,8 +131,10 @@ async function sofurryRequest(
     contentType?: string;
     accept?: string;
     extraHeaders?: Record<string, string>;
+    hops?: number;
   } = {},
-): Promise<{ body: Buffer; status: number; contentType: string; headers: Headers }> {
+): Promise<{ body: Buffer; status: number; contentType: string; headers: Headers; cookie: string }> {
+  const hops = opts.hops ?? 0;
   const headers = upstreamHeaders(
     opts.cookie || "",
     opts.accept || "application/json, text/html;q=0.9,*/*;q=0.8",
@@ -147,9 +147,6 @@ async function sofurryRequest(
   if (csrf && !headers["X-CSRF-Token"] && !headers["X-CSRF-TOKEN"]) {
     headers["X-CSRF-Token"] = csrf;
     headers["X-CSRF-TOKEN"] = csrf;
-    if (/xsrf-token=/i.test(opts.cookie || "")) {
-      headers["X-XSRF-TOKEN"] = csrf;
-    }
   }
   try {
     const resp = await fetch(url, {
@@ -158,18 +155,28 @@ async function sofurryRequest(
       body: opts.body == null ? undefined : opts.body,
       redirect: "manual",
     });
-    // Follow one hop if needed (www ↔ apex)
-    if (resp.status >= 300 && resp.status < 400) {
+    const cookie = mergeSetCookies(opts.cookie || "", resp.headers);
+    if (resp.status >= 300 && resp.status < 400 && hops < 8) {
       const loc = resp.headers.get("location");
       if (loc) {
-        const next = new URL(loc, url).toString();
-        const cookie2 = mergeSetCookies(opts.cookie || "", resp.headers);
-        return sofurryRequest(next, { ...opts, cookie: cookie2 });
+        const next = new URL(loc, url);
+        const host = next.hostname.toLowerCase();
+        if (host === "sofurry.com" || host === "www.sofurry.com") {
+          const nextOpts = { ...opts, cookie, hops: hops + 1 };
+          if (
+            (resp.status === 301 || resp.status === 302 || resp.status === 303) &&
+            (opts.method || "GET") === "POST"
+          ) {
+            nextOpts.method = "GET";
+            nextOpts.body = null;
+          }
+          return sofurryRequest(next.toString(), nextOpts);
+        }
       }
     }
     const body = Buffer.from(await resp.arrayBuffer());
     const contentType = resp.headers.get("content-type") || "application/octet-stream";
-    return { body, status: resp.status, contentType, headers: resp.headers };
+    return { body, status: resp.status, contentType, headers: resp.headers, cookie };
   } catch (err) {
     const body = Buffer.from(JSON.stringify({ detail: String(err) }));
     return {
@@ -177,8 +184,33 @@ async function sofurryRequest(
       status: 502,
       contentType: "application/json",
       headers: new Headers(),
+      cookie: opts.cookie || "",
     };
   }
+}
+
+async function upgradeRemixSession(cookie: string): Promise<string> {
+  if (!cookie || remixSessionAuthed(cookie)) return cookie;
+  let next = cookie;
+  if (/(?:^|;\s*)sofurry_session=/i.test(next)) {
+    const auth = await sofurryRequest(`${SOFURRY_BASE}/fe/auth/sofurry`, {
+      cookie: next,
+      accept: "text/html,application/xhtml+xml",
+    });
+    next = auth.cookie;
+  }
+  if (!csrfFromCookie(next)) {
+    const browse = await sofurryRequest(`${SOFURRY_BASE}/browse`, {
+      cookie: next,
+      accept: "text/html,application/xhtml+xml",
+    });
+    next = browse.cookie;
+  }
+  return next;
+}
+
+function usernameFromBrowse(html: string): string | undefined {
+  return /"USER_HANDLE":"([^"]+)"/.exec(html)?.[1];
 }
 
 async function loginWithPassword(
@@ -189,7 +221,7 @@ async function loginWithPassword(
   const page = await sofurryRequest(`${SOFURRY_BASE}/login`, {
     accept: "text/html",
   });
-  let cookie = mergeSetCookies("", page.headers);
+  let cookie = page.cookie;
   const html = page.body.toString("utf8");
   const tokenMatch =
     /name="_token"\s+value="([^"]+)"/.exec(html) ||
@@ -216,7 +248,7 @@ async function loginWithPassword(
       "X-CSRF-Token": token,
     },
   });
-  cookie = mergeSetCookies(cookie, post.headers);
+  cookie = post.cookie;
 
   // Success usually redirects away from /login with a session cookie.
   const hasSession = /(?:^|;\s*)(?:laravel_session|sofurry_session|_session)=/i.test(cookie);
@@ -229,10 +261,11 @@ async function loginWithPassword(
     cookie,
     accept: "application/json",
   });
-  cookie = mergeSetCookies(cookie, profile.headers);
+  cookie = profile.cookie;
   if (profile.status === 401 || profile.status === 403) {
     return { ok: false, error: "Login did not establish a usable session" };
   }
+  cookie = await upgradeRemixSession(cookie);
   let username: string | undefined;
   try {
     const data = JSON.parse(profile.body.toString("utf8")) as {
@@ -241,6 +274,14 @@ async function loginWithPassword(
     username = data.user?.name;
   } catch {
     /* ignore */
+  }
+  if (!username) {
+    const browse = await sofurryRequest(`${SOFURRY_BASE}/browse`, {
+      cookie,
+      accept: "text/html,application/xhtml+xml",
+    });
+    cookie = browse.cookie;
+    username = usernameFromBrowse(browse.body.toString("utf8"));
   }
   return { ok: true, cookies: cookie, username };
 }
@@ -338,6 +379,7 @@ export function sofurryProxy(): Plugin {
               sendJson(res, 401, { ok: false, error: "Cookies rejected by SoFurry" });
               return;
             }
+            let nextCookie = await upgradeRemixSession(profile.cookie);
             let username: string | undefined;
             try {
               const data = JSON.parse(profile.body.toString("utf8")) as {
@@ -347,9 +389,17 @@ export function sofurryProxy(): Plugin {
             } catch {
               /* ignore */
             }
+            if (!username) {
+              const browse = await sofurryRequest(`${SOFURRY_BASE}/browse`, {
+                cookie: nextCookie,
+                accept: "text/html,application/xhtml+xml",
+              });
+              nextCookie = browse.cookie;
+              username = usernameFromBrowse(browse.body.toString("utf8"));
+            }
             sendJson(res, 200, {
               ok: true,
-              cookies: mergeSetCookies(cookies, profile.headers),
+              cookies: nextCookie,
               username,
             });
             return;
@@ -423,14 +473,9 @@ export function sofurryProxy(): Plugin {
             extra["X-Inertia"] = "true";
             extra["X-Requested-With"] = "XMLHttpRequest";
           }
-          // Soft Remix APIs need a fresh `_session` CSRF cookie before mutating.
           let upstreamCookie = cookie;
           if (method !== "GET" && method !== "HEAD" && upstreamCookie) {
-            const refresh = await sofurryRequest(`${SOFURRY_BASE}/`, {
-              cookie: upstreamCookie,
-              accept: "text/html,application/xhtml+xml",
-            });
-            upstreamCookie = mergeSetCookies(upstreamCookie, refresh.headers);
+            upstreamCookie = await upgradeRemixSession(upstreamCookie);
           }
           const ct = req.headers["content-type"];
           const { body, status, contentType, headers } = await sofurryRequest(

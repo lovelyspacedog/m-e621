@@ -689,7 +689,7 @@
                   </summary>
                   <p class="text-left text-caption mt-1 mb-0">
                     Sign in with email/password, or paste the SoFurry cookie header
-                    (<code>sofurry_session</code> / <code>_session</code> + CSRF). Cookies are stored in
+                    (<code>sofurry_session</code> and/or Remix <code>_session</code>). Cookies are stored in
                     settings and included in Backup JSON. The password is not saved.
                   </p>
                   <p class="text-left text-caption mt-2 mb-0">
