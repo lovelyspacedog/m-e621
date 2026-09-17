@@ -105,6 +105,18 @@
       Showing last saved Flayrah feed (offline or RSS unavailable).
     </v-alert>
 
+    <TipDialog
+      :tip-id="TIP_IDS.flayrahOffline"
+      title="Flayrah offline cache"
+      v-model="flayrahOfflineTipOpen"
+    >
+      <p class="mb-0">
+        When RSS is unreachable, Flayrah shows the last successfully saved feed.
+        Taxonomy chips, read/saved state, and article links still work on that
+        cached snapshot until a refresh succeeds.
+      </p>
+    </TipDialog>
+
     <div v-if="loading && !articles.length" class="pa-4">
       <v-skeleton-loader v-for="n in 8" :key="n" type="article" class="mb-3" />
     </div>
@@ -226,6 +238,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import TipDialog from "@/misc/TipDialog.vue";
+import { TIP_IDS } from "@/misc/tipIds";
+import { useTipOpen } from "@/misc/useTipOpen";
 import {
   fetchFlayrahArticles,
   getFlayrahCacheAgeMs,
@@ -254,6 +269,9 @@ const articles = ref<FlayrahArticle[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const fromOffline = ref(false);
+const { open: flayrahOfflineTipOpen, tryOpenOnEdge: tryFlayrahOfflineTip } =
+  useTipOpen(TIP_IDS.flayrahOffline);
+watch(fromOffline, tryFlayrahOfflineTip);
 const cacheAgeTick = ref(0);
 const focusIndex = ref(0);
 const searchField = ref<{ focus?: () => void } | null>(null);

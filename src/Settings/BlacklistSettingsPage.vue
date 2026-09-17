@@ -80,6 +80,21 @@
         </settings-group>
       </v-col>
     </v-row>
+
+    <TipDialog
+      :tip-id="TIP_IDS.blacklistModes"
+      title="Blacklist modes"
+      v-model="blacklistTipOpen"
+    >
+      <p class="mb-3">
+        Display mode chooses Hide, Blur, or Blackout for matching posts. Server-side
+        hide also applies the site’s own blacklist rules when you are not logged in.
+      </p>
+      <p class="mb-0">
+        Custom lines work like e621: each TagSearch row is one rule. Meta tags
+        (except rating:) are limited. Edits apply to the active site profile.
+      </p>
+    </TipDialog>
   </v-container>
 </template>
 
@@ -90,7 +105,10 @@ import SettingsRow from "./SettingsRow.vue";
 import ActiveModeBanner from "./ActiveModeBanner.vue";
 import BlacklistSuggestions from "./BlacklistSuggestions.vue";
 import ProfileListSync from "./ProfileListSync.vue";
-import { computed, ref } from "vue";
+import TipDialog from "@/misc/TipDialog.vue";
+import { TIP_IDS } from "@/misc/tipIds";
+import { useTipOpen } from "@/misc/useTipOpen";
+import { computed, onMounted, ref } from "vue";
 import blacklistSuggestions from "@/misc/data/blacklistSuggestions.json";
 import TagSearch from "../Tag/TagSearch.vue";
 import { BlacklistMode } from "@/services/types";
@@ -100,6 +118,10 @@ import { useHead } from "@unhead/vue";
 useHead({ title: "Blacklist Settings" });
 
 const blacklistStore = useBlacklistStore();
+const { open: blacklistTipOpen, tryOpen: tryBlacklistTip } = useTipOpen(
+  TIP_IDS.blacklistModes,
+);
+onMounted(() => tryBlacklistTip());
 
 const navChips: SettingsNavChip[] = [
   { label: "Sync", anchor: "sync" },

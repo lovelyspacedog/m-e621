@@ -34,7 +34,7 @@ A public instance is operable at **[pawfeed.tonypup.box.ca](https://pawfeed.tony
 - **Powerful browsing tools** — browse and watch pools (e621-family and Federated e621/e6ai merge, with new-page badges), organize starred tags and saved searches, use the multi-site post suggester and favorite analyzer, and explore artist dashboards (heatmap, top posts, tag ranks).
 - **Comics and stories** — dedicated pool and Tailspace comic readers (pool fullscreen continues across chunks; Federated uses `?origin=` plus `?post=` resume; Save chunk/all) plus fullscreen story, PDF, RTF, and DOCX previews.
 - **Immersive media** — fullscreen comments rail, notes, slideshows, auto-next, Fluffle reverse-image search, and remembered audio/video playback settings (including optional per-site overrides).
-- **Safer settings** — searchable hub (with synonyms), confirm/preview restore, sanitized backups, partial section reset, System/Dark/Light color scheme, auth probe chips, and clear which site profile blacklist/history edits.
+- **Safer settings** — searchable hub (with synonyms), confirm/preview restore, sanitized backups, partial section reset, System/Dark/Light color scheme, auth probe chips, and clear which site profile blacklist/history edits. One-time tip dialogs (Appearance → Reset tooltips) cover Federated, Local, Layout, pools, fullscreen, and related surfaces.
 
 ## Preview
 

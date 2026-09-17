@@ -37,12 +37,31 @@
         </v-card>
       </v-col>
     </v-row>
+
+    <TipDialog
+      :tip-id="TIP_IDS.postSuggester"
+      title="Post Suggester"
+      v-model="suggesterTipOpen"
+    >
+      <p class="mb-3">
+        Suggests posts from weighted tag categories based on favorites (your
+        login, another user’s public favorites where supported, Federated
+        children, or Local).
+      </p>
+      <p class="mb-0">
+        Adjust the sliders to bias which tag types matter more. Some modes only
+        support your own favorites; Federated uses each enabled child’s auth.
+      </p>
+    </TipDialog>
   </v-container>
 </template>
 
 <script setup lang="ts">
 import { useAccountStore, useSiteModeStore } from "@/services";
-import { computed, ref, watch } from "vue";
+import TipDialog from "@/misc/TipDialog.vue";
+import { TIP_IDS } from "@/misc/tipIds";
+import { useTipOpen } from "@/misc/useTipOpen";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import SliderGroup from "./SliderGroup.vue";
 import { useHead } from "@unhead/vue";
@@ -59,6 +78,10 @@ const account = useAccountStore();
 const siteMode = useSiteModeStore();
 const username = ref(account.username || "");
 const router = useRouter();
+const { open: suggesterTipOpen, tryOpen: trySuggesterTip } = useTipOpen(
+  TIP_IDS.postSuggester,
+);
+onMounted(() => trySuggesterTip());
 
 const showUsername = computed(() =>
   modeSupportsOtherUserFavorites(siteMode.activeMode),

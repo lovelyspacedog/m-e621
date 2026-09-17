@@ -1,71 +1,88 @@
 <template>
-  <v-dialog :model-value="!!post" max-width="520" scrollable scrim="primary" @update:model-value="onDialogToggle">
-    <v-card color="secondary">
-      <v-card-title class="d-flex align-center">
-        <v-icon class="mr-2">mdi-image-search</v-icon>
-        Fluffle search
-        <v-spacer />
-        <v-btn icon variant="text" @click="close">
-          <v-icon>mdi-close</v-icon>
-        </v-btn>
-      </v-card-title>
-      <v-card-text>
-        <div v-if="loading" class="text-center py-6">
-          <v-progress-circular indeterminate color="accent" size="40" />
-          <div class="text-medium-emphasis mt-3">Searching…</div>
-        </div>
-        <div v-else-if="error" class="text-error py-2">{{ error }}</div>
-        <div v-else-if="!results.length" class="text-medium-emphasis py-2">
-          No exact or probable matches.
-        </div>
-        <v-list v-else bg-color="transparent" lines="two">
-          <v-list-item
-            v-for="item in results"
-            :key="item.id"
-            class="fluffle-result"
-            rounded="lg"
-            @click="openResult(item.url)"
-          >
-            <template #prepend>
-              <div
-                class="fluffle-thumb"
-                :style="thumbStyle(item.thumbnail)"
-              />
-            </template>
-            <v-list-item-title>
-              {{ item.platform || "Unknown" }}
-              <v-chip
-                class="ml-2"
-                size="x-small"
-                :color="item.match === 'exact' ? 'success' : 'warning'"
-                variant="flat"
-              >
-                {{ item.match }}
-              </v-chip>
-            </v-list-item-title>
-            <v-list-item-subtitle>
-              {{ authorLabel(item) }}
-            </v-list-item-subtitle>
-            <template #append>
-              <v-btn
-                icon
-                size="small"
-                variant="text"
-                title="Copy URL"
-                @click.stop="copyResult(item.url)"
-              >
-                <v-icon size="small">mdi-content-copy</v-icon>
-              </v-btn>
-              <v-icon size="small" class="ml-1">mdi-open-in-new</v-icon>
-            </template>
-          </v-list-item>
-        </v-list>
-      </v-card-text>
-    </v-card>
-  </v-dialog>
+  <div>
+    <v-dialog :model-value="!!post" max-width="520" scrollable scrim="primary" @update:model-value="onDialogToggle">
+      <v-card color="secondary">
+        <v-card-title class="d-flex align-center">
+          <v-icon class="mr-2">mdi-image-search</v-icon>
+          Fluffle search
+          <v-spacer />
+          <v-btn icon variant="text" @click="close">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+        <v-card-text>
+          <div v-if="loading" class="text-center py-6">
+            <v-progress-circular indeterminate color="accent" size="40" />
+            <div class="text-medium-emphasis mt-3">Searching…</div>
+          </div>
+          <div v-else-if="error" class="text-error py-2">{{ error }}</div>
+          <div v-else-if="!results.length" class="text-medium-emphasis py-2">
+            No exact or probable matches.
+          </div>
+          <v-list v-else bg-color="transparent" lines="two">
+            <v-list-item
+              v-for="item in results"
+              :key="item.id"
+              class="fluffle-result"
+              rounded="lg"
+              @click="openResult(item.url)"
+            >
+              <template #prepend>
+                <div
+                  class="fluffle-thumb"
+                  :style="thumbStyle(item.thumbnail)"
+                />
+              </template>
+              <v-list-item-title>
+                {{ item.platform || "Unknown" }}
+                <v-chip
+                  class="ml-2"
+                  size="x-small"
+                  :color="item.match === 'exact' ? 'success' : 'warning'"
+                  variant="flat"
+                >
+                  {{ item.match }}
+                </v-chip>
+              </v-list-item-title>
+              <v-list-item-subtitle>
+                {{ authorLabel(item) }}
+              </v-list-item-subtitle>
+              <template #append>
+                <v-btn
+                  icon
+                  size="small"
+                  variant="text"
+                  title="Copy URL"
+                  @click.stop="copyResult(item.url)"
+                >
+                  <v-icon size="small">mdi-content-copy</v-icon>
+                </v-btn>
+                <v-icon size="small" class="ml-1">mdi-open-in-new</v-icon>
+              </template>
+            </v-list-item>
+          </v-list>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <TipDialog
+      :tip-id="TIP_IDS.fluffleSearch"
+      title="Fluffle reverse search"
+      v-model="fluffleTipOpen"
+    >
+      <p class="mb-0">
+        Fluffle looks up visually similar images across several furry platforms.
+        Exact and probable matches open in a new tab; use copy to grab a URL.
+        Results are ranked by match confidence, not site order.
+      </p>
+    </TipDialog>
+  </div>
 </template>
 
 <script lang="ts">
+import TipDialog from "@/misc/TipDialog.vue";
+import { TIP_IDS } from "@/misc/tipIds";
+import { useTipOpen } from "@/misc/useTipOpen";
 import { openUrlInNewTab } from "@/misc/util/url";
 import {
   searchFluffle,
@@ -79,6 +96,7 @@ import { defineComponent, ref, watch } from "vue";
 
 export default defineComponent({
   name: "FluffleSearchDialog",
+  components: { TipDialog },
   props: {
     post: {
       type: Object as PropType<EnhancedPost | null>,
@@ -91,12 +109,20 @@ export default defineComponent({
     const loading = ref(false);
     const error = ref("");
     const results = ref<FluffleResult[]>([]);
+    const { open: fluffleTipOpen, tryOpenOnEdge: tryFluffleTip } = useTipOpen(
+      TIP_IDS.fluffleSearch,
+    );
 
     const close = () => emit("close");
 
     const onDialogToggle = (open: boolean) => {
       if (!open) close();
     };
+
+    watch(
+      () => !!props.post,
+      tryFluffleTip,
+    );
 
     const openResult = (url: string) => {
       if (url) openUrlInNewTab(url);
@@ -154,6 +180,8 @@ export default defineComponent({
     );
 
     return {
+      TIP_IDS,
+      fluffleTipOpen,
       loading,
       error,
       results,

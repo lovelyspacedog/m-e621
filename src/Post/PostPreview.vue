@@ -184,7 +184,7 @@ import { useMainStore, usePostsStore, useSnackbarStore } from "@/services";
 import { type SiteMode } from "@/services/types";
 import type { File, Preview, Sample } from "@/worker/api";
 import type { PropType } from "vue";
-import { computed, defineComponent, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, defineComponent, inject, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import FixedAspectRatioBox from "./FixedAspectRatioBox.vue";
 import { useRouter } from "vue-router";
 
@@ -239,6 +239,7 @@ export default defineComponent({
     const posts = usePostsStore();
     const main = useMainStore();
     const snackbar = useSnackbarStore();
+    const tryRemuxTip = inject<() => void>("tryRemuxTip", () => undefined);
     const remuxing = ref(false);
     const remuxError = ref("");
     const naturalRatio = ref<number | null>(null);
@@ -554,6 +555,7 @@ export default defineComponent({
 
     const onRemux = async () => {
       if (!props.localPath || remuxing.value) return;
+      tryRemuxTip();
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         remuxError.value =
           "Remux needs a network connection the first time (ffmpeg core). It is not queued offline.";

@@ -391,12 +391,30 @@
         </div>
       </div>
     </v-dialog>
+
+    <TipDialog
+      :tip-id="TIP_IDS.tailspaceComics"
+      title="Tailspace comics"
+      v-model="tailspaceComicsTipOpen"
+    >
+      <p class="mb-3">
+        Gallery shows page thumbs; Scroll reads pages in a vertical strip
+        (optional full width). Neighbor comics jump previous/next in the series.
+      </p>
+      <p class="mb-0">
+        Rating, follow, and comments need a Tailspace login under Account.
+        Federated Pools can open comics here when Tailspace comics are enabled.
+      </p>
+    </TipDialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import TipDialog from "@/misc/TipDialog.vue";
+import { TIP_IDS } from "@/misc/tipIds";
+import { useTipOpen } from "@/misc/useTipOpen";
 import {
   addComment,
   followArtist,
@@ -429,6 +447,9 @@ const route = useRoute();
 const router = useRouter();
 const { isLoggedIn } = useTailspaceSession();
 const siteMode = useSiteModeStore();
+const { open: tailspaceComicsTipOpen, tryOpen: tryTailspaceComicsTip } =
+  useTipOpen(TIP_IDS.tailspaceComics);
+onMounted(() => tryTailspaceComicsTip());
 const comicsBackTo = computed(() =>
   siteMode.isUnified ? { name: "Pools" as const } : { name: "TailspaceComics" as const },
 );

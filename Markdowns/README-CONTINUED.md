@@ -212,7 +212,7 @@ TLS for `*.tonypup.box.ca` is handled by the Expedition reverse proxy. `serve.py
 ## Settings and appearance
 
 - Settings hub search finds pages and rows across groups (including synonyms like “hotkey” → shortcuts, plus playback, route transitions, git pull, and sanitized backup).
-- Appearance includes themes, System/Dark/Light color scheme, navigation density, fullscreen and route transitions (route animations respect reduced motion), an optional paw cursor, and a Prompts subgroup for dismissable banners plus **Reset tooltips** for one-time tip dialogs.
+- Appearance includes themes, System/Dark/Light color scheme, navigation density, fullscreen and route transitions (route animations respect reduced motion), an optional paw cursor, and a Prompts subgroup for dismissable banners plus **Reset tooltips** for one-time tip dialogs (Federated mode/Following, Local, Layout, pools, fullscreen, Saved posts, blacklist, Tailspace comics, Fluffle, remux, Suggester, Analyzer, Flayrah offline, starred tags — see `Markdowns/TIP_CHECKLIST.md`).
 - Account settings use per-site panels with credentials material and last verify/login probe status; Federated feed source and site presets are also editable there.
 - Info → Debug can silence main-thread production console diagnostics (workers unchanged).
 - Blacklist and History settings show which site profile you are editing.

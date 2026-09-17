@@ -53,6 +53,18 @@
       @set-post-favorite="setPostFavorite"
       @set-post-vote="setPostVote"
     />
+
+    <TipDialog
+      :tip-id="TIP_IDS.savedPosts"
+      title="Saved posts"
+      v-model="savedPostsTipOpen"
+    >
+      <p class="mb-0">
+        Saved posts are bookmarks kept across site modes — separate from each
+        site’s own favorites. Bookmark from any federated child; this list uses
+        the same Layout controls as Posts.
+      </p>
+    </TipDialog>
   </div>
 </template>
 
@@ -60,6 +72,9 @@
 import FeedLayoutMenu from "@/Post/FeedLayoutMenu.vue";
 import Posts from "@/Post/Posts.vue";
 import { usePostListManager } from "@/Post/postListManager";
+import TipDialog from "@/misc/TipDialog.vue";
+import { TIP_IDS } from "@/misc/tipIds";
+import { useTipOpen } from "@/misc/useTipOpen";
 import {
   buildUnifiedFetchArgs,
   modeSupportsSavedPosts,
@@ -82,6 +97,10 @@ const siteMode = useSiteModeStore();
 const savedPosts = useSavedPostsStore();
 const snackbar = useSnackbarStore();
 const main = useMainStore();
+const { open: savedPostsTipOpen, tryOpen: trySavedPostsTip } = useTipOpen(
+  TIP_IDS.savedPosts,
+);
+onMounted(() => trySavedPostsTip());
 
 const noop = () => {
   /* Saved list is not paginated */

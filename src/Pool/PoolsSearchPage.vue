@@ -172,6 +172,32 @@
         </v-btn>
       </div>
     </v-container>
+
+    <TipDialog
+      :tip-id="TIP_IDS.poolsOriginBadge"
+      title="Pool origin badges"
+      v-model="poolsOriginTipOpen"
+    >
+      <p class="mb-3">
+        In Federated mode, Pools merges e621 and e6ai results. Small origin
+        icons on cards show which site a pool comes from.
+      </p>
+      <p class="mb-0">
+        Opening a pool keeps that origin for browsing and resume. Optional
+        Tailspace comics can appear in name browse when enabled under Account.
+      </p>
+    </TipDialog>
+    <TipDialog
+      :tip-id="TIP_IDS.watchedPools"
+      title="Watched pool badges"
+      v-model="watchedPoolsTipOpen"
+    >
+      <p class="mb-0">
+        A +N badge on a watched pool means new pages since you last checked.
+        Watch pools with the eye button; open Watched Pools at the top of this
+        page to catch up.
+      </p>
+    </TipDialog>
   </div>
 </template>
 
@@ -183,6 +209,9 @@ import { debounce } from "lodash";
 import type { Pool } from "@/worker/api";
 import TagSearch from "@/Tag/TagSearch.vue";
 import PoolCollection, { type PoolListItem } from "@/Pool/PoolCollection.vue";
+import TipDialog from "@/misc/TipDialog.vue";
+import { TIP_IDS } from "@/misc/tipIds";
+import { useTipOpen } from "@/misc/useTipOpen";
 import { useRouterTagManager } from "@/Post/routerTagManager";
 import {
   usePostsStore,
@@ -337,6 +366,16 @@ const isFederatedPools = computed(() => siteMode.isUnified);
 const includeTailspaceComics = computed(
   () => isFederatedPools.value && siteMode.unifiedIncludeTailspaceComics,
 );
+
+const { open: poolsOriginTipOpen, tryOpen: tryPoolsOriginTip, tryOpenOnEdge: tryPoolsOriginEdge } =
+  useTipOpen(TIP_IDS.poolsOriginBadge);
+const { open: watchedPoolsTipOpen, tryOpenOnEdge: tryWatchedPoolsTip } =
+  useTipOpen(TIP_IDS.watchedPools);
+
+watch(isFederatedPools, tryPoolsOriginEdge);
+onMounted(() => {
+  if (isFederatedPools.value) tryPoolsOriginTip();
+});
 const browseChildren = computed(() => poolFamilyChildren(main.$state));
 const defaultCoverOrigin = computed(() => {
   if (isPoolOriginMode(siteMode.activeMode)) return siteMode.activeMode;
@@ -371,6 +410,15 @@ const newCounts = computed(() => {
   }
   return out;
 });
+
+const hasWatchedNewBadge = computed(() =>
+  watchedPoolResults.value.some((pool) => {
+    const origin = pool.originMode;
+    if (!origin || origin === "tailspace") return false;
+    return (newCounts.value[poolKey(origin, pool.id)] || 0) > 0;
+  }),
+);
+watch(hasWatchedNewBadge, tryWatchedPoolsTip);
 
 const unavailableWatched = computed(() => {
   if (watchedLoading.value) return [];

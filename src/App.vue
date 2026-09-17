@@ -44,7 +44,7 @@
     <pwa-update-banner />
     <app-snackbar />
     <TipDialog
-      tip-id="federated-mode"
+      :tip-id="TIP_IDS.federatedMode"
       title="Federated mode"
       v-model="federatedTipOpen"
     >
@@ -74,6 +74,8 @@ import NavigationList from "./App/NavigationList.vue";
 import NavigationToolbar from "./App/NavigationToolbar.vue";
 import PwaUpdateBanner from "./App/PwaUpdateBanner.vue";
 import TipDialog from "./misc/TipDialog.vue";
+import { TIP_IDS } from "./misc/tipIds";
+import { useTipOpen } from "./misc/useTipOpen";
 import { getAppName } from "./misc/util/utilities";
 import { useAppearanceStore, useMainStore, usePersistanceService, useShortcutService, useShortcutStore, useSiteModeStore } from "./services";
 import { useHead } from '@unhead/vue';
@@ -88,7 +90,9 @@ const shortcutService = useShortcutService();
 const siteMode = useSiteModeStore();
 const navMode = computed(() => appearance.navigationType);
 const theme = computed(() => appearance.theme);
-const federatedTipOpen = ref(false);
+const { open: federatedTipOpen, tryOpenOnEdge: tryFederatedTip } = useTipOpen(
+  TIP_IDS.federatedMode,
+);
 
 useSyncedTheme();
 installOfflineSaveQueueListeners();
@@ -103,14 +107,7 @@ onMounted(async () => {
   }
 });
 
-watch(
-  () => siteMode.isUnified,
-  (now, was) => {
-    if (now && !was && !appearance.isTipDismissed("federated-mode")) {
-      federatedTipOpen.value = true;
-    }
-  },
-);
+watch(() => siteMode.isUnified, tryFederatedTip);
 const logoStyle = computed(() => appearance.logoStyle);
 const onLogoClick = () => {
   const availableStyles = appearance.logoStyles.filter(

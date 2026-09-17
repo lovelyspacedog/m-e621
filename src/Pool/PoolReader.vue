@@ -204,12 +204,31 @@
       />
       <span class="pool-chunk-range text-caption">{{ chunkRangeLabel }}</span>
     </div>
+
+    <TipDialog
+      :tip-id="TIP_IDS.poolReader"
+      title="Pool reader"
+      v-model="poolReaderTipOpen"
+    >
+      <p class="mb-3">
+        Gallery shows page thumbnails; Scroll reads the chunk top to bottom
+        (optional full width). Hidden pages stay as placeholders when blacklist
+        or fetch gaps apply.
+      </p>
+      <p class="mb-0">
+        Save chunk downloads this page range locally; Save all walks the whole
+        pool. Fullscreen continues across chunks when you page next/prev.
+      </p>
+    </TipDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import type { EnhancedPost } from "@/worker/ApiService";
+import TipDialog from "@/misc/TipDialog.vue";
+import { TIP_IDS } from "@/misc/tipIds";
+import { useTipOpen } from "@/misc/useTipOpen";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
 import {
   buildChunkButtons,
@@ -266,6 +285,10 @@ const emit = defineEmits<{
 
 const viewMode = ref<PoolViewMode>(loadComicViewMode(VIEW_MODE_KEY));
 const fullWidthScroll = ref(loadComicFullWidthScroll(FULL_WIDTH_KEY));
+const { open: poolReaderTipOpen, tryOpen: tryPoolReaderTip } = useTipOpen(
+  TIP_IDS.poolReader,
+);
+onMounted(() => tryPoolReaderTip());
 
 watch(
   viewMode,

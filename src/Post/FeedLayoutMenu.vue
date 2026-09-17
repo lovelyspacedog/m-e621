@@ -1,6 +1,10 @@
 <template>
   <v-list class="pa-0 mt-1 mb-2" density="compact">
-    <v-menu location="bottom end" :close-on-content-click="false">
+    <v-menu
+      v-model="layoutMenuOpen"
+      location="bottom end"
+      :close-on-content-click="false"
+    >
       <template #activator="{ props: menuProps }">
         <v-list-item v-bind="menuProps" title="Layout">
           <template #prepend>
@@ -103,14 +107,37 @@
         </v-list-item>
       </v-list>
     </v-menu>
+
+    <TipDialog
+      :tip-id="TIP_IDS.feedLayout"
+      title="Feed layout"
+      v-model="feedLayoutTipOpen"
+    >
+      <p class="mb-3">
+        Use Layout to switch grid, compact cards, full-width list, auto-next,
+        and infinite scroll. Turn infinite scroll off to page with previous/next.
+      </p>
+      <p class="mb-0">
+        Keyboard: j/k move between posts; Space starts a slideshow in fullscreen
+        (or pauses auto-next on the feed when that is on). The keyboard icon on
+        Layout shows the same shortcuts.
+      </p>
+    </TipDialog>
   </v-list>
 </template>
 
 <script setup lang="ts">
+import TipDialog from "@/misc/TipDialog.vue";
+import { TIP_IDS } from "@/misc/tipIds";
+import { useTipOpen } from "@/misc/useTipOpen";
 import { usePostsStore } from "@/services";
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 
 const postsStore = usePostsStore();
+const layoutMenuOpen = ref(false);
+const { open: feedLayoutTipOpen, tryOpenOnEdge } = useTipOpen(TIP_IDS.feedLayout);
+
+watch(layoutMenuOpen, tryOpenOnEdge);
 
 const layoutShortcutHint = computed(() =>
   postsStore.cardAutoNext

@@ -265,11 +265,29 @@
           @open-fluffle-search="$emit('open-fluffle-search', $event)" />
       </div>
     </div>
+
+    <TipDialog
+      :tip-id="TIP_IDS.fullscreenGestures"
+      title="Fullscreen browsing"
+      v-model="fullscreenTipOpen"
+    >
+      <p class="mb-3">
+        Swipe left/right for next/prev (when not zoomed); swipe down to exit.
+        Pinch or scroll to zoom. Notes toggle when the post has artist notes.
+      </p>
+      <p class="mb-0">
+        Slideshow and the comments rail live in the chrome. Space starts or
+        pauses the slideshow; j/k also move between posts.
+      </p>
+    </TipDialog>
   </v-dialog>
 </template>
 
 <script setup lang="ts">
 import AppLogo from "../App/AppLogo.vue";
+import TipDialog from "@/misc/TipDialog.vue";
+import { TIP_IDS } from "@/misc/tipIds";
+import { useTipOpen } from "@/misc/useTipOpen";
 import { useAppearanceStore, useBlacklistStore, useMainStore, usePostsStore, useShortcutService, useSiteModeStore, useUiStore, useUrlStore } from "@/services";
 import RufflePlayer from "./RufflePlayer.vue";
 import ZoomPanImage from "./ZoomPanImage.vue";
@@ -591,6 +609,10 @@ const pdfFrameUrl = computed(() => {
 const showPdfFrame = computed(() => !!pdfFrameUrl.value);
 
 const open = computed(() => !!props.current);
+const { open: fullscreenTipOpen, tryOpenOnEdge: tryFullscreenTip } = useTipOpen(
+  TIP_IDS.fullscreenGestures,
+);
+watch(open, tryFullscreenTip);
 
 const looksLikeBinaryGarbage = (text: string) => {
   if (!text) return true;

@@ -38,14 +38,29 @@
         </v-card>
       </v-col>
     </v-row>
+
+    <TipDialog
+      :tip-id="TIP_IDS.favoritesAnalyzer"
+      title="Favorite Analyzer"
+      v-model="analyzerTipOpen"
+    >
+      <p class="mb-0">
+        Samples favorites and ranks tags by frequency. Use another username
+        where the site supports public favorites; Federated and Local use
+        enabled children or your library instead.
+      </p>
+    </TipDialog>
   </v-container>
 </template>
 
 <script setup lang="ts">
 import { useAccountStore, useSiteModeStore } from "@/services";
+import TipDialog from "@/misc/TipDialog.vue";
+import { TIP_IDS } from "@/misc/tipIds";
+import { useTipOpen } from "@/misc/useTipOpen";
 import { modeSupportsOtherUserFavorites } from "@/misc/util/siteCapabilities";
 import { useHead } from "@unhead/vue";
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 
 useHead({ title: "Favorite Analyzer" });
@@ -54,6 +69,10 @@ const account = useAccountStore();
 const siteMode = useSiteModeStore();
 const username = ref(account.username || "");
 const router = useRouter();
+const { open: analyzerTipOpen, tryOpen: tryAnalyzerTip } = useTipOpen(
+  TIP_IDS.favoritesAnalyzer,
+);
+onMounted(() => tryAnalyzerTip());
 
 const showUsername = computed(() =>
   modeSupportsOtherUserFavorites(siteMode.activeMode),

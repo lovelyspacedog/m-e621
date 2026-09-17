@@ -206,6 +206,48 @@
         <suggestions v-if="tagsOpen" :tags="suggestedTags" />
       </template>
     </portal>
+
+    <TipDialog
+      :tip-id="TIP_IDS.federatedFollowing"
+      title="Federated Following"
+      v-model="followingTipOpen"
+    >
+      <p class="mb-3">
+        Following merges watch/following feeds from sites that support it
+        (Inkbunny, FurAffinity, Itaku, SoFurry). Tag search is ignored while
+        Following is selected.
+      </p>
+      <p class="mb-0">
+        Log in under Account for each site you want included. Use the site
+        switches below to narrow which following feeds appear.
+      </p>
+    </TipDialog>
+    <TipDialog
+      :tip-id="TIP_IDS.localMode"
+      title="Local library"
+      v-model="localTipOpen"
+    >
+      <p class="mb-3">
+        Local browses a folder on this device. Pick a folder to index images and
+        videos; search uses fuzzy matching on filenames and sidecar tags.
+      </p>
+      <p class="mb-0">
+        Needs Chromium’s File System Access API (or the Tauri desktop build).
+        You can remux unplayable files and save posts from other sites into this
+        library.
+      </p>
+    </TipDialog>
+    <TipDialog
+      :tip-id="TIP_IDS.remuxLocal"
+      title="Remux local media"
+      v-model="remuxTipOpen"
+    >
+      <p class="mb-0">
+        Remux converts awkward containers to a browser-friendly MP4. The first
+        run downloads an ffmpeg core over the network and is not queued for
+        offline. Use Remux on a single card or Remux unplayable in the toolbar.
+      </p>
+    </TipDialog>
   </div>
 </template>
 
@@ -216,10 +258,13 @@ import { usePostListManager } from "@/Post/postListManager";
 import FeedLayoutMenu from "@/Post/FeedLayoutMenu.vue";
 import Posts from "@/Post/Posts.vue";
 import { useRouterTagManager } from "@/Post/routerTagManager";
+import TipDialog from "@/misc/TipDialog.vue";
+import { TIP_IDS } from "@/misc/tipIds";
+import { useTipOpen } from "@/misc/useTipOpen";
 import { useAccountStore, useBlacklistStore, useMainStore, usePostsStore, useShortcutService, useSiteModeStore, useSnackbarStore, useUrlStore } from "@/services";
 import type { ITag } from "@/Tag/ITag";
 import { debounce, isEqual } from "lodash";
-import { computed, onBeforeUnmount, onMounted, ref, toRaw, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, provide, ref, toRaw, watch } from "vue";
 import { useRouterQueryHelpers } from "../misc/util/utilities";
 import {
   buildTagQuery,
@@ -291,6 +336,23 @@ const onUnifiedFeedSource = (value: unknown) => {
     siteMode.setUnifiedFeedSource(value as UnifiedFeedSource);
   }
 };
+
+const { open: followingTipOpen, tryOpenOnEdge: tryFollowingTip } = useTipOpen(
+  TIP_IDS.federatedFollowing,
+);
+const { open: localTipOpen, tryOpenOnEdge: tryLocalTip } = useTipOpen(
+  TIP_IDS.localMode,
+);
+const { open: remuxTipOpen, tryOpen: tryRemuxTip } = useTipOpen(
+  TIP_IDS.remuxLocal,
+);
+provide("tryRemuxTip", tryRemuxTip);
+
+watch(
+  () => siteMode.unifiedFeedSource === "following",
+  tryFollowingTip,
+);
+watch(() => siteMode.isLocal, tryLocalTip);
 const localEmptyMessage = ref(localStatusMessage("no-folder"));
 const restorePath = ref<string | null>(null);
 const restoreVideoTime = ref<number | undefined>(undefined);
@@ -443,6 +505,7 @@ const toggleBulkRemux = async () => {
     remuxAbort?.abort();
     return;
   }
+  tryRemuxTip();
   if (typeof navigator !== "undefined" && !navigator.onLine) {
     snackbar.addMessage(
       "Remux needs a network connection the first time (ffmpeg core). Remux jobs are not added to the offline save queue.",

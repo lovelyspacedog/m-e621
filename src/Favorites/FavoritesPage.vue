@@ -97,19 +97,41 @@
         </v-col>
       </v-row>
     </v-container>
+
+    <TipDialog
+      :tip-id="TIP_IDS.starredTags"
+      title="Starred tags"
+      v-model="starredTagsTipOpen"
+    >
+      <p class="mb-3">
+        Star tags from post menus to keep them here in groups. Search jumps to
+        Posts with that tag; move tags between groups from the folder button.
+      </p>
+      <p class="mb-0">
+        Copy from another site syncs starred groups across profiles. This is
+        separate from Saved posts bookmarks.
+      </p>
+    </TipDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from "vue";
+import { computed, onMounted, watch } from "vue";
 import TagLabel from "@/Tag/TagLabel.vue";
 import ProfileListSync from "@/Settings/ProfileListSync.vue";
+import TipDialog from "@/misc/TipDialog.vue";
+import { TIP_IDS } from "@/misc/tipIds";
+import { useTipOpen } from "@/misc/useTipOpen";
 import { useFavoritesStore } from "@/services/FavoriteStore";
 import { UNGROUPED_FAVORITE_GROUP_ID } from "@/services/types";
 import { useRouter } from "vue-router";
 
 const favorites = useFavoritesStore();
 const ungroupedId = UNGROUPED_FAVORITE_GROUP_ID;
+const { open: starredTagsTipOpen, tryOpen: tryStarredTagsTip } = useTipOpen(
+  TIP_IDS.starredTags,
+);
+onMounted(() => tryStarredTagsTip());
 
 const openPanels = computed({
   get() {
