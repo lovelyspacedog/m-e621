@@ -82,6 +82,9 @@ TOKEN_PATH = CONFIG_DIR / "pull_token"
 STATUS_PATH = CONFIG_DIR / "pull_status.json"
 SCENT_MARKS_PATH = CONFIG_DIR / "scent_marks.json"
 SCENT_ADMIN_HASH_PATH = CONFIG_DIR / "scent_marks_admin.hash"
+SCENT_BLOCKLIST_PATH = (
+    Path(__file__).resolve().parent / "src" / "Landing" / "scentMarksBlocklist.json"
+)
 SCENT_MARKS_LIST_PATH = re.compile(r"^/api/scent-marks/?$")
 SCENT_MARK_ITEM_PATH = re.compile(r"^/api/scent-marks/([A-Za-z0-9_-]{8,64})$")
 SCENT_MAX_BODY = 500
@@ -90,10 +93,88 @@ SCENT_MAX_MARKS = 500
 SCENT_RATE_SECONDS = 60
 _scent_rate_lock = threading.Lock()
 _scent_rate_by_ip: dict[str, float] = {}
+_scent_block_words: list[str] = []
+_scent_block_word_res: list[tuple[str, re.Pattern[str]]] = []
+_scent_block_patterns: list[tuple[str, re.Pattern[str]]] = []
 
 
 def _scent_strip_controls(value: str) -> str:
     return "".join(ch for ch in value if ch == "\n" or ch == "\t" or ord(ch) >= 32)
+
+
+def _scent_load_blocklist() -> None:
+    """Load shared client/server blocklist once (words + spam pattern ids)."""
+    global _scent_block_words, _scent_block_word_res, _scent_block_patterns
+    if _scent_block_word_res or _scent_block_patterns or _scent_block_words:
+        return
+    try:
+        raw = json.loads(SCENT_BLOCKLIST_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    if not isinstance(raw, dict):
+        return
+    words: list[str] = []
+    for item in raw.get("words") or []:
+        if not isinstance(item, str):
+            continue
+        term = item.strip().lower()
+        if term:
+            words.append(term)
+    word_res: list[tuple[str, re.Pattern[str]]] = []
+    for term in words:
+        word_res.append(
+            (
+                term,
+                re.compile(
+                    rf"(?<![A-Za-z0-9_]){re.escape(term)}(?![A-Za-z0-9_])",
+                    re.IGNORECASE,
+                ),
+            )
+        )
+    patterns: list[tuple[str, re.Pattern[str]]] = []
+    for item in raw.get("patterns") or []:
+        if not isinstance(item, dict):
+            continue
+        pid = item.get("id")
+        preg = item.get("regex")
+        if not isinstance(pid, str) or not isinstance(preg, str) or not pid or not preg:
+            continue
+        try:
+            patterns.append((pid, re.compile(preg, re.IGNORECASE)))
+        except re.error:
+            continue
+    _scent_block_words = words
+    _scent_block_word_res = word_res
+    _scent_block_patterns = patterns
+
+
+def _scent_find_blocked(text: str, name: str | None) -> list[str]:
+    """Return blocked labels / pattern ids in first-seen order (deduped)."""
+    _scent_load_blocklist()
+    haystacks = [h for h in (text, name or "") if h and h.strip()]
+    if not haystacks:
+        return []
+    hits: list[str] = []
+    seen: set[str] = set()
+
+    def push(label: str) -> None:
+        if not label or label in seen:
+            return
+        seen.add(label)
+        hits.append(label)
+
+    for hay in haystacks:
+        for term, cre in _scent_block_word_res:
+            if cre.search(hay):
+                push(term)
+        for pid, cre in _scent_block_patterns:
+            if cre.search(hay):
+                push(pid)
+    return hits
+
+
+def _scent_blocked_message(blocked: list[str]) -> str:
+    return "Blocked: " + ", ".join(blocked)
 
 
 def _scent_client_ip(handler: SimpleHTTPRequestHandler) -> str:
@@ -1123,6 +1204,17 @@ class SpaHandler(SimpleHTTPRequestHandler):
                     {"ok": False, "message": f"name max {SCENT_MAX_NAME} characters"},
                 )
                 return
+        blocked = _scent_find_blocked(text, name)
+        if blocked:
+            self._json(
+                400,
+                {
+                    "ok": False,
+                    "message": _scent_blocked_message(blocked),
+                    "blocked": blocked,
+                },
+            )
+            return
         mark = {
             "id": secrets.token_urlsafe(12),
             "text": text,

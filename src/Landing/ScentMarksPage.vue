@@ -190,6 +190,10 @@ import {
   setScentAdminPassword,
   type ScentMark,
 } from "./scentMarksApi";
+import {
+  findBlockedScentTerms,
+  formatScentBlockedMessage,
+} from "./scentMarksBlocklist";
 
 useHead({
   title: "Scent Marks",
@@ -240,11 +244,17 @@ const submitMark = async () => {
   formOk.value = "";
   const text = draftText.value.trim();
   if (!text) return;
+  const name = draftName.value.trim() || undefined;
+  const blocked = findBlockedScentTerms(text, name);
+  if (blocked.length) {
+    formError.value = formatScentBlockedMessage(blocked);
+    return;
+  }
   posting.value = true;
   try {
     await createScentMark({
       text,
-      name: draftName.value.trim() || undefined,
+      name,
     });
     draftText.value = "";
     formOk.value = "Posted.";
