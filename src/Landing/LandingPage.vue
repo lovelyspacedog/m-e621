@@ -19,11 +19,20 @@
           label="Search Tags ..."
         />
       </div>
-      <div class="ma-5">
+      <div class="ma-5 d-flex flex-wrap justify-center ga-3">
         <v-btn size="x-large" color="secondary" variant="outlined" :to="query">
           Browse posts
         </v-btn>
+        <v-btn
+          size="x-large"
+          color="secondary"
+          variant="outlined"
+          @click="changelogOpen = true"
+        >
+          Changelog
+        </v-btn>
       </div>
+      <ChangelogDialog v-model="changelogOpen" />
     </div>
   </section>
   <MigrationInfo />
@@ -75,6 +84,7 @@ import CommitTimeline from "@/About/CommitTimeline.vue";
 import { useHead } from "@unhead/vue";
 import TagSearch from "@/Tag/TagSearch.vue";
 import About from "./About.vue";
+import ChangelogDialog from "./ChangelogDialog.vue";
 import Footer from "./Footer.vue";
 import { computed, ref } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
@@ -83,6 +93,7 @@ import { useSiteModeStore } from "@/services/SiteModeStore";
 
 const router = useRouter();
 const siteMode = useSiteModeStore();
+const changelogOpen = ref(false);
 
 const chooseRandom = (arr: string[]) =>
   arr[Math.floor(Math.random() * arr.length)];
