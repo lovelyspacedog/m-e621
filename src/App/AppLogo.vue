@@ -18,17 +18,17 @@
         <ellipse cx="105" cy="700" rx="42" ry="38" fill="rgb(232, 49, 253)" />
       </g>
 
-      <!-- Rounded-forehead head. Heritage e621 blue contrasts theme primary (#1976d2). -->
+      <!-- Pointy-top hexagon head. Heritage e621 blue contrasts theme primary (#1976d2). -->
       <path
         class="background"
-        d="M 280 430
-           C 280 300 380 210 500 210
-           C 620 210 720 300 720 430
-           L 810 600
-           L 720 800
+        d="M 500 180
+           L 730 310
+           L 810 560
+           L 730 810
            L 500 940
-           L 280 800
-           L 190 600
+           L 270 810
+           L 190 560
+           L 270 310
            Z"
         fill="rgb(0, 84, 159)"
       />
