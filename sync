@@ -155,6 +155,10 @@ if [[ "$need_build" -eq 1 ]]; then
 fi
 
 if [[ "${M_E621_NO_RESTART:-0}" != "1" ]]; then
+  # Drop the flock before spawning serve.py so the lock cannot stick on FD 9.
+  if command -v flock >/dev/null 2>&1; then
+    exec 9>&- 2>/dev/null || true
+  fi
   # After a code pull, always replace the listener so new serve.py routes load.
   if [[ "$need_build" -eq 1 ]]; then
     M_E621_FORCE_RESTART=1 "$APP_DIR/start"

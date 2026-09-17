@@ -35,6 +35,7 @@ export const changelogSections: ChangelogSection[] = [
       "Fairer Random order (Fisher–Yates)",
       "Self-host `sync` serializes with a lock so overlapping deploys wait or exit cleanly",
       "Weasyl and Itaku enabled by default in Unified Search",
+      "Self-host sync no longer leaves the lock held by serve.py after restart",
     ],
   },
   {

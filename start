@@ -40,5 +40,7 @@ export M_E621_HOST="$HOST"
 export M_E621_PORT="$PORT"
 # DOMAIN / CONFIG already available via load-m-e621-env.sh when set.
 
-nohup python3 "$APP_DIR/serve.py" >>"$LOG" 2>&1 &
+# Close FD 9 so a parent `sync` flock (exec 9>sync.lock) is not inherited by
+# the long-lived server — that used to pin the lock until serve.py exited.
+nohup python3 "$APP_DIR/serve.py" >>"$LOG" 2>&1 9>&- &
 echo $! >"$PIDFILE"
