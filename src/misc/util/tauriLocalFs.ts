@@ -7,6 +7,8 @@ export type TauriLocalFileEntry = {
   size: number;
   lastModified: number;
   kind: "image" | "video" | "audio";
+  /** False when Rust sniffed an unplayable/mislabeled mp4. */
+  playable?: boolean;
 };
 
 type TauriInvoke = <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
@@ -71,6 +73,7 @@ export const tauriListLocalMedia = async (
       size: number;
       lastModified: number;
       kind: string;
+      playable?: boolean;
     }>
   >("list_local_media", { root });
   return (rows || [])
@@ -85,6 +88,7 @@ export const tauriListLocalMedia = async (
       size: Number(row.size) || 0,
       lastModified: Number(row.lastModified) || 0,
       kind: row.kind as "image" | "video" | "audio",
+      playable: row.playable,
     }));
 };
 

@@ -95,10 +95,13 @@ import type { Pool } from "@/worker/api";
 const props = defineProps<{
   pools: Pool[];
   layout: "grid" | "list";
-  covers: Record<number, string>;
+  /** Keys are `${originMode}:${postId}` (or bare id string for legacy). */
+  covers: Record<string, string>;
   watchedIds: Set<number>;
   /** pool id → new posts since last seen */
   newCounts?: Record<number, number>;
+  /** Active site mode used when looking up cover URLs. */
+  coverOrigin?: string;
 }>();
 
 defineEmits<{
@@ -106,11 +109,15 @@ defineEmits<{
 }>();
 
 const displayName = (name: string) => name.replace(/_/g, " ");
+const coverLookupKey = (id: number) =>
+  props.coverOrigin ? `${props.coverOrigin}:${id}` : String(id);
 const coverUrl = (pool: Pool) => {
   for (const id of pool.post_ids || []) {
-    if (typeof id === "number" && id > 0 && props.covers[id]) {
-      return props.covers[id];
-    }
+    if (typeof id !== "number" || id <= 0) continue;
+    const keyed = props.covers[coverLookupKey(id)];
+    if (keyed) return keyed;
+    // Legacy numeric-string keys from older sessions.
+    if (props.covers[String(id)]) return props.covers[String(id)];
   }
   return null;
 };

@@ -239,7 +239,7 @@ const formOk = ref("");
 const draftName = ref("");
 const draftText = ref("");
 const adminPassword = ref("");
-const modUnlocked = ref(Boolean(getScentAdminPassword()));
+const modUnlocked = ref(false);
 const modError = ref("");
 const unlocking = ref(false);
 const deletingId = ref<string | null>(null);
@@ -378,6 +378,17 @@ const togglePin = async (mark: ScentMark) => {
 
 onMounted(() => {
   void refresh();
+  // Never unlock from a stored password alone — re-check /auth first.
+  const saved = getScentAdminPassword();
+  if (!saved) return;
+  void verifyScentAdminPassword(saved)
+    .then(() => {
+      modUnlocked.value = true;
+    })
+    .catch(() => {
+      clearScentAdminPassword();
+      modUnlocked.value = false;
+    });
 });
 </script>
 

@@ -123,6 +123,23 @@ const assertNotDedicatedChrome = (
   assertNotFlayrah(baseUrl, method, mode);
 };
 
+const originModeStamp = (mode?: SiteMode): UnifiedChildMode | undefined => {
+  if (!mode) return undefined;
+  if (
+    mode === "e621" ||
+    mode === "e6ai" ||
+    mode === "furbooru" ||
+    mode === "inkbunny" ||
+    mode === "furaffinity" ||
+    mode === "weasyl" ||
+    mode === "itaku" ||
+    mode === "sofurry"
+  ) {
+    return mode;
+  }
+  return undefined;
+};
+
 // debug.disable();
 // debug.enable("app:*");
 
@@ -791,6 +808,7 @@ export class ApiService {
         __meta: {
           isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
           pageNumber: args.page,
+          originMode: originModeStamp(args.mode),
         },
       }));
     }
@@ -814,6 +832,7 @@ export class ApiService {
         __meta: {
           isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
           pageNumber: args.page,
+          originMode: originModeStamp(args.mode),
           inkbunny: inkbunny.inkbunnyMetaFromHit(result.hits[index] || {}, result.sid),
         },
       }));
@@ -838,6 +857,7 @@ export class ApiService {
         __meta: {
           isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
           pageNumber: args.page,
+          originMode: originModeStamp(args.mode),
           furaffinity: furaffinity.faMetaFrom(result.hits[index] || {}),
         },
       }));
@@ -862,6 +882,7 @@ export class ApiService {
         __meta: {
           isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
           pageNumber: args.page,
+          originMode: originModeStamp(args.mode),
           weasyl: weasyl.weasylMeta(false),
         },
       }));
@@ -886,6 +907,7 @@ export class ApiService {
         __meta: {
           isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
           pageNumber: args.page,
+          originMode: originModeStamp(args.mode),
           itaku: itaku.itakuMeta(false),
         },
       }));
@@ -928,6 +950,7 @@ export class ApiService {
             ...((post as EnhancedPost).__meta || {}),
             isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
             pageNumber: args.page,
+            originMode: originModeStamp(args.mode),
           },
         }));
       }
@@ -948,6 +971,7 @@ export class ApiService {
           ...((post as EnhancedPost).__meta || {}),
           isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
           pageNumber: args.page,
+          originMode: originModeStamp(args.mode),
         },
       }));
     }
@@ -973,11 +997,16 @@ export class ApiService {
       __meta: {
         isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
         pageNumber: args.page,
+        originMode: originModeStamp(args.mode),
       },
     }));
   }
 
   async getTags(args: ITagsListArgs) {
+    // Federated / Local must not fall through to e621 autocomplete.
+    if (args.mode === "unified" || args.mode === "local") {
+      return [] as import("./api/returnTypes").Tag[];
+    }
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotDedicatedChrome(args.baseUrl, "getTags", args.mode);
     if (backend === "furbooru") {
@@ -1074,6 +1103,7 @@ export class ApiService {
   }
 
   async favoritePost(args: IPostFavoriteArgs) {
+    assertNotDedicatedChrome(args.baseUrl, "favoritePost", args.mode);
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     if (backend === "inkbunny" || backend === "weasyl") {
       return false;
@@ -1117,6 +1147,7 @@ export class ApiService {
   }
 
   async unfavoritePost(args: IPostFavoriteArgs) {
+    assertNotDedicatedChrome(args.baseUrl, "unfavoritePost", args.mode);
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     if (backend === "inkbunny" || backend === "weasyl") {
       return false;

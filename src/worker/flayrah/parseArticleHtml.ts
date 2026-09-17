@@ -93,8 +93,11 @@ export function parseFlayrahArticleHtml(
     // Still try — Cloudflare challenge pages rarely include node markup.
   }
   const doc = new DOMParser().parseFromString(html, "text/html");
-  const id = nidFromDoc(doc, idHint);
+  // Discover id from markup only — do not fall back to the request hint.
+  const id = nidFromDoc(doc, 0);
   if (!id) return null;
+  // Reject wrong-node HTML (soft 404 / redirect body for another article).
+  if (idHint > 0 && id !== idHint) return null;
 
   const title =
     metaContent(doc, "property", "og:title") ||

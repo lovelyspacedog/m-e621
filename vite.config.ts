@@ -98,6 +98,7 @@ const isItakuMediaHost = (host: string) =>
 const isSofurryMediaHost = (host: string) =>
   host === 'sofurry.com' ||
   host === 'www.sofurry.com' ||
+  host === 'sofurryfiles.com' ||
   host === 'cdn.sofurryfiles.com' ||
   host === 's3.sofurryfiles.com' ||
   host.endsWith('.sofurryfiles.com');
@@ -158,6 +159,13 @@ function e621MediaProxy(): Plugin {
                     Referer: 'https://www.furaffinity.net',
                     ...(faCookies ? { Cookie: faCookies } : {}),
                   }
+                : {}),
+              ...(isWeasylMediaHost(host)
+                ? { Referer: 'https://www.weasyl.com' }
+                : {}),
+              ...(isItakuMediaHost(host) ? { Referer: 'https://itaku.ee' } : {}),
+              ...(isSofurryMediaHost(host)
+                ? { Referer: 'https://sofurry.com' }
                 : {}),
             },
             redirect: 'manual',
@@ -786,6 +794,9 @@ function fluffleProxy(): Plugin {
               ...(faCookies ? { Cookie: faCookies } : {}),
             }
           : {}),
+        ...(isWeasylMediaHost(host) ? { Referer: 'https://www.weasyl.com' } : {}),
+        ...(isItakuMediaHost(host) ? { Referer: 'https://itaku.ee' } : {}),
+        ...(isSofurryMediaHost(host) ? { Referer: 'https://sofurry.com' } : {}),
       },
       redirect: 'manual',
     });

@@ -81,6 +81,14 @@ export const getNetworkInfo = (
  * if neither is available, medium (or low when Save-Data is on).
  */
 export function resolveAutoQuality(info: INetworkInfo): DataSaverQuality {
+  // Offline / no network — always prefer the lightest preview.
+  if (
+    (typeof navigator !== "undefined" && !navigator.onLine) ||
+    (info.typeSupported && info.type === "none")
+  ) {
+    return "low";
+  }
+
   if (info.typeSupported) {
     if (info.type === "bluetooth" || info.type === "cellular") {
       return "low";

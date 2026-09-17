@@ -19,6 +19,8 @@ struct LocalFileEntry {
   size: u64,
   last_modified: u64,
   kind: String,
+  /// False when an .mp4 lacks ftyp / looks like MPEG-TS (mislabeled).
+  playable: bool,
 }
 
 fn ext_of(name: &str) -> String {
@@ -48,6 +50,38 @@ fn mtime_ms(meta: &fs::Metadata) -> u64 {
     .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
     .map(|d| d.as_millis() as u64)
     .unwrap_or(0)
+}
+
+/// Match browser Local sniff: reject MPEG-TS-as-mp4; require ftyp box.
+fn sniff_mp4_playable(path: &Path) -> bool {
+  let mut file = match fs::File::open(path) {
+    Ok(f) => f,
+    Err(_) => return false,
+  };
+  let mut buf = [0u8; 12];
+  use std::io::Read;
+  let n = match file.read(&mut buf) {
+    Ok(n) => n,
+    Err(_) => return false,
+  };
+  if n == 0 {
+    return false;
+  }
+  if buf[0] == 0x47 {
+    return false;
+  }
+  if n >= 8 && buf[4] == b'f' && buf[5] == b't' && buf[6] == b'y' && buf[7] == b'p' {
+    return true;
+  }
+  false
+}
+
+fn playable_for(ext: &str, path: &Path) -> bool {
+  if ext == "mp4" {
+    return sniff_mp4_playable(path);
+  }
+  // Images, audio, webm, and other listed video containers are treated as playable.
+  true
 }
 
 fn walk_media(root: &Path, dir: &Path, prefix: &str, out: &mut Vec<LocalFileEntry>) -> Result<(), String> {
@@ -84,10 +118,11 @@ fn walk_media(root: &Path, dir: &Path, prefix: &str, out: &mut Vec<LocalFileEntr
     out.push(LocalFileEntry {
       relative_path,
       name,
-      ext,
+      ext: ext.clone(),
       size: meta.len(),
       last_modified: mtime_ms(&meta),
       kind: kind.to_string(),
+      playable: playable_for(&ext, &path),
     });
   }
   Ok(())

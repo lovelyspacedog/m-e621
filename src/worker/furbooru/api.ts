@@ -115,13 +115,66 @@ function proxyBase(): string {
 // Fetch helper
 // ---------------------------------------------------------------------------
 
+async function parseFurbooruResponse<T>(response: Response): Promise<T> {
+  const text = await response.text();
+  const trimmed = text.trimStart();
+  if (
+    !trimmed ||
+    trimmed.startsWith("<") ||
+    /Attention Required|cf-browser-verification|Just a moment|I'm not a robot/i.test(
+      text.slice(0, 4000),
+    )
+  ) {
+    throw new Error(
+      `Furbooru blocked by Cloudflare (${response.status}). Retry shortly.`,
+    );
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(
+      `Furbooru returned non-JSON (${response.status}). Check proxy / curl_cffi.`,
+    );
+  }
+}
+
+/** Writes may return empty bodies; still reject HTML challenge pages. */
+async function consumeFurbooruWrite(
+  response: Response,
+  fallbackMessage: string,
+): Promise<void> {
+  const text = await response.text();
+  const trimmed = text.trimStart();
+  if (
+    trimmed.startsWith("<") ||
+    /Attention Required|cf-browser-verification|Just a moment|I'm not a robot/i.test(
+      text.slice(0, 4000),
+    )
+  ) {
+    throw new Error(
+      `Furbooru blocked by Cloudflare (${response.status}). Retry shortly.`,
+    );
+  }
+  if (!response.ok) {
+    try {
+      const parsed = JSON.parse(text) as { message?: unknown };
+      if (typeof parsed?.message === "string" && parsed.message.trim()) {
+        throw new Error(parsed.message.trim());
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message !== fallbackMessage) throw err;
+    }
+    throw new Error(fallbackMessage);
+  }
+}
+
 async function fetchJson<T>(url: string, options: RequestInit = {}, retries = 2): Promise<T> {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   let lastError: Error | null = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
     const response = await fetch(url, options);
     if (response.ok) {
-      return response.json() as Promise<T>;
+      return parseFurbooruResponse<T>(response);
     }
     if ((response.status === 429 || response.status === 501) && attempt < retries) {
       const retryAfter = Number(response.headers.get("Retry-After"));
@@ -530,9 +583,7 @@ export async function favoriteImage(args: FurbooruWriteArgs): Promise<void> {
   const response = await fetch(`${proxyBase()}/images/${args.postId}/faves?${q}`, {
     method: "POST",
   });
-  if (!response.ok) {
-    throw new Error(`Furbooru favorite error: ${response.status}`);
-  }
+  await consumeFurbooruWrite(response, `Furbooru favorite error: ${response.status}`);
 }
 
 export async function unfavoriteImage(args: FurbooruWriteArgs): Promise<void> {
@@ -540,9 +591,7 @@ export async function unfavoriteImage(args: FurbooruWriteArgs): Promise<void> {
   const response = await fetch(`${proxyBase()}/images/${args.postId}/faves?${q}`, {
     method: "DELETE",
   });
-  if (!response.ok) {
-    throw new Error(`Furbooru unfavorite error: ${response.status}`);
-  }
+  await consumeFurbooruWrite(response, `Furbooru unfavorite error: ${response.status}`);
 }
 
 export type VoteValue = "up" | "down";
@@ -555,9 +604,16 @@ export async function voteImage(
     method: "POST",
   });
   if (!response.ok) {
+    try {
+      await parseFurbooruResponse(response);
+    } catch (err) {
+      throw err instanceof Error
+        ? err
+        : new Error(`Furbooru vote error: ${response.status}`);
+    }
     throw new Error(`Furbooru vote error: ${response.status}`);
   }
-  const data = await response.json() as { image?: PhilomenaImage };
+  const data = await parseFurbooruResponse<{ image?: PhilomenaImage }>(response);
   const img = data.image;
   return {
     score: img?.score ?? 0,
@@ -575,9 +631,16 @@ export async function clearVoteImage(
     method: "DELETE",
   });
   if (!response.ok) {
+    try {
+      await parseFurbooruResponse(response);
+    } catch (err) {
+      throw err instanceof Error
+        ? err
+        : new Error(`Furbooru clear vote error: ${response.status}`);
+    }
     throw new Error(`Furbooru clear vote error: ${response.status}`);
   }
-  const data = await response.json() as { image?: PhilomenaImage };
+  const data = await parseFurbooruResponse<{ image?: PhilomenaImage }>(response);
   const img = data.image;
   return {
     score: img?.score ?? 0,
@@ -594,9 +657,16 @@ export async function createComment(args: FurbooruWriteArgs & { body: string }):
     body: JSON.stringify({ comment: { image_id: args.postId, body: args.body } }),
   });
   if (!response.ok) {
+    try {
+      await parseFurbooruResponse(response);
+    } catch (err) {
+      throw err instanceof Error
+        ? err
+        : new Error(`Furbooru comment error: ${response.status}`);
+    }
     throw new Error(`Furbooru comment error: ${response.status}`);
   }
-  const data = await response.json() as { comment: PhilomenaComment };
+  const data = await parseFurbooruResponse<{ comment: PhilomenaComment }>(response);
   const c = data.comment;
   return {
     id: c.id,

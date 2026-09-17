@@ -35,8 +35,7 @@ import TagLabel from "../Tag/TagLabel.vue";
 import TagFavoriteButton from "@/Tag/TagFavoriteButton.vue";
 import TagMenu from "@/Tag/TagMenu.vue";
 import type { ITag } from "@/Tag/ITag";
-
-const INITIAL_VISIBLE = 12;
+import { usePostsStore } from "@/services";
 
 export default defineComponent({
   components: {
@@ -51,6 +50,7 @@ export default defineComponent({
     },
   },
   setup(props) {
+    const postsStore = usePostsStore();
     const expanded = ref(false);
     watch(
       () => props.tags,
@@ -58,13 +58,19 @@ export default defineComponent({
         expanded.value = false;
       },
     );
+    const initialVisible = computed(() => {
+      const n = postsStore.sidebarSuggestionLimit;
+      return typeof n === "number" && n > 0 ? n : 12;
+    });
     const visibleTags = computed(() =>
-      expanded.value ? props.tags : props.tags.slice(0, INITIAL_VISIBLE),
+      expanded.value ? props.tags : props.tags.slice(0, initialVisible.value),
     );
     const hiddenCount = computed(() =>
-      Math.max(0, props.tags.length - INITIAL_VISIBLE),
+      Math.max(0, props.tags.length - initialVisible.value),
     );
-    const canToggleMore = computed(() => props.tags.length > INITIAL_VISIBLE);
+    const canToggleMore = computed(
+      () => props.tags.length > initialVisible.value,
+    );
     return {
       expanded,
       visibleTags,

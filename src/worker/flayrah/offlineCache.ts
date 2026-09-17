@@ -44,6 +44,46 @@ export async function saveFlayrahFeedOffline(
   await localforage.setItem(KEY, all);
 }
 
+const ARTICLE_KEY = "flayrah-article-cache-v1";
+const ARTICLE_CAP = 40;
+
+export async function saveFlayrahArticleOffline(
+  article: FlayrahArticle,
+): Promise<void> {
+  if (!article?.id) return;
+  const raw =
+    (await localforage.getItem<Record<string, FlayrahArticle>>(ARTICLE_KEY)) ||
+    {};
+  const next: Record<string, FlayrahArticle> = { ...raw, [String(article.id)]: article };
+  const ids = Object.keys(next);
+  if (ids.length > ARTICLE_CAP) {
+    // Drop oldest-looking entries (lowest id) beyond cap — archive ids grow.
+    const sorted = ids
+      .map((id) => Number(id))
+      .filter((n) => Number.isFinite(n))
+      .sort((a, b) => b - a)
+      .slice(0, ARTICLE_CAP);
+    const trimmed: Record<string, FlayrahArticle> = {};
+    for (const id of sorted) {
+      const hit = next[String(id)];
+      if (hit) trimmed[String(id)] = hit;
+    }
+    await localforage.setItem(ARTICLE_KEY, trimmed);
+    return;
+  }
+  await localforage.setItem(ARTICLE_KEY, next);
+}
+
+export async function loadFlayrahArticleOffline(
+  id: number,
+): Promise<FlayrahArticle | null> {
+  if (!id) return null;
+  const raw =
+    (await localforage.getItem<Record<string, FlayrahArticle>>(ARTICLE_KEY)) ||
+    {};
+  return raw[String(id)] || null;
+}
+
 export async function loadFlayrahFeedOffline(
   feedId: string,
 ): Promise<{ articles: FlayrahArticle[]; savedAt: number } | null> {

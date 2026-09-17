@@ -4,7 +4,9 @@
  */
 import { normalizeFlayrahFeedId } from "./feeds";
 import {
+  loadFlayrahArticleOffline,
   loadFlayrahFeedOffline,
+  saveFlayrahArticleOffline,
   saveFlayrahFeedOffline,
 } from "./offlineCache";
 import { parseFlayrahArticleHtml } from "./parseArticleHtml";
@@ -109,6 +111,11 @@ export async function resolveFlayrahArticle(
       return hit;
     }
   }
+  const offlineArticle = await loadFlayrahArticleOffline(id);
+  if (offlineArticle) {
+    articleCache.set(id, offlineArticle);
+    return offlineArticle;
+  }
   return fetchFlayrahArticleArchive(id);
 }
 
@@ -124,7 +131,10 @@ export async function fetchFlayrahArticleArchive(
   }
   const html = await response.text();
   const article = parseFlayrahArticleHtml(html, id);
-  if (article) articleCache.set(id, article);
+  if (article) {
+    articleCache.set(id, article);
+    void saveFlayrahArticleOffline(article);
+  }
   return article;
 }
 

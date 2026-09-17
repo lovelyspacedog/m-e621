@@ -220,10 +220,21 @@ def _scent_blocked_message(blocked: list[str]) -> str:
 
 
 def _scent_client_ip(handler: SimpleHTTPRequestHandler) -> str:
-    forwarded = (handler.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
-    if forwarded:
-        return forwarded
+    # Prefer the direct peer. Client-supplied X-Forwarded-For is spoofable;
+    # only trust X-Real-IP when a reverse proxy sets it.
+    real_ip = (handler.headers.get("X-Real-IP") or "").strip()
+    if real_ip and " " not in real_ip and "," not in real_ip:
+        return real_ip
     return handler.client_address[0] if handler.client_address else "unknown"
+
+
+def _scent_admin_rate_ok(ip: str) -> bool:
+    """Stricter throttle for auth / pin / delete (shared bucket with posts)."""
+    return _scent_rate_ok(f"admin:{ip}")
+
+
+def _scent_admin_rate_stamp(ip: str) -> None:
+    _scent_rate_stamp(f"admin:{ip}")
 
 
 def _scent_rate_ok(ip: str) -> bool:
@@ -1320,6 +1331,16 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
     def _handle_scent_marks_auth(self) -> None:
         """Verify admin password without deleting (Unlock UI)."""
+        ip = _scent_client_ip(self)
+        if not _scent_admin_rate_ok(ip):
+            self._json(
+                429,
+                {
+                    "ok": False,
+                    "message": f"rate limited — try again in {SCENT_RATE_SECONDS}s",
+                },
+            )
+            return
         password = self._scent_admin_password()
         if not SCENT_ADMIN_HASH_PATH.is_file():
             self._json(
@@ -1331,15 +1352,29 @@ class SpaHandler(SimpleHTTPRequestHandler):
             )
             return
         if not _scent_verify_admin(password):
+            _scent_admin_rate_stamp(ip)
             self._json(401, {"ok": False, "message": "unauthorized"})
             return
+        _scent_admin_rate_stamp(ip)
         self._json(200, {"ok": True})
 
     def _handle_scent_marks_delete(self, mark_id: str) -> None:
+        ip = _scent_client_ip(self)
+        if not _scent_admin_rate_ok(ip):
+            self._json(
+                429,
+                {
+                    "ok": False,
+                    "message": f"rate limited — try again in {SCENT_RATE_SECONDS}s",
+                },
+            )
+            return
         password = self._scent_admin_password()
         if not _scent_verify_admin(password):
+            _scent_admin_rate_stamp(ip)
             self._json(401, {"ok": False, "message": "unauthorized"})
             return
+        _scent_admin_rate_stamp(ip)
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         try:
             with open(SCENT_MARKS_PATH, "a+", encoding="utf-8") as fh:
@@ -1359,10 +1394,22 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self._json(200, {"ok": True, "deleted": mark_id})
 
     def _handle_scent_marks_pin(self, mark_id: str, body: bytes) -> None:
+        ip = _scent_client_ip(self)
+        if not _scent_admin_rate_ok(ip):
+            self._json(
+                429,
+                {
+                    "ok": False,
+                    "message": f"rate limited — try again in {SCENT_RATE_SECONDS}s",
+                },
+            )
+            return
         password = self._scent_admin_password()
         if not _scent_verify_admin(password):
+            _scent_admin_rate_stamp(ip)
             self._json(401, {"ok": False, "message": "unauthorized"})
             return
+        _scent_admin_rate_stamp(ip)
         try:
             payload = json.loads(body.decode("utf-8") or "{}") if body else {}
             if not isinstance(payload, dict):

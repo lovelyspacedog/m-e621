@@ -81,6 +81,12 @@ describe("resolveAutoQuality", () => {
     ).toBe("medium");
   });
 
+  it("maps connection.type none to low", () => {
+    expect(
+      resolveAutoQuality(base({ typeSupported: true, type: "none" })),
+    ).toBe("low");
+  });
+
   it("falls back to medium (or low with saveData) when unsupported", () => {
     expect(resolveAutoQuality(base())).toBe("medium");
     expect(resolveAutoQuality(base({ saveData: true }))).toBe("low");

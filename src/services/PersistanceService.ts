@@ -178,16 +178,29 @@ class PersistanceService {
 
   /** Parse a settings JSON file without applying it (for restore preview). */
   public async peekStateFromFile(file: File): Promise<SettingsImportPreview> {
-    const text = await file.text();
-    const settings = JSON.parse(text) as ISettingsServiceState;
-    return summarizeSettingsImport(settings);
+    const settings = this.parseSettingsObject(await file.text());
+    const clone = JSON.parse(JSON.stringify(settings)) as ISettingsServiceState;
+    this.applyMigrationsAndReplace(clone, false);
+    return summarizeSettingsImport(clone);
   }
 
   public async loadStateFromFile(file: File) {
-    const text = await file.text();
-    const settings = JSON.parse(text) as ISettingsServiceState;
+    const settings = this.parseSettingsObject(await file.text());
     settings.snackbar = null;
     this.setState(settings);
+  }
+
+  private parseSettingsObject(text: string): ISettingsServiceState {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new Error("Settings file is not valid JSON");
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("Settings file must be a JSON object");
+    }
+    return parsed as ISettingsServiceState;
   }
 
   public async persist() {
@@ -265,7 +278,7 @@ class PersistanceService {
 
   public setState(newState: ISettingsServiceState) {
     this.applying = true;
-    this.applyMigrationsAndReplace(newState);
+    this.applyMigrationsAndReplace(newState, true);
     // Pinia $subscribe is async (flush: pre). Keep the gate up until watchers run.
     nextTick(() => {
       this.applying = false;
@@ -274,7 +287,10 @@ class PersistanceService {
     });
   }
 
-  private applyMigrationsAndReplace(newState: ISettingsServiceState) {
+  private applyMigrationsAndReplace(
+    newState: ISettingsServiceState,
+    assignLive = true,
+  ) {
     // Schema defaults so partial/corrupt imports do not crash mid-migration (M4).
     if (!newState.posts) newState.posts = reactive(clone(defaultSettings.posts));
     if (!newState.appearance) newState.appearance = reactive(clone(defaultSettings.appearance));
@@ -926,8 +942,10 @@ class PersistanceService {
     if (newState.misc.debugLogging === undefined) {
       newState.misc.debugLogging = true;
     }
-    setDebugLoggingEnabled(!!newState.misc.debugLogging);
-    this.main.$state = newState;
+    if (assignLive) {
+      setDebugLoggingEnabled(!!newState.misc.debugLogging);
+      this.main.$state = newState;
+    }
   }
 
   private saveToLocalStorage<T>(key: string, value: T): Promise<T> {

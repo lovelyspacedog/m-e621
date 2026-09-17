@@ -333,22 +333,26 @@ type DirectoryWalker = FileSystemDirectoryHandle & {
 };
 
 /** MPEG-TS mislabeled as .mp4 starts with sync byte 0x47; real MP4 has ftyp. */
+const sniffMp4PlayableBytes = (bytes: Uint8Array) => {
+  if (!bytes.length) return false;
+  if (bytes[0] === 0x47) return false;
+  if (
+    bytes.length >= 8 &&
+    bytes[4] === 0x66 &&
+    bytes[5] === 0x74 &&
+    bytes[6] === 0x79 &&
+    bytes[7] === 0x70
+  ) {
+    return true;
+  }
+  // No ftyp box — not a reliable MP4 (M29).
+  return false;
+};
+
 const sniffMp4Playable = async (file: File) => {
   try {
     const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
-    if (!bytes.length) return false;
-    if (bytes[0] === 0x47) return false;
-    if (
-      bytes.length >= 8 &&
-      bytes[4] === 0x66 &&
-      bytes[5] === 0x74 &&
-      bytes[6] === 0x79 &&
-      bytes[7] === 0x70
-    ) {
-      return true;
-    }
-    // No ftyp box — not a reliable MP4 (M29).
-    return false;
+    return sniffMp4PlayableBytes(bytes);
   } catch {
     return false;
   }
@@ -1204,34 +1208,38 @@ export const addLocalTags = async (relativePath: string, raw: string) => {
       .filter((tag) => tag && !tag.startsWith("order:")),
   );
   if (!added.length) return [] as string[];
-  extraTagsByPath[relativePath] = uniqueTags([
-    ...(extraTagsByPath[relativePath] || []),
-    ...added,
-  ]);
-  for (const entry of cachedIndex || []) {
-    if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
-  }
-  for (const entry of cachedOrdered || []) {
-    if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
-  }
-  await persistExtraTags();
-  return extraTagsByPath[relativePath] || [];
+  return withSidecarMergeLock(async () => {
+    extraTagsByPath[relativePath] = uniqueTags([
+      ...(extraTagsByPath[relativePath] || []),
+      ...added,
+    ]);
+    for (const entry of cachedIndex || []) {
+      if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+    }
+    for (const entry of cachedOrdered || []) {
+      if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+    }
+    await persistExtraTags();
+    return extraTagsByPath[relativePath] || [];
+  });
 };
 
 export const removeLocalTag = async (relativePath: string, tag: string) => {
-  const current = extraTagsByPath[relativePath] || [];
-  extraTagsByPath[relativePath] = current.filter((name) => name !== tag);
-  if (!extraTagsByPath[relativePath].length) {
-    delete extraTagsByPath[relativePath];
-  }
-  for (const entry of cachedIndex || []) {
-    if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
-  }
-  for (const entry of cachedOrdered || []) {
-    if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
-  }
-  await persistExtraTags();
-  return extraTagsByPath[relativePath] || [];
+  return withSidecarMergeLock(async () => {
+    const current = extraTagsByPath[relativePath] || [];
+    extraTagsByPath[relativePath] = current.filter((name) => name !== tag);
+    if (!extraTagsByPath[relativePath].length) {
+      delete extraTagsByPath[relativePath];
+    }
+    for (const entry of cachedIndex || []) {
+      if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+    }
+    for (const entry of cachedOrdered || []) {
+      if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+    }
+    await persistExtraTags();
+    return extraTagsByPath[relativePath] || [];
+  });
 };
 
 export const scanLocalMedia = async (
@@ -1264,7 +1272,10 @@ export const scanLocalMedia = async (
     }
     const listed = await tauriListLocalMedia(tauriRoot);
     const entries: LocalMediaEntry[] = listed.map((row) => {
-      const playable = resolvePlayableExt(row.ext);
+      const playable =
+        typeof row.playable === "boolean"
+          ? row.playable
+          : resolvePlayableExt(row.ext);
       const parsed = parseLocalTags(row.relativePath);
       const extras = extraTagsByPath[row.relativePath] || [];
       const generalTags = uniqueTags([...parsed.generalTags, ...extras]);

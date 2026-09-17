@@ -108,6 +108,7 @@
           :pools="watchedPoolResults"
           :layout="browseLayout"
           :covers="covers"
+          :cover-origin="String(siteMode.activeMode)"
           :watched-ids="watchedIds"
           :new-counts="newCounts"
           @toggle-watch="toggleWatch"
@@ -145,6 +146,7 @@
         :pools="pools"
         :layout="browseLayout"
         :covers="covers"
+        :cover-origin="String(siteMode.activeMode)"
         :watched-ids="watchedIds"
         :new-counts="newCounts"
         @toggle-watch="toggleWatch"
@@ -271,7 +273,7 @@ const browseLayout = ref<BrowseLayout>(loadBrowseLayout());
 const pools = ref<Pool[]>([]);
 const watchedPoolResults = ref<Pool[]>([]);
 const watchedLoading = ref(false);
-const covers = ref<Record<number, string>>({});
+const covers = ref<Record<string, string>>({});
 const loading = ref(false);
 const error = ref<string | null>(null);
 const searched = ref(false);
@@ -358,13 +360,15 @@ const syncQueryToRoute = async () => {
 };
 
 const fetchCovers = async (list: Pool[]) => {
+  const origin = String(siteMode.activeMode || "e621");
+  const coverKey = (id: number) => `${origin}:${id}`;
   const needed = new Set<number>();
   for (const pool of list) {
     const candidates = (pool.post_ids || [])
       .filter((id): id is number => typeof id === "number" && id > 0)
       .slice(0, COVER_CANDIDATES);
     if (!candidates.length) continue;
-    if (candidates.some((id) => covers.value[id])) continue;
+    if (candidates.some((id) => covers.value[coverKey(id)])) continue;
     for (const id of candidates) needed.add(id);
   }
   const ids = [...needed];
@@ -388,7 +392,7 @@ const fetchCovers = async (list: Pool[]) => {
       });
       for (const post of posts) {
         const url = post.preview?.url || post.sample?.url;
-        if (url) next[post.id] = url;
+        if (url) next[coverKey(post.id)] = url;
       }
     }
     covers.value = next;

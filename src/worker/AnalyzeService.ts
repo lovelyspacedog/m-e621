@@ -289,7 +289,9 @@ export class AnalyzeService {
   ): Promise<FavoriteTagsResult> {
     const children = unified?.children || [];
     if (!children.length) {
-      return { counts: {}, favoriteKeys: [] };
+      throw new Error(
+        "No Federated children enabled — turn on at least one site in Account settings",
+      );
     }
     const service = new ApiService();
     const allPosts: EnhancedPost[] = [];
@@ -359,6 +361,11 @@ export class AnalyzeService {
         message: `favorites ${child.mode} (${done}/${children.length})`,
         progress: done / children.length,
       });
+    }
+    if (!allPosts.length) {
+      throw new Error(
+        "No favorites sampled — sign in to at least one enabled Federated child (or check that favorites exist)",
+      );
     }
     return buildFavoriteTagsResult(allPosts);
   }
