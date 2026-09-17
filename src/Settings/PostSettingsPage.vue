@@ -72,6 +72,13 @@
               density="compact"
             />
           </settings-row>
+          <settings-row
+            title="Infinite scroll"
+            description="Automatically load the next and previous pages as you scroll. When off, use the previous/next page buttons."
+            switch
+          >
+            <v-switch v-model="posts.autoLoad" color="accent" hide-details density="compact" />
+          </settings-row>
         </settings-group>
 
         <settings-group title="Media" anchor="media">
@@ -287,9 +294,6 @@
             switch
           >
             <v-switch v-model="posts.lazyLoad" color="accent" hide-details density="compact" />
-          </settings-row>
-          <settings-row title="Auto load next page" switch>
-            <v-switch v-model="posts.autoLoad" color="accent" hide-details density="compact" />
           </settings-row>
         </settings-group>
 

@@ -86,6 +86,21 @@
             />
           </template>
         </v-list-item>
+        <v-list-item>
+          <template #prepend>
+            <v-icon>mdi-infinity</v-icon>
+          </template>
+          <v-list-item-title>Infinite scroll</v-list-item-title>
+          <template #append>
+            <v-switch
+              class="ma-0"
+              color="accent"
+              density="compact"
+              hide-details
+              v-model="postsStore.autoLoad"
+            />
+          </template>
+        </v-list-item>
       </v-list>
     </v-menu>
   </v-list>

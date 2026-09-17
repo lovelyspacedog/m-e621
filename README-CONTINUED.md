@@ -25,6 +25,7 @@ Tailspace, Flayrah, and Local are not included in Federated. When the browser is
 
 - Full-width list and thumbnail-grid feeds
 - Optional compact cards with controls revealed on hover
+- Infinite scroll toggle in Layout (off = previous/next page buttons only)
 - Inline video and audio with remembered mute, volume, and playback speed (optional separate audio prefs)
 - Feed GIF animate and video autoplay settings; off-screen feed videos unload their buffers
 - Fullscreen slideshow and timed card auto-next (`prefers-reduced-motion` pauses both)
@@ -63,7 +64,7 @@ The fork adds dedicated pool routes at `/pools` and `/pools/:id` for **e621 and 
 
 Saved searches and starred tags can be placed into named, collapsible groups. Groups and entries support reordering and drag-and-drop. Favorites, blacklists, and compatible saved searches (e621 ↔ e6ai) can be copied between site profiles using merge or replace.
 
-**Saved** (`/saved`) is a mode-independent bookmark list for federated posts. Bookmark from any supported remote origin and reopen from the nav. The same sidebar **Layout** menu as Posts (full-width, grid, compact cards, auto-next) applies here.
+**Saved** (`/saved`) is a mode-independent bookmark list for federated posts. Bookmark from any supported remote origin and reopen from the nav. The same sidebar **Layout** menu as Posts (full-width, grid, compact cards, auto-next, infinite scroll) applies here.
 
 ## Local library
 

@@ -30,7 +30,7 @@ A public instance is operable at **[pawfeed.tonypup.box.ca](https://pawfeed.tony
 - **Independent accounts** — configure authentication, blacklists, favorites, history, and preferences for each site.
 - **Saved posts** — bookmark posts across federated sites in one mode-independent list, with the same feed Layout controls as Posts.
 - **Community features** — view and post comments, vote, favorite, follow creators, and open posts at their source where supported. Anonymous **Scent Marks** guestbook on the landing page for short public notes (host can pin), plus a random [e621 tag wiki](https://e621.net/wiki_pages/204) first-paragraph snippet each landing visit (click the tag to search e621 in-app; Another page refreshes in place).
-- **Flexible feeds** — switch between full-width lists, thumbnail grids, and compact cards with rich filtering and media controls.
+- **Flexible feeds** — switch between full-width lists, thumbnail grids, and compact cards; toggle infinite scroll or page with buttons; rich filtering and media controls.
 - **Powerful browsing tools** — browse and watch pools (e621-family, with new-page badges), organize starred tags and saved searches, use the multi-site post suggester and favorite analyzer, and explore artist dashboards (heatmap, top posts, tag ranks).
 - **Comics and stories** — dedicated pool and Tailspace comic readers (pool fullscreen continues across chunks; `?post=` resume; Save chunk/all) plus fullscreen story, PDF, RTF, and DOCX previews.
 - **Immersive media** — fullscreen comments rail, notes, slideshows, auto-next, Fluffle reverse-image search, and remembered audio/video playback settings (including optional per-site overrides).
