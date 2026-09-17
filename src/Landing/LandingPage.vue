@@ -59,10 +59,12 @@
       <v-container>
         <v-row justify="center">
           <v-col cols="12" md="8" lg="6">
-            <h2 class="text-h4 text-center mb-4">What it does</h2>
-            <ul class="landing-capabilities">
-              <li v-for="item in capabilities" :key="item">{{ item }}</li>
-            </ul>
+            <div class="landing-text-panel">
+              <h2 class="text-h4 text-center mb-4">What it does</h2>
+              <ul class="landing-capabilities">
+                <li v-for="item in capabilities" :key="item">{{ item }}</li>
+              </ul>
+            </div>
           </v-col>
         </v-row>
       </v-container>

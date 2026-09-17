@@ -3,47 +3,49 @@
     <v-container>
       <v-row justify="center">
         <v-col cols="12" md="8" lg="6">
-          <h2 class="text-h4 text-center mb-1">From the e621 Tag Wiki</h2>
-          <p class="text-center text-medium-emphasis text-body-2 mb-4">
-            A random tag definition each visit — first paragraph from
-            <a
-              class="text-primary text-decoration-underline"
-              :href="homeUrl"
-              target="_blank"
-              rel="noopener"
-              >e621.net/wiki_pages</a
-            >
-          </p>
-          <div class="wiki-snippet text-center">
-            <p class="text-h5 mb-2">
+          <div class="landing-text-panel">
+            <h2 class="text-h4 text-center mb-1">From the e621 Tag Wiki</h2>
+            <p class="text-center text-medium-emphasis text-body-2 mb-4">
+              A random tag definition each visit — first paragraph from
               <a
                 class="text-primary text-decoration-underline"
-                href="#"
-                @click.prevent="openE621Search"
-                >{{ displayTitle }}</a
-              >
-            </p>
-            <p class="text-body-1 mb-3 wiki-paragraph">{{ snippet.paragraph }}</p>
-            <div class="d-flex flex-wrap justify-center ga-2">
-              <v-btn
-                color="primary"
-                variant="tonal"
-                :href="pageUrl"
+                :href="homeUrl"
                 target="_blank"
                 rel="noopener"
+                >e621.net/wiki_pages</a
               >
-                Open wiki page
-              </v-btn>
-              <v-btn
-                color="primary"
-                variant="tonal"
-                :loading="loading"
-                :disabled="loading"
-                @click="refreshSnippet"
-              >
-                <v-icon start>mdi-refresh</v-icon>
-                Another page
-              </v-btn>
+            </p>
+            <div class="wiki-snippet text-center">
+              <p class="text-h5 mb-2">
+                <a
+                  class="text-primary text-decoration-underline"
+                  href="#"
+                  @click.prevent="openE621Search"
+                  >{{ displayTitle }}</a
+                >
+              </p>
+              <p class="text-body-1 mb-3 wiki-paragraph">{{ snippet.paragraph }}</p>
+              <div class="d-flex flex-wrap justify-center ga-2">
+                <v-btn
+                  color="primary"
+                  variant="tonal"
+                  :href="pageUrl"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  Open wiki page
+                </v-btn>
+                <v-btn
+                  color="primary"
+                  variant="tonal"
+                  :loading="loading"
+                  :disabled="loading"
+                  @click="refreshSnippet"
+                >
+                  <v-icon start>mdi-refresh</v-icon>
+                  Another page
+                </v-btn>
+              </div>
             </div>
           </div>
         </v-col>

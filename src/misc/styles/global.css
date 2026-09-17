@@ -59,6 +59,13 @@ html {
   opacity: 0.5;
 }
 
+/* Landing prose panels: readable over wallpaper in Transparent Zen. */
+.landing-text-panel {
+  background-color: rgba(0, 0, 0, 0.55);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+}
+
 html {
   overflow-y: scroll !important;
 }

@@ -114,3 +114,14 @@ body,
 .landing-hero .site-mode-chips .v-btn--variant-flat {
   border: 2px solid rgba(255, 255, 255, 0.65) !important;
 }
+
+/*
+ * Landing prose (What it does / Tag Wiki / About): keep body copy readable when
+ * the page shell is forced transparent over the desktop wallpaper.
+ */
+.landing-text-panel {
+  background: rgba(0, 0, 0, 0.62) !important;
+  background-color: rgba(0, 0, 0, 0.62) !important;
+  backdrop-filter: blur(16px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(140%) !important;
+}
