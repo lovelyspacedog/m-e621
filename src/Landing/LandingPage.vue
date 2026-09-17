@@ -80,6 +80,15 @@
             block
             class="mt-0"
             color="primary"
+            variant="tonal"
+            @click="openCommitHistory('fork')"
+          >
+            Show more
+          </v-btn>
+          <v-btn
+            block
+            class="mt-2"
+            color="primary"
             href="https://github.com/lovelyspacedog/m-e621/commits/master"
             target="_blank"
             rel="noopener"
@@ -94,6 +103,15 @@
             block
             class="mt-0"
             color="primary"
+            variant="tonal"
+            @click="openCommitHistory('upstream')"
+          >
+            Show more
+          </v-btn>
+          <v-btn
+            block
+            class="mt-2"
+            color="primary"
             href="https://github.com/avoonix/material-e621/commits/master"
             target="_blank"
             rel="noopener"
@@ -101,6 +119,11 @@
             more on GitHub
           </v-btn>
         </v-col>
+        <CommitHistoryDialog
+          v-model="commitHistoryOpen"
+          :source="commitHistorySource"
+          :title="commitHistoryTitle"
+        />
         <v-col cols="12" class="pb-2">
           <div class="d-flex flex-wrap justify-center ga-2">
             <v-btn color="primary" variant="tonal" @click="changelogOpen = true">
@@ -122,6 +145,7 @@ import { useHead } from "@unhead/vue";
 import TagSearch from "@/Tag/TagSearch.vue";
 import About from "./About.vue";
 import ChangelogDialog from "./ChangelogDialog.vue";
+import CommitHistoryDialog from "./CommitHistoryDialog.vue";
 import Footer from "./Footer.vue";
 import FurryDictionarySnippet from "./FurryDictionarySnippet.vue";
 import { computed, ref } from "vue";
@@ -132,6 +156,15 @@ import { useSiteModeStore } from "@/services/SiteModeStore";
 const router = useRouter();
 const siteMode = useSiteModeStore();
 const changelogOpen = ref(false);
+const commitHistoryOpen = ref(false);
+const commitHistorySource = ref<"fork" | "upstream">("fork");
+const commitHistoryTitle = computed(() =>
+  commitHistorySource.value === "fork" ? "Tony Pup commits" : "Avoonix commits",
+);
+const openCommitHistory = (source: "fork" | "upstream") => {
+  commitHistorySource.value = source;
+  commitHistoryOpen.value = true;
+};
 
 useHead({
   title: "m-e621",
