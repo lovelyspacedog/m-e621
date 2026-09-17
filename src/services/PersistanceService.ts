@@ -518,9 +518,20 @@ class PersistanceService {
       }
       newState.configVersion = 37;
     }
+    if (newState.configVersion < 38) {
+      if (!newState.artistDashboard) {
+        newState.artistDashboard = { recentArtists: [] };
+      } else if (!Array.isArray(newState.artistDashboard.recentArtists)) {
+        newState.artistDashboard.recentArtists = [];
+      }
+      newState.configVersion = 38;
+    }
 
     if (!newState.watchedPools || !Array.isArray(newState.watchedPools.entries)) {
       newState.watchedPools = { entries: [] };
+    }
+    if (!newState.artistDashboard || !Array.isArray(newState.artistDashboard.recentArtists)) {
+      newState.artistDashboard = { recentArtists: [] };
     }
 
     // Ensure profiles exist even if a partial export skipped them.

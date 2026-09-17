@@ -9,6 +9,7 @@ export * from "./ShortcutService";
 export * from "./ShortcutStore";
 export * from "./UrlStore";
 export * from "./SavedSearchStore";
+export * from "./ArtistDashboardStore";
 export * from "./SavedPostsStore";
 export * from "./WatchedPoolsStore";
 export * from "./SiteModeStore";

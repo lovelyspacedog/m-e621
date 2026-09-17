@@ -1,6 +1,17 @@
-import { round } from "@/misc/util/round";
+import {
+  buildCommunityMetrics,
+  buildCommunityPerPostMetrics,
+  buildUploadMetrics,
+  DASHBOARD_POST_LIMIT,
+  DASHBOARD_TAG_CANDIDATE_LIMIT,
+  isDashboardTruncated,
+  sortDashboardTags,
+  weeklyUploadRate,
+  type DashboardTag,
+  type IMetric,
+  type ITagCount,
+} from "@/misc/util/dashboardMetrics";
 import { BlacklistMode, type SiteMode } from "@/services/types";
-import type { ITag } from "@/Tag/ITag";
 import { expose } from "comlink";
 import { differenceInDays, format, parseISO } from "date-fns";
 import type { IProgressEvent } from "./AnalyzeService";
@@ -20,42 +31,54 @@ export type Heatmap = {
   days: { [date: string]: number | undefined };
 };
 
+export type { DashboardTag, IMetric, ITagCount };
+
 export interface IDashboardResult {
   posts: EnhancedPost[];
   uploadMetrics: IMetric[];
   communityMetrics: IMetric[];
-  topTags: { up: ITag[]; down: ITag[]; count: ITag[]; fav: ITag[] };
+  communityPerPostMetrics: IMetric[];
+  ratingBreakdown: { s: number; q: number; e: number };
+  topTags: {
+    up: DashboardTag[];
+    down: DashboardTag[];
+    count: DashboardTag[];
+    fav: DashboardTag[];
+  };
   heatmap: Heatmap;
-}
-
-export interface IMetric {
-  display: string;
-  value: number;
-}
-
-export interface ITagCount {
-  count: number;
-  favorites: number;
-  up: number;
-  down: number;
+  sampledPostCount: number;
+  truncated: boolean;
+  uploadRateWeekly: number;
 }
 
 export class DashboardService {
-  private static POST_LIMIT = 3200; // 10 pages
+  private static POST_LIMIT = DASHBOARD_POST_LIMIT;
+  private static HEATMAP_DAYS = 366;
 
   async getDashboardResult(
     args: IDashboardArgs,
     onProgress: (event: IProgressEvent) => void,
   ): Promise<IDashboardResult> {
-    const posts = await this.getPosts([args.artist], args.baseUrl, onProgress, args.mode);
-    if (!posts.length)
+    const posts = await this.getPosts(
+      [args.artist],
+      args.baseUrl,
+      onProgress,
+      args.mode,
+    );
+    if (!posts.length) {
       return {
         communityMetrics: [],
+        communityPerPostMetrics: [],
         uploadMetrics: [],
+        ratingBreakdown: { s: 0, q: 0, e: 0 },
         posts: [],
         topTags: { count: [], down: [], fav: [], up: [] },
         heatmap: { max: 0, days: {} },
+        sampledPostCount: 0,
+        truncated: false,
+        uploadRateWeekly: 0,
       };
+    }
     const counters = {
       upvotes: 0,
       downvotes: 0,
@@ -73,6 +96,7 @@ export class DashboardService {
         };
       },
       heatmap: {} as { [date: string]: number | undefined },
+      heatmapUploads: 0,
     };
     for (const post of posts) {
       counters.upvotes += post.score.up;
@@ -104,139 +128,79 @@ export class DashboardService {
         }
       }
       const uploadDate = parseISO(post.created_at);
-      if (Math.abs(differenceInDays(uploadDate, new Date())) <= 366) {
+      if (
+        Math.abs(differenceInDays(uploadDate, new Date())) <=
+        DashboardService.HEATMAP_DAYS
+      ) {
         const formatted = format(uploadDate, "yyyy-MM-dd");
         counters.heatmap[formatted] = (counters.heatmap[formatted] || 0) + 1;
+        counters.heatmapUploads += 1;
       }
     }
-    const uploadMetrics: IMetric[] = [
-      {
-        display: "Artwork Uploaded",
-        value: posts.length,
-      },
-      {
-        display: "SFW Artwork",
-        value: counters.rating.s,
-      },
-      {
-        display: "Questionable Artwork",
-        value: counters.rating.q,
-      },
-      {
-        display: "Explicit Artwork",
-        value: counters.rating.e,
-      },
-      {
-        display: "Pending Posts",
-        value: counters.pending,
-      },
-      {
-        display: "Average Uploads per Week",
-        value: round(
-          posts.length /
-            (Math.abs(
-              differenceInDays(
-                parseISO(posts[posts.length - 1].created_at),
-                new Date(),
-              ),
-            ) / 7 || 1),
-        ),
-      },
-    ];
-    const communityMetrics: IMetric[] = [
-      {
-        display: "Upvotes Received",
-        value: counters.upvotes,
-      },
-      {
-        display: "Downvotes Received",
-        value: counters.downvotes,
-      },
-      {
-        display: "Favorites Received",
-        value: counters.favorites,
-      },
-      {
-        display: "Comments Received",
-        value: counters.comments,
-      },
-      {
-        display: "Average Upvotes per Post",
-        value: round(counters.upvotes / posts.length),
-      },
-      {
-        display: "Average Downvotes per Post",
-        value: round(counters.downvotes / posts.length),
-      },
-      {
-        display: "Average Favorites per Post",
-        value: round(counters.favorites / posts.length),
-      },
-      {
-        display: "Average Comments per Post",
-        value: round(counters.comments / posts.length),
-      },
-      {
-        display: "Upvote to Downvote Ratio",
-        value: counters.downvotes
-          ? round(counters.upvotes / counters.downvotes)
-          : 0,
-      },
-    ];
-    const tags = Object.entries(counters.tags)
-      .flatMap(([category, tags]) =>
-        Object.entries(tags).map(
+
+    const uploadRateWeekly = weeklyUploadRate(
+      counters.heatmapUploads,
+      DashboardService.HEATMAP_DAYS,
+    );
+    const sampledPostCount = posts.length;
+    const truncated = isDashboardTruncated(sampledPostCount);
+
+    const uploadMetrics = buildUploadMetrics({
+      sampledPostCount,
+      rating: counters.rating,
+      pending: counters.pending,
+      uploadRateWeekly,
+    });
+    const communityMetrics = buildCommunityMetrics(counters);
+    const communityPerPostMetrics = buildCommunityPerPostMetrics({
+      ...counters,
+      postCount: sampledPostCount,
+    });
+
+    const tags: DashboardTag[] = Object.entries(counters.tags)
+      .flatMap(([category, byName]) =>
+        Object.entries(byName).map(
           ([name, counts]) =>
-            ({ name, post_count: counts?.count, category, counts } as ITag & {
-              counts: ITagCount;
-            }),
+            ({
+              name,
+              post_count: counts?.count,
+              category,
+              counts: counts!,
+              metricValue: 0,
+              metricLabel: "",
+            }) satisfies DashboardTag,
         ),
       )
       .filter((t) => t.name !== args.artist && t.name !== "conditional_dnp");
 
-    const count = [...tags].sort(
-      (a, b) => (b.post_count ?? 0) - (a.post_count ?? 0),
-    );
-    const fav = [...tags].sort((a, b) => {
-      const ba = b.counts.count ? (b.counts.favorites ?? 0) / b.counts.count : 0;
-      const aa = a.counts.count ? (a.counts.favorites ?? 0) / a.counts.count : 0;
-      return ba - aa;
-    });
-    const up = [...tags].sort((a, b) => {
-      const bTot = b.counts.up + b.counts.down;
-      const aTot = a.counts.up + a.counts.down;
-      return (bTot ? b.counts.up / bTot : 0) - (aTot ? a.counts.up / aTot : 0);
-    });
-    const down = [...tags].sort((a, b) => {
-      const bTot = b.counts.up + b.counts.down;
-      const aTot = a.counts.up + a.counts.down;
-      return (bTot ? b.counts.down / bTot : 0) - (aTot ? a.counts.down / aTot : 0);
-    });
-
-    const removeOutliers = (t: { counts: { count: number } }) =>
-      t.counts.count > posts.length * 0.02; // TODO: let user decide this number?
+    // Return candidates so the UI can adjust outlier ratio without refetch.
+    const candidateLimit = DASHBOARD_TAG_CANDIDATE_LIMIT;
+    const topTags = {
+      count: sortDashboardTags(tags, "count").slice(0, candidateLimit),
+      fav: sortDashboardTags(tags, "fav").slice(0, candidateLimit),
+      up: sortDashboardTags(tags, "up").slice(0, candidateLimit),
+      down: sortDashboardTags(tags, "down").slice(0, candidateLimit),
+    };
 
     return {
       posts,
       uploadMetrics,
       communityMetrics,
-      topTags: {
-        count: count.slice(0, 10),
-        fav: fav.filter(removeOutliers).slice(0, 10),
-        up: up.filter(removeOutliers).slice(0, 10),
-        down: down.filter(removeOutliers).slice(0, 10),
-      },
+      communityPerPostMetrics,
+      ratingBreakdown: { ...counters.rating },
+      topTags,
       heatmap: {
         days: counters.heatmap,
         max: (() => {
           const vals = Object.values(counters.heatmap).filter(
             (n): n is number => !!n,
           );
-          // Math.max(...[]) === -Infinity; use 0 so the heatmap renders blank
-          // rather than corrupting every cell's opacity calculation.
           return vals.length ? Math.max(...vals) : 0;
         })(),
       },
+      sampledPostCount,
+      truncated,
+      uploadRateWeekly,
     };
   }
 
@@ -266,7 +230,6 @@ export class DashboardService {
         message: `got ${posts.length} of ${DashboardService.POST_LIMIT} posts`,
         progress: Math.min(1, posts.length / DashboardService.POST_LIMIT),
       });
-      // Stop when the site returns fewer than requested (Inkbunny max 100, etc.) (H9).
       if (newPosts.length < pageLimit) {
         break;
       }

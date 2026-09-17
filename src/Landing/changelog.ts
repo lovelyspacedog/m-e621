@@ -18,6 +18,7 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-16",
     title: "Unified Following, Local writes, and polish",
     items: [
+      "Artist Dashboard: clearer heatmap, top-post previews, honest weekly rate, richer tags/table filters, recent artists, and add-as-saved-search",
       "Post Suggester on all modes except Tailspace, with hybrid tag-seed ranking",
       "Favorite Analyzer on all modes except Tailspace, with ranked tags, export, and Suggester link",
       "Unified Search vs Following feed, with Defaults and Auth-only site presets",

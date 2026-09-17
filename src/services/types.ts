@@ -213,7 +213,8 @@ export interface ISettingsServiceState {
     | 34
     | 35
     | 36
-    | 37;
+    | 37
+    | 38;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];
@@ -301,6 +302,10 @@ export interface ISettingsServiceState {
   /** Mode-independent registry; views filter entries by their origin site. */
   watchedPools: {
     entries: WatchedPoolEntry[];
+  };
+  /** Recently viewed e621-family artist dashboard tags (MRU). */
+  artistDashboard: {
+    recentArtists: string[];
   };
   favorites: {
     groups: FavoriteTagGroup[];

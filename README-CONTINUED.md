@@ -6,8 +6,8 @@ This document expands on the quick overview in the [main README](./README.md).
 
 Each mode has its own profile for authentication, blacklist, starred tags, saved searches, history, and favorites where supported.
 
-- **e621** — the original Material e621 experience, including pools (with watch), post suggester, favorite analyzer, and artist dashboard.
-- **e6ai** — e6ai browsing with mode-aware terminology (pools with watch like e621; post suggester available).
+- **e621** — the original Material e621 experience, including pools (with watch), post suggester, favorite analyzer, and an artist dashboard (heatmap, top posts, tag ranks, recent artists).
+- **e6ai** — e6ai browsing with mode-aware terminology (pools with watch like e621; post suggester and artist dashboard available).
 - **Furbooru** — API-key authentication, tags, view/post comments, favorites, votes, and post suggester (logged-in favorites).
 - **Inkbunny** — multi-file submission galleries (Save all / Save page), following feed, Flash/SWF playback through Ruffle, and post suggester (logged-in favorites). Submission “pools” appear as metadata, not the e621 `/pools` UI. Favorite toggling is unavailable.
 - **FurAffinity** — browsing and search through the bundled `faapi` proxy, cookie sign-in (optional captcha helper), following feed, enriched music posts, and post suggester (any user). Profile cookies override host-wide `FA_COOKIE_*` when set.
