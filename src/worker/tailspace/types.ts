@@ -83,8 +83,8 @@ export interface TailspaceComic {
   avgStars: number;
   avgStarsPercent: number;
   commentCount: number;
-  updated: number; // unix ms timestamp
-  published: number; // unix ms timestamp
+  updated: number | string; // unix ms, seconds, or ISO string
+  published: number | string; // unix ms, seconds, or ISO string
   tags: TailspaceTag[] | string[];
   isArtistVerified: boolean;
   additionalArtistNames: string | null;

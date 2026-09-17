@@ -29,6 +29,32 @@ export const isTailspacePoolItem = (
   pool: { originMode?: PoolBrowseOrigin; comicName?: string },
 ): pool is TailspacePoolListItem => pool.originMode === "tailspace";
 
+/**
+ * Tailspace comics API returns ISO strings (and sometimes unix ms/seconds).
+ * Number.isFinite(string) is always false — do not treat that as epoch.
+ */
+export const coerceTailspaceTimestamp = (value: unknown): Date => {
+  if (value instanceof Date) {
+    const t = value.getTime();
+    return Number.isFinite(t) ? value : new Date(0);
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    // Heuristic: values below 1e12 are unix seconds.
+    const ms = value > 0 && value < 1e12 ? value * 1000 : value;
+    const d = new Date(ms);
+    return Number.isFinite(d.getTime()) ? d : new Date(0);
+  }
+  if (typeof value === "string" && value.trim()) {
+    const asNum = Number(value);
+    if (Number.isFinite(asNum) && /^-?\d+(\.\d+)?$/.test(value.trim())) {
+      return coerceTailspaceTimestamp(asNum);
+    }
+    const t = Date.parse(value);
+    if (Number.isFinite(t)) return new Date(t);
+  }
+  return new Date(0);
+};
+
 /** Map a Tailspace comic list row into a Federated Pools browse card shape. */
 export const tailspaceComicToPoolListItem = (
   comic: TailspaceComic,
@@ -37,17 +63,16 @@ export const tailspaceComicToPoolListItem = (
     (comic.displayName || "").trim() ||
     (comic.artistName || "").trim() ||
     "Unknown";
-  const updated = Number.isFinite(comic.updated)
-    ? new Date(comic.updated)
-    : new Date(0);
-  const created = Number.isFinite(comic.published)
-    ? new Date(comic.published)
-    : updated;
+  const updated = coerceTailspaceTimestamp(comic.updated);
+  const created = coerceTailspaceTimestamp(comic.published);
   const cancelled = comic.state === "cancelled";
   return {
     id: comic.id,
     name: comic.name,
-    created_at: created,
+    created_at:
+      Number.isFinite(created.getTime()) && created.getTime() > 0
+        ? created
+        : updated,
     updated_at: updated,
     creator_id: 0,
     description: "",
