@@ -86,9 +86,11 @@
       @restored="onRestored"
       @remuxed="reloadLocal" />
     <portal to="sidebar-suggestions">
-      <v-list v-if="siteMode.isUnified" class="pa-0 mt-1 mb-2" density="compact">
-        <v-list-subheader class="text-overline">Unified source</v-list-subheader>
-        <v-list-item>
+      <v-list v-if="siteMode.isUnified" class="pa-0 mt-1 mb-2 unified-sidebar" density="compact">
+        <v-list-subheader class="text-overline unified-sidebar__label">
+          Unified source
+        </v-list-subheader>
+        <v-list-item class="unified-sidebar__source py-2">
           <v-btn-toggle
             class="w-100"
             color="accent"
@@ -110,7 +112,7 @@
           </v-btn-toggle>
         </v-list-item>
         <v-list-item
-          class="sidebar-section-header"
+          class="sidebar-section-header unified-sidebar__sites-header mt-2"
           @click="toggleUnifiedSitesOpen"
         >
           <template #prepend>
@@ -127,12 +129,22 @@
             </span>
           </template>
         </v-list-item>
-        <v-list-item v-if="siteMode.unifiedFeedSource === 'search'" class="pt-0">
-          <div class="d-flex flex-wrap ga-1" @click.stop>
-            <v-btn size="x-small" variant="text" color="accent" @click="siteMode.applyUnifiedSitesPreset('default')">
+        <v-list-item v-if="siteMode.unifiedFeedSource === 'search'" class="unified-sidebar__presets pt-1 pb-2">
+          <div class="d-flex flex-wrap ga-2" @click.stop>
+            <v-btn
+              size="small"
+              variant="tonal"
+              color="accent"
+              @click="siteMode.applyUnifiedSitesPreset('default')"
+            >
               Defaults
             </v-btn>
-            <v-btn size="x-small" variant="text" color="accent" @click="siteMode.applyUnifiedSitesPreset('authenticated')">
+            <v-btn
+              size="small"
+              variant="tonal"
+              color="accent"
+              @click="siteMode.applyUnifiedSitesPreset('authenticated')"
+            >
               Auth only
             </v-btn>
           </div>
@@ -956,5 +968,18 @@ watch(
 .sidebar-section-header {
   cursor: pointer;
   user-select: none;
+}
+.unified-sidebar__label {
+  margin-bottom: 4px;
+  min-height: auto;
+}
+.unified-sidebar__source {
+  min-height: auto;
+}
+.unified-sidebar__sites-header {
+  margin-top: 8px;
+}
+.unified-sidebar__presets {
+  min-height: auto;
 }
 </style>
