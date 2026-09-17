@@ -6,6 +6,7 @@ Optional FA_COOKIE_A / FA_COOKIE_B for host-wide login.
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -19,7 +20,7 @@ import urllib.error
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlencode, urljoin, urlparse
 
 
 def _prepend_venv() -> None:
@@ -2178,14 +2179,25 @@ class SpaHandler(SimpleHTTPRequestHandler):
         return "; ".join(f"{k}={v}" for k, v in jar.items())
 
     @staticmethod
-    def _sofurry_xsrf(cookie: str) -> str:
+    def _sofurry_csrf(cookie: str) -> str:
+        """CSRF for Soft's Remix API (`_session.csrfToken`) or legacy Laravel XSRF."""
         for part in cookie.split(";"):
             part = part.strip()
+            if part.lower().startswith("_session="):
+                val = part.split("=", 1)[1]
+                try:
+                    raw = unquote(val)
+                    payload = raw.split(".", 1)[0]
+                    pad = "=" * ((4 - len(payload) % 4) % 4)
+                    data = json.loads(base64.urlsafe_b64decode(payload + pad))
+                    token = data.get("csrfToken") or data.get("csrf_token") or ""
+                    if token:
+                        return str(token)
+                except Exception:  # noqa: BLE001
+                    pass
             if part.lower().startswith("xsrf-token="):
                 val = part.split("=", 1)[1]
                 try:
-                    from urllib.parse import unquote
-
                     return unquote(val)
                 except Exception:  # noqa: BLE001
                     return val
@@ -2218,10 +2230,13 @@ class SpaHandler(SimpleHTTPRequestHandler):
             req.add_header("Origin", SOFURRY_BASE)
             if current_cookie:
                 req.add_header("Cookie", current_cookie)
-            xsrf = self._sofurry_xsrf(current_cookie)
-            if xsrf:
-                req.add_header("X-XSRF-TOKEN", xsrf)
-                req.add_header("X-CSRF-TOKEN", xsrf)
+            csrf = self._sofurry_csrf(current_cookie)
+            if csrf:
+                # Soft Remix validates X-CSRF-Token; Laravel login still accepts X-CSRF-TOKEN.
+                req.add_header("X-CSRF-Token", csrf)
+                req.add_header("X-CSRF-TOKEN", csrf)
+                if "xsrf-token=" in current_cookie.lower():
+                    req.add_header("X-XSRF-TOKEN", csrf)
             if extra_headers:
                 for k, v in extra_headers.items():
                     req.add_header(k, v)
@@ -2311,7 +2326,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
         token_match = re.search(r'name="_token"\s+value="([^"]+)"', html) or re.search(
             r'name="csrf-token"\s+content="([^"]+)"', html
         )
-        token = (token_match.group(1) if token_match else "") or self._sofurry_xsrf(cookie)
+        token = (token_match.group(1) if token_match else "") or self._sofurry_csrf(cookie)
         if not token:
             self._json(502, {"ok": False, "error": "Could not obtain CSRF token"})
             return
@@ -2330,10 +2345,14 @@ class SpaHandler(SimpleHTTPRequestHandler):
             body=form,
             content_type="application/x-www-form-urlencoded",
             accept="text/html, application/xhtml+xml",
-            extra_headers={"X-CSRF-TOKEN": token},
+            extra_headers={"X-CSRF-TOKEN": token, "X-CSRF-Token": token},
         )
         has_session = bool(
-            re.search(r"(?:^|;\s*)(?:laravel_session|sofurry_session)=", cookie, re.I)
+            re.search(
+                r"(?:^|;\s*)(?:laravel_session|sofurry_session|_session)=",
+                cookie,
+                re.I,
+            )
         )
         if not has_session and post_status == 200 and 'name="password"' in post_body.decode(
             "utf-8", errors="ignore"
@@ -2440,6 +2459,14 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 "X-Inertia": "true",
                 "X-Requested-With": "XMLHttpRequest",
             }
+        # Soft Remix APIs need a fresh `_session` CSRF cookie; Laravel login cookies alone
+        # do not carry it. Refresh before mutating so X-CSRF-Token matches Soft.
+        if method not in ("GET", "HEAD") and cookie:
+            _, _, _, cookie = self._sofurry_request(
+                f"{SOFURRY_BASE}/",
+                cookie=cookie,
+                accept="text/html,application/xhtml+xml",
+            )
         ct_in = self.headers.get("Content-Type")
         resp_body, status, ct, _ = self._sofurry_request(
             url,
@@ -2450,7 +2477,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
             accept=accept,
             extra_headers=extra or None,
         )
-        rejected = bool(cookie) and status in (401, 403)
+        # Soft returns 403 for CSRF failures — only 401 means the session is dead.
+        rejected = bool(cookie) and status == 401
         self._sofurry_respond(resp_body, status, ct, session_rejected=rejected)
 
     # ------------------------------------------------------------------

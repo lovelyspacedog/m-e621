@@ -98,7 +98,23 @@ function upstreamHeaders(
   return h;
 }
 
-function xsrfFromCookie(cookie: string): string {
+function csrfFromCookie(cookie: string): string {
+  const session = /(?:^|;\s*)_session=([^;]+)/i.exec(cookie);
+  if (session?.[1]) {
+    try {
+      const raw = decodeURIComponent(session[1]);
+      const payload = raw.split(".", 1)[0] || "";
+      const pad = "=".repeat((4 - (payload.length % 4)) % 4);
+      const data = JSON.parse(Buffer.from(payload + pad, "base64url").toString("utf8")) as {
+        csrfToken?: string;
+        csrf_token?: string;
+      };
+      const token = data.csrfToken || data.csrf_token || "";
+      if (token) return token;
+    } catch {
+      /* fall through to Laravel XSRF */
+    }
+  }
   const m = /(?:^|;\s*)XSRF-TOKEN=([^;]+)/i.exec(cookie);
   if (!m?.[1]) return "";
   try {
@@ -127,10 +143,13 @@ async function sofurryRequest(
   if (opts.body != null && opts.contentType) {
     headers["Content-Type"] = opts.contentType;
   }
-  const xsrf = xsrfFromCookie(opts.cookie || "");
-  if (xsrf && !headers["X-XSRF-TOKEN"] && !headers["X-CSRF-TOKEN"]) {
-    headers["X-XSRF-TOKEN"] = xsrf;
-    headers["X-CSRF-TOKEN"] = xsrf;
+  const csrf = csrfFromCookie(opts.cookie || "");
+  if (csrf && !headers["X-CSRF-Token"] && !headers["X-CSRF-TOKEN"]) {
+    headers["X-CSRF-Token"] = csrf;
+    headers["X-CSRF-TOKEN"] = csrf;
+    if (/xsrf-token=/i.test(opts.cookie || "")) {
+      headers["X-XSRF-TOKEN"] = csrf;
+    }
   }
   try {
     const resp = await fetch(url, {
@@ -175,7 +194,7 @@ async function loginWithPassword(
   const tokenMatch =
     /name="_token"\s+value="([^"]+)"/.exec(html) ||
     /name="csrf-token"\s+content="([^"]+)"/.exec(html);
-  const token = tokenMatch?.[1] || xsrfFromCookie(cookie);
+  const token = tokenMatch?.[1] || csrfFromCookie(cookie);
   if (!token) {
     return { ok: false, error: "Could not obtain CSRF token from SoFurry login page" };
   }
@@ -194,12 +213,13 @@ async function loginWithPassword(
     accept: "text/html, application/xhtml+xml",
     extraHeaders: {
       "X-CSRF-TOKEN": token,
+      "X-CSRF-Token": token,
     },
   });
   cookie = mergeSetCookies(cookie, post.headers);
 
   // Success usually redirects away from /login with a session cookie.
-  const hasSession = /(?:^|;\s*)(?:laravel_session|sofurry_session)=/i.test(cookie);
+  const hasSession = /(?:^|;\s*)(?:laravel_session|sofurry_session|_session)=/i.test(cookie);
   if (!hasSession && post.status === 200 && /name="password"/.test(post.body.toString("utf8"))) {
     return { ok: false, error: "Login failed — check email/password" };
   }
@@ -392,7 +412,7 @@ export function sofurryProxy(): Plugin {
           }
 
           const method = req.method || "GET";
-          const bodyBuf =
+          let bodyBuf =
             method === "GET" || method === "HEAD" ? null : await readBody(req);
           const accept =
             upstreamPath.endsWith(".data") || upstreamPath.includes(".data?")
@@ -403,12 +423,21 @@ export function sofurryProxy(): Plugin {
             extra["X-Inertia"] = "true";
             extra["X-Requested-With"] = "XMLHttpRequest";
           }
+          // Soft Remix APIs need a fresh `_session` CSRF cookie before mutating.
+          let upstreamCookie = cookie;
+          if (method !== "GET" && method !== "HEAD" && upstreamCookie) {
+            const refresh = await sofurryRequest(`${SOFURRY_BASE}/`, {
+              cookie: upstreamCookie,
+              accept: "text/html,application/xhtml+xml",
+            });
+            upstreamCookie = mergeSetCookies(upstreamCookie, refresh.headers);
+          }
           const ct = req.headers["content-type"];
           const { body, status, contentType, headers } = await sofurryRequest(
             `${SOFURRY_BASE}${upstreamPath}${qs ? `?${qs}` : ""}`,
             {
               method,
-              cookie,
+              cookie: upstreamCookie,
               body: bodyBuf,
               contentType: typeof ct === "string" ? ct : undefined,
               accept,
@@ -416,10 +445,9 @@ export function sofurryProxy(): Plugin {
             },
           );
           const rejected =
-            cookie && (status === 401 || status === 403)
+            cookie && status === 401
               ? { "X-Sofurry-Session-Rejected": "1" }
               : undefined;
-          // Pass through set-cookie merge hint? client already has cookies.
           void headers;
           sendBuffer(res, status, body, contentType, rejected);
         } catch (err) {

@@ -958,13 +958,20 @@ export async function favoriteSubmission(args: {
       if (!response.ok) return null;
       const data = (await response.json().catch(() => ({}))) as {
         liked?: boolean;
+        isLiked?: boolean;
         likes?: number;
       };
-      if (typeof data.liked !== "boolean") {
+      const liked =
+        typeof data.liked === "boolean"
+          ? data.liked
+          : typeof data.isLiked === "boolean"
+            ? data.isLiked
+            : undefined;
+      if (typeof liked !== "boolean") {
         // Some responses may omit body; treat 2xx as success toward `want`.
         return { liked: want, likes: data.likes };
       }
-      return { liked: data.liked, likes: data.likes };
+      return { liked, likes: data.likes };
     } catch {
       return null;
     }
