@@ -2,7 +2,7 @@
  * SoFurry API client.
  *
  * Auth: Laravel session cookies via form POST /login (email + password + CSRF).
- * Lists: /api/profile (galleries + likes JSON) and /browse.data (Inertia deferred pack).
+ * Lists: /api/profile?handle=&tab=likes|gallery (0-based page) and /browse.data.
  * Detail: /s/{id}.data for artwork/stories; story body via signed .txt contentUrl.
  *
  * Client sends cookies as `X-Sofurry-Cookies`; the proxy forwards Cookie.
@@ -555,7 +555,7 @@ function digSubmissions(payload: unknown): {
     const d = root.data as Record<string, unknown>;
     subs = d.submissions || d.gallery || d.likes || d;
   }
-  // /api/profile shape: { gallery: { data, ... }, likes: { data, ... } }
+  // /api/profile?handle=&tab= shape: { submissions: { data, page, hasNextPage }, user? }
   if (!subs && (root.gallery || root.likes)) {
     return empty; // caller handles profile directly
   }
@@ -716,10 +716,14 @@ async function fetchProfileList(args: {
   page: number;
   limit: number;
 }): Promise<SoftPostsResult> {
+  // Soft /api/profile uses handle + tab, with 0-based page indexes.
+  const page1 = Math.max(1, args.page || 1);
+  const softPage = page1 - 1;
+  const tab = args.folder === "gallery" ? "gallery" : "likes";
   const params = new URLSearchParams();
-  params.set("username", args.username);
-  params.set("folder", args.folder === "favorites" ? "likes" : args.folder);
-  params.set("page", String(Math.max(1, args.page)));
+  params.set("handle", args.username);
+  params.set("tab", tab);
+  params.set("page", String(softPage));
   params.set("perPage", String(Math.max(1, Math.min(100, args.limit || 24))));
 
   const response = await sofurryFetch(`/api/profile?${params}`);
@@ -727,22 +731,35 @@ async function fetchProfileList(args: {
     throw new Error(`SoFurry profile failed (${response.status})`);
   }
   const data = (await response.json()) as Record<string, unknown>;
-  const key = args.folder === "gallery" ? "gallery" : "likes";
-  const block = (data[key] || data.gallery || data.likes) as
+  const block = (data.submissions || data[tab] || data.likes || data.gallery) as
     | {
         data?: SoftSubmission[];
+        page?: number;
+        hasNextPage?: boolean;
         current_page?: number;
         last_page?: number;
         total?: number;
         per_page?: number;
+        perPage?: number;
       }
     | undefined;
   const rows = Array.isArray(block?.data) ? block!.data! : [];
+  const softPageOut =
+    typeof block?.page === "number" && Number.isFinite(block.page)
+      ? Math.max(0, block.page)
+      : softPage;
+  const pageOut = softPageOut + 1;
+  const hasNext = !!block?.hasNextPage;
+  const lastPage =
+    Number(block?.last_page) ||
+    (hasNext ? pageOut + 1 : pageOut);
+  const limitOut =
+    Number(block?.per_page ?? block?.perPage ?? args.limit) || args.limit;
   return postsResponseFromSubs(
     rows,
-    Number(block?.current_page ?? args.page) || args.page,
-    Number(block?.per_page ?? args.limit) || args.limit,
-    Number(block?.last_page ?? 1) || 1,
+    pageOut,
+    limitOut,
+    lastPage,
     Number(block?.total ?? rows.length) || rows.length,
   );
 }
