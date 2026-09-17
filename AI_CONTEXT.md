@@ -225,7 +225,7 @@ PWA: `registerType: 'prompt'`, update poll every 10 minutes, Workbox max cache *
 - **`.github/workflows/docker.yml`** publishes the fork Docker image (`serve.py` runtime) to GHCR on push to main/master (`latest` + sha). Local docs still prefer `docker compose up --build`; GHCR is the optional personal registry (FEATURES 7.1 — **keep**).
 - **e2e:** hash-route Playwright smoke; CI uses npm + Node 20. Prefer local `npm run test:unit` as the merge gate.
 - **`tsconfig.node.json` `include`** covers `vite-*-proxy.ts`.
-- Default Unified children (`defaultUnifiedSites`): Weasyl and Itaku default **off**; others on except Tailspace/Local which are never children.
+- Default Unified children (`defaultUnifiedSites`): all remote children on (including Weasyl and Itaku); Tailspace/Local are never children.
 - `getAppName()` appends a short git hash when `VITE_GIT_COMMIT_INFO` parsed successfully.
 - Fork vs upstream commit URLs use author matching `tony pup` / `lovelyspacedog` (`src/misc/util/git.ts`).
 - Docker/sync skip `vue-tsc` (`build-only`).

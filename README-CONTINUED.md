@@ -11,8 +11,8 @@ Each mode has its own profile for authentication, blacklist, starred tags, saved
 - **Furbooru** — API-key authentication, tags, view/post comments, favorites, and votes.
 - **Inkbunny** — multi-file submission galleries (Save all / Save page), following feed, and Flash/SWF playback through Ruffle. Submission “pools” appear as metadata, not the e621 `/pools` UI. Favorite toggling is unavailable.
 - **FurAffinity** — browsing and search through the bundled `faapi` proxy, cookie sign-in (optional captcha helper), following feed, and enriched music posts. Profile cookies override host-wide `FA_COOKIE_*` when set.
-- **Weasyl** — API-key authentication, multimedia audio, and `favs:me`. Guest browsing is SFW-only; favorite toggling is unavailable. Off by default in Unified.
-- **Itaku** — galleries, flattened multi-image posts, comments, stars, and following with token authentication. Off by default in Unified.
+- **Weasyl** — API-key authentication, multimedia audio, and `favs:me`. Guest browsing is SFW-only; favorite toggling is unavailable. On by default in Unified.
+- **Itaku** — galleries, flattened multi-image posts, comments, stars, and following with token authentication. On by default in Unified.
 - **SoFurry** — artwork, music, stories, likes (Remix session), and following. Stories have a fullscreen text reader.
 - **Tailspace** — posts, saved searches, following, account actions, and a dedicated comic reader.
 - **Local** — a searchable media library backed by a folder on disk.

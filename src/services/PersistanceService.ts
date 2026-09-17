@@ -510,6 +510,14 @@ class PersistanceService {
       }
       newState.configVersion = 36;
     }
+    if (newState.configVersion < 37) {
+      // Weasyl / Itaku join the other Unified children as on-by-default.
+      if (newState.profiles?.unified?.unifiedSites) {
+        newState.profiles.unified.unifiedSites.weasyl = true;
+        newState.profiles.unified.unifiedSites.itaku = true;
+      }
+      newState.configVersion = 37;
+    }
 
     if (!newState.watchedPools || !Array.isArray(newState.watchedPools.entries)) {
       newState.watchedPools = { entries: [] };
@@ -549,18 +557,18 @@ class PersistanceService {
         furbooru: true,
         inkbunny: true,
         furaffinity: true,
-        weasyl: false,
-        itaku: false,
+        weasyl: true,
+        itaku: true,
         sofurry: true,
       };
     } else if (newState.profiles.unified.unifiedSites.furaffinity === undefined) {
       newState.profiles.unified.unifiedSites.furaffinity = true;
     }
     if (newState.profiles.unified.unifiedSites.weasyl === undefined) {
-      newState.profiles.unified.unifiedSites.weasyl = false;
+      newState.profiles.unified.unifiedSites.weasyl = true;
     }
     if (newState.profiles.unified.unifiedSites.itaku === undefined) {
-      newState.profiles.unified.unifiedSites.itaku = false;
+      newState.profiles.unified.unifiedSites.itaku = true;
     }
     if (newState.profiles.unified.unifiedSites.sofurry === undefined) {
       newState.profiles.unified.unifiedSites.sofurry = true;

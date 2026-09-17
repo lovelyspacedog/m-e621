@@ -88,8 +88,8 @@ export const defaultUnifiedSites = (): UnifiedSites => ({
   furbooru: true,
   inkbunny: true,
   furaffinity: true,
-  weasyl: false,
-  itaku: false,
+  weasyl: true,
+  itaku: true,
   sofurry: true,
 });
 
@@ -212,7 +212,8 @@ export interface ISettingsServiceState {
     | 33
     | 34
     | 35
-    | 36;
+    | 36
+    | 37;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];

@@ -34,6 +34,7 @@ export const changelogSections: ChangelogSection[] = [
       "Honest overview metadata across site modes",
       "Fairer Random order (Fisher–Yates)",
       "Self-host `sync` serializes with a lock so overlapping deploys wait or exit cleanly",
+      "Weasyl and Itaku enabled by default in Unified Search",
     ],
   },
   {
