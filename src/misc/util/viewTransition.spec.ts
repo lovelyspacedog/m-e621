@@ -14,7 +14,22 @@ describe("shouldSkipViewTransition", () => {
 
   it("allows real route changes", () => {
     expect(
-      shouldSkipViewTransition({ name: "Landing" }, { name: "Posts" }),
+      shouldSkipViewTransition({ name: "Posts" }, { name: "Settings" }),
+    ).toBe(false);
+  });
+
+  it("skips leaving LandingPage (VT + out-in blanks v-main)", () => {
+    expect(
+      shouldSkipViewTransition({ name: "LandingPage" }, { name: "ScentMarks" }),
+    ).toBe(true);
+    expect(
+      shouldSkipViewTransition({ name: "LandingPage" }, { name: "Posts" }),
+    ).toBe(true);
+  });
+
+  it("allows arriving at LandingPage from elsewhere", () => {
+    expect(
+      shouldSkipViewTransition({ name: "Posts" }, { name: "LandingPage" }),
     ).toBe(false);
   });
 });
