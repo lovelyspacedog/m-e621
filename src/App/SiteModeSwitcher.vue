@@ -38,13 +38,24 @@
       :key="mode"
       size="small"
       class="text-none"
-      :variant="siteMode.activeMode === mode ? 'flat' : 'outlined'"
-      :color="siteMode.activeMode === mode ? 'secondary' : 'white'"
-      :disabled="!siteMode.isModeOnlineCapable(mode)"
-      @click="onSelect(mode)"
+      :variant="chipVariant(mode)"
+      :color="chipColor(mode)"
+      :disabled="chipDisabled(mode)"
+      :aria-pressed="chipAriaPressed(mode)"
+      @click="onChipClick(mode)"
     >
       <v-icon start size="18">{{ modeIcon(mode) }}</v-icon>
       {{ modeLabel(mode) }}
+      <v-icon
+        v-if="mode === 'unified' && siteMode.isUnified"
+        end
+        size="16"
+        class="site-mode-chips__close"
+        aria-label="Exit Federated mode"
+        @click.stop="onExitFederated"
+      >
+        mdi-close
+      </v-icon>
     </v-btn>
   </div>
   <v-autocomplete
@@ -84,7 +95,7 @@
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { useSiteModeStore } from "@/services/SiteModeStore";
-import type { SiteMode } from "@/services/types";
+import type { SiteMode, UnifiedChildMode } from "@/services/types";
 
 const props = withDefaults(
   defineProps<{
@@ -145,10 +156,61 @@ const modeLabel = (mode: SiteMode) => {
   }
 };
 
+const chipIncluded = (mode: SiteMode) =>
+  siteMode.isUnified &&
+  siteMode.isUnifiedChildMode(mode) &&
+  !!siteMode.unifiedSites[mode as UnifiedChildMode];
+
+const chipActive = (mode: SiteMode) =>
+  siteMode.activeMode === mode || chipIncluded(mode);
+
+const chipVariant = (mode: SiteMode) =>
+  chipActive(mode) ? "flat" : "outlined";
+
+const chipColor = (mode: SiteMode) =>
+  chipActive(mode) ? "secondary" : "white";
+
+const chipDisabled = (mode: SiteMode) => {
+  if (!siteMode.isModeOnlineCapable(mode)) return true;
+  if (siteMode.isUnified && siteMode.isFederatedIncompatible(mode)) return true;
+  return false;
+};
+
+const chipAriaPressed = (mode: SiteMode) => {
+  if (siteMode.isUnified && siteMode.isUnifiedChildMode(mode)) {
+    return chipIncluded(mode);
+  }
+  return siteMode.activeMode === mode;
+};
+
 const postsRouteFor = (mode: SiteMode) => {
   if (mode === "tailspace") return { name: "TailspacePosts" as const };
   if (mode === "flayrah") return { name: "FlayrahFeed" as const };
   return { name: "Posts" as const, query: {} };
+};
+
+const onExitFederated = async () => {
+  siteMode.exitUnifiedMode();
+  if (!props.navigateOnChange) return;
+  await router.push(postsRouteFor(siteMode.activeMode));
+};
+
+const onChipClick = async (mode: SiteMode) => {
+  if (siteMode.isUnified) {
+    if (mode === "unified") {
+      await onExitFederated();
+      return;
+    }
+    if (siteMode.isUnifiedChildMode(mode)) {
+      siteMode.setUnifiedChild(
+        mode,
+        !siteMode.unifiedSites[mode as UnifiedChildMode],
+      );
+      return;
+    }
+    return;
+  }
+  await onSelect(mode);
 };
 
 const onSelect = async (mode: SiteMode) => {
@@ -185,6 +247,11 @@ const onSelect = async (mode: SiteMode) => {
 
 .site-mode-chips :deep(.v-btn--variant-flat) {
   border: 2px solid rgba(255, 255, 255, 0.55);
+}
+
+.site-mode-chips__close {
+  margin-inline-start: 2px;
+  opacity: 0.9;
 }
 
 .site-mode-sidebar :deep(.v-field__input) {

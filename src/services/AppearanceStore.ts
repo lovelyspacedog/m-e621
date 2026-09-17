@@ -175,6 +175,21 @@ export const useAppearanceStore = defineStore("appearance", () => {
     },
   });
 
+  const isTipDismissed = (tipId: string) =>
+    !!main.appearance.dismissedTips?.[tipId];
+
+  const dismissTip = (tipId: string) => {
+    if (!main.appearance.dismissedTips) {
+      main.appearance.dismissedTips = {};
+    }
+    main.appearance.dismissedTips[tipId] = true;
+  };
+
+  /** Re-enable all tip dialogs dismissed via “Don't show this again”. */
+  const resetTips = () => {
+    main.appearance.dismissedTips = {};
+  };
+
   const pawCursor = computed({
     get() {
       return main.appearance.pawCursor;
@@ -225,6 +240,9 @@ export const useAppearanceStore = defineStore("appearance", () => {
     theme,
     hideGithubInfo,
     hideMigrationInfo,
+    isTipDismissed,
+    dismissTip,
+    resetTips,
     pawCursor,
   };
 });

@@ -7,7 +7,7 @@ import { postSupportsFluffle } from "@/misc/util/fluffleSearch";
 import { useMainStore } from "./state";
 import { useSnackbarStore } from "./SnackbarStore";
 import type { ButtonType, SiteMode, UnifiedChildMode, UnifiedFeedSource } from "./types";
-import { SITE_MODE_URLS, defaultUnifiedSites } from "./types";
+import { SITE_MODE_URLS, UNIFIED_CHILD_MODES, defaultUnifiedSites } from "./types";
 import {
   applyActiveProfileToMirrors,
   createEmptySiteProfile,
@@ -43,6 +43,8 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   /** Incremented on every mode switch; pages can watch this to force-reload
    *  even when the route query doesn't change (e.g. blank /posts). */
   const modeChangeCount = ref(0);
+  /** Session-only: mode before entering Federated; used by exitUnifiedMode. */
+  const previousModeBeforeUnified = ref<SiteMode | null>(null);
   const isOnline = ref(
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
@@ -247,7 +249,16 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       snackbar.addMessage("Offline — only Local mode is available");
       return;
     }
-    const previousWasUnified = main.activeMode === "unified";
+    const previous = main.activeMode;
+    const previousWasUnified = previous === "unified";
+    if (mode === "unified" && !previousWasUnified) {
+      previousModeBeforeUnified.value = previous;
+      if (!main.profiles.unified) {
+        main.profiles.unified = createEmptySiteProfile("unified");
+      }
+      // Entering Federated always resets inclusion to all 8 search children.
+      main.profiles.unified.unifiedSites = defaultUnifiedSites();
+    }
     syncMirrorsToActiveProfile(main.$state);
     if (!main.profiles[mode]) {
       main.profiles[mode] = createEmptySiteProfile(mode);
@@ -263,6 +274,26 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       void getApiService().then((api) => api.resetUnifiedMerge());
     }
   };
+
+  /** Leave Federated for the prior site (fallback e621). */
+  const exitUnifiedMode = () => {
+    const prev = previousModeBeforeUnified.value;
+    previousModeBeforeUnified.value = null;
+    const target: SiteMode =
+      prev && prev !== "unified" && isModeSupported(prev) && isModeOnlineCapable(prev)
+        ? prev
+        : "e621";
+    if (main.activeMode === "unified") {
+      setMode(target);
+    }
+  };
+
+  const isUnifiedChildMode = (mode: SiteMode): mode is UnifiedChildMode =>
+    (UNIFIED_CHILD_MODES as SiteMode[]).includes(mode);
+
+  /** Modes that cannot join Federated Posts search (greyed on chips). */
+  const isFederatedIncompatible = (mode: SiteMode) =>
+    mode === "local" || mode === "tailspace" || mode === "flayrah";
 
   /** If restored settings point at an unsupported mode, fall back quietly. */
   const ensureCompatibleActiveMode = () => {
@@ -355,8 +386,11 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     isOnline,
     selectableSiteModes,
     isModeOnlineCapable,
+    isUnifiedChildMode,
+    isFederatedIncompatible,
     activeLabel,
     setMode,
+    exitUnifiedMode,
     bumpModeChange,
     ensureCompatibleActiveMode,
     filterButtons,

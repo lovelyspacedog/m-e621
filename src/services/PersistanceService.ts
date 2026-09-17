@@ -735,6 +735,18 @@ class PersistanceService {
       }
       newState.configVersion = 44;
     }
+    if (newState.configVersion < 45) {
+      if (!newState.appearance) {
+        newState.appearance = reactive(clone(defaultSettings.appearance));
+      }
+      if (
+        !newState.appearance.dismissedTips ||
+        typeof newState.appearance.dismissedTips !== "object"
+      ) {
+        newState.appearance.dismissedTips = {};
+      }
+      newState.configVersion = 45;
+    }
 
     if (!newState.watchedPools || !Array.isArray(newState.watchedPools.entries)) {
       newState.watchedPools = { entries: [] };
@@ -764,6 +776,12 @@ class PersistanceService {
     if (newState.appearance) {
       if (newState.appearance.pawCursor === undefined) {
         newState.appearance.pawCursor = true;
+      }
+      if (
+        !newState.appearance.dismissedTips ||
+        typeof newState.appearance.dismissedTips !== "object"
+      ) {
+        newState.appearance.dismissedTips = {};
       }
       if (
         newState.appearance.colorScheme !== "system" &&

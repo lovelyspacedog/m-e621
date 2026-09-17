@@ -43,6 +43,22 @@
     <main-content />
     <pwa-update-banner />
     <app-snackbar />
+    <TipDialog
+      tip-id="federated-mode"
+      title="Federated mode"
+      v-model="federatedTipOpen"
+    >
+      <p class="mb-3">
+        Federated merges posts from several sites into one feed. On the landing
+        site chips, tap a site to include or exclude it from the search (at least
+        one must stay on). Local, Tailspace, and Flayrah stay greyed out — they
+        are not part of Federated search.
+      </p>
+      <p class="mb-0">
+        Tap Federated or the close icon to leave and return to your previous
+        site. Use the sidebar later if you want Following instead of Search.
+      </p>
+    </TipDialog>
   </v-app>
 </template>
 
@@ -57,6 +73,7 @@ import MainContent from "./App/MainContent.vue";
 import NavigationList from "./App/NavigationList.vue";
 import NavigationToolbar from "./App/NavigationToolbar.vue";
 import PwaUpdateBanner from "./App/PwaUpdateBanner.vue";
+import TipDialog from "./misc/TipDialog.vue";
 import { getAppName } from "./misc/util/utilities";
 import { useAppearanceStore, useMainStore, usePersistanceService, useShortcutService, useShortcutStore, useSiteModeStore } from "./services";
 import { useHead } from '@unhead/vue';
@@ -71,6 +88,7 @@ const shortcutService = useShortcutService();
 const siteMode = useSiteModeStore();
 const navMode = computed(() => appearance.navigationType);
 const theme = computed(() => appearance.theme);
+const federatedTipOpen = ref(false);
 
 useSyncedTheme();
 installOfflineSaveQueueListeners();
@@ -85,6 +103,14 @@ onMounted(async () => {
   }
 });
 
+watch(
+  () => siteMode.isUnified,
+  (now, was) => {
+    if (now && !was && !appearance.isTipDismissed("federated-mode")) {
+      federatedTipOpen.value = true;
+    }
+  },
+);
 const logoStyle = computed(() => appearance.logoStyle);
 const onLogoClick = () => {
   const availableStyles = appearance.logoStyles.filter(

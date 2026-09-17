@@ -33,7 +33,7 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 44,
+  configVersion: 45,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -99,6 +99,7 @@ export const defaultSettings: ISettingsServiceState = {
     hideInstallPrompt: false,
     hideGithubInfo: false,
     hideMigrationInfo: false,
+    dismissedTips: {},
     pawCursor: true,
   },
   history: {

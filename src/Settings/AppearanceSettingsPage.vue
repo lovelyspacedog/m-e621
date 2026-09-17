@@ -146,6 +146,19 @@
               density="compact"
             />
           </settings-row>
+          <settings-row
+            title="Reset tooltips"
+            description="Show tip dialogs again after “Don't show this again” (for example Federated mode)."
+            stack
+          >
+            <v-btn
+              variant="outlined"
+              color="accent"
+              @click="onResetTips"
+            >
+              Reset tooltips
+            </v-btn>
+          </settings-row>
         </settings-group>
       </v-col>
     </v-row>
@@ -160,7 +173,7 @@ import TransitionPreview from "./TransitionPreview.vue";
 import { computed } from "vue";
 import ColorChooser from "./ColorChooser.vue";
 import transitions from "@/misc/data/transitions.json";
-import { useAppearanceStore, type ColorScheme } from "@/services";
+import { useAppearanceStore, useSnackbarStore, type ColorScheme } from "@/services";
 import { useHead } from "@unhead/vue";
 
 useHead({
@@ -168,6 +181,7 @@ useHead({
 });
 
 const appearance = useAppearanceStore();
+const snackbar = useSnackbarStore();
 
 const navChips: SettingsNavChip[] = [
   { label: "Colors", anchor: "colors" },
@@ -179,6 +193,11 @@ const onColorScheme = (value: unknown) => {
   if (value === "system" || value === "dark" || value === "light") {
     appearance.colorScheme = value as ColorScheme;
   }
+};
+
+const onResetTips = () => {
+  appearance.resetTips();
+  snackbar.addMessage("Tip dialogs will show again");
 };
 
 const transitionItems = computed(() =>

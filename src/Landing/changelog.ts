@@ -26,6 +26,7 @@ export const changelogSections: ChangelogSection[] = [
       "Federated Pools name browse can include Tailspace comics (Account setting, on by default); opens the Tailspace reader",
       "Federated Pools interleave Tailspace comics with e621/e6ai by Updated/sort (ISO comic dates parse correctly)",
       "Site mode renamed from Unified to Federated; sidebar Defaults / Auth-only presets sit as a compact toolbar",
+      "Landing Federated chips: multi-select sites for search inclusion, close/label exits to the previous site, and a one-time tip (Appearance → Reset tooltips)",
       "Layout menu and Post settings: Infinite scroll toggle (off uses previous/next); Saved posts share the same Layout menu",
       "Pools: watched +N badges, chunk/deep-link resume, fullscreen across chunks, hidden-page placeholders, Save chunk / Save all",
       "Scent Marks: host pin-to-top, unlock-gated moderation, rate-limited admin actions; feed heading is Scent Trail",

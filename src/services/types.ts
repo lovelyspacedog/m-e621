@@ -283,6 +283,11 @@ export interface ISettingsServiceState {
     hideInstallPrompt: boolean;
     hideGithubInfo: boolean;
     hideMigrationInfo: boolean;
+    /**
+     * Tip dialog ids the user chose “Don't show this again” for.
+     * Cleared by Appearance → Reset tooltips.
+     */
+    dismissedTips: Record<string, boolean>;
     pawCursor: boolean;
   };
   history: {
