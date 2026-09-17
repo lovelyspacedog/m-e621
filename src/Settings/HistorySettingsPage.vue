@@ -9,6 +9,8 @@
           :chips="navChips"
         />
 
+        <active-mode-banner />
+
         <settings-group title="Saved Searches" anchor="saved">
           <settings-row stack>
             <profile-list-sync kind="searches" />
@@ -49,6 +51,7 @@
 import SettingsPageTitle, { type SettingsNavChip } from "./SettingsPageTitle.vue";
 import SettingsGroup from "./SettingsGroup.vue";
 import SettingsRow from "./SettingsRow.vue";
+import ActiveModeBanner from "./ActiveModeBanner.vue";
 import HistoryList from "../Tag/HistoryList.vue";
 import { computed } from "vue";
 import { useHistoryStore, useSavedSearchStore } from "@/services";

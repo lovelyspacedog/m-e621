@@ -60,7 +60,7 @@
               <br />
               Used: {{ usageStr }}
             </div>
-            <v-progress-linear color="accent" class="ma-1" indeterminante :model-value="usagePercentage" />
+            <v-progress-linear color="accent" class="ma-1" :model-value="usagePercentage" />
             <v-btn
               v-if="!persistence"
               variant="text"

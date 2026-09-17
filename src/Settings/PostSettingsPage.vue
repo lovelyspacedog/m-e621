@@ -188,6 +188,9 @@
               v-model="audioPlaybackRate"
             />
           </settings-row>
+          <settings-row title="Per-site playback overrides" stack>
+            <origin-playback-prefs-editor />
+          </settings-row>
         </settings-group>
 
         <settings-group title="Slideshow" anchor="slideshow">
@@ -337,6 +340,7 @@ import {
 import { computed } from "vue";
 import AutomaticDataSaverInfo from "./AutomaticDataSaverInfo.vue";
 import LocalFolderPicker from "./LocalFolderPicker.vue";
+import OriginPlaybackPrefsEditor from "./OriginPlaybackPrefsEditor.vue";
 import PostButtonEditor from "./PostButtonEditor.vue";
 import SettingsGroup from "./SettingsGroup.vue";
 import SettingsPageTitle, { type SettingsNavChip } from "./SettingsPageTitle.vue";

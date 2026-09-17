@@ -64,11 +64,12 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   // Account
   { label: "API & Account", keywords: ["account", "login", "credentials", "api key"], section: "account", hash: "accounts" },
   { label: "Unified feed sites", keywords: ["unified", "child", "federation"], section: "account", hash: "unified" },
+  { label: "Unified Following", keywords: ["following", "watch", "feed source"], section: "account", hash: "unified" },
   { label: "Copy starred tags / blacklist", keywords: ["sync", "copy", "starred", "favorites"], section: "account", hash: "sync" },
   { label: "Favorites proxy", keywords: ["proxy", "favorites api", "vercel"], section: "account", hash: "proxy" },
-  { label: "e621 / e6ai API key", keywords: ["e621", "e6ai", "api key", "username"], section: "account", hash: "accounts" },
-  { label: "FurAffinity cookies", keywords: ["furaffinity", "cookie", "fa_cookie"], section: "account", hash: "accounts" },
-  { label: "Inkbunny login", keywords: ["inkbunny", "password", "sid"], section: "account", hash: "accounts" },
+  { label: "e621 / e6ai API key", keywords: ["e621", "e6ai", "api key", "username", "credentials", "auth"], section: "account", hash: "accounts" },
+  { label: "FurAffinity cookies", keywords: ["furaffinity", "cookie", "fa_cookie", "auth"], section: "account", hash: "accounts" },
+  { label: "Inkbunny login", keywords: ["inkbunny", "password", "sid", "auth"], section: "account", hash: "accounts" },
 
   // Posts
   { label: "Post buttons", keywords: ["buttons", "fullscreen", "details"], section: "posts", hash: "buttons" },
@@ -79,25 +80,33 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { label: "Autoplay video", keywords: ["autoplay", "video", "mute", "silent"], section: "posts", hash: "media" },
   { label: "Animate GIFs", keywords: ["gif", "animate"], section: "posts", hash: "media" },
   { label: "Video volume", keywords: ["volume", "playback", "speed", "muted"], section: "posts", hash: "media" },
+  { label: "Separate audio prefs", keywords: ["audio", "music", "volume"], section: "posts", hash: "media" },
+  { label: "Per-site playback overrides", keywords: ["origin", "playback", "furaffinity", "per site"], section: "posts", hash: "media" },
   { label: "Slideshow interval", keywords: ["slideshow", "interval"], section: "posts", hash: "slideshow" },
   { label: "Card auto-next", keywords: ["auto-next", "autonext", "card"], section: "posts", hash: "slideshow" },
   { label: "Data saver", keywords: ["data saver", "quality", "preview"], section: "posts", hash: "loading" },
   { label: "Lazy load", keywords: ["lazy", "load", "images"], section: "posts", hash: "loading" },
   { label: "Posts per page", keywords: ["limit", "fetch", "page size"], section: "posts", hash: "loading" },
+  { label: "Sidebar suggestion limit", keywords: ["suggestions", "sidebar", "tags", "limit"], section: "posts", hash: "loading" },
   { label: "Save locally", keywords: ["save", "download", "folder", "path template"], section: "posts", hash: "local" },
+  { label: "Open in Local after save", keywords: ["open in local", "after save"], section: "posts", hash: "local" },
   { label: "Local browse folder", keywords: ["local", "browse", "folder"], section: "posts", hash: "local" },
 
   // Appearance
   { label: "Themes", keywords: ["theme", "color", "browse themes"], section: "appearance", hash: "colors" },
   { label: "Primary / accent colors", keywords: ["primary", "secondary", "accent", "background", "sidebar", "toolbar"], section: "appearance", hash: "colors" },
   { label: "Dark mode", keywords: ["dark", "light"], section: "appearance", hash: "colors" },
-  { label: "Fullscreen transitions", keywords: ["transition", "animation"], section: "appearance", hash: "chrome" },
+  { label: "Fullscreen transitions", keywords: ["transition", "animation", "fullscreen"], section: "appearance", hash: "chrome" },
+  { label: "Route transitions", keywords: ["route", "page transition", "navigation animation"], section: "appearance", hash: "chrome" },
   { label: "Navigation type", keywords: ["sidebar", "toolbar", "floating", "navigation"], section: "appearance", hash: "chrome" },
   { label: "Logo style", keywords: ["logo"], section: "appearance", hash: "chrome" },
   { label: "Rating stripe", keywords: ["rating", "stripe"], section: "appearance", hash: "chrome" },
+  { label: "Paw cursor", keywords: ["paw", "cursor", "pointer"], section: "appearance", hash: "chrome" },
+  { label: "Hide install prompt", keywords: ["install", "pwa", "prompt"], section: "appearance", hash: "chrome" },
 
   // Blacklist
   { label: "Blacklist mode", keywords: ["hide", "blur", "blackout", "blacklist"], section: "blacklist", hash: "mode" },
+  { label: "Copy blacklist between sites", keywords: ["sync", "copy", "blacklist"], section: "blacklist", hash: "sync" },
   { label: "Custom blacklist", keywords: ["tags", "blacklist", "custom"], section: "blacklist", hash: "custom" },
   { label: "Import e621 blacklist", keywords: ["import", "paste", "e621"], section: "blacklist", hash: "import" },
 
@@ -106,10 +115,13 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { label: "Max history length", keywords: ["history", "max", "length"], section: "history", hash: "history" },
 
   // Other
-  { label: "Keyboard shortcuts", keywords: ["shortcut", "hotkey", "keyboard"], section: "shortcuts" },
+  { label: "Keyboard shortcuts", keywords: ["shortcut", "hotkey", "keyboard", "keybind"], section: "shortcuts" },
   { label: "Backup settings", keywords: ["backup", "download", "export", "json"], section: "restore", hash: "backup" },
+  { label: "Sanitized backup", keywords: ["sanitized", "no credentials", "strip keys"], section: "restore", hash: "backup" },
   { label: "Restore settings", keywords: ["restore", "upload", "import", "reset"], section: "restore", hash: "restore" },
   { label: "Version / Force Update", keywords: ["version", "commit", "update", "storage"], section: "info" },
+  { label: "Pull from Git", keywords: ["git", "pull", "sync", "deploy"], section: "info" },
+  { label: "Storage persistence", keywords: ["storage", "quota", "persist", "indexeddb"], section: "info" },
 ];
 
 export function matchSettingsQuery(query: string): {

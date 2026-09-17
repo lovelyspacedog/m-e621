@@ -209,6 +209,14 @@ const sectionSubtitle = (section: string): string | null => {
       const n = shortcuts.shortcuts.length;
       return `${n} ${n === 1 ? "shortcut" : "shortcuts"} defined`;
     }
+    case "posts": {
+      const layout = main.posts.feedLayout === "grid" ? "Grid" : "List";
+      return `${layout} feed · ${main.posts.postListFetchLimit} per page`;
+    }
+    case "appearance":
+      return appearance.dark ? "Dark theme" : "Light theme";
+    case "restore":
+      return "Backup includes credentials — use sanitized to strip secrets";
     default:
       return null;
   }

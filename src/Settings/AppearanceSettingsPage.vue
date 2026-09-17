@@ -58,6 +58,19 @@
               class="mt-3"
             />
           </settings-row>
+          <settings-row
+            title="Route transitions"
+            description="Animation when navigating between pages (Settings, Posts, etc.)."
+            stack
+          >
+            <v-select
+              :items="transitionItems"
+              variant="outlined"
+              v-model="appearance.routeTransition"
+              hide-details
+              density="comfortable"
+            />
+          </settings-row>
           <settings-row title="Colored stripe indicating post rating" switch>
             <v-switch v-model="appearance.ratingStripe" color="accent" hide-details density="compact" />
           </settings-row>

@@ -107,3 +107,27 @@ export const clearKindPlaybackPrefs = (
   if (!posts.playbackPrefs?.byKind?.[kind]) return;
   delete posts.playbackPrefs.byKind[kind];
 };
+
+export const ensureOriginPlaybackPrefs = (
+  posts: { playbackPrefs?: PlaybackPrefs },
+  origin: SiteMode,
+  seed: ResolvedPlaybackPrefs,
+) => {
+  if (!posts.playbackPrefs) posts.playbackPrefs = {};
+  if (!posts.playbackPrefs.byOrigin) posts.playbackPrefs.byOrigin = {};
+  if (!posts.playbackPrefs.byOrigin[origin]) {
+    posts.playbackPrefs.byOrigin[origin] = {
+      volume: seed.volume,
+      muted: seed.muted,
+      playbackRate: seed.playbackRate,
+    };
+  }
+};
+
+export const clearOriginPlaybackPrefs = (
+  posts: { playbackPrefs?: PlaybackPrefs },
+  origin: SiteMode,
+) => {
+  if (!posts.playbackPrefs?.byOrigin?.[origin]) return;
+  delete posts.playbackPrefs.byOrigin[origin];
+};

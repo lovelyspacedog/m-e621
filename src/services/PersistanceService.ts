@@ -34,6 +34,59 @@ export const toPlain = (value: unknown): unknown => {
   return raw;
 };
 
+export type SettingsImportPreview = {
+  configVersion: number | undefined;
+  activeMode: string;
+  credentialSiteCount: number;
+  blacklistEntries: number;
+  historyEntries: number;
+  savedSearchEntries: number;
+  savedPosts: number;
+  watchedPools: number;
+};
+
+const clearAccountSecrets = (account: {
+  username?: string | null;
+  apiKey?: string | null;
+  userId?: number | null;
+} | null | undefined) => {
+  if (!account) return;
+  account.apiKey = null;
+  account.userId = null;
+  // Keep usernames — useful for restore without re-typing; secrets are gone.
+};
+
+/** Strip API keys / session cookies from a settings snapshot (mutates). */
+export const stripSettingsCredentials = (state: ISettingsServiceState) => {
+  clearAccountSecrets(state.account);
+  if (state.profiles) {
+    for (const profile of Object.values(state.profiles)) {
+      clearAccountSecrets(profile?.account);
+    }
+  }
+};
+
+export const summarizeSettingsImport = (
+  settings: ISettingsServiceState,
+): SettingsImportPreview => {
+  const profiles = settings.profiles || {};
+  let credentialSiteCount = 0;
+  for (const profile of Object.values(profiles)) {
+    if (profile?.account?.apiKey) credentialSiteCount += 1;
+  }
+  if (settings.account?.apiKey) credentialSiteCount += 1;
+  return {
+    configVersion: settings.configVersion,
+    activeMode: String(settings.activeMode || "e621"),
+    credentialSiteCount,
+    blacklistEntries: settings.blacklist?.tags?.length ?? 0,
+    historyEntries: settings.history?.entries?.length ?? 0,
+    savedSearchEntries: settings.searches?.entries?.length ?? 0,
+    savedPosts: settings.savedPosts?.entries?.length ?? 0,
+    watchedPools: settings.watchedPools?.entries?.length ?? 0,
+  };
+};
+
 class PersistanceService {
   private applying = false;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -93,38 +146,34 @@ class PersistanceService {
       this.setState(savedState);
     }
   }
-  public async stateToFile() {
+  public async stateToFile(opts?: { sanitizeCredentials?: boolean }) {
     // Flush mirrors + durable save so the download matches what localforage holds.
     await this.saveState();
-    const snapshot = JSON.parse(JSON.stringify(this.getState())) as ISettingsServiceState;
-    return new File([JSON.stringify(snapshot, null, 2)], "material-e621-settings.json", {
+    const snapshot = JSON.parse(JSON.stringify(toPlain(this.getState()))) as ISettingsServiceState;
+    snapshot.snackbar = null;
+    if (opts?.sanitizeCredentials) {
+      stripSettingsCredentials(snapshot);
+    }
+    const name = opts?.sanitizeCredentials
+      ? "material-e621-settings-sanitized.json"
+      : "material-e621-settings.json";
+    return new File([JSON.stringify(snapshot, null, 2)], name, {
       type: "application/json",
     });
   }
+
+  /** Parse a settings JSON file without applying it (for restore preview). */
+  public async peekStateFromFile(file: File): Promise<SettingsImportPreview> {
+    const text = await file.text();
+    const settings = JSON.parse(text) as ISettingsServiceState;
+    return summarizeSettingsImport(settings);
+  }
+
   public async loadStateFromFile(file: File) {
-    return new Promise<void>((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.onload = (event) => {
-        const fileContent = event?.target?.result;
-        if (typeof fileContent !== "string") {
-          return reject("file content must be a string");
-        }
-        try {
-          const settings = JSON.parse(fileContent);
-          // TODO: test if correct
-          settings.snackbar = null;
-          this.setState(settings);
-          return resolve();
-        } catch (err) {
-          return reject(err instanceof Error ? err : new Error(String(err)));
-        }
-      };
-
-      reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
-
-      reader.readAsText(file, "utf");
-    });
+    const text = await file.text();
+    const settings = JSON.parse(text) as ISettingsServiceState;
+    settings.snackbar = null;
+    this.setState(settings);
   }
 
   public async persist() {
@@ -139,7 +188,7 @@ class PersistanceService {
   }
 
   private serializeState() {
-    return JSON.stringify(this.main.$state);
+    return JSON.stringify(toPlain(this.main.$state));
   }
 
   public getState() {
@@ -505,7 +554,10 @@ class PersistanceService {
     }
     if (newState.configVersion < 36) {
       // Sidebar declutter: shorter default tag suggestion list.
-      if (newState.posts.sidebarSuggestionLimit === 40) {
+      if (
+        newState.posts.sidebarSuggestionLimit === 40 ||
+        newState.posts.sidebarSuggestionLimit == null
+      ) {
         newState.posts.sidebarSuggestionLimit = 12;
       }
       newState.configVersion = 36;
@@ -534,8 +586,24 @@ class PersistanceService {
     if (!newState.watchedPools || !Array.isArray(newState.watchedPools.entries)) {
       newState.watchedPools = { entries: [] };
     }
+    if (!newState.savedPosts || !Array.isArray(newState.savedPosts.entries)) {
+      newState.savedPosts = { entries: [] };
+    }
     if (!newState.artistDashboard || !Array.isArray(newState.artistDashboard.recentArtists)) {
       newState.artistDashboard = { recentArtists: [] };
+    }
+    if (newState.appearance) {
+      if (newState.appearance.pawCursor === undefined) {
+        newState.appearance.pawCursor = true;
+      }
+      if (!newState.appearance.transition) {
+        newState.appearance.transition = { fullscreen: "slide", route: "fade" };
+      } else if (!newState.appearance.transition.route) {
+        newState.appearance.transition.route = "fade";
+      }
+    }
+    if (newState.posts.sidebarSuggestionLimit == null) {
+      newState.posts.sidebarSuggestionLimit = 12;
     }
 
     // Ensure profiles exist even if a partial export skipped them.

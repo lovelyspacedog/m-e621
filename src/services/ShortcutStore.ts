@@ -2,6 +2,8 @@ import { defineStore } from "pinia";
 import { computed } from "vue";
 import { useMainStore } from "./state";
 import type { Shortcut } from "./types";
+import { defaultSettings } from "./defaultSettings";
+import clone from "clone";
 
 export const useShortcutStore = defineStore("shortcuts", () => {
   const main = useMainStore();
@@ -24,10 +26,15 @@ export const useShortcutStore = defineStore("shortcuts", () => {
     Object.assign(main.shortcuts[index], shortcut);
   };
 
+  const resetShortcuts = () => {
+    main.shortcuts = clone(defaultSettings.shortcuts);
+  };
+
   return {
     shortcuts,
     deleteShortcut,
     addShortcut,
     updateShortcut,
+    resetShortcuts,
   };
 });

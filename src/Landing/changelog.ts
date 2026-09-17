@@ -27,6 +27,7 @@ export const changelogSections: ChangelogSection[] = [
       "Pools browse: native post-tag search, status/creator filters, optional description match, faster watched/cover loading",
       "Pool reader: hidden-page placeholders, Save chunk / Save all to Local",
       "Landing Latest updates again shows Tony Pup and Avoonix commit columns (Changelog & TOS stays in the dialog)",
+      "Settings: safer backup/restore (confirm + preview, sanitized export), active-site banner on blacklist/history, per-site playback overrides, route transitions, shortcut reset and conflict warnings",
     ],
   },
   {

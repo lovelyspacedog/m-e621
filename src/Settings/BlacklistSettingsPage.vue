@@ -9,6 +9,8 @@
           :chips="navChips"
         />
 
+        <active-mode-banner />
+
         <settings-group title="Sync" anchor="sync">
           <settings-row title="Copy from another site" stack>
             <profile-list-sync kind="blacklist" />
@@ -85,6 +87,7 @@
 import SettingsPageTitle, { type SettingsNavChip } from "./SettingsPageTitle.vue";
 import SettingsGroup from "./SettingsGroup.vue";
 import SettingsRow from "./SettingsRow.vue";
+import ActiveModeBanner from "./ActiveModeBanner.vue";
 import BlacklistSuggestions from "./BlacklistSuggestions.vue";
 import ProfileListSync from "./ProfileListSync.vue";
 import { computed, ref } from "vue";
@@ -99,6 +102,7 @@ useHead({ title: "Blacklist Settings" });
 const blacklistStore = useBlacklistStore();
 
 const navChips: SettingsNavChip[] = [
+  { label: "Sync", anchor: "sync" },
   { label: "Mode", anchor: "mode" },
   { label: "Custom", anchor: "custom" },
   { label: "Import", anchor: "import" },
