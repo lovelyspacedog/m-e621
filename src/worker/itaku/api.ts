@@ -42,7 +42,28 @@ export interface ItakuImage {
   num_comments?: number;
   tags?: ItakuTag[] | null;
   categorized_tags?: Record<string, ItakuTag[]> | null;
-  uncompressed_filesize?: number | null;
+  /** MiB as number or string (e.g. 0.62 / "0.62"); not bytes. */
+  uncompressed_filesize?: number | string | null;
+}
+
+export type ItakuMeta = {
+  detailsLoaded?: boolean;
+};
+
+export function itakuMeta(detailsLoaded = false): ItakuMeta {
+  return { detailsLoaded };
+}
+
+/** Convert Itaku `uncompressed_filesize` (MiB) to integer bytes. */
+export function itakuFilesizeBytes(
+  raw: number | string | null | undefined,
+): number {
+  if (raw == null || raw === "") return 0;
+  const n = typeof raw === "number" ? raw : Number(String(raw).trim());
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  // Values are MiB (often < 100). Treat huge numbers as already-bytes.
+  if (n >= 1_000_000) return Math.round(n);
+  return Math.round(n * 1024 * 1024);
 }
 
 export interface ItakuPost {
@@ -290,7 +311,7 @@ export function adaptImage(
       ext,
       width: 0,
       height: 0,
-      size: img.uncompressed_filesize || 0,
+      size: itakuFilesizeBytes(img.uncompressed_filesize),
       md5: "",
     },
     preview: {

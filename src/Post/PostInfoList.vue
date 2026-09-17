@@ -47,11 +47,11 @@
         </td>
       </tr>
       <tr v-if="!isLocal">
-        <th>{{ isInkbunny || isFurAffinity ? "Views" : "Score" }}</th>
+        <th>{{ engagementLabel }}</th>
         <td class="post-info-value">
           <div class="d-flex align-center justify-end ga-1 flex-wrap">
-            <span v-if="isInkbunny || isFurAffinity || isSofurry">
-              {{ post.score.total || "—" }}
+            <span v-if="scalarEngagement">
+              {{ Number.isFinite(post.score.total) ? post.score.total : "—" }}
             </span>
             <span v-else>
               {{ post.score.total }}
@@ -76,7 +76,7 @@
           </div>
         </td>
       </tr>
-      <tr v-if="!isLocal">
+      <tr v-if="supportsComments">
         <th>Comments</th>
         <td class="post-info-value">{{ post.comment_count }}</td>
       </tr>
@@ -118,8 +118,11 @@
       <tr>
         <th>Dimensions</th>
         <td class="post-info-value">
-          {{ post.file.width }}×{{ post.file.height }}
-          ({{ megapixel }} MP)
+          <template v-if="hasDimensions">
+            {{ post.file.width }}×{{ post.file.height }}
+            ({{ megapixel }} MP)
+          </template>
+          <template v-else>—</template>
           <span v-if="post.file.ext" class="text-medium-emphasis"> · {{ post.file.ext }}</span>
         </td>
       </tr>
@@ -131,12 +134,18 @@
         <th>Rating</th>
         <td class="post-info-value">{{ ratingLabel }}</td>
       </tr>
-      <tr>
+      <tr v-if="!isLocal">
         <th>Sources</th>
         <td class="post-info-value">
           <template v-if="post.sources?.length">
             <div v-for="(source, idx) in post.sources" :key="idx" class="post-info-source">
-              <a target="_blank" rel="noopener" :href="source">{{ source }}</a>
+              <a
+                v-if="isHttpSource(source)"
+                target="_blank"
+                rel="noopener"
+                :href="source"
+              >{{ source }}</a>
+              <span v-else>{{ source }}</span>
             </div>
           </template>
           <template v-else>—</template>
@@ -157,6 +166,7 @@ import { useSiteModeStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { originModeOf, unifiedChildLabel } from "@/misc/util/postOrigin";
 import {
+  modeSupportsComments,
   modeSupportsNotes,
   modeSupportsVotes,
 } from "@/misc/util/siteCapabilities";
@@ -186,6 +196,23 @@ const isItaku = computed(() => originMode.value === "itaku");
 const isSofurry = computed(() => originMode.value === "sofurry");
 const supportsVotes = computed(() => modeSupportsVotes(originMode.value));
 const supportsNotes = computed(() => modeSupportsNotes(originMode.value));
+const supportsComments = computed(() =>
+  modeSupportsComments(originMode.value),
+);
+/** Views-style sites + likes-only sites: scalar, not up/down. */
+const scalarEngagement = computed(
+  () =>
+    isInkbunny.value ||
+    isFurAffinity.value ||
+    isWeasyl.value ||
+    isSofurry.value ||
+    isItaku.value,
+);
+const engagementLabel = computed(() =>
+  isInkbunny.value || isFurAffinity.value || isWeasyl.value
+    ? "Views"
+    : "Score",
+);
 const originLabel = computed(() =>
   (props.post as EnhancedPost).__meta?.originMode
     ? unifiedChildLabel((props.post as EnhancedPost).__meta.originMode!)
@@ -193,6 +220,9 @@ const originLabel = computed(() =>
 );
 const creatorTags = computed(() => getCreatorTags(props.post.tags));
 const fileSize = computed(() => prettyBytes(props.post.file.size));
+const hasDimensions = computed(
+  () => props.post.file.width > 0 && props.post.file.height > 0,
+);
 const megapixel = computed(
   () => Math.round(((props.post.file.width * props.post.file.height) / 1000000) * 100) / 100,
 );
@@ -211,7 +241,12 @@ const poolEntries = computed(() => {
   }));
 });
 const showHashRow = computed(() => !!props.post.file?.md5);
-const hashLabel = computed(() => (isFurbooru.value ? "SHA-512" : "MD5"));
+const hashLabel = computed(() => {
+  if (isFurbooru.value) return "SHA-512";
+  if (isSofurry.value) return "Soft ID";
+  return "MD5";
+});
+const isHttpSource = (source: string) => /^https?:\/\//i.test(source);
 const ratingLabel = computed(() => {
   switch (props.post.rating) {
     case "s":

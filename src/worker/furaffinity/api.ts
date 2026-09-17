@@ -27,6 +27,7 @@ export interface FaPartial {
   date?: string;
   width?: number;
   height?: number;
+  size?: number;
   tags?: string[];
   category?: string;
   species?: string;
@@ -357,7 +358,7 @@ export function adaptPartial(
       ext,
       width: dimW,
       height: dimH,
-      size: 0,
+      size: num(hit.size),
       md5: "",
     },
     preview: {

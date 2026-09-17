@@ -129,6 +129,8 @@ export const usePostListManager = ({
       post.__meta.originMode === "sofurry" || siteMode.isSofurry;
     const originWeasyl =
       post.__meta.originMode === "weasyl" || siteMode.isWeasyl;
+    const originItaku =
+      post.__meta.originMode === "itaku" || siteMode.isItaku;
     if (originInkbunny) {
       if (post.__meta.inkbunny?.detailsLoaded) return post;
     } else if (originFa) {
@@ -137,6 +139,8 @@ export const usePostListManager = ({
       if (post.__meta.sofurry?.detailsLoaded) return post;
     } else if (originWeasyl) {
       if (post.__meta.weasyl?.detailsLoaded) return post;
+    } else if (originItaku) {
+      if (post.__meta.itaku?.detailsLoaded) return post;
     } else {
       return post;
     }
@@ -157,6 +161,11 @@ export const usePostListManager = ({
       } else if (originSofurry) {
         updated = await service.enrichSofurryPost(toRaw(post), {
           cookies: origin.auth?.api_key ?? null,
+          blacklist: toRaw(origin.blacklist),
+        });
+      } else if (originItaku) {
+        updated = await service.enrichItakuPost(toRaw(post), {
+          apiKey: origin.auth?.api_key ?? null,
           blacklist: toRaw(origin.blacklist),
         });
       } else {

@@ -202,6 +202,65 @@ def _dims_from_figure(figure: Any) -> tuple[int, int]:
     return max(0, width), max(0, height)
 
 
+def _parse_byte_size(text: str) -> int:
+    """Parse strings like '1.48 MB', '512 KB', '1234 B' into bytes."""
+    match = re.search(
+        r"([\d.,]+)\s*(Ki?B|Mi?B|Gi?B|B)\b",
+        text or "",
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return 0
+    try:
+        raw = match.group(1).replace(",", "")
+        n = float(raw)
+    except ValueError:
+        return 0
+    unit = match.group(2).upper().replace("I", "")
+    mult = {"B": 1, "KB": 1000, "MB": 1000**2, "GB": 1000**3}.get(unit, 0)
+    if mult <= 0 or n <= 0:
+        return 0
+    return int(round(n * mult))
+
+
+def _file_meta_from_submission_page(page: Any) -> tuple[int, int, int]:
+    """
+    Detail Submission objects have no gallery figure — pull dims/size from
+    #submissionImg and .submission-content-stats when present.
+    """
+    if page is None or not hasattr(page, "select_one"):
+        return 0, 0, 0
+    width = height = size = 0
+    img = page.select_one("img#submissionImg")
+    if img is not None:
+        try:
+            width = int(round(float(img.get("data-width") or 0)))
+            height = int(round(float(img.get("data-height") or 0)))
+        except (TypeError, ValueError):
+            width = height = 0
+    stats = page.select_one(".submission-content-stats")
+    stats_text = stats.get_text(" ", strip=True) if stats is not None else ""
+    if (width <= 0 or height <= 0) and stats_text:
+        dim = re.search(r"(\d+)\s*[x×]\s*(\d+)", stats_text, flags=re.IGNORECASE)
+        if dim:
+            try:
+                width = max(width, int(dim.group(1)))
+                height = max(height, int(dim.group(2)))
+            except ValueError:
+                pass
+    if stats_text:
+        size = _parse_byte_size(stats_text)
+    if size <= 0:
+        # Fallback: any size-like token near download / info blocks.
+        for node in page.select(
+            ".submission-content-stats span, #submissionInfo, .classic-submission-info"
+        ):
+            size = _parse_byte_size(node.get_text(" ", strip=True))
+            if size > 0:
+                break
+    return max(0, width), max(0, height), max(0, size)
+
+
 def _html_text(raw: str | None) -> str:
     if not raw:
         return ""
@@ -303,7 +362,9 @@ def serialize_submission(sub: Any) -> dict[str, Any]:
         ]
     except Exception:
         comments = []
-    return {
+    page = getattr(sub, "submission_page", None)
+    width, height, size = _file_meta_from_submission_page(page)
+    out = {
         **serialize_partial(sub),
         "date": _iso(getattr(sub, "date", None))
         or _date_from_fa_url(getattr(sub, "file_url", None))
@@ -322,6 +383,13 @@ def serialize_submission(sub: Any) -> dict[str, Any]:
         "comments": comments,
         "details": True,
     }
+    if width > 0:
+        out["width"] = width
+    if height > 0:
+        out["height"] = height
+    if size > 0:
+        out["size"] = size
+    return out
 
 
 def serialize_journal(journal: Any) -> dict[str, Any]:

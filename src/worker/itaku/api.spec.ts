@@ -2,8 +2,27 @@ import { describe, expect, it } from "vitest";
 import {
   adaptComment,
   flattenItakuComments,
+  itakuFilesizeBytes,
   type ItakuComment,
 } from "./api";
+
+describe("itakuFilesizeBytes", () => {
+  it("parses MiB strings and numbers into bytes", () => {
+    expect(itakuFilesizeBytes("0.62")).toBe(Math.round(0.62 * 1024 * 1024));
+    expect(itakuFilesizeBytes(1.5)).toBe(Math.round(1.5 * 1024 * 1024));
+  });
+
+  it("treats large values as already-bytes", () => {
+    expect(itakuFilesizeBytes(1_480_277)).toBe(1_480_277);
+  });
+
+  it("returns 0 for missing/invalid", () => {
+    expect(itakuFilesizeBytes(null)).toBe(0);
+    expect(itakuFilesizeBytes(undefined)).toBe(0);
+    expect(itakuFilesizeBytes("")).toBe(0);
+    expect(itakuFilesizeBytes("nope")).toBe(0);
+  });
+});
 
 describe("adaptComment", () => {
   it("maps wire fields to Comment", () => {

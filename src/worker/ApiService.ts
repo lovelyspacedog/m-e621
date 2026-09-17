@@ -114,6 +114,7 @@ export interface EnhancedPost extends Post {
     inkbunny?: InkbunnyMeta;
     furaffinity?: FaMeta;
     sofurry?: sofurry.SofurryMeta;
+    itaku?: itaku.ItakuMeta;
     weasyl?: weasyl.WeasylMeta;
     kind?: string;
     originMode?: UnifiedChildMode;
@@ -651,6 +652,7 @@ export class ApiService {
               __meta: {
                 isBlacklisted: isPostBlacklisted(post, child.blacklist),
                 pageNumber: 1,
+                itaku: itaku.itakuMeta(true),
               },
             });
           } catch {
@@ -857,6 +859,7 @@ export class ApiService {
         __meta: {
           isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
           pageNumber: args.page,
+          itaku: itaku.itakuMeta(false),
         },
       }));
     }
@@ -1364,7 +1367,26 @@ export class ApiService {
     }
     const sub = await furaffinity.getSubmission(post.id, args.cookies ?? null);
     const adapted = furaffinity.adaptPartial(sub, args.cookies ?? null);
-    const merged = { ...post, ...adapted };
+    const merged = {
+      ...post,
+      ...adapted,
+      file: {
+        ...adapted.file,
+        width: adapted.file.width || post.file.width,
+        height: adapted.file.height || post.file.height,
+        size: adapted.file.size || post.file.size,
+      },
+      preview: {
+        ...adapted.preview,
+        width: adapted.preview.width || post.preview.width,
+        height: adapted.preview.height || post.preview.height,
+      },
+      sample: {
+        ...adapted.sample,
+        width: adapted.sample.width || post.sample.width,
+        height: adapted.sample.height || post.sample.height,
+      },
+    };
     return {
       ...merged,
       __meta: {
@@ -1445,6 +1467,46 @@ export class ApiService {
           }),
           detailsLoaded: true,
         },
+      },
+    } satisfies EnhancedPost;
+  }
+
+  async enrichItakuPost(
+    post: EnhancedPost,
+    args: { apiKey?: string | null; blacklist?: string[][] },
+  ) {
+    const adapted = await itaku.fetchImage({
+      id: post.id,
+      apiKey: args.apiKey ?? null,
+    });
+    const merged = {
+      ...post,
+      ...adapted,
+      file: {
+        ...adapted.file,
+        // Keep any prior probe dims if detail still lacks them.
+        width: adapted.file.width || post.file.width,
+        height: adapted.file.height || post.file.height,
+        size: adapted.file.size || post.file.size,
+      },
+      sample: adapted.sample,
+      preview: adapted.preview?.url ? adapted.preview : post.preview,
+      description: adapted.description || post.description,
+      tags: adapted.tags,
+      fav_count: adapted.fav_count ?? post.fav_count,
+      comment_count: adapted.comment_count ?? post.comment_count,
+      score: adapted.score || post.score,
+      is_favorited: adapted.is_favorited,
+    };
+    return {
+      ...merged,
+      __meta: {
+        ...post.__meta,
+        isBlacklisted: isPostBlacklisted(merged, args.blacklist || []),
+        pageNumber: post.__meta.pageNumber,
+        originMode: post.__meta.originMode,
+        originBaseUrl: post.__meta.originBaseUrl,
+        itaku: itaku.itakuMeta(true),
       },
     } satisfies EnhancedPost;
   }
