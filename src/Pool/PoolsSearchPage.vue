@@ -306,6 +306,8 @@ const error = ref<string | null>(null);
 const searched = ref(false);
 const hasMore = ref(true);
 const syncingFromRoute = ref(false);
+/** Bumps on each browse fetch so overlapping resets cannot wipe results. */
+let browseFetchGeneration = 0;
 /** Bumps on each tags fetch so overlapping resets cannot wipe results. */
 let tagsFetchGeneration = 0;
 
@@ -368,6 +370,34 @@ const unavailableSubtitle = (entry: WatchedPoolEntry) =>
 const queryText = () => (query.value || "").trim();
 const creatorText = () => (creator.value || "").trim();
 const browseLimit = () => postsStore.postListFetchLimit || 40;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** One retry — concurrent e621/e6ai under COEP often throws "Failed to fetch". */
+const withRetry = async <T>(fn: () => Promise<T>): Promise<T> => {
+  try {
+    return await fn();
+  } catch {
+    await sleep(150);
+    return await fn();
+  }
+};
+
+/**
+ * Run child pool fetches one-at-a-time. Parallel fan-out to e621+e6ai
+ * intermittently fails with TypeError "Failed to fetch" under COEP.
+ */
+const mapPoolChildrenSequential = async <T>(
+  children: PoolChildFetchArgs[],
+  mapper: (child: PoolChildFetchArgs, index: number) => Promise<T>,
+): Promise<T[]> => {
+  const out: T[] = [];
+  for (let i = 0; i < children.length; i++) {
+    if (i > 0) await sleep(75);
+    out.push(await mapper(children[i], i));
+  }
+  return out;
+};
 
 const stampPools = (list: Pool[], origin: PoolOriginMode): PoolListItem[] =>
   list.map((pool) => ({ ...pool, originMode: origin }));
@@ -504,15 +534,13 @@ const fetchCovers = async (list: PoolListItem[]) => {
     byOrigin.set(pool.originMode, arr);
   }
   const children = browseChildren.value;
-  await Promise.all(
-    [...byOrigin.entries()].map(async ([origin, poolsForOrigin]) => {
-      const child =
-        children.find((c) => c.mode === origin) ||
-        poolFamilyChildren(main.$state).find((c) => c.mode === origin);
-      if (!child) return;
-      await fetchCoversFor(poolsForOrigin, child);
-    }),
-  );
+  for (const [origin, poolsForOrigin] of byOrigin.entries()) {
+    const child =
+      children.find((c) => c.mode === origin) ||
+      poolFamilyChildren(main.$state).find((c) => c.mode === origin);
+    if (!child) continue;
+    await fetchCoversFor(poolsForOrigin, child);
+  }
 };
 
 const hydratePoolsForChild = async (
@@ -526,16 +554,18 @@ const hydratePoolsForChild = async (
   for (let i = 0; i < unique.length; i += ID_BATCH) {
     const slice = unique.slice(i, i + ID_BATCH);
     try {
-      const result = await service.getPools({
-        ...sharedPoolArgsFor(child),
-        limit: Math.max(slice.length, 1),
-        page: 1,
-        order: "post_count",
-        category: undefined,
-        isActive: undefined,
-        creatorName: undefined,
-        ids: slice,
-      });
+      const result = await withRetry(() =>
+        service.getPools({
+          ...sharedPoolArgsFor(child),
+          limit: Math.max(slice.length, 1),
+          page: 1,
+          order: "post_count",
+          category: undefined,
+          isActive: undefined,
+          creatorName: undefined,
+          ids: slice,
+        }),
+      );
       if (Array.isArray(result)) out.push(...result);
     } catch {
       // Fall through — missing ids show as unavailable watches.
@@ -560,13 +590,11 @@ const loadWatchedPools = async () => {
       byChild.set(entry.originMode, list);
     }
     const hydrated: PoolListItem[] = [];
-    await Promise.all(
-      children.map(async (child) => {
-        const ids = byChild.get(child.mode) || [];
-        if (!ids.length) return;
-        hydrated.push(...(await hydratePoolsForChild(child, ids)));
-      }),
-    );
+    await mapPoolChildrenSequential(children, async (child) => {
+      const ids = byChild.get(child.mode) || [];
+      if (!ids.length) return;
+      hydrated.push(...(await hydratePoolsForChild(child, ids)));
+    });
     const byKey = new Map(
       hydrated.map((pool) => [poolKey(pool.originMode!, pool.id), pool]),
     );
@@ -637,13 +665,16 @@ const fetchNamePageForChild = async (
   };
 
   if (q && alsoDescriptions.value) {
-    const [byName, byDesc] = await Promise.all([
+    const byName = await withRetry(() =>
       service.getPools({ ...shared, query: `*${q}*` }),
+    );
+    await sleep(75);
+    const byDesc = await withRetry(() =>
       service.getPools({
         ...shared,
         descriptionMatches: `*${q}*`,
       }),
-    ]);
+    );
     const nameList = stampPools(Array.isArray(byName) ? byName : [], child.mode);
     const descList = stampPools(Array.isArray(byDesc) ? byDesc : [], child.mode);
     return {
@@ -652,16 +683,19 @@ const fetchNamePageForChild = async (
     };
   }
   if (q) {
-    const result = await service.getPools({ ...shared, query: `*${q}*` });
+    const result = await withRetry(() =>
+      service.getPools({ ...shared, query: `*${q}*` }),
+    );
     const list = stampPools(Array.isArray(result) ? result : [], child.mode);
     return { list, hasMore: list.length >= limit };
   }
-  const result = await service.getPools(shared);
+  const result = await withRetry(() => service.getPools(shared));
   const list = stampPools(Array.isArray(result) ? result : [], child.mode);
   return { list, hasMore: list.length >= limit };
 };
 
 const fetchPoolsByName = async (append: boolean) => {
+  const generation = ++browseFetchGeneration;
   loading.value = true;
   error.value = null;
   try {
@@ -676,37 +710,38 @@ const fetchPoolsByName = async (append: boolean) => {
     }
     if (!append) resetChildPaging(children);
 
-    const results = await Promise.all(
-      children.map(async (child) => {
-        if (append && childHasMore.value[child.mode] === false) {
-          return { child, list: [] as PoolListItem[], hasMore: false, failed: false };
-        }
-        const pageNumber = append
-          ? (childPage.value[child.mode] || 1) + 1
-          : 1;
-        try {
-          const result = await fetchNamePageForChild(child, pageNumber);
-          return {
-            child,
-            list: result.list,
-            hasMore: result.hasMore,
-            failed: false,
-            pageNumber,
-          };
-        } catch (err: any) {
-          snackbar.addMessage(
-            `${unifiedChildLabel(child.mode)} skipped: ${err?.message || String(err)}`,
-          );
-          return {
-            child,
-            list: [] as PoolListItem[],
-            hasMore: false,
-            failed: true,
-            pageNumber,
-          };
-        }
-      }),
-    );
+    const results = await mapPoolChildrenSequential(children, async (child) => {
+      if (append && childHasMore.value[child.mode] === false) {
+        return { child, list: [] as PoolListItem[], hasMore: false, failed: false };
+      }
+      const pageNumber = append
+        ? (childPage.value[child.mode] || 1) + 1
+        : 1;
+      try {
+        const result = await withRetry(() =>
+          fetchNamePageForChild(child, pageNumber),
+        );
+        return {
+          child,
+          list: result.list,
+          hasMore: result.hasMore,
+          failed: false,
+          pageNumber,
+        };
+      } catch (err: any) {
+        snackbar.addMessage(
+          `${unifiedChildLabel(child.mode)} skipped: ${err?.message || String(err)}`,
+        );
+        return {
+          child,
+          list: [] as PoolListItem[],
+          hasMore: false,
+          failed: true,
+          pageNumber,
+        };
+      }
+    });
+    if (generation !== browseFetchGeneration) return;
 
     const pages = { ...childPage.value };
     const more = { ...childHasMore.value };
@@ -730,10 +765,11 @@ const fetchPoolsByName = async (append: boolean) => {
     searched.value = true;
     void fetchCovers(merged);
   } catch (err: any) {
+    if (generation !== browseFetchGeneration) return;
     error.value = err?.message || String(err);
     if (!append) pools.value = [];
   } finally {
-    loading.value = false;
+    if (generation === browseFetchGeneration) loading.value = false;
   }
 };
 
@@ -767,43 +803,43 @@ const fetchPoolsByTags = async (append: boolean) => {
 
     const service = await getApiService();
     const limit = browseLimit();
-    const results = await Promise.all(
-      children.map(async (child) => {
-        if (append && childHasMore.value[child.mode] === false) {
-          return { child, list: [] as PoolListItem[], hasMore: false, failed: false };
-        }
-        const pageNumber = append
-          ? (childPage.value[child.mode] || 1) + 1
-          : 1;
-        try {
-          const result = await service.getPools({
+    const results = await mapPoolChildrenSequential(children, async (child) => {
+      if (append && childHasMore.value[child.mode] === false) {
+        return { child, list: [] as PoolListItem[], hasMore: false, failed: false };
+      }
+      const pageNumber = append
+        ? (childPage.value[child.mode] || 1) + 1
+        : 1;
+      try {
+        const result = await withRetry(() =>
+          service.getPools({
             ...sharedPoolArgsFor(child),
             limit,
             page: pageNumber,
             postTagsMatch: toRaw(tags.value).join(" "),
-          });
-          const list = stampPools(Array.isArray(result) ? result : [], child.mode);
-          return {
-            child,
-            list,
-            hasMore: list.length >= limit,
-            failed: false,
-            pageNumber,
-          };
-        } catch (err: any) {
-          snackbar.addMessage(
-            `${unifiedChildLabel(child.mode)} skipped: ${err?.message || String(err)}`,
-          );
-          return {
-            child,
-            list: [] as PoolListItem[],
-            hasMore: false,
-            failed: true,
-            pageNumber,
-          };
-        }
-      }),
-    );
+          }),
+        );
+        const list = stampPools(Array.isArray(result) ? result : [], child.mode);
+        return {
+          child,
+          list,
+          hasMore: list.length >= limit,
+          failed: false,
+          pageNumber,
+        };
+      } catch (err: any) {
+        snackbar.addMessage(
+          `${unifiedChildLabel(child.mode)} skipped: ${err?.message || String(err)}`,
+        );
+        return {
+          child,
+          list: [] as PoolListItem[],
+          hasMore: false,
+          failed: true,
+          pageNumber,
+        };
+      }
+    });
     if (generation !== tagsFetchGeneration) return;
 
     const pages = { ...childPage.value };
@@ -965,19 +1001,22 @@ watch(
   },
 );
 
+const reloadPoolsForMode = async () => {
+  await loadWatchedPools();
+  if (searchMode.value === "tags") await fetchPoolsByTags(false);
+  else await fetchPoolsByName(false);
+};
+
 onMounted(() => {
-  void loadWatchedPools();
-  if (searchMode.value === "tags") void fetchPoolsByTags(false);
-  else void fetchPoolsByName(false);
+  void reloadPoolsForMode();
 });
 
+// Watch sources separately so a new array identity does not re-fire every tick.
 watch(
-  () => [siteMode.activeMode, JSON.stringify(siteMode.unifiedSites)] as const,
+  [() => siteMode.activeMode, () => JSON.stringify(siteMode.unifiedSites)],
   () => {
     watchedPoolResults.value = [];
-    void loadWatchedPools();
-    if (searchMode.value === "tags") void fetchPoolsByTags(false);
-    else void fetchPoolsByName(false);
+    void reloadPoolsForMode();
   },
 );
 </script>

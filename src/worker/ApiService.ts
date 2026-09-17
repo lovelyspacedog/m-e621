@@ -1056,7 +1056,8 @@ export class ApiService {
     if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
       return [];
     }
-    return (await e621.pools.list(args));
+    // Retry: concurrent e621/e6ai fetches under COEP often throw "Failed to fetch".
+    return withRetry(() => e621.pools.list(args));
   }
 
   async getPool(args: IGetPoolArgs) {
@@ -1065,7 +1066,7 @@ export class ApiService {
     if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
       throw new Error("Pools are not supported on this site");
     }
-    return (await e621.pools.get(args));
+    return withRetry(() => e621.pools.get(args));
   }
 
   async getComments(args: ICommentsListArgs) {
