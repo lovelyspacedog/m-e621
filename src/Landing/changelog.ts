@@ -28,6 +28,7 @@ export const changelogSections: ChangelogSection[] = [
       "Landing tagline omits Local when this browser cannot browse a folder",
       "Landing Changelog dialog beside Browse posts",
       "Scent Marks: anonymous public guestbook from the landing page (host-moderated)",
+      "Scent Marks composer and fields use higher-contrast surface styling",
       "Collapsible sidebar disclosure for Unified and search clutter",
       "Unified site presets show which sites are active",
       "Tauri Local writes under the picked browse root (save, remux, sidecars)",

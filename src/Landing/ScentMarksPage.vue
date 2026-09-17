@@ -19,8 +19,10 @@
         name; no accounts. Keep it short and kind.
       </p>
 
-      <v-card class="mb-6" color="secondary" variant="tonal">
-        <v-card-title class="text-subtitle-1">Leave a mark</v-card-title>
+      <v-card class="mb-6 scent-compose" variant="flat" border>
+        <v-card-title class="text-subtitle-1 text-high-emphasis">
+          Leave a mark
+        </v-card-title>
         <v-card-text>
           <v-text-field
             v-model="draftName"
@@ -28,10 +30,12 @@
             maxlength="32"
             counter="32"
             variant="outlined"
+            bg-color="surface"
+            color="primary"
             density="comfortable"
             autocomplete="nickname"
             hide-details="auto"
-            class="mb-3"
+            class="mb-3 scent-field"
           />
           <v-textarea
             v-model="draftText"
@@ -40,14 +44,17 @@
             counter="500"
             rows="3"
             variant="outlined"
+            bg-color="surface"
+            color="primary"
             density="comfortable"
             hide-details="auto"
-            class="mb-3"
+            class="mb-3 scent-field"
             @keydown.ctrl.enter="submitMark"
           />
           <div class="d-flex align-center flex-wrap ga-2">
             <v-btn
               color="primary"
+              variant="flat"
               :loading="posting"
               :disabled="!draftText.trim() || posting"
               @click="submitMark"
@@ -107,10 +114,10 @@
           class="scent-item mb-3 rounded"
           border
         >
-          <v-list-item-title class="text-wrap text-body-1 mb-1">
+          <v-list-item-title class="text-wrap text-body-1 text-high-emphasis mb-1">
             {{ mark.text }}
           </v-list-item-title>
-          <v-list-item-subtitle class="text-wrap">
+          <v-list-item-subtitle class="text-wrap text-medium-emphasis">
             {{ mark.name?.trim() || "Anonymous" }}
             ·
             {{ formatWhen(mark.createdAt) }}
@@ -145,13 +152,15 @@
                 type="password"
                 label="Admin password"
                 variant="outlined"
+                bg-color="surface"
+                color="primary"
                 density="compact"
                 hide-details
                 autocomplete="current-password"
-                class="scent-admin-field"
+                class="scent-admin-field scent-field"
                 @keydown.enter="unlockMod"
               />
-              <v-btn color="secondary" variant="outlined" @click="unlockMod">
+              <v-btn color="primary" variant="tonal" @click="unlockMod">
                 Unlock
               </v-btn>
             </div>
@@ -303,8 +312,39 @@ onMounted(() => {
   max-width: 720px;
 }
 
+.scent-compose {
+  background: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.scent-field :deep(.v-field) {
+  --v-field-input-padding-top: 10px;
+}
+
+.scent-field :deep(.v-label),
+.scent-field :deep(.v-field-label),
+.scent-field :deep(.v-counter) {
+  opacity: 1;
+  color: rgba(var(--v-theme-on-surface), 0.72);
+}
+
+.scent-field :deep(.v-field__outline) {
+  --v-field-border-opacity: 0.55;
+}
+
+.scent-field :deep(.v-field--focused .v-field__outline) {
+  --v-field-border-opacity: 1;
+}
+
+.scent-field :deep(input),
+.scent-field :deep(textarea) {
+  color: rgb(var(--v-theme-on-surface));
+  caret-color: rgb(var(--v-theme-primary));
+}
+
 .scent-item {
-  background: rgba(0, 0, 0, 0.12);
+  background: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
 }
 
 .scent-admin-field {
