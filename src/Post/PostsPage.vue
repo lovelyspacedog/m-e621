@@ -133,16 +133,18 @@
           <div class="d-flex flex-wrap ga-2" @click.stop>
             <v-btn
               size="small"
-              variant="tonal"
+              :variant="siteMode.isUnifiedSitesPresetActive('default') ? 'flat' : 'tonal'"
               color="accent"
+              :aria-pressed="siteMode.isUnifiedSitesPresetActive('default')"
               @click="siteMode.applyUnifiedSitesPreset('default')"
             >
               Defaults
             </v-btn>
             <v-btn
               size="small"
-              variant="tonal"
+              :variant="siteMode.isUnifiedSitesPresetActive('authenticated') ? 'flat' : 'tonal'"
               color="accent"
+              :aria-pressed="siteMode.isUnifiedSitesPresetActive('authenticated')"
               @click="siteMode.applyUnifiedSitesPreset('authenticated')"
             >
               Auth only

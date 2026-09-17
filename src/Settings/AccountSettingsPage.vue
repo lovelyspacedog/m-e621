@@ -73,10 +73,22 @@
           </settings-row>
           <settings-row title="Presets">
             <div class="d-flex flex-wrap ga-2">
-              <v-btn size="small" variant="text" color="accent" @click="siteMode.applyUnifiedSitesPreset('default')">
+              <v-btn
+                size="small"
+                :variant="siteMode.isUnifiedSitesPresetActive('default') ? 'flat' : 'tonal'"
+                color="accent"
+                :aria-pressed="siteMode.isUnifiedSitesPresetActive('default')"
+                @click="siteMode.applyUnifiedSitesPreset('default')"
+              >
                 Defaults
               </v-btn>
-              <v-btn size="small" variant="text" color="accent" @click="siteMode.applyUnifiedSitesPreset('authenticated')">
+              <v-btn
+                size="small"
+                :variant="siteMode.isUnifiedSitesPresetActive('authenticated') ? 'flat' : 'tonal'"
+                color="accent"
+                :aria-pressed="siteMode.isUnifiedSitesPresetActive('authenticated')"
+                @click="siteMode.applyUnifiedSitesPreset('authenticated')"
+              >
                 Auth only
               </v-btn>
             </div>

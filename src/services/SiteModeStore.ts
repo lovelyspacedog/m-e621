@@ -127,12 +127,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     if (preset === "default") {
       next = defaultUnifiedSites();
     } else {
-      next = { ...defaultUnifiedSites() };
-      for (const mode of Object.keys(next) as UnifiedChildMode[]) {
-        const profile = main.profiles[mode] || createEmptySiteProfile(mode);
-        // Profile credentials only — host FA_COOKIE_* does not count.
-        next[mode] = profileHasAuthMaterial(mode, profile.account);
-      }
+      next = authenticatedUnifiedSites();
       if (!Object.values(next).some(Boolean)) {
         snackbar.addMessage(
           "No site profiles have auth saved — enable sites manually or sign in first",
@@ -161,6 +156,34 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       void getApiService().then((api) => api.resetUnifiedMerge());
       modeChangeCount.value++;
     }
+  };
+
+  const authenticatedUnifiedSites = () => {
+    const next = { ...defaultUnifiedSites() };
+    for (const mode of Object.keys(next) as UnifiedChildMode[]) {
+      const profile = main.profiles[mode] || createEmptySiteProfile(mode);
+      // Profile credentials only — host FA_COOKIE_* does not count.
+      next[mode] = profileHasAuthMaterial(mode, profile.account);
+    }
+    return next;
+  };
+
+  const unifiedSitesMatch = (
+    a: Record<UnifiedChildMode, boolean>,
+    b: Record<UnifiedChildMode, boolean>,
+  ) =>
+    (Object.keys(defaultUnifiedSites()) as UnifiedChildMode[]).every(
+      (mode) => !!a[mode] === !!b[mode],
+    );
+
+  /** True when current Unified site toggles match a preset map. */
+  const isUnifiedSitesPresetActive = (preset: "default" | "authenticated") => {
+    if (preset === "default") {
+      return unifiedSitesMatch(unifiedSites.value, defaultUnifiedSites());
+    }
+    const auth = authenticatedUnifiedSites();
+    if (!Object.values(auth).some(Boolean)) return false;
+    return unifiedSitesMatch(unifiedSites.value, auth);
   };
 
   const setUnifiedChild = (child: UnifiedChildMode, enabled: boolean) => {
@@ -307,6 +330,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     setUnifiedChild,
     setUnifiedFeedSource,
     applyUnifiedSitesPreset,
+    isUnifiedSitesPresetActive,
     isOnline,
     selectableSiteModes,
     isModeOnlineCapable,
