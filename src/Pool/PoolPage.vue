@@ -119,6 +119,8 @@ const savingChunk = ref(false);
 const savingAll = ref(false);
 /** When true, chunk URL changed because the post list advanced — skip replace fetch. */
 const syncingChunkFromList = ref(false);
+/** Dedupe pool id:tag truncation snackbar once per pool. */
+const lastPoolTruncationKey = ref("");
 /** Scroll mode: PoolReader scrolls this id into view once loaded. */
 const pendingScrollPostId = ref(0);
 /** Avoid re-applying the same deep-link focus after the user navigates away. */
@@ -197,7 +199,11 @@ const fetchChunkPosts = async (pageNumber: number): Promise<EnhancedPost[]> => {
       [`id:${slice.join(",")}`],
     );
     if (built.truncated) {
-      snackbar.addMessage(tagQueryTruncationMessage(built.total, built.limit));
+      const key = `${poolId.value}:${built.total}`;
+      if (key !== lastPoolTruncationKey.value) {
+        lastPoolTruncationKey.value = key;
+        snackbar.addMessage(tagQueryTruncationMessage(built.total, built.limit));
+      }
     }
   }
 
@@ -245,6 +251,7 @@ const {
   hasPreviousFullscreenPost,
   hasNextFullscreenPost,
 } = usePostListManager({
+  allowBlacklistedFullscreen: true,
   getSavedPageNumber() {
     return chunk.value;
   },
@@ -338,9 +345,14 @@ const saveAllLocally = async () => {
   let saved = 0;
   let failed = 0;
   let skipped = 0;
+  let unavailable = 0;
   try {
     for (let pageNumber = 1; pageNumber <= totalChunks; pageNumber++) {
+      const size = chunkSize.value;
+      const start = (pageNumber - 1) * size;
+      const sliceLen = ids.slice(start, start + size).length;
       const batch = await fetchChunkPosts(pageNumber);
+      unavailable += Math.max(0, sliceLen - batch.length);
       const result = await savePostsLocally(batch, {
         concurrency: 2,
         quietFinal: true,
@@ -352,9 +364,13 @@ const saveAllLocally = async () => {
         `Saving pool ${pageNumber}/${totalChunks}… (${saved} saved)`,
       );
     }
-    const summary = failed
-      ? `Saved ${saved} pages locally (${failed} failed${skipped ? `, ${skipped} skipped` : ""})`
-      : `Saved ${saved} pages locally${skipped ? ` (${skipped} skipped)` : ""}`;
+    const extras: string[] = [];
+    if (failed) extras.push(`${failed} failed`);
+    if (skipped) extras.push(`${skipped} skipped`);
+    if (unavailable) extras.push(`${unavailable} unavailable`);
+    const summary = extras.length
+      ? `Saved ${saved} pages locally (${extras.join(", ")})`
+      : `Saved ${saved} pages locally`;
     snackbar.addMessage(summary);
   } catch (err: any) {
     snackbar.addMessage(err?.message || String(err));
@@ -537,6 +553,7 @@ watch(poolId, () => {
   poolError.value = null;
   pendingScrollPostId.value = 0;
   appliedFocusKey.value = "";
+  lastPoolTruncationKey.value = "";
   clearPosts();
 });
 
@@ -544,8 +561,9 @@ watch(chunk, (next, prev) => {
   if (!poolMeta.value?.post_ids?.length) return;
   if (next === prev) return;
   if (syncingChunkFromList.value) {
-    // List already holds the adjacent chunk from loadPosts; do not replacePosts.
-    syncingChunkFromList.value = false;
+    // List already holds / is loading the adjacent chunk — do not replacePosts.
+    // Leave the flag for the owner to clear after URL settle (clearing here
+    // raced with backward loadPreviousPage and could drop a second sync).
     return;
   }
   void fetchChunk();

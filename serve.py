@@ -1858,7 +1858,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 req.add_header("Referer", "https://inkbunny.net")
             if host in FURAFFINITY_MEDIA_HOSTS or host.endswith(FURAFFINITY_MEDIA_SUFFIXES):
                 req.add_header("Referer", "https://www.furaffinity.net")
-                fa_cookies = (parse_qs(urlparse(self.path).query).get("fa") or [""])[0]
+                # Prefer header / env over ?fa= (query is last-resort for <img src>).
+                fa_cookies = (self.headers.get("X-FA-Cookies") or "").strip()
                 if not fa_cookies:
                     parts = []
                     a = os.environ.get("FA_COOKIE_A", "").strip()
@@ -1868,6 +1869,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
                     if b:
                         parts.append(f"b={b}")
                     fa_cookies = "; ".join(parts)
+                if not fa_cookies:
+                    fa_cookies = (parse_qs(urlparse(self.path).query).get("fa") or [""])[0]
                 if fa_cookies:
                     req.add_header("Cookie", fa_cookies.replace(";", "; "))
             if host in WEASYL_MEDIA_HOSTS:

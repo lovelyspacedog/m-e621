@@ -289,7 +289,12 @@ const watchedIds = computed(() => new Set(watchedEntries.value.map((entry) => en
 const newCounts = computed(() => {
   const out: Record<number, number> = {};
   for (const pool of [...watchedPoolResults.value, ...pools.value]) {
-    const n = watchedPoolStore.newCount(poolOrigin.value, pool.id, pool.post_count || 0);
+    const n = watchedPoolStore.newCount(
+      poolOrigin.value,
+      pool.id,
+      pool.post_count || 0,
+      pool.updated_at,
+    );
     if (n > 0) out[pool.id] = n;
   }
   return out;
@@ -445,8 +450,18 @@ const loadWatchedPools = async () => {
     }
     watchedPoolResults.value = [...watchedPoolResults.value].sort((a, b) => {
       const delta =
-        watchedPoolStore.newCount(poolOrigin.value, b.id, b.post_count || 0) -
-        watchedPoolStore.newCount(poolOrigin.value, a.id, a.post_count || 0);
+        watchedPoolStore.newCount(
+          poolOrigin.value,
+          b.id,
+          b.post_count || 0,
+          b.updated_at,
+        ) -
+        watchedPoolStore.newCount(
+          poolOrigin.value,
+          a.id,
+          a.post_count || 0,
+          a.updated_at,
+        );
       if (delta) return delta;
       return 0;
     });

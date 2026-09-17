@@ -117,6 +117,8 @@ npm install
 npm run dev
 ```
 
+**Scent Marks** are not fully available under Vite alone — `npm run dev` returns HTTP 501 for `/api/scent-marks*` with a clear message. Use `npm run build` + `python serve.py` (or the Expedition deploy) for the real trail, blocklist, and admin unlock.
+
 Useful commands:
 
 ```bash

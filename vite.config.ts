@@ -16,6 +16,7 @@ import { weasylProxy } from './vite-weasyl-proxy'
 import { itakuProxy } from './vite-itaku-proxy'
 import { sofurryProxy } from './vite-sofurry-proxy'
 import { flayrahProxy } from './vite-flayrah-proxy'
+import { scentMarksProxy } from './vite-scent-marks-proxy'
 
 // Furbooru's Cloudflare IPv6 path 520s from some hosts; prefer IPv4.
 dns.setDefaultResultOrder('ipv4first');
@@ -136,12 +137,20 @@ function e621MediaProxy(): Plugin {
           return;
         }
         const rangeHeader = typeof req.headers.range === 'string' ? req.headers.range : undefined;
-        const faCookies =
-          new URL(req.url, 'http://127.0.0.1').searchParams.get('fa') ||
-          [
-            process.env.FA_COOKIE_A ? `a=${process.env.FA_COOKIE_A}` : '',
-            process.env.FA_COOKIE_B ? `b=${process.env.FA_COOKIE_B}` : '',
-          ].filter(Boolean).join('; ');
+        // Prefer header / env over ?fa= so query strings cannot override host cookies
+        // and media <img> URLs can still fall back to ?fa= when needed.
+        const reqUrl = new URL(req.url, 'http://127.0.0.1');
+        const headerFa =
+          (typeof req.headers['x-fa-cookies'] === 'string' && req.headers['x-fa-cookies']) ||
+          '';
+        const envFa = [
+          process.env.FA_COOKIE_A ? `a=${process.env.FA_COOKIE_A}` : '',
+          process.env.FA_COOKIE_B ? `b=${process.env.FA_COOKIE_B}` : '',
+        ]
+          .filter(Boolean)
+          .join('; ');
+        const queryFa = reqUrl.searchParams.get('fa') || '';
+        const faCookies = headerFa || envFa || queryFa;
         // Follow redirects manually; re-validate host each hop (M27).
         const fetchAllowed = async (url: URL, hops = 0): Promise<Response> => {
           if (hops > 5) throw new Error('too many redirects');
@@ -1040,6 +1049,7 @@ export default defineConfig(({ mode }) => {
       itakuProxy(),
       sofurryProxy(),
       flayrahProxy(),
+      scentMarksProxy(),
       fluffleProxy(),
       rufflePlugin(),
       generateSitemap(env),

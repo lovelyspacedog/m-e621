@@ -79,4 +79,27 @@ describe("newPostCountFor", () => {
   it("clamps negative deltas to 0", () => {
     expect(newPostCountFor({ lastSeenPostCount: 20 }, 12)).toBe(0);
   });
+
+  it("signals update when post_count unchanged but updatedAt is newer", () => {
+    expect(
+      newPostCountFor(
+        {
+          lastSeenPostCount: 12,
+          lastSeenUpdatedAt: "2026-01-01T00:00:00.000Z",
+        },
+        12,
+        "2026-03-01T00:00:00.000Z",
+      ),
+    ).toBe(1);
+    expect(
+      newPostCountFor(
+        {
+          lastSeenPostCount: 12,
+          lastSeenUpdatedAt: "2026-03-01T00:00:00.000Z",
+        },
+        12,
+        "2026-03-01T00:00:00.000Z",
+      ),
+    ).toBe(0);
+  });
 });

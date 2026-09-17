@@ -399,6 +399,9 @@ const route = useRoute();
 
 const { removeRouterQuery, updateRouterQuery } = useRouterQueryHelpers();
 
+/** Dedupe 40-tag truncation snackbar — once per distinct search query. */
+const lastTagTruncationKey = ref("");
+
 const {
   loadPreviousPage,
   loadNextPage,
@@ -463,7 +466,13 @@ const {
         toRaw(tags.value),
       );
       if (built.truncated) {
-        snackbar.addMessage(tagQueryTruncationMessage(built.total, built.limit));
+        const key = `${built.total}:${toRaw(tags.value).join(" ")}`;
+        if (key !== lastTagTruncationKey.value) {
+          lastTagTruncationKey.value = key;
+          snackbar.addMessage(
+            tagQueryTruncationMessage(built.total, built.limit),
+          );
+        }
       }
     }
     const service = await getApiService();

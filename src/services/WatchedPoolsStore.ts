@@ -18,11 +18,33 @@ const toIso = (value: string | Date | null | undefined): string | undefined => {
 };
 
 export const newPostCountFor = (
-  entry: Pick<WatchedPoolEntry, "lastSeenPostCount"> | undefined,
+  entry:
+    | Pick<WatchedPoolEntry, "lastSeenPostCount" | "lastSeenUpdatedAt">
+    | undefined,
   postCount: number,
+  updatedAt?: string | Date | null,
 ): number => {
   if (entry?.lastSeenPostCount == null) return 0;
-  return Math.max(0, postCount - entry.lastSeenPostCount);
+  const countDelta = Math.max(0, postCount - entry.lastSeenPostCount);
+  if (countDelta > 0) return countDelta;
+  // Same post_count but pool updated later (reorder / replace) — signal "new".
+  const seenAt = entry.lastSeenUpdatedAt
+    ? Date.parse(entry.lastSeenUpdatedAt)
+    : NaN;
+  let currentAt = NaN;
+  if (updatedAt instanceof Date) {
+    currentAt = updatedAt.getTime();
+  } else if (updatedAt != null && String(updatedAt).trim()) {
+    currentAt = Date.parse(String(updatedAt));
+  }
+  if (
+    Number.isFinite(seenAt) &&
+    Number.isFinite(currentAt) &&
+    (currentAt as number) > seenAt
+  ) {
+    return 1;
+  }
+  return 0;
 };
 
 export const useWatchedPoolsStore = defineStore("watched-pools", () => {
@@ -106,8 +128,12 @@ export const useWatchedPoolsStore = defineStore("watched-pools", () => {
     applySnapshot(entry, snapshot);
   };
 
-  const newCount = (originMode: PoolOriginMode, id: number, postCount: number) =>
-    newPostCountFor(findEntry(originMode, id), postCount);
+  const newCount = (
+    originMode: PoolOriginMode,
+    id: number,
+    postCount: number,
+    updatedAt?: string | Date | null,
+  ) => newPostCountFor(findEntry(originMode, id), postCount, updatedAt);
 
   const clearAll = () => {
     main.watchedPools = { entries: [] };

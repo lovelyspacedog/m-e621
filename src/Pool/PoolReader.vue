@@ -348,15 +348,13 @@ const scrollToTop = () => {
 };
 
 watch(
-  () => [props.focusPostId, props.posts, viewMode.value] as const,
+  () => [props.focusPostId, props.posts, props.chunkIds, viewMode.value] as const,
   async ([focusId]) => {
     if (!focusId || viewMode.value !== "scroll") return;
-    if (!props.posts.some((p) => p.id === focusId)) return;
     await nextTick();
     const el = document.getElementById(`pool-post-${focusId}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
     emit("focus-applied");
   },
 );

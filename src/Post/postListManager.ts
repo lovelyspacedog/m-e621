@@ -26,12 +26,15 @@ interface IUsePostListManagerArgs {
 
   getSavedPageNumber(): number;
   savePageNumber(id: number | null): void;
+  /** Pool reader shows blacklisted pages as blurred — allow fullscreen parity. */
+  allowBlacklistedFullscreen?: boolean;
 }
 
 export const usePostListManager = ({
   loadPosts,
   getSavedPageNumber,
   savePageNumber,
+  allowBlacklistedFullscreen = false,
 }: IUsePostListManagerArgs) => {
   const snackbar = useSnackbarStore();
   const posts = ref<EnhancedPost[]>([]);
@@ -440,7 +443,8 @@ export const usePostListManager = ({
     post: EnhancedPost,
     opts?: FullscreenAdvanceOpts,
   ) => {
-    if (!post.file.url || post.__meta.isBlacklisted) return false;
+    if (!post.file.url) return false;
+    if (!allowBlacklistedFullscreen && post.__meta.isBlacklisted) return false;
     if (opts?.skipDocuments && isDocumentPost(post)) return false;
     return true;
   };
