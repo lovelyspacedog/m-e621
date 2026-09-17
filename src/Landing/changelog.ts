@@ -27,6 +27,7 @@ export const changelogSections: ChangelogSection[] = [
       "Logo head restored to a pointy-top hexagon (rounded forehead reverted)",
       "Logo blink no longer paints over the ears (ears drawn above eyelids)",
       "Logo forehead letter m removed",
+      "Loading spinner shows the same eyes and face as the sidebar mark",
       "Landing Furry Dictionary slang entry sits under What it does (random each visit; from the-furry-dictionary.avoonix.com)",
       "Furry Dictionary snippet Another entry button loads a new random slang definition without leaving the landing page",
       "Landing Scent Marks / Browse posts no longer open a blank page (single-root landing + skip view transition when leaving Home)",

@@ -33,8 +33,9 @@
         fill="rgb(0, 84, 159)"
       />
 
-      <!-- Face under ears so the blink rect never paints over them -->
-      <g class="face" v-if="type === 'face'">
+      <!-- Face under ears so the blink rect never paints over them.
+           Loader uses the same face; otherwise the pulse is a blank hexagon. -->
+      <g class="face" v-if="type === 'face' || type === 'loader'">
         <path
           d="M 320 468 L 420 492 L 412 518 L 312 494 Z"
           fill="rgb(0,0,0)"
