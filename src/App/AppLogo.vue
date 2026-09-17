@@ -18,7 +18,7 @@
         <ellipse cx="105" cy="700" rx="42" ry="38" fill="rgb(232, 49, 253)" />
       </g>
 
-      <!-- Rounded-forehead head (hexagon bottom, domed top) -->
+      <!-- Rounded-forehead head. Heritage e621 blue contrasts theme primary (#1976d2). -->
       <path
         class="background"
         d="M 280 430
@@ -30,7 +30,7 @@
            L 280 800
            L 190 600
            Z"
-        fill="rgb(25, 118, 210)"
+        fill="rgb(0, 84, 159)"
       />
 
       <!-- Left floppy ear -->
@@ -95,47 +95,37 @@
         fill="rgb(255,255,255)"
       />
 
-      <!-- Text mode: droopy basset features -->
+      <!-- Face: thick inward-angled brows + tall droopy ovals -->
       <g class="face" v-if="type === 'face'">
-        <!-- brows -->
         <path
-          d="M 330 470 Q 380 455 420 475"
-          fill="none"
-          stroke="rgb(0,0,0)"
-          stroke-width="10"
-          stroke-linecap="round"
+          d="M 320 468 L 420 492 L 412 518 L 312 494 Z"
+          fill="rgb(0,0,0)"
         />
         <path
-          d="M 580 475 Q 620 455 670 470"
-          fill="none"
-          stroke="rgb(0,0,0)"
-          stroke-width="10"
-          stroke-linecap="round"
+          d="M 680 468 L 580 492 L 588 518 L 688 494 Z"
+          fill="rgb(0,0,0)"
         />
-        <!-- eyes -->
-        <ellipse class="eye" cx="380" cy="530" rx="34" ry="42" fill="rgb(0,0,0)" />
-        <ellipse class="eye" cx="620" cy="530" rx="34" ry="42" fill="rgb(0,0,0)" />
-        <!-- eyelids (same blue as head; blink animation) -->
+        <ellipse class="eye" cx="375" cy="555" rx="38" ry="52" fill="rgb(0,0,0)" />
+        <ellipse class="eye" cx="625" cy="555" rx="38" ry="52" fill="rgb(0,0,0)" />
         <rect
           class="eyelids"
           x="300"
           y="360"
           width="400"
-          height="120"
-          fill="rgb(25, 118, 210)"
+          height="140"
+          fill="rgb(0, 84, 159)"
         />
-        <!-- nose -->
         <path
           d="M 500 640
-             C 470 640 450 665 450 680
-             C 450 700 470 715 500 715
-             C 530 715 550 700 550 680
-             C 550 665 530 640 500 640 Z"
+             C 462 640 438 668 438 688
+             C 438 712 464 732 500 732
+             C 536 732 562 712 562 688
+             C 562 668 538 640 500 640 Z"
           fill="rgb(0,0,0)"
         />
-        <!-- mouth -->
         <path
-          d="M 455 730 Q 480 755 500 740 Q 520 755 545 730"
+          d="M 500 732 L 500 752
+             M 448 772 Q 478 798 500 778 Q 522 798 552 772"
           fill="none"
           stroke="rgb(0,0,0)"
           stroke-width="12"
