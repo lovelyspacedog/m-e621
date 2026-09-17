@@ -18,6 +18,7 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-17",
     title: "Public instance noted",
     items: [
+      "App logo and favicon refreshed to a basset-hound mark with forehead m, long ears, and the same ear/tail/blink animations",
       "Landing Furry Dictionary slang entry sits under What it does (random each visit; from the-furry-dictionary.avoonix.com)",
       "Landing Scent Marks / Browse posts no longer open a blank page (single-root landing + skip view transition when leaving Home)",
       "Scent Marks feed heading renamed from Wall to Scent Trail",
