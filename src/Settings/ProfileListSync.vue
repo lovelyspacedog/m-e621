@@ -118,8 +118,8 @@ const run = (mode: "merge" | "replace") => {
         `Merged ${result.added} from ${unifiedChildLabel(from)}`,
       );
     }
-  } catch (e: any) {
-    snackbar.addMessage(e?.message || String(e));
+  } catch (e: unknown) {
+    snackbar.addMessage(e instanceof Error ? e.message : String(e));
   } finally {
     busy.value = false;
   }

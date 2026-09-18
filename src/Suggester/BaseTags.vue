@@ -42,7 +42,7 @@ export default defineComponent({
       required: true,
     },
   },
-  setup(props, context) {
+  setup(props) {
     const data = computed(() => {
       return Object.entries(props.counts).map(([category, counts]) => {
         const data = Object.keys(counts!);

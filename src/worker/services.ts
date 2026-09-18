@@ -7,8 +7,9 @@ import type { DashboardService } from "./DashboardService";
 // const workerOptions = import.meta.env.PROD ? {} : { type: "module" as const };
 
 const wrapWorker = async <T>(worker: Worker): Promise<Remote<T>> => {
-  const WrappedService = await wrap<T>(worker);
-  return new (WrappedService as any)();
+  const WrappedService = wrap<T>(worker);
+  const Ctor = WrappedService as unknown as new () => Promise<Remote<T>>;
+  return new Ctor();
 };
 
 // Store the Promise (not the resolved value) so concurrent callers share one

@@ -21,7 +21,7 @@ export default defineComponent({
       type: Object,
     },
   },
-  setup(props, context) {
+  setup() {
     return {};
   },
 });

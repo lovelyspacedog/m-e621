@@ -34,7 +34,10 @@ export default defineComponent({
     },
   },
   emits: {
-    select: (_post: EnhancedPost) => true,
+    select: (post: EnhancedPost) => {
+      void post;
+      return true;
+    },
   },
 });
 </script>

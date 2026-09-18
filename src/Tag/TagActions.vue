@@ -26,7 +26,7 @@ import {
   poolRouteQuery,
   resolvePoolOrigin,
 } from "@/misc/util/poolOrigin";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute, useRouter, type RouteLocationRaw } from "vue-router";
 
 export default defineComponent({
     props: {
@@ -39,7 +39,7 @@ export default defineComponent({
             required: true,
         },
     },
-    setup(props, context) {
+    setup(props) {
         const blacklist = useBlacklistStore();
         const favorites = useFavoritesStore();
         const urlStore = useUrlStore();
@@ -94,7 +94,7 @@ export default defineComponent({
             text: string;
             action: () => void;
             visible: boolean;
-            route?: any;
+            route?: RouteLocationRaw;
         }[]>(() => [
             {
                 text: isFavorited.value ? "Unstar" : "Star",

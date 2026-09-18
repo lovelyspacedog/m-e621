@@ -3,14 +3,14 @@
     <v-avatar class="ma-2" :color="currentColor">
       <v-icon>mdi-palette</v-icon>
     </v-avatar>
-    <v-menu offset-y :close-on-content-click="false">
+    <v-menu location="bottom" :close-on-content-click="false">
       <template #activator="{ props }">
         <v-btn color="primary" class="grow" variant="outlined" v-bind="props">
           {{ label }}
         </v-btn>
       </template>
 
-      <v-color-picker elevation="16" hide-mode-switch v-model="currentColor" />
+      <v-color-picker elevation="16" mode="hex" :modes="['hex']" v-model="currentColor" />
     </v-menu>
   </div>
 </template>

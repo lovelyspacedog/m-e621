@@ -25,7 +25,7 @@
       label="Tailspace password"
       v-model="tsPassword"
       @click:append="showSecret.tailspace = !showSecret.tailspace"
-      autocomplete="current-password"
+      autocomplete="new-password"
     />
     <v-text-field
       v-if="!tsLoggedIn"
@@ -83,7 +83,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, reactive, ref } from "vue";
 import ExternalLink from "@/App/ExternalLink.vue";
 import AccountPanelTitle from "../AccountPanelTitle.vue";
 import {
@@ -146,8 +146,8 @@ const loginTailspace = async () => {
       password: tsPassword.value,
     });
     applyTsLoginResult(result);
-  } catch (e: any) {
-    markAuthProbe(tsAuth.value, false, e?.message || String(e));
+  } catch (e: unknown) {
+    markAuthProbe(tsAuth.value, false, e instanceof Error ? e.message : String(e));
   } finally {
     tsAuth.value.loading = false;
   }
@@ -163,8 +163,8 @@ const loginTailspaceCookies = async () => {
       cookies: tsCookie.value,
     });
     applyTsLoginResult(result);
-  } catch (e: any) {
-    markAuthProbe(tsAuth.value, false, e?.message || String(e));
+  } catch (e: unknown) {
+    markAuthProbe(tsAuth.value, false, e instanceof Error ? e.message : String(e));
   } finally {
     tsAuth.value.loading = false;
   }

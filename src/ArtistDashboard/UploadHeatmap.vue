@@ -78,7 +78,10 @@ export default defineComponent({
     },
   },
   emits: {
-    "select-day": (_day: string | null) => true,
+    "select-day": (day: string | null) => {
+      void day;
+      return true;
+    },
   },
   setup(props, { emit }) {
     const days = computed(() =>

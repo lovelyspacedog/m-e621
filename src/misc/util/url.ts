@@ -32,7 +32,7 @@ export const postStandaloneUrl = (post: EnhancedPost) => {
 
 export const openUrlInNewTab = (url: string) => {
     if ("__TAURI__" in window) {
-        (window as any).__TAURI__.shell.open(url);
+        (window as Window & { __TAURI__: { shell: { open: (u: string) => void } } }).__TAURI__.shell.open(url);
         return;
     }
     const win = window.open(url, "_blank", "noopener");

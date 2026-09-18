@@ -296,8 +296,8 @@ const {
     try {
       chunkLoading.value = true;
       return await fetchChunkPosts(page);
-    } catch (err: any) {
-      snackbar.addMessage(err?.message || String(err));
+    } catch (err: unknown) {
+      snackbar.addMessage(err instanceof Error ? err.message : String(err));
       return [];
     } finally {
       chunkLoading.value = false;
@@ -307,10 +307,18 @@ const {
 
 const loading = computed(() => chunkLoading.value || managerLoading.value);
 
-const onOpenDetails = (payload: any) => openPostDetails(payload);
-const onOpenFullscreen = (payload: any) => openFullscreenPost(payload);
-const onSetFavorite = (payload: any) => setPostFavorite(payload);
-const onSetVote = (payload: any) => setPostVote(payload);
+const onOpenDetails = (payload: unknown) =>
+  openPostDetails(payload as number | { postId: number; originMode?: string });
+const onOpenFullscreen = (payload: unknown) =>
+  openFullscreenPost(payload as number | { postId: number; originMode?: string });
+const onSetFavorite = (payload: unknown) =>
+  setPostFavorite(
+    payload as { postId: number; favorited: boolean; originMode?: string },
+  );
+const onSetVote = (payload: unknown) =>
+  setPostVote(
+    payload as { postId: number; score: 0 | 1 | -1; originMode?: string },
+  );
 
 const onOpenPostFromReader = (postId: number) => {
   rememberPost(postId);
@@ -385,8 +393,8 @@ const saveAllLocally = async () => {
       ? `Saved ${saved} pages locally (${extras.join(", ")})`
       : `Saved ${saved} pages locally`;
     snackbar.addMessage(summary);
-  } catch (err: any) {
-    snackbar.addMessage(err?.message || String(err));
+  } catch (err: unknown) {
+    snackbar.addMessage(err instanceof Error ? err.message : String(err));
   } finally {
     savingAll.value = false;
   }
@@ -419,8 +427,8 @@ const fetchChunk = async () => {
   try {
     const ordered = await fetchChunkPosts(chunk.value);
     replacePosts(ordered);
-  } catch (err: any) {
-    snackbar.addMessage(err?.message || String(err));
+  } catch (err: unknown) {
+    snackbar.addMessage(err instanceof Error ? err.message : String(err));
     replacePosts([]);
   } finally {
     chunkLoading.value = false;

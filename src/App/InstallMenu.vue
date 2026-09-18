@@ -1,8 +1,8 @@
 <template>
-  <v-menu location="bottom left" offset-y close-delay="0">
+  <v-menu location="bottom left" close-delay="0">
     <template #activator="{ props }">
       <v-btn v-show="showInstallPrompt" v-bind="props" icon>
-        <v-badge color="primary" overlap location="left">
+        <v-badge color="primary" floating location="left">
           <template #badge>
             <v-icon>mdi-exclamation-thick</v-icon>
           </template>
@@ -29,15 +29,20 @@
 import { useAppearanceStore } from "@/services";
 import { computed, defineComponent, ref } from "vue";
 
-const deferredPrompt = ref<Event | null>(null);
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): void;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
+const deferredPrompt = ref<BeforeInstallPromptEvent | null>(null);
 
 window.addEventListener("beforeinstallprompt", (e: Event) => {
   e.preventDefault();
-  deferredPrompt.value = e;
+  deferredPrompt.value = e as BeforeInstallPromptEvent;
 });
 
 export default defineComponent({
-  setup(props, context) {
+  setup() {
     const appearance = useAppearanceStore();
     const showInstallPrompt = computed(
       () => !!deferredPrompt.value && !appearance.hideInstallPrompt,
@@ -48,12 +53,12 @@ export default defineComponent({
     };
     const install = async () => {
       if (!deferredPrompt.value) return;
-      (deferredPrompt.value as any).prompt();
-      const choiceResult = await (deferredPrompt.value as any).userChoice;
+      deferredPrompt.value.prompt();
+      const choiceResult = await deferredPrompt.value.userChoice;
       if (choiceResult.outcome === "accepted") {
         // TODO
         console.log("User accepted the A2HS prompt");
-        const granted = await navigator?.storage?.persist();
+        await navigator?.storage?.persist();
       } else {
         console.log("User dismissed the A2HS prompt");
       }

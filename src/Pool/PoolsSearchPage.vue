@@ -322,10 +322,6 @@ const activeItems = [
   { title: "Inactive", value: "inactive" },
 ];
 
-const parseOrder = (raw: unknown): PoolOrder => {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  return ORDER_VALUES.includes(value as PoolOrder) ? (value as PoolOrder) : "post_count";
-};
 /** Federated defaults to Updated so e621/e6ai results interleave by time. */
 const defaultOrderForMode = (): PoolOrder =>
   siteMode.isUnified ? "updated_at" : "post_count";
@@ -1015,9 +1011,9 @@ const fetchPoolsByName = async (append: boolean) => {
           failed: false,
           pageNumber,
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
         snackbar.addMessage(
-          `${unifiedChildLabel(child.mode)} skipped: ${err?.message || String(err)}`,
+          `${unifiedChildLabel(child.mode)} skipped: ${err instanceof Error ? err.message : String(err)}`,
         );
         return {
           child,
@@ -1054,9 +1050,9 @@ const fetchPoolsByName = async (append: boolean) => {
           more.tailspace = ts.hasMore;
           lists.push(ts.list);
           tailspaceCovers = ts.covers;
-        } catch (err: any) {
+        } catch (err: unknown) {
           snackbar.addMessage(
-            `Tailspace skipped: ${err?.message || String(err)}`,
+            `Tailspace skipped: ${err instanceof Error ? err.message : String(err)}`,
           );
           more.tailspace = false;
         }
@@ -1079,9 +1075,9 @@ const fetchPoolsByName = async (append: boolean) => {
     hasMore.value = Object.values(more).some(Boolean);
     searched.value = true;
     void fetchCovers(merged);
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (generation !== browseFetchGeneration) return;
-    error.value = err?.message || String(err);
+    error.value = err instanceof Error ? err.message : String(err);
     if (!append) pools.value = [];
   } finally {
     if (generation === browseFetchGeneration) loading.value = false;
@@ -1142,9 +1138,9 @@ const fetchPoolsByTags = async (append: boolean) => {
           failed: false,
           pageNumber,
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
         snackbar.addMessage(
-          `${unifiedChildLabel(child.mode)} skipped: ${err?.message || String(err)}`,
+          `${unifiedChildLabel(child.mode)} skipped: ${err instanceof Error ? err.message : String(err)}`,
         );
         return {
           child,
@@ -1182,9 +1178,9 @@ const fetchPoolsByTags = async (append: boolean) => {
     hasMore.value = Object.values(more).some(Boolean);
     searched.value = true;
     void fetchCovers(merged);
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (generation !== tagsFetchGeneration) return;
-    error.value = err?.message || String(err);
+    error.value = err instanceof Error ? err.message : String(err);
     if (!append) pools.value = [];
   } finally {
     if (generation === tagsFetchGeneration) loading.value = false;

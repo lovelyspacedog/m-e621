@@ -7,7 +7,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, nextTick, watch } from "vue";
+import { computed } from "vue";
 
 const model = defineModel({
   type: Object,

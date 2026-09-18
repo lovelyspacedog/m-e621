@@ -220,7 +220,7 @@ export class AnalyzeService {
     for (const [category, obj] of Object.entries(counts)) {
       result.push({
         category,
-        result: await createCloud(obj),
+        result: await createCloud(obj ?? {}),
       });
       log("created a cloud");
     }
@@ -609,12 +609,14 @@ const modeSupportsOtherUserOnChild = (mode: UnifiedChildMode) =>
   mode === "furaffinity" ||
   mode === "sofurry";
 
-const createCloud = (counts: any) => {
+const createCloud = (counts: Record<string, number | undefined>) => {
   return new Promise<{ text: string; size: number }[]>((resolve) => {
-    const words = Object.entries(counts).map(([text, count]) => ({
-      text,
-      size: count as number,
-    }));
+    const words = Object.entries(counts)
+      .filter((entry): entry is [string, number] => typeof entry[1] === "number")
+      .map(([text, count]) => ({
+        text,
+        size: count,
+      }));
     words.sort((a, b) => b.size - a.size);
 
     resolve(words);

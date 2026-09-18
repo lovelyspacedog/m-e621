@@ -25,7 +25,7 @@
       label="FurAffinity password"
       v-model="faPassword"
       @click:append="showSecret.furaffinity = !showSecret.furaffinity"
-      autocomplete="current-password"
+      autocomplete="new-password"
     />
     <v-text-field
       v-if="!faLoggedIn"
@@ -238,8 +238,8 @@ const loginFurAffinity = async () => {
       password: faPassword.value,
     });
     applyFaLoginResult(result);
-  } catch (e: any) {
-    markAuthProbe(faAuth.value, false, e?.message || String(e));
+  } catch (e: unknown) {
+    markAuthProbe(faAuth.value, false, e instanceof Error ? e.message : String(e));
   } finally {
     faAuth.value.loading = false;
   }
@@ -256,8 +256,8 @@ const loginFurAffinityCookies = async () => {
       cookieB: faCookieB.value,
     });
     applyFaLoginResult(result);
-  } catch (e: any) {
-    markAuthProbe(faAuth.value, false, e?.message || String(e));
+  } catch (e: unknown) {
+    markAuthProbe(faAuth.value, false, e instanceof Error ? e.message : String(e));
   } finally {
     faAuth.value.loading = false;
   }
@@ -302,8 +302,8 @@ const addFaWatchlistSearches = async () => {
       added > 0
         ? `Added ${added} watchlist artist search${added === 1 ? "" : "es"}`
         : "No new watchlist artists to add";
-  } catch (e: any) {
-    faAuth.value.message = e?.message || String(e);
+  } catch (e: unknown) {
+    faAuth.value.message = e instanceof Error ? e.message : String(e);
   } finally {
     faWatchlistLoading.value = false;
   }

@@ -5,7 +5,7 @@
         <div>
           <tag-label :tag="tag" />
         </div>
-        <template #append class="ma-0">
+        <template #append>
           <div v-if="tag.post_count" class="text-grey text-caption mr-2">
             {{ tag.post_count }}
           </div>

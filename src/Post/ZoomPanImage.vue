@@ -1,5 +1,5 @@
 <template>
-  <div ref="middle" class="middle bg-black" @wheel="onScroll" @mousewheel="onScroll">
+  <div ref="middle" class="middle bg-black" @wheel="onWheel" @mousewheel="onWheel">
     <div
       ref="overflow"
       class="overflow"
@@ -133,15 +133,25 @@ export default defineComponent({
       );
     };
 
-    const onScroll = (event: any) => {
+    const onScroll = (event: {
+      type?: string;
+      center?: { x: number; y: number };
+      scale?: number;
+      tapCount?: number;
+      deltaY?: number;
+      clientX?: number;
+      clientY?: number;
+    }) => {
       const oldLevel = currentZoom.level;
+      let clientX = event.clientX ?? 0;
+      let clientY = event.clientY ?? 0;
       if (event.type == "pinchin" || event.type == "pinchout") {
-        event.clientX = event.center.x;
-        event.clientY = event.center.y;
-        currentZoom.level = currentZoom.startLevel * event.scale;
+        clientX = event.center?.x ?? clientX;
+        clientY = event.center?.y ?? clientY;
+        currentZoom.level = currentZoom.startLevel * (event.scale ?? 1);
       } else if (event.type == "tap") {
-        event.clientX = event.center.x;
-        event.clientY = event.center.y;
+        clientX = event.center?.x ?? clientX;
+        clientY = event.center?.y ?? clientY;
         if (event.tapCount == 2) {
           if (currentZoom.level == 1) {
             currentZoom.level = 2;
@@ -150,17 +160,17 @@ export default defineComponent({
           }
         }
       } else {
-        const zoomOut = event.deltaY > 0;
+        const zoomOut = (event.deltaY ?? 0) > 0;
         currentZoom.level *= zoomOut ? 0.9 : 1.1;
       }
       currentZoom.level = Math.min(Math.max(1, currentZoom.level), 100);
 
       const mouseOffset = {
         x:
-          event.clientX -
+          clientX -
           (middle.value?.getBoundingClientRect().x ?? 0),
         y:
-          event.clientY -
+          clientY -
           (middle.value?.getBoundingClientRect().y ?? 0),
       };
 
@@ -179,7 +189,9 @@ export default defineComponent({
       });
     };
 
-    const onPan = (event: any) => {
+    const onWheel = (event: WheelEvent) => onScroll(event);
+
+    const onPan = (event: { center: { x: number; y: number } }) => {
       const { x, y } = event.center;
       const dx = x - currentZoom.startX,
         dy = y - currentZoom.startY;
@@ -233,6 +245,7 @@ export default defineComponent({
 
     return {
       onScroll,
+      onWheel,
       onMouseUp,
       onMouseDown,
       onMouseMove,

@@ -32,7 +32,7 @@ export default defineComponent({
       required: false,
     }
   },
-  setup(props, context) {
+  setup(props) {
     const favorites = useFavoritesStore();
     const isFavorited = computed(() =>
       favorites.isFavorited(props.name, props.category),

@@ -55,7 +55,7 @@
     <div>
       <blacklist-suggestions :suggested-blacklist="ratingTags" />
       <v-slide-x-transition>
-        <v-chip color="info" text-color="white" v-if="itemsInBlacklist">
+        <v-chip color="info" class="text-white" v-if="itemsInBlacklist">
           <v-avatar class="info darken-3">
             <v-icon>mdi-playlist-edit</v-icon>
           </v-avatar>
@@ -64,7 +64,7 @@
         </v-chip>
       </v-slide-x-transition>
       <v-slide-x-transition>
-        <v-chip color="red" text-color="white" v-if="blacklistedCount">
+        <v-chip color="red" class="text-white" v-if="blacklistedCount">
           <v-avatar class="red darken-3">
             <v-icon>mdi-playlist-remove</v-icon>
           </v-avatar>

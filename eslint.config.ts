@@ -24,6 +24,8 @@ export default defineConfigWithVueTs(
     '**/coverage/**',
     'public/ffmpeg/**',
     'public/ruffle/**',
+    // Minified vendored Mousetrap patch — not app-authored
+    'src/misc/plugins/mousetrap.ts',
     // Foreign/untracked agent tree until landed in tsconfig — avoid project-service noise
     'tests/**',
   ]),
@@ -47,6 +49,22 @@ export default defineConfigWithVueTs(
   {
     rules: {
       '@typescript-eslint/consistent-type-imports': 'error',
-    }
-  }
+      // Historical Material e621 single-word route/page components
+      'vue/multi-word-component-names': [
+        'error',
+        {
+          ignores: [
+            'Libraries',
+            'Dashboard',
+            'About',
+            'Footer',
+            'Post',
+            'Posts',
+            'Suggestions',
+            'Install',
+          ],
+        },
+      ],
+    },
+  },
 )

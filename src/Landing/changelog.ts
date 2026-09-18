@@ -45,6 +45,8 @@ export const changelogSections: ChangelogSection[] = [
       "Dev download proxy allows Flayrah media hosts; notes/votes/comments no longer fall through to e621 on other modes",
       "Pools, comments, and notes requests send Basic auth when the profile has credentials",
       "Tailspace/Flayrah redirect away from the Parser debug route; oxlint ignores vendored ffmpeg/Ruffle",
+      "Account site logins use autocomplete=new-password so password managers stop fighting settings panels",
+      "ESLint clean across src: typed catches, removed Vuetify MD2 props, historical single-word page names ignored",
     ],
   },
   {

@@ -9,6 +9,7 @@ import type {
   IGetPoolArgs,
   ICommentsListArgs,
   INotesListArgs} from "./api";
+import type { Tag } from "./api/returnTypes";
 import {
   e621,
   custom
@@ -301,9 +302,9 @@ export class ApiService {
             }),
           );
           return this.stampUnifiedPosts(posts, child, shared, args.page);
-        } catch (error: any) {
+        } catch (error: unknown) {
           warnings.push(
-            `${unifiedChildLabel(child.mode)} skipped: ${error?.message || String(error)}`,
+            `${unifiedChildLabel(child.mode)} skipped: ${error instanceof Error ? error.message : String(error)}`,
           );
           return [] as EnhancedPost[];
         }
@@ -356,12 +357,12 @@ export class ApiService {
       cursor.buffer.push(
         ...this.stampUnifiedPosts(posts, child, shared, cursor.nextPage - 1),
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Isolate failure: drop this child's leftovers so stale posts don't linger.
       cursor.exhausted = true;
       cursor.buffer = [];
       warnings.push(
-        `${unifiedChildLabel(child.mode)} skipped: ${error?.message || String(error)}`,
+        `${unifiedChildLabel(child.mode)} skipped: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -519,9 +520,9 @@ export class ApiService {
           for (const post of fetched) {
             byKey.set(`${mode}:${post.id}`, post);
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           warnings.push(
-            `${unifiedChildLabel(mode)}: ${error?.message || String(error)}`,
+            `${unifiedChildLabel(mode)}: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
       }),
@@ -1005,7 +1006,7 @@ export class ApiService {
   async getTags(args: ITagsListArgs) {
     // Federated / Local must not fall through to e621 autocomplete.
     if (args.mode === "unified" || args.mode === "local") {
-      return [] as import("./api/returnTypes").Tag[];
+      return [] as Tag[];
     }
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotDedicatedChrome(args.baseUrl, "getTags", args.mode);
@@ -1027,7 +1028,7 @@ export class ApiService {
     }
     if (backend === "weasyl") {
       // Weasyl has no public JSON tag autocomplete API
-      return [] as import("./api/returnTypes").Tag[];
+      return [] as Tag[];
     }
     if (backend === "itaku") {
       return itaku.searchTags({
@@ -1143,9 +1144,10 @@ export class ApiService {
     try {
       await custom.posts.favorite(args);
       return true;
-    } catch (error: any) {
-      const message = error?.response?.data?.message || error?.message;
-      if (message && message !== error?.message) {
+    } catch (error: unknown) {
+      const e = error as { response?: { data?: { message?: string } }; message?: string } | null;
+      const message = e?.response?.data?.message || e?.message;
+      if (message && message !== e?.message) {
         throw new Error(message);
       }
       throw error instanceof Error ? error : new Error(String(error));
@@ -1187,9 +1189,10 @@ export class ApiService {
     try {
       await custom.posts.unfavorite(args);
       return true;
-    } catch (error: any) {
-      const message = error?.response?.data?.message || error?.message;
-      if (message && message !== error?.message) {
+    } catch (error: unknown) {
+      const e = error as { response?: { data?: { message?: string } }; message?: string } | null;
+      const message = e?.response?.data?.message || e?.message;
+      if (message && message !== e?.message) {
         throw new Error(message);
       }
       throw error instanceof Error ? error : new Error(String(error));
@@ -1221,8 +1224,8 @@ export class ApiService {
     }
     try {
       return await custom.posts.vote(args);
-    } catch (error: any) {
-      const message = error?.response?.data?.message;
+    } catch (error: unknown) {
+      const message = (error as { response?: { data?: { message?: string } } } | null)?.response?.data?.message;
       if (message) {
         throw new Error(message);
       }
@@ -1279,8 +1282,8 @@ export class ApiService {
     }
     try {
       return await custom.posts.createComment(args);
-    } catch (error: any) {
-      const message = error?.response?.data?.message;
+    } catch (error: unknown) {
+      const message = (error as { response?: { data?: { message?: string } } } | null)?.response?.data?.message;
       if (message) {
         throw new Error(message);
       }

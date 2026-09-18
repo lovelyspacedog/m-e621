@@ -38,6 +38,7 @@ import * as Comlink from "comlink";
 import BaseTags from "./BaseTags.vue";
 import { usePostListManager } from "@/Post/postListManager";
 import { useRouterQueryHelpers } from "@/misc/util/utilities";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- registered for <posts> in template
 import Posts from "@/Post/Posts.vue";
 import ProgressMessage from "./ProgressMessage.vue";
 import {
@@ -204,9 +205,9 @@ const analyze = async () => {
 
     await nextTick();
     await loadNextPage();
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (thisGen !== analyzeGeneration) return;
-    errorMessage.value = err?.message || String(err);
+    errorMessage.value = err instanceof Error ? err.message : String(err);
   }
 };
 

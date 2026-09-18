@@ -62,8 +62,8 @@ export const usePostListManager = ({
   const main = useMainStore();
   const router = useRouter()
 
-  const handleError = (error: any) => {
-    const errorMessage = error?.message || String(error);
+  const handleError = (error: unknown) => {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     snackbar.addMessage(errorMessage);
     console.log(error);
   };
@@ -230,7 +230,7 @@ export const usePostListManager = ({
         } else {
           post.tags.meta = meta.filter((tag) => tag !== "type:favorited");
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         handleError(error);
       } finally {
         post.__meta.isFavoriteLoading = false;
@@ -266,7 +266,7 @@ export const usePostListManager = ({
       }
       post.is_favorited = args.favorited;
       post.fav_count = Math.max(0, (post.fav_count || 0) + (args.favorited ? 1 : -1));
-    } catch (error: any) {
+    } catch (error: unknown) {
       handleError(error);
     } finally {
       post.__meta.isFavoriteLoading = false;
@@ -304,7 +304,7 @@ export const usePostListManager = ({
         if (typeof result.up === "number") post.score.up = result.up;
         if (typeof result.down === "number") post.score.down = Math.abs(result.down);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       handleError(error);
     } finally {
       post.__meta.isVoteLoading = false;

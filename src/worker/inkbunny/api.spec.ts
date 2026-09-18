@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inkbunnyMetaFromHit, mapSearchTags } from "./api";
+import { inkbunnyMetaFromHit, mapSearchTags, type InkbunnySubmission } from "./api";
 
 describe("mapSearchTags pools", () => {
   it("defaults pool browse to pool_order", () => {
@@ -33,7 +33,7 @@ describe("inkbunnyMetaFromHit pools", () => {
         { pool_id: 0, name: "skip" },
       ],
       files: [],
-    } as any);
+    } as InkbunnySubmission);
     expect(meta.pools).toEqual([{ id: 99, name: "Comic Arc" }]);
   });
 });

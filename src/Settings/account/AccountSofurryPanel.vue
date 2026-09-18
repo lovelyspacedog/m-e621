@@ -33,7 +33,7 @@
       label="SoFurry password"
       v-model="sofurryPassword"
       @click:append="showSecret.sofurry = !showSecret.sofurry"
-      autocomplete="current-password"
+      autocomplete="new-password"
     />
     <v-text-field
       v-if="!sofurryLoggedIn"
@@ -110,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, reactive, ref } from "vue";
 import ExternalLink from "@/App/ExternalLink.vue";
 import AccountPanelTitle from "../AccountPanelTitle.vue";
 import {
@@ -201,8 +201,8 @@ const loginSofurry = async () => {
       throw new Error(result.error || "Login failed");
     }
     applySofurryLoginResult(result);
-  } catch (e: any) {
-    markAuthProbe(sofurryAuth.value, false, e?.message || String(e));
+  } catch (e: unknown) {
+    markAuthProbe(sofurryAuth.value, false, e instanceof Error ? e.message : String(e));
   } finally {
     sofurryAuth.value.loading = false;
   }
@@ -221,8 +221,8 @@ const loginSofurryCookies = async () => {
       throw new Error(("error" in result && result.error) || "Cookies rejected");
     }
     applySofurryLoginResult(result);
-  } catch (e: any) {
-    markAuthProbe(sofurryAuth.value, false, e?.message || String(e));
+  } catch (e: unknown) {
+    markAuthProbe(sofurryAuth.value, false, e instanceof Error ? e.message : String(e));
   } finally {
     sofurryAuth.value.loading = false;
   }

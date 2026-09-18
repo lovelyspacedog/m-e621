@@ -100,7 +100,7 @@ import type { Post } from "@/worker/api";
 import type { PropType } from "vue";
 import { computed, defineComponent, ref, watch } from "vue";
 
-const isScoredPost = (post: any): post is ScoredPost => !!post.__score;
+const isScoredPost = (post: Post): post is ScoredPost => '__score' in post;
 
 /** Max artist/creator chips on a feed card before collapsing. */
 const CREATOR_TAG_LIMIT = 6;
@@ -114,7 +114,7 @@ export default defineComponent({
       required: true,
     },
   },
-  setup(props, context) {
+  setup(props) {
     const { creatorCategory } = useSiteLabels();
     const siteMode = useSiteModeStore();
     const isLocal = computed(() => siteMode.isLocal);

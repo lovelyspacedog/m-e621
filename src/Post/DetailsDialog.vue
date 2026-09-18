@@ -231,9 +231,9 @@ export default defineComponent({
         if (!props.current || postFeedKey(props.current) !== feedKey) return;
         notes.value = result;
         notesLoadedFor.value = feedKey;
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (!props.current || postFeedKey(props.current) !== feedKey) return;
-        notesError.value = error?.message || String(error);
+        notesError.value = error instanceof Error ? error.message : String(error);
         notes.value = [];
       } finally {
         if (props.current && postFeedKey(props.current) === feedKey) {

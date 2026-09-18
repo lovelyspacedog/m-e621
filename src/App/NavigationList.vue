@@ -1,5 +1,5 @@
 <template>
-  <v-list subheader class="pa-0" :class="section === 'primary' ? 'mt-3' : section === 'all' ? 'mt-3' : 'mt-1'">
+  <v-list class="pa-0" :class="section === 'primary' ? 'mt-3' : section === 'all' ? 'mt-3' : 'mt-1'">
     <template v-if="section === 'primary' || section === 'all'">
       <v-list-item :to="home.to" :exact="home.exact">
         <template #prepend>

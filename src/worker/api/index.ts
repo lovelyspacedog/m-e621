@@ -17,7 +17,7 @@ export * from "./requestTypes";
 const version = getGitInfo()[0]?.hash?.substring(0, 7) ?? "0.0.0";
 const clientHeader = `PawFeed/${version} (fork of Material e621)`;
 
-const buildUrl = (baseUrl: string, path: string, params: Record<string, any> = {}) => {
+const buildUrl = (baseUrl: string, path: string, params: Record<string, unknown> = {}) => {
   const url = new URL(`${baseUrl}${path}`);
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
@@ -73,7 +73,9 @@ const fetchJson = async <T>(url: string, options: RequestInit = {}, retries = 2)
   throw lastError || new Error("Fetch error");
 };
 
-const getAuthHeader = (auth?: { login: string; api_key: string }): { Authorization: string } | {} => {
+const getAuthHeader = (
+  auth?: { login: string; api_key: string },
+): Record<string, string> => {
   return auth
     ? {
       Authorization: `Basic ${btoa(`${auth.login}:${auth.api_key}`)}`,

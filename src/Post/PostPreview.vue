@@ -151,7 +151,7 @@
       @error="onPreviewError"
     />
     <div v-else-if="isImage || isVideo" class="centered clickable play-button">
-      <v-chip color="red" text-color="white">Global Blacklist</v-chip>
+      <v-chip color="red" class="text-white">Global Blacklist</v-chip>
       <p class="pa-3 text-center">
         This post is on the server-side blacklist for unauthenticated users. Log
         in to view, or update the blacklist settings.

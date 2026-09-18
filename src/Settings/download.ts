@@ -1,4 +1,4 @@
-export function downloadjs(data: any, filename = 'download', mimeType = 'application/octet-stream') {
+export function downloadjs(data: BlobPart, filename = 'download', mimeType = 'application/octet-stream') {
     const blob = new Blob([data], { type: mimeType });
     const url = URL.createObjectURL(blob);
     

@@ -70,6 +70,7 @@
 
 <script setup lang="ts">
 import FeedLayoutMenu from "@/Post/FeedLayoutMenu.vue";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- registered for <posts> in template
 import Posts from "@/Post/Posts.vue";
 import { usePostListManager } from "@/Post/postListManager";
 import TipDialog from "@/misc/TipDialog.vue";
@@ -166,8 +167,8 @@ const reload = async () => {
       snackbar.addMessage(warning);
     }
     replacePosts(result.posts);
-  } catch (error: any) {
-    snackbar.addMessage(error?.message || String(error));
+  } catch (error: unknown) {
+    snackbar.addMessage(error instanceof Error ? error.message : String(error));
     replacePosts([]);
   } finally {
     loading.value = false;

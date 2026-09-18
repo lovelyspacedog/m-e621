@@ -16,7 +16,7 @@ import { computed, defineComponent, ref } from "vue";
 import type { usePostListManager } from "./postListManager";
 
 interface IButton {
-  color: any;
+  color: string;
   icon: string;
   onClick: () => void;
   loading?: boolean;

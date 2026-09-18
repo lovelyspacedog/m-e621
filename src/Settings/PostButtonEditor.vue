@@ -109,7 +109,7 @@ export default defineComponent({
       },
     });
 
-    const handleSort = (list: ButtonType[]) => (event: any) => {
+    const handleSort = (list: ButtonType[]) => (event: { newIndex: number }) => {
       const droppedElement = list[event.newIndex];
       return list.filter(
         (item, idx) => !(item === droppedElement && event.newIndex !== idx),

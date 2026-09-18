@@ -18,7 +18,7 @@ export default defineComponent({
             required: true,
         }
     },
-    setup(props, context) {
+    setup(props) {
         const date = computed(() => {
             const raw = (props.value || "").trim();
             if (!raw) return null;

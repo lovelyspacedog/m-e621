@@ -15,7 +15,7 @@
             </v-chip>
         </div>
       </template>
-      <template #selection="{ item, index }">
+      <template #selection="{ item }">
         <tag-label v-if="item === Object(item)" :tag="item.raw" closable :input-value="true" @click:close="$emit('remove-tag', item.raw.text)" />
       </template>
       <template #item="{ item, props }">
@@ -212,7 +212,7 @@ const delayedSearchValue = ref<string | null>(null);
 
 watch(
   () => search.value,
-  (cur, prev) => {
+  () => {
     console.log("search value changed", search.value)
     if (searchAsTag.value) fetchTags(searchAsTag.value.replace(/^-/, ""));
     nextTick(() => {
@@ -238,8 +238,8 @@ const model = computed<ITagWithText[]>({
   set(val) {
     search.value = "";
     const newItem = val.find((v) => typeof v === "string");
-    if (newItem) {
-      addTag(newItem as any);
+    if (typeof newItem === "string") {
+      addTag(newItem);
     }
     const removedItems = differenceBy(
       props.tags,
@@ -269,14 +269,14 @@ onMounted(() => {
   shortcutService.emitter.on("focusSearch", focusSearch);
 });
 const focusSearch = () => {
-  combobox.value.focus();
+  combobox.value?.focus();
 };
 
-const combobox = ref<any>();
+const combobox = ref<{ focus: () => void; blur: () => void }>();
 
 const onEnterPressed = () => {
   if (!delayedSearchValue.value) {
-    combobox.value.blur();
+    combobox.value?.blur();
     emit("confirm-search");
   }
 };

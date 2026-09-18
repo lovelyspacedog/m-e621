@@ -101,9 +101,9 @@ const loadComments = async (key: string) => {
     if (postFeedKey(props.post) !== key) return;
     comments.value = result;
     commentsLoadedFor.value = key;
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (postFeedKey(props.post) !== key) return;
-    commentsError.value = error?.message || String(error);
+    commentsError.value = error instanceof Error ? error.message : String(error);
     comments.value = [];
   } finally {
     if (postFeedKey(props.post) === key) {
@@ -153,8 +153,8 @@ const submitComment = async () => {
     post.comment_count = (post.comment_count || 0) + 1;
     draftComment.value = "";
     snackbar.addMessage("Comment posted");
-  } catch (error: any) {
-    snackbar.addMessage(error?.message || String(error));
+  } catch (error: unknown) {
+    snackbar.addMessage(error instanceof Error ? error.message : String(error));
   } finally {
     postingComment.value = false;
   }

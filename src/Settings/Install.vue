@@ -19,7 +19,7 @@
 <script setup lang="ts">
 import { getAppName, getBaseUrl } from "@/misc/util/utilities";
 import { useHead } from "@unhead/vue";
-import { computed, defineComponent, ref } from "vue";
+import { computed, ref } from "vue";
 
 const bookmarklet = `function bookmarklet() {
   let m = /https?:\\/\\/e621\\.net\\/(post\\/show|posts)\\/(\\d+)/.exec(window.location.href);

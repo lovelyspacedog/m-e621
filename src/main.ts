@@ -28,7 +28,7 @@ import { showConsoleMessage } from "./misc/util/consoleMessage";
 // }
 
 function setViewTransitionName(
-    el: any,
+    el: HTMLElement,
     value: string | Record<string, boolean>,
     directiveName: 'view-transition-name' | 'trans'
 ) {

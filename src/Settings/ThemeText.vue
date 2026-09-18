@@ -30,7 +30,7 @@ export default defineComponent({
       default: "grey",
     },
   },
-  setup(props, context) {
+  setup() {
     return {};
   },
 });

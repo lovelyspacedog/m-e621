@@ -30,7 +30,7 @@ export default defineComponent({
       default: false
     }
   },
-  setup(props, context) {
+  setup(props) {
     const color = computed(() => getTagColorFromCategory(props.tag.category));
     const icon = computed(() => getTagIconFromCategory(props.tag.category));
     return {

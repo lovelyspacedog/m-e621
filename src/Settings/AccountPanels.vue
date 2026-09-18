@@ -25,7 +25,7 @@
           :label="`${site.label} API key`"
           v-model="fields[site.mode].apiKey"
           @click:append="showSecret[site.mode] = !showSecret[site.mode]"
-          autocomplete="password"
+          autocomplete="new-password"
           :counter="site.showUsername ? 24 : undefined"
         />
         <details class="text-left mb-2">
@@ -259,12 +259,12 @@ const verifyKeySite = async (mode: KeySiteMode) => {
       mode,
     });
     markAuthProbe(verification[mode], true, "Credentials are valid");
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.dir(e);
     markAuthProbe(
       verification[mode],
       false,
-      `Credentials are invalid: ${e.message || e}`,
+      `Credentials are invalid: ${e instanceof Error ? e.message : String(e)}`,
     );
   } finally {
     verification[mode].loading = false;

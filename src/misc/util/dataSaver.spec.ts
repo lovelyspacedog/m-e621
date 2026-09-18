@@ -131,7 +131,7 @@ describe("getNetworkInfo", () => {
 
   it("ignores invalid enum strings", () => {
     expect(
-      getNetworkInfo({ type: "cable", effectiveType: "5g" } as any),
+      getNetworkInfo({ type: "cable", effectiveType: "5g" }),
     ).toEqual({
       saveData: false,
       typeSupported: false,

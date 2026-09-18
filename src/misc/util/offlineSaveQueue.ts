@@ -79,7 +79,7 @@ export const flushOfflineSaveQueue = async (): Promise<{
       return { saved: 0, failed: 0, remaining };
     }
     const { savePostLocally } = await import("@/misc/util/saveLocal");
-    let items = await loadOfflineSaveQueue();
+    const items = await loadOfflineSaveQueue();
     if (!items.length) return { saved: 0, failed: 0, remaining: 0 };
 
     let saved = 0;

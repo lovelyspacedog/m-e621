@@ -293,6 +293,7 @@ const emit = defineEmits<{
   close: [];
   navigate: [post: TailspacePost];
   "search-tag": [tagName: string];
+  "update:post": [patch: Pick<TailspacePost, "yourLike" | "likeCount">];
 }>();
 
 const { isLoggedIn } = useTailspaceSession();
@@ -360,8 +361,7 @@ const onToggleLike = async () => {
     const res = await toggleLike(props.post.id);
     liked.value = res.liked;
     likeCount.value = res.likeCount;
-    props.post.yourLike = res.liked;
-    props.post.likeCount = res.likeCount;
+    emit("update:post", { yourLike: res.liked, likeCount: res.likeCount });
   } catch (e) {
     liked.value = prevLiked;
     likeCount.value = prevCount;

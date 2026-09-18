@@ -9,6 +9,8 @@ import {
 import { createEmptySiteProfile } from "./siteProfiles";
 import {
   BlacklistMode,
+  DataSaverType,
+  FullscreenZoomUiMode,
   SITE_MODE_URLS,
   UNGROUPED_FAVORITE_GROUP_ID,
   UNGROUPED_SAVED_SEARCH_GROUP_ID,
@@ -39,7 +41,7 @@ const blankState = (active: SiteMode = "e621"): ISettingsServiceState => {
       transitions: true,
       coloredTags: true,
       coloredFavs: true,
-      fullscreenZoomUiMode: 0 as any,
+      fullscreenZoomUiMode: FullscreenZoomUiMode.alwaysHide,
       navigationRail: false,
       logo: "paw",
     },
@@ -54,7 +56,7 @@ const blankState = (active: SiteMode = "e621"): ISettingsServiceState => {
       buttons: [],
       fullscreenButtons: [],
       detailsButtons: [],
-      dataSaver: 0 as any,
+      dataSaver: DataSaverType.auto,
       autoLoad: true,
       pageSize: 75,
       hideDetailsSidebar: false,

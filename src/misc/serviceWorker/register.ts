@@ -32,10 +32,11 @@ const applyWaitingUpdate = async (
 export const registerServiceWorker = () => {
   const updateSW = registerSW({
     onRegistered(r) {
-      r &&
+      if (r) {
         setInterval(() => {
           r.update();
         }, intervalMS);
+      }
     },
     onNeedRefresh() {
       const pwa = usePwaUpdateStore();

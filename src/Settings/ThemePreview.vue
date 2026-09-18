@@ -59,7 +59,7 @@ export default defineComponent({
       required: true,
     },
   },
-  setup(props, context) {
+  setup(props) {
     const sidebar = computed(() => [
       props.theme.dark ? "white" : "black",
       props.theme.primary,

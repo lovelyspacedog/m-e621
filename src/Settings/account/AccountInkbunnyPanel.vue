@@ -25,7 +25,7 @@
       label="Inkbunny password"
       v-model="inkbunnyPassword"
       @click:append="showSecret.inkbunny = !showSecret.inkbunny"
-      autocomplete="current-password"
+      autocomplete="new-password"
     />
     <details class="text-left mb-2">
       <summary class="text-caption text-medium-emphasis account-help-summary">
@@ -182,8 +182,8 @@ const loginInkbunny = async () => {
     addSearchTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_UNREAD_TAG, "Unread");
     addSearchTag(liveSearches(main.$state, "inkbunny"), INKBUNNY_FAVS_TAG, "My Favs");
     markAuthProbe(inkbunnyAuth.value, true, `Logged in as ${result.username}`);
-  } catch (e: any) {
-    markAuthProbe(inkbunnyAuth.value, false, e?.message || String(e));
+  } catch (e: unknown) {
+    markAuthProbe(inkbunnyAuth.value, false, e instanceof Error ? e.message : String(e));
   } finally {
     inkbunnyAuth.value.loading = false;
   }
@@ -227,8 +227,8 @@ const addWatchlistSearches = async () => {
       added > 0
         ? `Added ${added} watchlist artist search${added === 1 ? "" : "es"}`
         : "No new watchlist artists to add";
-  } catch (e: any) {
-    inkbunnyAuth.value.message = e?.message || String(e);
+  } catch (e: unknown) {
+    inkbunnyAuth.value.message = e instanceof Error ? e.message : String(e);
   } finally {
     inkbunnyWatchlistLoading.value = false;
   }

@@ -441,8 +441,8 @@ const saveCurrentOrAll = async () => {
     } else {
       await savePostLocally(props.current, { skipGalleryExpand: true });
     }
-  } catch (e: any) {
-    snackbar.addMessage(e?.message || String(e));
+  } catch (e: unknown) {
+    snackbar.addMessage(e instanceof Error ? e.message : String(e));
   } finally {
     savingLocal.value = false;
   }
@@ -481,8 +481,8 @@ const saveCurrentFileOnly = async () => {
       skipGalleryExpand: true,
       relativePathOverride: path,
     });
-  } catch (e: any) {
-    snackbar.addMessage(e?.message || String(e));
+  } catch (e: unknown) {
+    snackbar.addMessage(e instanceof Error ? e.message : String(e));
   } finally {
     savingLocal.value = false;
   }

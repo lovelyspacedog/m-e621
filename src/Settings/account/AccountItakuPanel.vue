@@ -74,7 +74,6 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import ExternalLink from "@/App/ExternalLink.vue";
 import AccountPanelTitle from "../AccountPanelTitle.vue";
 import {
   clearAuthProbe,
@@ -141,8 +140,8 @@ const verifyItaku = async () => {
     } else {
       markAuthProbe(itakuAuth.value, true, "Token is valid");
     }
-  } catch (e: any) {
-    markAuthProbe(itakuAuth.value, false, e?.message || String(e));
+  } catch (e: unknown) {
+    markAuthProbe(itakuAuth.value, false, e instanceof Error ? e.message : String(e));
   } finally {
     itakuAuth.value.loading = false;
   }

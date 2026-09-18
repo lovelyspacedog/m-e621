@@ -160,7 +160,10 @@ const poolLink = (pool: PoolListItem) => {
   };
 };
 
-const canWatch = (_pool: PoolListItem) => true;
+const canWatch = (pool: PoolListItem) => {
+  void pool;
+  return true;
+};
 
 const countNoun = (pool: PoolListItem) =>
   pool.originMode === "tailspace" ? "pages" : "posts";

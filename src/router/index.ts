@@ -170,7 +170,7 @@ const router = createRouter({
       component: () =>
         import(
           /* webpackChunkName: "analyzer" */ "@/Analyzer/FavoritesAnalyzerResult.vue"
-        ) as any,
+        ),
     },
     {
       path: "/suggester",

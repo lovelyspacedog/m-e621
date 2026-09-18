@@ -116,7 +116,7 @@ export default defineComponent({
       },
     );
 
-    const handleScroll = (event: Event) => {
+    const handleScroll = () => {
       if (!props.visiblePosts.length || !posts.value.length) return;
       firstVisibleElement.value =
         posts.value.find((post) =>
@@ -687,7 +687,6 @@ export default defineComponent({
     const triggerLoad = (
       index: number,
       name: "enter" | "leave",
-      event: IntersectionObserverEntry,
     ) => {
       if (props.loading) return;
       if (index === indexThatTriggersNextPage.value && name === "enter" && canTriggerLoad.value.next) {
@@ -719,7 +718,7 @@ export default defineComponent({
           for (const entry of entries) {
             const idx = elementIndexMap.get(entry.target);
             if (idx !== undefined) {
-              triggerLoad(idx, entry.isIntersecting ? "enter" : "leave", entry);
+              triggerLoad(idx, entry.isIntersecting ? "enter" : "leave");
             }
           }
         },

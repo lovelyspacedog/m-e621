@@ -15,6 +15,7 @@ import {
   syncMirrorsToActiveProfile,
 } from "./siteProfiles";
 import { getApiService } from "@/worker/services";
+import type { EnhancedPost } from "@/worker/ApiService";
 
 const ALL_SITE_MODES: SiteMode[] = [
   "unified",
@@ -340,7 +341,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     if (post?.__meta?.furaffinity?.kind === "journal") {
       list = list.filter((button) => button !== "favorite");
     }
-    if (post && list.includes("fluffle") && !postSupportsFluffle(post as any)) {
+    if (post && list.includes("fluffle") && !postSupportsFluffle(post as unknown as EnhancedPost)) {
       list = list.filter((button) => button !== "fluffle");
     }
     return list;

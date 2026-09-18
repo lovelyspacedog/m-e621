@@ -312,7 +312,7 @@ const rankedSections = computed<Section[]>(() => {
   for (const [category, tags] of Object.entries(profile.value.counts)) {
     if (!tags) continue;
     if (hideMeta.value && HIDDEN_BY_DEFAULT.has(category)) continue;
-    let list: RankedTag[] = Object.entries(tags)
+    const list: RankedTag[] = Object.entries(tags)
       .filter(([, count]) => !!count)
       .map(([name, count]) => ({
         name,
@@ -474,7 +474,7 @@ const analyze = async () => {
       return;
     }
 
-    const limit = SAMPLE_LIMITS.includes(limitChoice.value as any)
+    const limit = (SAMPLE_LIMITS as readonly number[]).includes(limitChoice.value)
       ? limitChoice.value
       : 1920;
     const bl = useBlacklist.value ? toRaw(blacklist.tags) : undefined;
@@ -519,9 +519,9 @@ const analyze = async () => {
     profile.value = r;
     sampleSize.value = r.favoriteKeys?.length || 0;
     progress.value = { message: "done", progress: 1 };
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (thisGen !== generation) return;
-    errorMessage.value = err?.message || String(err);
+    errorMessage.value = err instanceof Error ? err.message : String(err);
   }
 };
 

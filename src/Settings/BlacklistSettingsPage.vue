@@ -103,6 +103,7 @@ import SettingsPageTitle, { type SettingsNavChip } from "./SettingsPageTitle.vue
 import SettingsGroup from "./SettingsGroup.vue";
 import SettingsRow from "./SettingsRow.vue";
 import ActiveModeBanner from "./ActiveModeBanner.vue";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- registered for <blacklist-suggestions> in template
 import BlacklistSuggestions from "./BlacklistSuggestions.vue";
 import ProfileListSync from "./ProfileListSync.vue";
 import TipDialog from "@/misc/TipDialog.vue";

@@ -1,6 +1,6 @@
 <template>
   <v-app :class="{ 'paw-cursor': appearance.pawCursor }">
-    <v-navigation-drawer v-if="!minimalHeader" :color="theme.sidebar" :clipped="clipped" v-model="drawer" floating app
+    <v-navigation-drawer v-if="!minimalHeader" :color="theme.sidebar" v-model="drawer" floating
       width="400" class="pa-2 app-sidebar">
       <div class="sidebar-sticky">
         <router-link to="/">
@@ -14,12 +14,12 @@
       </div>
     </v-navigation-drawer>
     <v-app-bar v-view-transition-name="'appbar'" :color="minimalHeader ? theme.primary : theme.toolbar"
-      :app="!minimalHeader" :flat="minimalHeader" :clipped-left="clipped" :floating="navMode == 'floating'" :class="{
+      :flat="minimalHeader" :floating="navMode == 'floating'" :class="{
         'ma-2': navMode == 'floating',
         'mb-3': navMode == 'floating',
         primary: minimalHeader,
       }" class="padded-toolbar">
-      <v-menu location="bottom right" offset-y close-delay="0" :nudge-width="200"
+      <v-menu location="bottom right" close-delay="0"
         v-if="navMode == 'floating' && !minimalHeader">
         <template #activator="{ props }">
           <v-btn v-bind="props" icon>
@@ -77,7 +77,7 @@ import TipDialog from "./misc/TipDialog.vue";
 import { TIP_IDS } from "./misc/tipIds";
 import { useTipOpen } from "./misc/useTipOpen";
 import { getAppName } from "./misc/util/utilities";
-import { useAppearanceStore, useMainStore, usePersistanceService, useShortcutService, useShortcutStore, useSiteModeStore } from "./services";
+import { useAppearanceStore, useMainStore, usePersistanceService, useShortcutService, useSiteModeStore } from "./services";
 import { useHead } from '@unhead/vue';
 import { useDisplay } from 'vuetify';
 import { useSyncedTheme } from "./misc/util/syncTheme";
@@ -85,7 +85,6 @@ import { installOfflineSaveQueueListeners, flushOfflineSaveQueue } from "./misc/
 
 const persistance = usePersistanceService();
 const appearance = useAppearanceStore();
-const shortcuts = useShortcutStore();
 const shortcutService = useShortcutService();
 const siteMode = useSiteModeStore();
 const navMode = computed(() => appearance.navigationType);
@@ -109,13 +108,6 @@ onMounted(async () => {
 
 watch(() => siteMode.isUnified, tryFederatedTip);
 const logoStyle = computed(() => appearance.logoStyle);
-const onLogoClick = () => {
-  const availableStyles = appearance.logoStyles.filter(
-    (ls) => ls !== logoStyle.value,
-  );
-  appearance.logoStyle =
-    availableStyles[Math.floor(availableStyles.length * Math.random())];
-};
 
 const main = useMainStore();
 
@@ -131,7 +123,6 @@ useHead({
 const { mobile } = useDisplay();
 
 const route = useRoute();
-const clipped = ref(false);
 const drawer_ = ref(true);
 const appName = getAppName();
 

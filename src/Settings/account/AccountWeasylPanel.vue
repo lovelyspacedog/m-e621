@@ -112,8 +112,8 @@ const verifyWeasyl = async () => {
       mode: "weasyl",
     });
     markAuthProbe(weasylAuth.value, true, "API key is valid");
-  } catch (e: any) {
-    markAuthProbe(weasylAuth.value, false, e?.message || String(e));
+  } catch (e: unknown) {
+    markAuthProbe(weasylAuth.value, false, e instanceof Error ? e.message : String(e));
   } finally {
     weasylAuth.value.loading = false;
   }

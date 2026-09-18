@@ -137,6 +137,7 @@
       :all-posts="posts"
       @close="selectedPost = null"
       @navigate="openPost"
+      @update:post="onPostPatch"
     />
   </div>
 </template>
@@ -196,6 +197,11 @@ function changePage(p: number) {
 
 function openPost(post: TailspacePost) {
   selectedPost.value = post;
+}
+
+function onPostPatch(patch: Pick<TailspacePost, "yourLike" | "likeCount">) {
+  if (!selectedPost.value) return;
+  Object.assign(selectedPost.value, patch);
 }
 
 onMounted(() => loadPage(page.value));

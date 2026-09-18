@@ -52,7 +52,7 @@ export default defineComponent({
     const direction = ref("right");
     const pageKey = ref(0);
 
-    let interval: any;
+    let interval: ReturnType<typeof setInterval> | undefined;
     onMounted(() => {
       interval = setInterval(() => {
         const directions = props.directions as string[];

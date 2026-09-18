@@ -288,7 +288,7 @@ import AppLogo from "../App/AppLogo.vue";
 import TipDialog from "@/misc/TipDialog.vue";
 import { TIP_IDS } from "@/misc/tipIds";
 import { useTipOpen } from "@/misc/useTipOpen";
-import { useAppearanceStore, useBlacklistStore, useMainStore, usePostsStore, useShortcutService, useSiteModeStore, useUiStore, useUrlStore } from "@/services";
+import { useAppearanceStore, useBlacklistStore, useMainStore, usePostsStore, useShortcutService, useSiteModeStore, useUiStore } from "@/services";
 import RufflePlayer from "./RufflePlayer.vue";
 import ZoomPanImage from "./ZoomPanImage.vue";
 import NotesOverlay from "./NotesOverlay.vue";
@@ -320,7 +320,6 @@ import {
   onBeforeUnmount,
   onMounted,
   type PropType,
-  type Ref,
   ref,
   watch,
 } from "vue";
@@ -376,7 +375,6 @@ const appearance = useAppearanceStore();
 const blacklist = useBlacklistStore();
 const posts = usePostsStore();
 const siteMode = useSiteModeStore();
-const urlStore = useUrlStore();
 const main = useMainStore();
 const ui = useUiStore();
 const shortcutService = useShortcutService();
@@ -957,17 +955,17 @@ const onVideoEnded = () => {
   void advanceSlideshow();
 };
 
-const loadTimeout: Ref<any> = ref(null);
+const loadTimeout = ref<ReturnType<typeof setTimeout> | null>(null);
 
 const loadStart = () => {
-  clearTimeout(loadTimeout.value);
+  if (loadTimeout.value != null) clearTimeout(loadTimeout.value);
 
   loadTimeout.value = setTimeout(() => {
     loading.value = true;
   }, 10);
 };
 const loadEnd = () => {
-  clearTimeout(loadTimeout.value);
+  if (loadTimeout.value != null) clearTimeout(loadTimeout.value);
   loading.value = false;
 };
 const onImageLoad = () => {

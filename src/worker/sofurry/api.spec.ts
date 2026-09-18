@@ -4,7 +4,9 @@ import {
   hashidToNumericId,
   normalizeSofurryCookies,
   normalizeSofurryStoryText,
+  type SofurryMeta,
 } from "./api";
+import type { Post } from "@/worker/api";
 
 describe("normalizeSofurryCookies", () => {
   it("wraps bare Laravel sofurry_session values", () => {
@@ -101,10 +103,10 @@ describe("sofurry adaptDetails", () => {
     expect(post).toBeTruthy();
     expect(post!.file.ext).toBe("txt");
     expect(post!.is_favorited).toBe(false);
-    const meta = (post as any).__meta;
-    expect(meta.kind).toBe("story");
-    expect(meta.sofurry.title).toBe("The Story of Kody Grey Part II");
-    expect(meta.sofurry.contentUrl).toContain("s3.sofurryfiles.com");
+    const meta = (post as Post & { __meta?: { kind?: string; sofurry?: SofurryMeta } }).__meta;
+    expect(meta?.kind).toBe("story");
+    expect(meta?.sofurry?.title).toBe("The Story of Kody Grey Part II");
+    expect(meta?.sofurry?.contentUrl).toContain("s3.sofurryfiles.com");
     expect(String(post!.file.url)).toContain("/api/sofurry/media");
   });
 });

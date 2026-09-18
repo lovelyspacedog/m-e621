@@ -21,7 +21,6 @@
 
 <script setup lang="ts">
 import ExternalLink from "@/App/ExternalLink.vue";
-import { defineComponent } from "vue";
 import packageJson from "../../package.json";
 
 const libraries = [

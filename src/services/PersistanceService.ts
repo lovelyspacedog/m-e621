@@ -1,8 +1,9 @@
 import { useMainStore } from "./state";
 import localforage from "localforage";
 // TODO: remove localforage and implement persistance ourselves
-import type { FavoriteTagEntry, FavoriteTagGroup, ISettingsServiceState } from "./types";
+import type { FavoriteTagEntry, FavoriteTagGroup, ISettingsServiceState, SiteMode } from "./types";
 import { DataSaverType, SITE_MODE_URLS, UNGROUPED_FAVORITE_GROUP_ID } from "./types";
+import type { SiteProfile } from "./types";
 import clone from "clone";
 import { nextTick, reactive, toRaw } from "vue";
 import { defaultSettings, focusSearchShortcut, fullscreenFavoriteShortcuts, fullscreenSlideshowShortcut, historyNavigationShortcuts } from "./defaultSettings";
@@ -733,7 +734,7 @@ class PersistanceService {
     }
     if (newState.configVersion < 44) {
       if (!newState.profiles?.unified) {
-        newState.profiles = newState.profiles || ({} as any);
+        newState.profiles = newState.profiles || ({} as Record<SiteMode, SiteProfile>);
         newState.profiles.unified = createEmptySiteProfile("unified");
       }
       if (newState.profiles.unified.unifiedIncludeTailspaceComics === undefined) {

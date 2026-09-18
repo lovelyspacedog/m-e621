@@ -91,8 +91,14 @@ export default defineComponent({
     },
   },
   emits: {
-    loaded: (_pool: Pool) => true,
-    error: (_message: string) => true,
+    loaded: (pool: Pool) => {
+      void pool;
+      return true;
+    },
+    error: (message: string) => {
+      void message;
+      return true;
+    },
   },
   setup(props, { emit }) {
     const route = useRoute();
@@ -170,8 +176,8 @@ export default defineComponent({
           });
         }
         emit("loaded", result);
-      } catch (err: any) {
-        const message = err?.message || String(err);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
         error.value = message;
         emit("error", message);
       } finally {

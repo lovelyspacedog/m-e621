@@ -169,6 +169,7 @@
       @close="selectedPost = null"
       @navigate="openPost"
       @search-tag="onTagSearch"
+      @update:post="onPostPatch"
     />
   </div>
 </template>
@@ -315,6 +316,11 @@ function loadMoreFiltered() {
 
 function openPost(post: TailspacePost) {
   selectedPost.value = post;
+}
+
+function onPostPatch(patch: Pick<TailspacePost, "yourLike" | "likeCount">) {
+  if (!selectedPost.value) return;
+  Object.assign(selectedPost.value, patch);
 }
 
 function onTagSearch(tagName: string) {

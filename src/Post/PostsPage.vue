@@ -24,7 +24,7 @@
         </template>
 
         <!-- Narrow: collapse actions into a menu -->
-        <v-menu v-else location="bottom end" offset-y transition="slide-y-transition">
+        <v-menu v-else location="bottom end" transition="slide-y-transition">
           <template #activator="{ props: menuProps }">
             <v-btn v-bind="menuProps" icon size="small" title="Actions">
               <v-icon>mdi-dots-vertical</v-icon>
@@ -50,7 +50,7 @@
         <v-btn icon @click="updateQuery(), onSearchClick()" :loading="loading">
           <v-icon>mdi-magnify</v-icon>
         </v-btn>
-        <v-menu location="bottom left" max-height="300" offset-y transition="slide-y-transition" v-if="mdAndUp">
+        <v-menu location="bottom left" max-height="300" transition="slide-y-transition" v-if="mdAndUp">
           <template #activator="{ props }">
             <v-btn v-bind="props" icon>
               <v-icon>mdi-history</v-icon>
@@ -256,6 +256,7 @@ import { useRoute } from "vue-router";
 import { useHistory } from "@/Post/historyManager";
 import { usePostListManager } from "@/Post/postListManager";
 import FeedLayoutMenu from "@/Post/FeedLayoutMenu.vue";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- registered for <posts> in template
 import Posts from "@/Post/Posts.vue";
 import { useRouterTagManager } from "@/Post/routerTagManager";
 import TipDialog from "@/misc/TipDialog.vue";
