@@ -4,7 +4,6 @@
       <router-link class="pools-card-link" :to="poolLink(pool)" :title="displayName(pool.name)">
         <div
           class="pools-card-thumb"
-          :class="{ 'pools-cover--pulse': coverShowLoading(pool) }"
           :ref="(el) => observeCoverHost(el, poolRowKey(pool))"
         >
           <img
@@ -18,8 +17,11 @@
             @load="onCoverLoad(activeCoverSrc(pool)!, poolRowKey(pool))"
             @error="onCoverError(activeCoverSrc(pool)!, poolRowKey(pool))"
           />
-          <div v-if="coverShowMissing(pool)" class="pools-card-placeholder">
-            <v-icon size="36" class="text-medium-emphasis"> mdi-image-off-outline </v-icon>
+          <div v-if="coverShowLoading(pool)" class="pools-card-placeholder">
+            <v-icon size="36" class="text-medium-emphasis">mdi-image-outline</v-icon>
+          </div>
+          <div v-else-if="coverShowMissing(pool)" class="pools-card-placeholder">
+            <v-icon size="36" class="text-medium-emphasis">mdi-image-off-outline</v-icon>
           </div>
           <div class="pools-badge pools-badge--pages">
             <v-icon size="12">mdi-image-multiple</v-icon>
@@ -73,7 +75,6 @@
       <template #prepend>
         <div
           class="pool-cover"
-          :class="{ 'pools-cover--pulse': coverShowLoading(pool) }"
           :ref="(el) => observeCoverHost(el, poolRowKey(pool))"
         >
           <img
@@ -87,6 +88,9 @@
             @load="onCoverLoad(activeCoverSrc(pool)!, poolRowKey(pool))"
             @error="onCoverError(activeCoverSrc(pool)!, poolRowKey(pool))"
           />
+          <v-icon v-if="coverShowLoading(pool)" size="32" class="text-medium-emphasis">
+            mdi-image-outline
+          </v-icon>
           <v-icon v-else-if="coverShowMissing(pool)" size="32" class="text-medium-emphasis">
             mdi-image-off-outline
           </v-icon>
@@ -344,24 +348,23 @@ const activeCoverSrc = (pool: PoolListItem) => {
 const coverIsPending = (pool: PoolListItem) =>
   !!props.coversPending?.has(poolRowKey(pool));
 
+/** True while cover URL/image is still resolving (static image icon, not failed). */
 const coverShowLoading = (pool: PoolListItem) => {
   const key = poolRowKey(pool);
-  if (!nearViewport[key]) return false;
   const url = coverUrl(pool);
   if (url) {
-    if (coverImgReady(url) || coverImgFailed(url)) return false;
+    if (coverImgReady(url)) return false;
+    if (coverImgFailed(url)) return false;
+    // Near-viewport download in progress, queued, or not yet activated.
     return true;
   }
   return coverIsPending(pool);
 };
 
+/** True when cover fetch finished with nothing usable, or the image errored. */
 const coverShowMissing = (pool: PoolListItem) => {
-  const key = poolRowKey(pool);
   const url = coverUrl(pool);
-  if (url) {
-    if (!nearViewport[key]) return false;
-    return coverImgFailed(url);
-  }
+  if (url) return coverImgFailed(url);
   return !coverIsPending(pool);
 };
 
@@ -494,37 +497,6 @@ const pageCountLabel = (pool: PoolListItem) => {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-/* Lightweight CSS pulse — avoids N× Vuetify progress-circular SVG animations. */
-.pools-cover--pulse::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    110deg,
-    transparent 30%,
-    rgba(255, 255, 255, 0.08) 45%,
-    rgba(255, 255, 255, 0.14) 50%,
-    rgba(255, 255, 255, 0.08) 55%,
-    transparent 70%
-  );
-  background-size: 200% 100%;
-  animation: pools-cover-shimmer 1.35s ease-in-out infinite;
-}
-@keyframes pools-cover-shimmer {
-  0% {
-    background-position: 100% 0;
-  }
-  100% {
-    background-position: -100% 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .pools-cover--pulse::after {
-    animation: none;
-    background: rgba(255, 255, 255, 0.06);
-  }
 }
 .pools-badge {
   position: absolute;

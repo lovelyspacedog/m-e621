@@ -21,7 +21,7 @@ export const changelogSections: ChangelogSection[] = [
       "Federated Pools: Sites in Pools sidebar toggles sit between Pools and Post Suggester (e621/e6ai/Furbooru/Inkbunny plus Tailspace comics)",
       "Include Tailspace comics moved out of Account settings into that Pools sidebar (still on by default)",
       "Furbooru pool cards: cover thumbnails load again (Philomena Everything filter + id:a,b,c → OR); hide stub epoch dates and unknown page counts on the list",
-      "Pool cards use a light shimmer while covers load (missing-image icon only on failure), and defer/limit cover downloads to the near viewport so a full watched grid does not jank",
+      "Pool cards show a static gray image icon while covers load and image-off when missing/failed; cover downloads are deferred/limited to the near viewport",
     ],
   },
   {
