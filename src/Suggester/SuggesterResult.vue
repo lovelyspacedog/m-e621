@@ -198,6 +198,9 @@ const analyze = async () => {
         toRaw(account.auth),
         toRaw(account.userId),
         unified ? toRaw(unified) : undefined,
+        undefined,
+        undefined,
+        toRaw(postsStore.sfwOnly),
       );
       if (thisGen !== analyzeGeneration) return;
       result.value = r;
@@ -273,6 +276,8 @@ const {
         toRaw(siteMode.activeMode),
         toRaw(account.userId),
         unified ? toRaw(unified) : undefined,
+        undefined,
+        toRaw(postsStore.sfwOnly),
       );
       return posts;
     } finally {

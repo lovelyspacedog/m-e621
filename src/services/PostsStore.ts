@@ -205,6 +205,14 @@ export const usePostsStore = defineStore("posts", () => {
       main.posts.autoplayFeedVideoSilent = value;
     },
   });
+  const sfwOnly = computed({
+    get() {
+      return !!main.posts.sfwOnly;
+    },
+    set(value: boolean) {
+      main.posts.sfwOnly = value;
+    },
+  });
   const saveLocalPathTemplate = computed({
     get() {
       return main.posts.saveLocal.pathTemplate;
@@ -273,6 +281,7 @@ export const usePostsStore = defineStore("posts", () => {
     animateFeedGifs,
     autoplayFeedVideo,
     autoplayFeedVideoSilent,
+    sfwOnly,
     saveLocalPathTemplate,
     saveLocalDirectoryName,
     openInLocalAfterSave,

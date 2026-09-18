@@ -599,11 +599,14 @@ export async function searchImages(args: {
   limit: number;
   apiKey?: string | null;
   userId?: number | null;
+  /** Override default all-maturity fetch (e.g. SFW-only → `["SFW"]`). */
+  maturityRating?: string[];
 }): Promise<{ posts: Post[]; total: number }> {
   const mapped = mapSearchTags(args.tags);
   const page = Math.max(1, args.page || 1);
   const limit = Math.min(100, Math.max(1, args.limit || 30));
   const token = normalizeToken(args.apiKey);
+  const maturity = args.maturityRating?.length ? args.maturityRating : MATURITY;
 
   if (mapped.followingMe) {
     if (!token) throw new Error("Log in to Itaku to browse your following feed.");
@@ -615,7 +618,7 @@ export async function searchImages(args: {
         page_size: limit,
         ordering: mapped.ordering,
         cursor: cursor || undefined,
-        maturity_rating: MATURITY,
+        maturity_rating: maturity,
         key: token,
       }),
     );
@@ -638,7 +641,7 @@ export async function searchImages(args: {
         page,
         page_size: limit,
         ordering: mapped.ordering === "-date_added" ? "-like_date" : mapped.ordering,
-        maturity_rating: MATURITY,
+        maturity_rating: maturity,
         visibility: VISIBILITY,
       },
       page,
@@ -660,7 +663,7 @@ export async function searchImages(args: {
       page,
       page_size: limit,
       ordering: mapped.ordering,
-      maturity_rating: MATURITY,
+      maturity_rating: maturity,
       visibility: VISIBILITY,
       required_tags: mapped.required.length ? mapped.required : undefined,
       negative_tags: mapped.negative.length ? mapped.negative : undefined,

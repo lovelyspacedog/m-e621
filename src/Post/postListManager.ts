@@ -518,9 +518,17 @@ export const usePostListManager = ({
   };
 
   const visiblePosts = computed(() => {
-    const visibleAfterApplyingBlacklist = blacklistStore.mode === BlacklistMode.hide ? posts.value.filter(p => !p.__meta.isBlacklisted) : [...posts.value];
-    const visibleAfterApplyingServerSideBlacklistSetting = blacklistStore.hideServerSideBlacklisted ? visibleAfterApplyingBlacklist.filter(p => !!p.file.url) : [...visibleAfterApplyingBlacklist];
-    return visibleAfterApplyingServerSideBlacklistSetting;
+    let list =
+      blacklistStore.mode === BlacklistMode.hide
+        ? posts.value.filter((p) => !p.__meta.isBlacklisted)
+        : [...posts.value];
+    if (blacklistStore.hideServerSideBlacklisted) {
+      list = list.filter((p) => !!p.file.url);
+    }
+    if (postsStore.sfwOnly) {
+      list = list.filter((p) => p.rating === "s");
+    }
+    return list;
   });
   const hiddenPostCount = computed(() => posts.value.length - visiblePosts.value.length);
   const clearPosts = () => {

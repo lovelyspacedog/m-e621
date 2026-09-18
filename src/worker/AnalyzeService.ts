@@ -51,6 +51,7 @@ export interface IAnalyzeTagsArgs {
   mode?: SiteMode;
   auth?: { login: string; api_key: string };
   userId?: number | null;
+  sfwOnly?: boolean;
 }
 
 export interface IAnalyzeTagsResult {
@@ -145,6 +146,7 @@ export class AnalyzeService {
     userId?: number | null,
     unified?: UnifiedFetchArgs,
     blacklist?: string[][],
+    sfwOnly?: boolean,
   ) {
     const service = new ApiService();
     const posts: Post[] = [];
@@ -158,6 +160,7 @@ export class AnalyzeService {
       userId: userId ?? null,
       unifiedChildren: unified?.children?.map((c) => c.mode),
       blacklist: blacklist?.length ? blacklist : null,
+      sfwOnly: !!sfwOnly,
     });
     log("start fetch");
     if (key && this.cache[key]) {
@@ -175,11 +178,15 @@ export class AnalyzeService {
           auth,
           userId: userId ?? null,
           unified,
+          sfwOnly: !!sfwOnly,
         });
         page += 1;
-        const kept = blacklist?.length
+        let kept = blacklist?.length
           ? newPosts.filter((p) => !(p as EnhancedPost).__meta?.isBlacklisted)
           : newPosts;
+        if (sfwOnly) {
+          kept = kept.filter((p) => p.rating === "s");
+        }
         posts.push(...kept);
         onProgress({
           message: `got ${posts.length} of ${postLimit} posts`,
@@ -206,6 +213,9 @@ export class AnalyzeService {
       args.mode,
       args.auth,
       args.userId,
+      undefined,
+      undefined,
+      args.sfwOnly,
     );
     onProgress({
       message: "got posts, sorting tags",
@@ -245,6 +255,7 @@ export class AnalyzeService {
     unified?: UnifiedFetchArgs,
     postLimit: number = FAV_POST_LIMIT,
     blacklist?: string[][],
+    sfwOnly?: boolean,
   ): Promise<FavoriteTagsResult> {
     if (mode === "local") {
       throw new Error(
@@ -258,6 +269,7 @@ export class AnalyzeService {
         onProgress,
         unified,
         postLimit,
+        sfwOnly,
       );
     }
 
@@ -276,6 +288,7 @@ export class AnalyzeService {
       userId,
       undefined,
       blacklist,
+      sfwOnly,
     );
 
     return buildFavoriteTagsResult(posts);
@@ -286,6 +299,7 @@ export class AnalyzeService {
     onProgress: (event: IProgressEvent) => void,
     unified?: UnifiedFetchArgs,
     postLimit: number = FAV_POST_LIMIT,
+    sfwOnly?: boolean,
   ): Promise<FavoriteTagsResult> {
     const children = unified?.children || [];
     if (!children.length) {
@@ -339,6 +353,7 @@ export class AnalyzeService {
             page,
             auth: child.auth,
             userId: child.userId ?? null,
+            sfwOnly: !!sfwOnly,
           });
           const stamped = batch.map((p) => ({
             ...p,
@@ -348,7 +363,9 @@ export class AnalyzeService {
               originBaseUrl: child.baseUrl,
             },
           }));
-          childPosts.push(...stamped);
+          childPosts.push(
+            ...(sfwOnly ? stamped.filter((p) => p.rating === "s") : stamped),
+          );
           page += 1;
           if (batch.length < PAGE_SIZE) break;
         }
@@ -388,6 +405,7 @@ export class AnalyzeService {
     unified?: UnifiedFetchArgs,
     /** Pre-fetched candidates (Local). When set, skip remote hybrid fetch. */
     prefetchedCandidates?: EnhancedPost[],
+    sfwOnly?: boolean,
   ) {
     const page = Math.max(1, args.page || 1);
     const poolKey = JSON.stringify({
@@ -400,6 +418,7 @@ export class AnalyzeService {
       auth: auth?.login || null,
       children: unified?.children?.map((c) => c.mode),
       prefetched: prefetchedCandidates?.length || 0,
+      sfwOnly: !!sfwOnly,
     });
 
     let pool = this.scoredPoolCache[poolKey];
@@ -419,6 +438,7 @@ export class AnalyzeService {
               blacklist,
               blacklistMode,
               unified,
+              sfwOnly,
             )
           : await this.fetchHybridCandidates(
               tags,
@@ -430,6 +450,7 @@ export class AnalyzeService {
               blacklistMode,
               mode,
               userId,
+              sfwOnly,
             ));
       pool = rankSuggestionPool({
         tags,
@@ -456,6 +477,7 @@ export class AnalyzeService {
     blacklistMode: BlacklistMode,
     mode?: SiteMode,
     userId?: number | null,
+    sfwOnly?: boolean,
   ): Promise<EnhancedPost[]> {
     const service = new ApiService();
     const out: EnhancedPost[] = [];
@@ -474,8 +496,9 @@ export class AnalyzeService {
         baseUrl,
         mode,
         userId: userId ?? null,
+        sfwOnly: !!sfwOnly,
       });
-      out.push(...posts);
+      out.push(...(sfwOnly ? posts.filter((p) => p.rating === "s") : posts));
       step += 1;
       onProgress({
         progress: step / totalSteps,
@@ -495,8 +518,9 @@ export class AnalyzeService {
         baseUrl,
         mode,
         userId: userId ?? null,
+        sfwOnly: !!sfwOnly,
       });
-      out.push(...posts);
+      out.push(...(sfwOnly ? posts.filter((p) => p.rating === "s") : posts));
       step += 1;
       onProgress({
         progress: Math.min(1, step / totalSteps),
@@ -514,6 +538,7 @@ export class AnalyzeService {
     blacklist: string[][],
     blacklistMode: BlacklistMode,
     unified?: UnifiedFetchArgs,
+    sfwOnly?: boolean,
   ): Promise<EnhancedPost[]> {
     const children = unified?.children || [];
     const service = new ApiService();
@@ -540,6 +565,7 @@ export class AnalyzeService {
             baseUrl: child.baseUrl || SITE_MODE_URLS[child.mode],
             mode: child.mode,
             userId: child.userId ?? null,
+            sfwOnly: !!sfwOnly,
           });
           out.push(
             ...posts.map((p) => ({
@@ -577,6 +603,7 @@ export class AnalyzeService {
             baseUrl: child.baseUrl || SITE_MODE_URLS[child.mode],
             mode: child.mode,
             userId: child.userId ?? null,
+            sfwOnly: !!sfwOnly,
           });
           out.push(
             ...posts.map((p) => ({

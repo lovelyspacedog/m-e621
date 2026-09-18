@@ -27,6 +27,10 @@ import { isPostBlacklisted } from "./blacklist";
 import { BlacklistMode, type SiteMode, type SavedPostEntry } from "@/services/types";
 import type { UnifiedChildMode } from "@/services/types";
 import { createTagQuery } from "@/misc/util/createTagQuery";
+import {
+  applySfwTagOverride,
+  isIdOnlyQuery,
+} from "@/misc/util/sfwMode";
 import { debug } from "@/misc/util/debug";
 import { shuffled } from "@/misc/util/shuffle";
 import {
@@ -220,6 +224,8 @@ export class ApiService {
     mode?: SiteMode;
     userId?: number | null;
     unified?: UnifiedFetchArgs;
+    /** Global SFW-only: inject safe constraints at adapters (skip for id:-only). */
+    sfwOnly?: boolean;
   }): Promise<GetPostsResult> {
     log(args);
     if (args.mode === "unified") {
@@ -277,6 +283,7 @@ export class ApiService {
     blacklist?: string[][];
     blacklistMode: BlacklistMode;
     unified?: UnifiedFetchArgs;
+    sfwOnly?: boolean;
   }): Promise<GetPostsResult> {
     const children = args.unified?.children || [];
     const shared = args.unified?.sharedBlacklist || args.blacklist || [];
@@ -299,6 +306,7 @@ export class ApiService {
               baseUrl: child.baseUrl,
               mode: child.mode,
               userId: child.userId,
+              sfwOnly: args.sfwOnly,
             }),
           );
           return this.stampUnifiedPosts(posts, child, shared, args.page);
@@ -329,6 +337,7 @@ export class ApiService {
       limit: number;
       tags: string[];
       blacklistMode: BlacklistMode;
+      sfwOnly?: boolean;
     },
     shared: string[][],
     warnings: string[],
@@ -346,6 +355,7 @@ export class ApiService {
           baseUrl: child.baseUrl,
           mode: child.mode,
           userId: child.userId,
+          sfwOnly: args.sfwOnly,
         }),
       );
       cursor.nextPage += 1;
@@ -374,6 +384,7 @@ export class ApiService {
     blacklist?: string[][];
     blacklistMode: BlacklistMode;
     unified?: UnifiedFetchArgs;
+    sfwOnly?: boolean;
   }): Promise<GetPostsResult> {
     const children = args.unified?.children || [];
     const shared = args.unified?.sharedBlacklist || args.blacklist || [];
@@ -447,6 +458,7 @@ export class ApiService {
               limit: args.limit,
               tags: tagsByMode.get(child.mode) || [],
               blacklistMode: args.blacklistMode,
+              sfwOnly: args.sfwOnly,
             },
             shared,
             warnings,
@@ -777,13 +789,29 @@ export class ApiService {
     baseUrl: string;
     mode?: SiteMode;
     userId?: number | null;
+    sfwOnly?: boolean;
   }): Promise<EnhancedPost[]> {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotDedicatedChrome(args.baseUrl, "getPosts", args.mode);
 
+    const applySfw =
+      !!args.sfwOnly && !isIdOnlyQuery(args.tags.filter(Boolean));
+    let workingTags = args.tags.filter(Boolean);
+    if (applySfw) {
+      if (backend === "furbooru") {
+        workingTags = applySfwTagOverride(workingTags, "furbooru");
+      } else if (backend === "furaffinity") {
+        workingTags = applySfwTagOverride(workingTags, "furaffinity");
+      } else if (backend === "e621") {
+        workingTags = applySfwTagOverride(workingTags, "e621");
+      } else {
+        workingTags = applySfwTagOverride(workingTags, "none");
+      }
+    }
+
     if (backend === "furbooru") {
       // Furbooru: strip e621 order:* tags → Philomena sf/sd; join rest as query
-      const { sort, tags: searchTags } = furbooru.mapOrderTags(args.tags.filter(Boolean));
+      const { sort, tags: searchTags } = furbooru.mapOrderTags(workingTags);
       const hideNegations =
         args.blacklistMode === BlacklistMode.hide
           ? (args.blacklist || [])
@@ -842,6 +870,10 @@ export class ApiService {
         }
         return out;
       }
+      if (applySfw) {
+        const sid = await inkbunny.ensureSid(args.auth?.api_key ?? null);
+        await inkbunny.setSfwOnlyRatings(sid);
+      }
       const hideNegations =
         args.blacklistMode === BlacklistMode.hide
           ? (args.blacklist || [])
@@ -849,7 +881,7 @@ export class ApiService {
               .map((line) => `-${line[0]}`)
           : [];
       const result = await inkbunny.searchSubmissions({
-        tags: [...args.tags.filter(Boolean), ...hideNegations],
+        tags: [...workingTags, ...hideNegations],
         page: args.page,
         limit: args.limit,
         sid: args.auth?.api_key ?? null,
@@ -874,7 +906,7 @@ export class ApiService {
               .map((line) => `-${line[0]}`)
           : [];
       const result = await furaffinity.searchSubmissions({
-        tags: [...args.tags.filter(Boolean), ...hideNegations],
+        tags: [...workingTags, ...hideNegations],
         page: args.page,
         limit: args.limit,
         cookies: args.auth?.api_key ?? null,
@@ -899,7 +931,7 @@ export class ApiService {
               .map((line) => `-${line[0]}`)
           : [];
       const result = await weasyl.searchSubmissions({
-        tags: [...args.tags.filter(Boolean), ...hideNegations],
+        tags: [...workingTags, ...hideNegations],
         page: args.page,
         limit: args.limit,
         apiKey: args.auth?.api_key ?? null,
@@ -924,11 +956,12 @@ export class ApiService {
               .map((line) => `-${line[0]}`)
           : [];
       const result = await itaku.searchImages({
-        tags: [...args.tags.filter(Boolean), ...hideNegations],
+        tags: [...workingTags, ...hideNegations],
         page: args.page,
         limit: args.limit,
         apiKey: args.auth?.api_key ?? null,
         userId: args.userId ?? null,
+        maturityRating: applySfw ? ["SFW"] : undefined,
       });
       return result.posts.map<EnhancedPost>((post) => ({
         ...post,
@@ -945,7 +978,7 @@ export class ApiService {
       if (args.auth?.api_key) {
         sofurry.setActiveSofurryCookies(args.auth.api_key);
       }
-      const tags = args.tags.filter(Boolean);
+      const tags = workingTags;
       const favIdx = tags.findIndex((t) => /^fav(s|orites)?:me$/i.test(t));
       const followingIdx = tags.findIndex((t) =>
         /^(following|watch):me$/i.test(t),
@@ -1010,7 +1043,7 @@ export class ApiService {
         tags: createTagQuery(
           args.blacklistMode,
           args.blacklist || [],
-          args.tags,
+          workingTags,
         ),
         baseUrl: args.baseUrl
       })

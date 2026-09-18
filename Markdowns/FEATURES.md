@@ -9,6 +9,7 @@ This backlog is derived from `README.md`, `README-CONTINUED.md`, and `AI_CONTEXT
 - Inkbunny and Weasyl have **no public favorite-toggle API**. Keep `modeSupportsFavoriteToggle` false. Do not invent toggles.
 - **Tailspace and Local are not Unified children.** Do not add them to `UNIFIED_CHILD_MODES` without an explicit product change.
 - Weasyl guests are **SFW-only**.
+- Global **SFW only** (`posts.sfwOnly`) forces safe rating at adapters where supported and hides non-safe posts in list feeds; it does not strip NSFW capability when off, and does not hard-block direct post URLs.
 - Non-e621 modes must not fall through to e621 comments, notes, pools, or dashboard. Post Suggester and Favorite Analyzer are multi-mode (not Tailspace); use `resolveFavoriteTagsQuery` / Local / Unified paths — do not route them through the e621 client or through Tailspace `/suggester`/`/analyzer`.
 - Prefer extending adapters, `src/misc/util/siteCapabilities.ts`, and worker/proxy layers over special-casing templates.
 - Do not recommend proprietary-only services or ToS-violating scraping beyond the existing documented proxies.

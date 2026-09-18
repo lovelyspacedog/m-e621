@@ -514,6 +514,7 @@ const analyze = async () => {
       unified ? toRaw(unified) : undefined,
       limit,
       bl,
+      toRaw(postsStore.sfwOnly),
     );
     if (thisGen !== generation) return;
     profile.value = r;

@@ -34,6 +34,13 @@
 
         <settings-group title="Feed layout" anchor="layout">
           <settings-row
+            title="SFW only (safe rating)"
+            description="Forces safe rating on every site that supports it, overrides rating search tags, and hides non-safe posts in list feeds. Direct post links still open."
+            switch
+          >
+            <v-switch v-model="posts.sfwOnly" color="accent" hide-details density="compact" />
+          </settings-row>
+          <settings-row
             title="Full-width post feed"
             description="Use the full content width for scrolling posts instead of the centered column. Ignored in grid layout."
             switch

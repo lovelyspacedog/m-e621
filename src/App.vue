@@ -51,6 +51,21 @@
         <v-toolbar-title>{{ appName }}</v-toolbar-title>
       </portal-target>
       <v-spacer />
+      <v-tooltip v-if="!minimalHeader" text="SFW only (safe rating)" location="bottom">
+        <template #activator="{ props: tipProps }">
+          <v-btn
+            v-bind="tipProps"
+            icon
+            variant="text"
+            :color="posts.sfwOnly ? 'success' : undefined"
+            :aria-label="posts.sfwOnly ? 'SFW only on' : 'SFW only off'"
+            :aria-pressed="posts.sfwOnly"
+            @click="posts.sfwOnly = !posts.sfwOnly"
+          >
+            <v-icon>{{ posts.sfwOnly ? "mdi-shield-check" : "mdi-shield-outline" }}</v-icon>
+          </v-btn>
+        </template>
+      </v-tooltip>
       <navigation-toolbar v-if="navMode === 'toolbar'" />
       <install-menu v-if="!minimalHeader" />
     </v-app-bar>
@@ -92,7 +107,7 @@ import TipDialog from "./misc/TipDialog.vue";
 import { TIP_IDS } from "./misc/tipIds";
 import { useTipOpen } from "./misc/useTipOpen";
 import { getAppName } from "./misc/util/utilities";
-import { useAppearanceStore, useMainStore, usePersistanceService, useShortcutService, useSiteModeStore } from "./services";
+import { useAppearanceStore, useMainStore, usePersistanceService, usePostsStore, useShortcutService, useSiteModeStore } from "./services";
 import { useHead } from '@unhead/vue';
 import { useDisplay } from 'vuetify';
 import { useSyncedTheme } from "./misc/util/syncTheme";
@@ -111,6 +126,7 @@ import {
 
 const persistance = usePersistanceService();
 const appearance = useAppearanceStore();
+const posts = usePostsStore();
 const shortcutService = useShortcutService();
 const siteMode = useSiteModeStore();
 const navMode = computed(() => appearance.navigationType);

@@ -762,6 +762,10 @@ class PersistanceService {
       newState.previousModeBeforeUnified = null;
       newState.configVersion = 47;
     }
+    if (newState.configVersion < 48) {
+      if (newState.posts) newState.posts.sfwOnly = false;
+      newState.configVersion = 48;
+    }
     if (
       newState.previousModeBeforeUnified !== null &&
       newState.previousModeBeforeUnified !== undefined &&
@@ -983,6 +987,9 @@ class PersistanceService {
     }
     if (newState.posts.autoplayFeedVideoSilent === undefined) {
       newState.posts.autoplayFeedVideoSilent = true;
+    }
+    if (newState.posts.sfwOnly === undefined) {
+      newState.posts.sfwOnly = false;
     }
     if (newState.posts.saveLocal && newState.posts.saveLocal.openInLocalAfterSave === undefined) {
       newState.posts.saveLocal.openInLocalAfterSave = false;

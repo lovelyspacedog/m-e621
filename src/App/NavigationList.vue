@@ -10,6 +10,25 @@
       <site-mode-switcher />
     </template>
     <template v-if="section === 'secondary' || section === 'all'">
+      <v-list-item
+        :active="posts.sfwOnly"
+        @click="posts.sfwOnly = !posts.sfwOnly"
+      >
+        <template #prepend>
+          <v-icon>{{ posts.sfwOnly ? "mdi-shield-check" : "mdi-shield-outline" }}</v-icon>
+        </template>
+        <v-list-item-title>SFW only</v-list-item-title>
+        <template #append>
+          <v-switch
+            :model-value="posts.sfwOnly"
+            color="accent"
+            hide-details
+            density="compact"
+            @click.stop
+            @update:model-value="(v: boolean) => (posts.sfwOnly = v)"
+          />
+        </template>
+      </v-list-item>
       <saved-search-nav />
       <template v-for="option in trailing" :key="option.resolved">
         <v-list-item
@@ -42,6 +61,9 @@ import { useHomeNavigationItem, useTrailingNavigationItems } from "../App/naviga
 import SavedSearchNav from "./SavedSearchNav.vue";
 import SiteModeSwitcher from "./SiteModeSwitcher.vue";
 import { openSettings } from "@/Settings/settingsOverlay";
+import { usePostsStore } from "@/services";
+
+const posts = usePostsStore();
 
 withDefaults(
   defineProps<{

@@ -37,6 +37,7 @@ export const changelogSections: ChangelogSection[] = [
       "Federated Pools: Tailspace comic cover thumbnails load again (pics.tailspace.com allowlisted on /api/download)",
       "Landing hero under PawFeed types a random furry/pup splash once and leaves it on screen (click or Enter/Space for another); the site-summary line moves above What it does",
       "Mode-switch toast says Switched to Federated (not unified)",
+      "SFW only toggle (toolbar, sidebar, and Post settings): forces safe rating across sites, overrides rating search tags, and hides non-safe posts in list feeds (direct links still open)",
     ],
   },
   {

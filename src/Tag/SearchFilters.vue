@@ -10,8 +10,9 @@
         item-value="tag"
         hide-details
         variant="outlined"
-        label="Rating"
+        :label="posts.sfwOnly ? 'Rating (SFW only)' : 'Rating'"
         :items="ratingTagItems"
+        :disabled="posts.sfwOnly"
         multiple
         class="fill-width shrink"
       />
@@ -154,9 +155,10 @@ import type { PropType } from "vue";
 import { computed } from "vue";
 import { useSiteLabels } from "@/misc/util/siteLabels";
 import { isFaFavoritesQuery } from "@/misc/util/orderSupport";
-import { useSiteModeStore } from "@/services";
+import { usePostsStore, useSiteModeStore } from "@/services";
 
 const siteMode = useSiteModeStore();
+const posts = usePostsStore();
 const { creatorLabel } = useSiteLabels();
 
 const emit = defineEmits<{

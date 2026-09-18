@@ -352,6 +352,11 @@ export interface ISettingsServiceState {
     autoplayFeedVideo: boolean;
     /** Force mute during feed autoplay (helps browser autoplay policies). */
     autoplayFeedVideoSilent: boolean;
+    /**
+     * Global SFW-only: force safe rating on fetches where supported and hide
+     * non-safe posts in list feeds. Not under site profiles.
+     */
+    sfwOnly: boolean;
     saveLocal: {
       pathTemplate: string;
       directoryName: string | null;

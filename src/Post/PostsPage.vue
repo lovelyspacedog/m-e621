@@ -271,6 +271,11 @@ import {
   buildTagQuery,
   tagQueryTruncationMessage,
 } from "../misc/util/createTagQuery";
+import {
+  applySfwTagOverride,
+  stripConflictingRatingTags,
+  type SfwTagMode,
+} from "../misc/util/sfwMode";
 import { orderSupport, type UnifiedOrderKind } from "../misc/util/orderSupport";
 import {
   buildUnifiedFetchArgs,
@@ -456,6 +461,7 @@ const {
       userId: toRaw(account.userId),
       baseUrl: toRaw(urlStore.e621Url),
       mode: toRaw(siteMode.activeMode),
+      sfwOnly: toRaw(postsStore.sfwOnly),
       unified: siteMode.isUnified
         ? buildUnifiedFetchArgs(main.$state)
         : undefined,
@@ -573,6 +579,7 @@ const toggleSaveSearch = async () => {
             userId: toRaw(account.userId),
             baseUrl: toRaw(urlStore.e621Url),
             mode: toRaw(siteMode.activeMode),
+            sfwOnly: toRaw(postsStore.sfwOnly),
             unified: siteMode.isUnified
               ? buildUnifiedFetchArgs(main.$state)
               : undefined,
@@ -705,6 +712,45 @@ watch(
     }
   },
   { immediate: false },
+);
+
+const sfwTagMode = (): SfwTagMode => {
+  if (siteMode.isFurbooru) return "furbooru";
+  if (siteMode.isFurAffinity) return "furaffinity";
+  if (
+    siteMode.isInkbunny ||
+    siteMode.isWeasyl ||
+    siteMode.isItaku ||
+    siteMode.isSofurry ||
+    siteMode.isLocal ||
+    siteMode.isTailspace ||
+    siteMode.isFlayrah
+  ) {
+    return "none";
+  }
+  // e621 / e6ai / Federated (rating:safe remaps per child in worker)
+  return "e621";
+};
+
+watch(
+  () => postsStore.sfwOnly,
+  (on) => {
+    if (!on) {
+      // Turning off: reload so Layer B stops injecting; keep current tags.
+      onSearchClick();
+      return;
+    }
+    const next =
+      sfwTagMode() === "none"
+        ? stripConflictingRatingTags([...tags.value])
+        : applySfwTagOverride([...tags.value], sfwTagMode());
+    if (!isEqual(next, [...tags.value])) {
+      setTags(next);
+      updateQuery();
+    } else {
+      onSearchClick();
+    }
+  },
 );
 
 // Browser back/forward (or typed ?page=) must reload — tags-only watch misses this.

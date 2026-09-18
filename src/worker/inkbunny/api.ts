@@ -607,6 +607,21 @@ async function enableAllGuestRatings(sid: string): Promise<void> {
   }
 }
 
+/** Restrict session to General (SFW) only — inverse of enableAllGuestRatings. */
+export async function setSfwOnlyRatings(sid: string): Promise<void> {
+  try {
+    await postForm("ratings", {
+      sid,
+      "tag[2]": "no",
+      "tag[3]": "no",
+      "tag[4]": "no",
+      "tag[5]": "no",
+    });
+  } catch {
+    // Search still runs; Layer A hides non-safe if ratings API fails.
+  }
+}
+
 export async function ensureSid(preferred?: string | null): Promise<string> {
   if (preferred) return preferred;
   if (guestSid) return guestSid;
