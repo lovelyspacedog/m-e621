@@ -47,14 +47,6 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const isOnline = ref(
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
-  if (typeof window !== "undefined") {
-    window.addEventListener("online", () => {
-      isOnline.value = true;
-    });
-    window.addEventListener("offline", () => {
-      isOnline.value = false;
-    });
-  }
   const supportsLocalMode = computed(() => supportsLocalBrowse());
   /** Remote modes need network; Local and Flayrah (last-good RSS cache) still work offline. */
   const isModeOnlineCapable = (mode: SiteMode) =>
@@ -275,6 +267,22 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       void getApiService().then((api) => api.resetUnifiedMerge());
     }
   };
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("online", () => {
+      isOnline.value = true;
+    });
+    window.addEventListener("offline", () => {
+      isOnline.value = false;
+      // Stay on the current remote mode (cached UI may still show), but offer a working mode.
+      if (isModeOnlineCapable(main.activeMode)) return;
+      const preferLocal = supportsLocalBrowse();
+      snackbar.addMessage("Offline — only Local and Flayrah are available", {
+        label: preferLocal ? "Switch to Local" : "Switch to Flayrah",
+        onClick: () => setMode(preferLocal ? "local" : "flayrah"),
+      });
+    });
+  }
 
   /** Leave Federated for the prior site (fallback e621). */
   const exitUnifiedMode = (opts?: { silent?: boolean }) => {

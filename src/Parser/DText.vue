@@ -87,7 +87,27 @@ const customBbElementGenerator: Record<
     return h("code", { class: "code" }, innerText);
   },
   spoiler({ innerText, baseUrl }) {
-    return h("span", { class: "spoiler" }, createTree(innerText, baseUrl));
+    const toggleRevealed = (event: Event) => {
+      const el = event.currentTarget as HTMLElement | null;
+      el?.classList.toggle("spoiler-revealed");
+    };
+    return h(
+      "span",
+      {
+        class: "spoiler",
+        tabindex: 0,
+        role: "button",
+        title: "Tap or focus to reveal spoiler",
+        onClick: toggleRevealed,
+        onKeydown: (event: KeyboardEvent) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            toggleRevealed(event);
+          }
+        },
+      },
+      createTree(innerText, baseUrl),
+    );
   },
   table({ innerText, baseUrl }) {
     const rows = innerText
@@ -274,18 +294,20 @@ export default defineComponent({
 <style scoped>
 .dtext :deep(.spoiler) {
   transition: background 0.3s ease-in-out, color 0.3s ease-in-out;
+  cursor: pointer;
 }
 
 .dtext :deep(.spoiler a) {
   transition: background 0.3s ease-in-out, color 0.3s ease-in-out;
 }
 
-.dtext :deep(.spoiler:not(:hover)) {
+/* Hover, keyboard focus, or tap-toggled reveal — works on touch without hover. */
+.dtext :deep(.spoiler:not(:hover):not(:focus-within):not(.spoiler-revealed)) {
   color: black;
   background-color: black;
 }
 
-.dtext :deep(.spoiler:not(:hover) a) {
+.dtext :deep(.spoiler:not(:hover):not(:focus-within):not(.spoiler-revealed) a) {
   color: black;
 }
 

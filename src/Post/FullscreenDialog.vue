@@ -142,10 +142,12 @@
         <aside
           v-if="commentsVisible && supportsComments && current"
           class="fullscreen-comments"
-          :style="{ width: `${commentsWidthPx}px` }"
+          :class="{ 'fullscreen-comments--narrow': commentsNarrow }"
+          :style="commentsNarrow ? undefined : { width: `${commentsWidthPx}px` }"
           @click.stop
         >
           <div
+            v-if="!commentsNarrow"
             class="fullscreen-comments-resizer"
             title="Drag to resize"
             @pointerdown="startCommentsResize"
@@ -323,6 +325,7 @@ import {
   watch,
 } from "vue";
 import { useRoute } from "vue-router";
+import { useDisplay } from "vuetify";
 import PostButtons from "@/Post/PostButtons.vue";
 import { useDirectionalTransitions } from "@/misc/util/directionalTransitions";
 import type { EnhancedPost } from "@/worker/ApiService";
@@ -387,12 +390,16 @@ const COMMENTS_WIDTH_MIN = 240;
 const infoExpanded = ref(true);
 const descriptionExpanded = ref(true);
 
+const { smAndDown } = useDisplay();
+/** Phone / small tablet: comments cover media instead of a side rail. */
+const commentsNarrow = computed(() => smAndDown.value);
+
 const clampCommentsWidth = (px: number) => {
-  const max = Math.max(
-    COMMENTS_WIDTH_MIN,
-    Math.floor(window.innerWidth * 0.7),
-  );
-  return Math.min(max, Math.max(COMMENTS_WIDTH_MIN, Math.round(px)));
+  const viewport = typeof window !== "undefined" ? window.innerWidth : 1200;
+  // Never force a min wider than the viewport (phones ~320–430).
+  const floor = Math.min(COMMENTS_WIDTH_MIN, Math.max(160, viewport - 48));
+  const max = Math.max(floor, Math.floor(viewport * 0.7));
+  return Math.min(max, Math.max(floor, Math.round(px)));
 };
 
 const readCommentsWidth = () => {
@@ -446,7 +453,9 @@ const supportsComments = computed(() =>
 
 /** Shift fixed chrome left of the comments rail (inline wins over CSS). */
 const commentsChromeOffset = computed(() =>
-  commentsVisible.value && supportsComments.value
+  commentsVisible.value &&
+  supportsComments.value &&
+  !commentsNarrow.value
     ? { right: `${commentsWidthPx.value}px` }
     : undefined,
 );
@@ -1198,11 +1207,13 @@ useHead({
   z-index: 198;
   position: fixed;
   height: 100vh;
+  height: 100dvh;
   width: 100%;
   top: 0;
   left: 0;
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
 }
 
 .fullscreen--comments .top-right,
@@ -1215,6 +1226,7 @@ useHead({
   flex: 0 0 auto;
   align-self: stretch;
   height: 100vh;
+  height: 100dvh;
   min-width: 0;
   z-index: 1010;
   display: flex;
@@ -1222,6 +1234,16 @@ useHead({
   background: rgba(18, 18, 22, 0.96);
   border-left: 1px solid rgba(255, 255, 255, 0.08);
   pointer-events: auto;
+}
+
+.fullscreen-comments--narrow {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1020;
+  border-left: none;
+  background: rgba(18, 18, 22, 0.98);
 }
 
 .fullscreen-comments-resizer {
@@ -1309,6 +1331,7 @@ useHead({
   flex-direction: row;
   flex-wrap: nowrap;
   height: 100vh;
+  height: 100dvh;
   width: 100%;
 }
 
@@ -1417,8 +1440,8 @@ useHead({
 
 .fullscreen .top-right {
   position: fixed;
-  top: 0;
-  right: 0;
+  top: env(safe-area-inset-top, 0px);
+  right: env(safe-area-inset-right, 0px);
   z-index: 1004;
   width: 59px;
   height: 59px;
@@ -1430,8 +1453,8 @@ useHead({
 
 .fullscreen .bottom-right {
   position: fixed;
-  bottom: 0;
-  right: 0;
+  bottom: env(safe-area-inset-bottom, 0px);
+  right: env(safe-area-inset-right, 0px);
   z-index: 1005;
 }
 
@@ -1441,8 +1464,8 @@ useHead({
 
 .fullscreen .bottom-left {
   position: fixed;
-  bottom: 0;
-  left: 0;
+  bottom: env(safe-area-inset-bottom, 0px);
+  left: env(safe-area-inset-left, 0px);
   z-index: 1005;
 }
 
@@ -1452,8 +1475,8 @@ useHead({
 
 .fullscreen .top-left {
   position: fixed;
-  top: 0;
-  left: 0;
+  top: env(safe-area-inset-top, 0px);
+  left: env(safe-area-inset-left, 0px);
   z-index: 1005;
 }
 

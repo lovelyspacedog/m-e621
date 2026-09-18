@@ -40,8 +40,11 @@
         <navigation-list />
       </v-menu>
       <v-slide-x-transition>
-        <v-app-bar-nav-icon @click.stop="drawer = !drawer" class="hidden-lg-and-up"
-          v-if="navMode == 'sidebar' && !minimalHeader" />
+        <!-- Match useDisplay().mobile (md / <960), not hidden-lg-and-up (<1280) -->
+        <v-app-bar-nav-icon
+          v-if="mobile && navMode == 'sidebar' && !minimalHeader"
+          @click.stop="drawer = !drawer"
+        />
       </v-slide-x-transition>
       <history-nav-buttons v-if="!minimalHeader && !mobile" class="mr-1" />
       <portal-target name="toolbar">
@@ -100,7 +103,9 @@ import {
   closeSettings,
   installSettingsOverlay,
   isSettingsQuerySyncing,
+  queryValueForSection,
   routeLocationForSection,
+  sectionFromSettingsPath,
   settingsOverlayState,
 } from "./Settings/settingsOverlay";
 
@@ -153,12 +158,6 @@ useHead({
   title: getAppName(),
 })
 
-router.afterEach((to, from) => {
-  if (!settingsHydrated.value) return;
-  if (to.name !== "LandingPage") return;
-  siteMode.demoteUnifiedOnLanding({ fromBrowsePosts: from.name === "Posts" });
-});
-
 watch(
   () => [route.query.settings, mobile.value, route.path] as const,
   ([settingsQuery, isMobile, path]) => {
@@ -170,7 +169,11 @@ watch(
       const dest = routeLocationForSection(section);
       const query = { ...route.query };
       delete query.settings;
-      void router.replace({ ...dest, query });
+      if (typeof dest === "object" && dest !== null) {
+        void router.replace({ ...dest, query });
+      } else {
+        void router.replace({ path: String(dest), query });
+      }
       return;
     }
     if (path.startsWith("/settings")) return;
@@ -180,10 +183,27 @@ watch(
 );
 
 watch(mobile, (isMobile, wasMobile) => {
+  // Desktop overlay → mobile full-page settings.
   if (isMobile && wasMobile === false && settingsOverlayState.open) {
     const section = settingsOverlayState.section;
     closeSettings();
     void router.push(routeLocationForSection(section));
+    return;
+  }
+  // Mobile /settings* → desktop overlay (resize / rotate to wide).
+  if (
+    !isMobile &&
+    wasMobile === true &&
+    route.path.startsWith("/settings")
+  ) {
+    const section = sectionFromSettingsPath(route.path);
+    const hash = (route.hash || "").replace(/^#/, "");
+    applySettingsOverlay(section, hash);
+    void router.replace({
+      path: "/",
+      query: { settings: queryValueForSection(section) },
+      hash: hash ? `#${hash}` : undefined,
+    });
   }
 });
 
@@ -202,6 +222,16 @@ const drawer = computed({
   set: (val: boolean) => {
     drawer_.value = val;
   },
+});
+
+router.afterEach((to, from) => {
+  // Mobile temporary drawer must not cover the destination after nav / Settings.
+  if (mobile.value) {
+    drawer.value = false;
+  }
+  if (!settingsHydrated.value) return;
+  if (to.name !== "LandingPage") return;
+  siteMode.demoteUnifiedOnLanding({ fromBrowsePosts: from.name === "Posts" });
 });
 
 watch(mobile, (val, prevVal) => {

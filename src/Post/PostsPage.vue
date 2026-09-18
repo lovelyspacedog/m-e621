@@ -50,9 +50,9 @@
         <v-btn icon @click="updateQuery(), onSearchClick()" :loading="loading">
           <v-icon>mdi-magnify</v-icon>
         </v-btn>
-        <v-menu location="bottom left" max-height="300" transition="slide-y-transition" v-if="mdAndUp">
+        <v-menu location="bottom left" max-height="300" transition="slide-y-transition">
           <template #activator="{ props }">
-            <v-btn v-bind="props" icon>
+            <v-btn v-bind="props" icon title="Search history">
               <v-icon>mdi-history</v-icon>
             </v-btn>
           </template>
@@ -301,7 +301,7 @@ import {
 } from "@/misc/util/sidebarSections";
 import { useDisplay } from "vuetify";
 
-const { mdAndDown, mdAndUp } = useDisplay();
+const { mdAndDown } = useDisplay();
 
 const account = useAccountStore();
 const blacklist = useBlacklistStore();

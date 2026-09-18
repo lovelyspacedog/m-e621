@@ -262,6 +262,14 @@ export default defineComponent({
   position: relative;
   flex-grow: 1;
   overflow: hidden;
+  /* Reduce browser pull-to-refresh fighting Hammer swipes. */
+  touch-action: none;
+}
+
+/* Native media controls need their own touch handling. */
+.middle :deep(video),
+.middle :deep(audio) {
+  touch-action: manipulation;
 }
 
 .middle .overflow {

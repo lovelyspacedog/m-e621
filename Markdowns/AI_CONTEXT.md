@@ -222,7 +222,7 @@ Load order: process env wins; then `~/.config/m-e621/env`, then `deploy.env` (`l
 
 **External APIs / hosts:** e621.net, e6ai.net, furbooru.org (Philomena; Cloudflare bot challenge via `furbooru_cf.py`), inkbunny.net, furaffinity.net, weasyl.com, itaku.ee, sofurry.com, flayrah.com (`rss-full.xml`), tailspace.com, [Fluffle](https://api.fluffle.xyz/exact-search-by-file) reverse-image (stills only; max 4 MiB).
 
-PWA: `registerType: 'prompt'`, update poll every 10 minutes, Workbox max cache **4 MiB**, `ruffle/**` excluded from precache, `/api/` denylisted from navigate fallback. Start URL `/#/posts`.
+PWA: `registerType: 'prompt'`, `display: "standalone"`, update poll every 10 minutes, Workbox max cache **4 MiB**, `ruffle/**` excluded from precache, `/api/` denylisted from navigate fallback. Start URL `/#/posts`.
 
 ## Quirks and gotchas
 

@@ -34,7 +34,7 @@ const bannerText = computed(() => {
 <style scoped>
 .pwa-update-banner {
   position: fixed;
-  top: 0;
+  top: env(safe-area-inset-top, 0px);
   left: 0;
   right: 0;
   z-index: 2000;

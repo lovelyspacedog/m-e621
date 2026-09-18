@@ -92,8 +92,8 @@ const exporting = ref(false);
 const status = computed(() => {
   if (!folderPickerSupported.value) {
     return isSave.value
-      ? "Save folders need Chromium (File System Access). In Tauri, Save Locally writes into the Local browse folder; Firefox downloads to Downloads."
-      : "Local browse needs Chromium or the Tauri desktop app.";
+      ? "Save folders need desktop Chromium (File System Access). In Tauri, Save Locally writes into the Local browse folder; Firefox and most phones download to Downloads."
+      : "Local browse needs desktop Chromium (File System Access) or the Tauri desktop app — not available in most mobile browsers.";
   }
   if (directoryName.value) {
     return `Using folder: ${directoryName.value}`;

@@ -234,8 +234,13 @@ export default defineComponent({
       type: String as PropType<SiteMode | "">,
       default: "",
     },
+    /** Compact cards on touch: first media tap expands chrome instead of opening. */
+    compactTouchExpand: {
+      type: Boolean,
+      default: false,
+    },
   },
-  emits: ["open-post", "remuxed"],
+  emits: ["open-post", "expand-chrome", "remuxed"],
   setup(props, context) {
     const posts = usePostsStore();
     const main = useMainStore();
@@ -421,6 +426,10 @@ export default defineComponent({
     };
 
     const onVideoSurfaceClick = () => {
+      if (props.compactTouchExpand) {
+        context.emit("expand-chrome");
+        return;
+      }
       if (!boundVideo || videoLoadFailed.value) return;
       // Manual play when autoplay eviction left the buffer cold, or autoplay was blocked.
       void attachAndMaybePlay(boundVideo, true);
@@ -544,6 +553,10 @@ export default defineComponent({
     const router = useRouter();
 
     const handleClick = async () => {
+      if (props.compactTouchExpand) {
+        context.emit("expand-chrome");
+        return;
+      }
       if (canPlayInline.value || props.unplayable) {
         return;
       }

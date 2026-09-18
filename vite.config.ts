@@ -1092,7 +1092,7 @@ export default defineConfig(({ mode }) => {
           short_name: "PawFeed", // maximum of 12 characters recommended by chromium devs
           start_url: "/#/posts",
           scope: "/",
-          display: "fullscreen",
+          display: "standalone",
           background_color: "#000000",
           theme_color: "#000000",
           description:

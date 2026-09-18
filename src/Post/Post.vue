@@ -30,7 +30,9 @@
         :unavailable="isUnavailable"
         :local-path="post.__meta?.localPath || ''"
         :origin-mode="post.__meta?.originMode || ''"
+        :compact-touch-expand="compactTouchExpand"
         @open-post="setClicked"
+        @expand-chrome="forceExpanded = true"
         @remuxed="$emit('remuxed')"
       />
     </div>
@@ -118,12 +120,16 @@ export default defineComponent({
     const { stripeColor } = useStripeColor(props);
 
     const setClicked = () => {
+      // Compact + touch: first activate expands chrome; second opens fullscreen.
+      if (compactTouchExpand.value) {
+        forceExpanded.value = true;
+        return;
+      }
       context.emit("open-post", {
         postId: props.post.id,
         originMode: props.post.__meta?.originMode,
       });
     };
-
     const buttons = computed(() =>
       siteMode.filterButtonsForPost(posts.buttons, props.post),
     );
@@ -160,16 +166,25 @@ export default defineComponent({
         "",
     );
     const compactCards = computed(() => posts.compactCards);
+    const compactTouchExpand = computed(() => {
+      if (!compactCards.value || forceExpanded.value) return false;
+      return (
+        typeof window !== "undefined" &&
+        window.matchMedia("(hover: none)").matches
+      );
+    });
 
     const onCardActivate = (event: MouseEvent) => {
       if (!compactCards.value) return;
       if ((event.target as HTMLElement | null)?.closest("button, a, video, input")) {
         return;
       }
-      // Touch / click expands chrome once on coarse pointers.
-      if (window.matchMedia("(hover: none)").matches) {
-        forceExpanded.value = !forceExpanded.value;
+      if (!window.matchMedia("(hover: none)").matches) return;
+      // Media tap expands via expand-chrome; ignore bubble so we don't toggle twice.
+      if ((event.target as HTMLElement | null)?.closest(".post-preview-wrap")) {
+        return;
       }
+      forceExpanded.value = !forceExpanded.value;
     };
 
     const autoNext = inject<CardAutoNextInject>("cardAutoNext", fallbackAutoNext);
@@ -193,6 +208,7 @@ export default defineComponent({
       showAutoNextProgress,
       compactCards,
       forceExpanded,
+      compactTouchExpand,
       onCardActivate,
       originLabel,
       originIcon,

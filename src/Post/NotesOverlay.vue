@@ -3,7 +3,8 @@
     <v-menu
       v-for="note in activeNotes"
       :key="note.id"
-      open-on-hover
+      :open-on-hover="openOnHover"
+      :open-on-click="!openOnHover"
       :close-on-content-click="false"
       location="top"
     >
@@ -38,6 +39,12 @@ const props = defineProps<{
 const activeNotes = computed(() =>
   props.notes.filter((n) => n.is_active !== false),
 );
+
+/** Hover menus fail on touch; use click when the pointer has no hover. */
+const openOnHover = computed(() => {
+  if (typeof window === "undefined" || !window.matchMedia) return true;
+  return !window.matchMedia("(hover: none)").matches;
+});
 
 const boxStyle = (note: Note) => {
   const w = Math.max(1, props.imageWidth || 1);

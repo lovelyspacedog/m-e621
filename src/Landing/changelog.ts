@@ -18,6 +18,12 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-18",
     title: "Federated Pools site toggles",
     items: [
+      "Mobile drawer closes after navigation; hamburger matches the mobile breakpoint (no dead toggle on tablets)",
+      "Fullscreen uses dynamic viewport height and safe-area padding; comments open full-bleed on phones",
+      "Compact cards on touch: first tap expands chrome, second opens the post",
+      "Settings switch between full-page (phone) and overlay (desktop) when resizing; Local folder copy clarifies desktop Chromium / Tauri",
+      "Posts search history stays on the toolbar on phones; PWA display is standalone; offline snackbar can switch to Local or Flayrah",
+      "DText spoilers reveal on tap or focus (not hover-only); mobile Playwright projects cover Pixel 7 / iPhone 13 / iPad Mini",
       "Mobile sidebar is narrower (300px) and has a close button so it no longer covers the whole screen",
       "Landing no longer opens on Federated after a previous Federated session; it restores the prior site (or e621), unless you navigated back from Browse posts",
       "Baxter logo refresh: longer basset ears, clearer tail, PawFeed wordmark in Fredoka, double-blink and a tilted loader pulse; favicon matches",
