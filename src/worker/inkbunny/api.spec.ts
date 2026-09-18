@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { inkbunnyMetaFromHit, mapSearchTags, type InkbunnySubmission } from "./api";
+import {
+  inkbunnyMetaFromHit,
+  mapSearchTags,
+  parseSubmissionIdsFromTags,
+  type InkbunnySubmission,
+} from "./api";
 
 describe("mapSearchTags pools", () => {
   it("defaults pool browse to pool_order", () => {
@@ -20,6 +25,15 @@ describe("mapSearchTags pools", () => {
 
   it("accepts order:pool as pool_order", () => {
     expect(mapSearchTags(["pool:7", "order:pool"]).orderby).toBe("pool_order");
+  });
+});
+
+describe("parseSubmissionIdsFromTags", () => {
+  it("parses id lists and ignores blacklist negations", () => {
+    expect(parseSubmissionIdsFromTags(["id:1,2,3"])).toEqual([1, 2, 3]);
+    expect(parseSubmissionIdsFromTags(["id:9", "-foo"])).toEqual([9]);
+    expect(parseSubmissionIdsFromTags(["pool:1", "id:2"])).toBeNull();
+    expect(parseSubmissionIdsFromTags(["fox"])).toBeNull();
   });
 });
 

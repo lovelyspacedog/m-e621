@@ -305,7 +305,7 @@ router.beforeEach((to) => {
     if (mode === "flayrah" && flayrahRoutes.has(String(to.name))) {
       return true;
     }
-    // Pools: e621-family + Federated — never fall through to SoFurry/Itaku/IB chrome.
+    // Pools: e621-family + Inkbunny + Federated — never fall through to SoFurry/Itaku chrome.
     if (
       !modeSupportsPools(mode) &&
       (to.name === "Pools" || to.name === "Pool")
@@ -314,7 +314,7 @@ router.beforeEach((to) => {
         ? { name: "FlayrahFeed", query: to.query }
         : { name: "Posts", query: to.query };
     }
-    // Federated pool reader needs ?origin=e621|e6ai (IDs collide across sites).
+    // Federated pool reader needs ?origin=e621|e6ai|inkbunny (IDs collide across sites).
     if (
       mode === "unified" &&
       to.name === "Pool" &&

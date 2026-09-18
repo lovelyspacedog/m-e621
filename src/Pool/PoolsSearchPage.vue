@@ -2,83 +2,101 @@
   <div>
     <portal to="toolbar">
       <div class="pools-toolbar">
-        <v-btn-toggle v-model="searchMode" mandatory density="compact" variant="outlined" divided class="pools-mode-toggle">
-          <v-btn value="name" size="small">Name</v-btn>
-          <v-btn value="tags" size="small">Tags</v-btn>
-        </v-btn-toggle>
+        <template v-if="isInkbunnyPools">
+          <v-text-field
+            v-model="openPoolId"
+            class="pools-toolbar-search"
+            density="compact"
+            hide-details
+            clearable
+            label="Open pool by ID"
+            prepend-inner-icon="mdi-numeric"
+            variant="solo"
+            @keyup.enter="openPoolById"
+          />
+          <v-btn size="small" color="accent" variant="flat" @click="openPoolById">
+            Open
+          </v-btn>
+        </template>
+        <template v-else>
+          <v-btn-toggle v-model="searchMode" mandatory density="compact" variant="outlined" divided class="pools-mode-toggle">
+            <v-btn value="name" size="small">Name</v-btn>
+            <v-btn value="tags" size="small">Tags</v-btn>
+          </v-btn-toggle>
 
-        <v-text-field
-          v-if="searchMode === 'name'"
-          v-model="query"
-          class="pools-toolbar-search"
-          density="compact"
-          hide-details
-          clearable
-          label="Search pools"
-          prepend-inner-icon="mdi-magnify"
-          variant="solo"
-          @keyup.enter="runSearch"
-        />
-        <tag-search
-          v-else
-          class="pools-toolbar-search"
-          :tags="tags"
-          :search-filters="false"
-          label="Post tags"
-          @add-tag="addTag"
-          @remove-tag="removeTag"
-          @confirm-search="runTagSearch"
-        />
+          <v-text-field
+            v-if="searchMode === 'name'"
+            v-model="query"
+            class="pools-toolbar-search"
+            density="compact"
+            hide-details
+            clearable
+            label="Search pools"
+            prepend-inner-icon="mdi-magnify"
+            variant="solo"
+            @keyup.enter="runSearch"
+          />
+          <tag-search
+            v-else
+            class="pools-toolbar-search"
+            :tags="tags"
+            :search-filters="false"
+            label="Post tags"
+            @add-tag="addTag"
+            @remove-tag="removeTag"
+            @confirm-search="runTagSearch"
+          />
 
-        <v-text-field
-          v-model="creator"
-          class="pools-toolbar-creator"
-          density="compact"
-          hide-details
-          clearable
-          label="Creator"
-          variant="solo"
-          @keyup.enter="runSearch"
-        />
+          <v-text-field
+            v-model="creator"
+            class="pools-toolbar-creator"
+            density="compact"
+            hide-details
+            clearable
+            label="Creator"
+            variant="solo"
+            @keyup.enter="runSearch"
+          />
 
-        <v-select
-          v-model="order"
-          class="pools-toolbar-select"
-          density="compact"
-          hide-details
-          variant="solo"
-          :items="orderItems"
-          label="Sort"
-        />
-        <v-select
-          v-model="category"
-          class="pools-toolbar-select"
-          density="compact"
-          hide-details
-          variant="solo"
-          :items="categoryItems"
-          label="Category"
-        />
-        <v-select
-          v-model="activeFilter"
-          class="pools-toolbar-select"
-          density="compact"
-          hide-details
-          variant="solo"
-          :items="activeItems"
-          label="Status"
-        />
+          <v-select
+            v-model="order"
+            class="pools-toolbar-select"
+            density="compact"
+            hide-details
+            variant="solo"
+            :items="orderItems"
+            label="Sort"
+          />
+          <v-select
+            v-model="category"
+            class="pools-toolbar-select"
+            density="compact"
+            hide-details
+            variant="solo"
+            :items="categoryItems"
+            label="Category"
+          />
+          <v-select
+            v-model="activeFilter"
+            class="pools-toolbar-select"
+            density="compact"
+            hide-details
+            variant="solo"
+            :items="activeItems"
+            label="Status"
+          />
 
-        <v-btn
-          v-if="searchMode === 'name'"
-          size="small"
-          variant="outlined"
-          :color="alsoDescriptions ? 'primary' : undefined"
-          title="Also match pool descriptions (merged results; pagination is approximate)"
-          @click="alsoDescriptions = !alsoDescriptions"
-        >
-          Desc
-        </v-btn>
+          <v-btn
+            v-if="searchMode === 'name'"
+            size="small"
+            variant="outlined"
+            :color="alsoDescriptions ? 'primary' : undefined"
+            title="Also match pool descriptions (merged results; pagination is approximate)"
+            @click="alsoDescriptions = !alsoDescriptions"
+          >
+            Desc
+          </v-btn>
+        </template>
 
         <v-btn-toggle v-model="browseLayout" mandatory density="compact" variant="outlined" divided class="pools-layout-toggle">
           <v-btn value="grid" size="small" title="Grid">
@@ -89,7 +107,7 @@
           </v-btn>
         </v-btn-toggle>
 
-        <v-btn icon :loading="loading" @click="runSearch">
+        <v-btn v-if="!isInkbunnyPools" icon :loading="loading" @click="runSearch">
           <v-icon>mdi-magnify</v-icon>
         </v-btn>
       </div>
@@ -170,6 +188,13 @@
 
       <v-divider class="mb-6" />
 
+      <template v-if="isInkbunnyPools">
+        <div class="text-body-2 text-medium-emphasis mb-4">
+          Inkbunny has no public pool name search. Open a pool by ID above, from
+          a submission’s <code>pool:</code> chip, or watch pools to track them here.
+        </div>
+      </template>
+      <template v-else>
       <div v-if="searchMode === 'tags'" class="text-caption text-medium-emphasis mb-3">
         Pools whose posts match your tags (native pool search).
       </div>
@@ -202,6 +227,7 @@
           {{ hasMore ? "Load more" : "End of results" }}
         </v-btn>
       </div>
+      </template>
     </v-container>
 
     <TipDialog
@@ -211,7 +237,8 @@
     >
       <p class="mb-3">
         In Federated mode, Pools merges e621 and e6ai results. Small origin
-        icons on cards show which site a pool comes from.
+        icons on cards show which site a pool comes from. Inkbunny pools open
+        from watches, pool chips, or by ID — there is no free-text IB name search.
       </p>
       <p class="mb-0">
         Opening a pool keeps that origin for browsing and resume. Optional
@@ -235,7 +262,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, toRaw, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useHead } from "@unhead/vue";
 import { debounce } from "lodash";
 import type { Pool } from "@/worker/api";
@@ -264,7 +291,9 @@ import { useRouterQueryHelpers } from "@/misc/util/utilities";
 import {
   isPoolOriginMode,
   poolFamilyChildren,
+  poolWatchChildren,
   poolKey,
+  poolRouteQuery,
   sortPoolsByOrder,
   type PoolChildFetchArgs,
 } from "@/misc/util/poolOrigin";
@@ -296,6 +325,7 @@ const COVER_CANDIDATES = 4;
 const ID_BATCH = 40;
 
 const route = useRoute();
+const router = useRouter();
 const main = useMainStore();
 const siteMode = useSiteModeStore();
 const postsStore = usePostsStore();
@@ -400,9 +430,25 @@ const childPage = ref<Partial<Record<PoolBrowseOrigin, number>>>({});
 const childHasMore = ref<Partial<Record<PoolBrowseOrigin, boolean>>>({});
 
 const isFederatedPools = computed(() => siteMode.isUnified);
+const isInkbunnyPools = computed(() => siteMode.activeMode === "inkbunny");
 const includeTailspaceComics = computed(
   () => isFederatedPools.value && siteMode.unifiedIncludeTailspaceComics,
 );
+const openPoolId = ref("");
+
+const openPoolById = async () => {
+  const raw = (openPoolId.value || "").trim().replace(/^pool:/i, "");
+  const id = Math.floor(Number(raw));
+  if (!Number.isFinite(id) || id <= 0) {
+    snackbar.addMessage("Enter a valid Inkbunny pool id");
+    return;
+  }
+  await router.push({
+    name: "Pool",
+    params: { id },
+    query: poolRouteQuery("inkbunny"),
+  });
+};
 
 const { open: poolsOriginTipOpen, tryOpen: tryPoolsOriginTip, tryOpenOnEdge: tryPoolsOriginEdge } =
   useTipOpen(TIP_IDS.poolsOriginBadge);
@@ -414,9 +460,10 @@ onMounted(() => {
   if (isFederatedPools.value) tryPoolsOriginTip();
 });
 const browseChildren = computed(() => poolFamilyChildren(main.$state));
+const watchChildren = computed(() => poolWatchChildren(main.$state));
 const defaultCoverOrigin = computed(() => {
   if (isPoolOriginMode(siteMode.activeMode)) return siteMode.activeMode;
-  return browseChildren.value[0]?.mode || "e621";
+  return browseChildren.value[0]?.mode || watchChildren.value[0]?.mode || "e621";
 });
 
 const watchedSectionTitle = computed(() =>
@@ -430,7 +477,7 @@ const watchedEmptyCopy = computed(() =>
 
 const watchedEntries = computed(() => {
   if (isFederatedPools.value) {
-    const enabled = new Set(browseChildren.value.map((c) => c.mode));
+    const enabled = new Set(watchChildren.value.map((c) => c.mode));
     return watchedPoolStore.entries.filter((entry) => enabled.has(entry.originMode));
   }
   if (!isPoolOriginMode(siteMode.activeMode)) return [];
@@ -689,11 +736,11 @@ const fetchCovers = async (list: PoolListItem[]) => {
     arr.push(pool);
     byOrigin.set(pool.originMode, arr);
   }
-  const children = browseChildren.value;
   for (const [origin, poolsForOrigin] of byOrigin.entries()) {
     const child =
-      children.find((c) => c.mode === origin) ||
-      poolFamilyChildren(main.$state).find((c) => c.mode === origin);
+      watchChildren.value.find((c) => c.mode === origin) ||
+      browseChildren.value.find((c) => c.mode === origin) ||
+      poolWatchChildren(main.$state).find((c) => c.mode === origin);
     if (!child) continue;
     await fetchCoversFor(poolsForOrigin, child);
   }
@@ -706,6 +753,28 @@ const hydratePoolsForChild = async (
   if (!ids.length) return [];
   const service = await getApiService();
   const unique = [...new Set(ids.filter((id) => Number.isFinite(id) && id > 0))];
+
+  // Inkbunny has no pools-list API — hydrate each watch via getPool.
+  if (child.mode === "inkbunny") {
+    const out: Pool[] = [];
+    for (const id of unique) {
+      try {
+        const pool = await withRetry(() =>
+          service.getPool({
+            id,
+            baseUrl: child.baseUrl,
+            mode: child.mode,
+            auth: child.auth,
+          }),
+        );
+        if (pool) out.push(pool);
+      } catch {
+        // Missing ids show as unavailable watches.
+      }
+    }
+    return stampPools(out, child.mode);
+  }
+
   const out: Pool[] = [];
   for (let i = 0; i < unique.length; i += ID_BATCH) {
     const slice = unique.slice(i, i + ID_BATCH);
@@ -800,7 +869,7 @@ const hydrateWatchedComics = async (): Promise<{
 const loadWatchedPools = async () => {
   watchedLoading.value = true;
   try {
-    const children = browseChildren.value;
+    const children = watchChildren.value;
     const byChild = new Map<PoolOriginMode, number[]>();
     for (const entry of watchedEntries.value) {
       const list = byChild.get(entry.originMode) || [];

@@ -17,7 +17,7 @@ import PoolInfo from "@/Pool/PoolInfo.vue";
 import { useBlacklistStore, useSiteModeStore, useUrlStore } from "@/services";
 import { useFavoritesStore } from "@/services/FavoriteStore";
 import { useMainStore } from "@/services/state";
-import { computed, defineComponent } from "vue";
+import { computed, defineComponent, type PropType } from "vue";
 import { openUrlInNewTab } from "@/misc/util/url";
 import { isCreatorCategory, useSiteLabels } from "@/misc/util/siteLabels";
 import { isE621FamilyMode, modeSupportsPools } from "@/misc/util/siteCapabilities";
@@ -25,8 +25,10 @@ import {
   poolFamilyChildren,
   poolRouteQuery,
   resolvePoolOrigin,
+  isPoolOriginMode,
 } from "@/misc/util/poolOrigin";
 import { useRoute, useRouter, type RouteLocationRaw } from "vue-router";
+import type { PoolOriginMode } from "@/services/types";
 
 export default defineComponent({
     props: {
@@ -37,6 +39,10 @@ export default defineComponent({
         category: {
             type: String,
             required: true,
+        },
+        originMode: {
+            type: String as PropType<PoolOriginMode | null>,
+            default: null,
         },
     },
     setup(props) {
@@ -66,8 +72,10 @@ export default defineComponent({
             return false;
         });
         const poolOrigin = computed(() => {
+          if (isPoolOriginMode(props.originMode)) return props.originMode;
           const fromRoute = resolvePoolOrigin(route.query.origin, siteMode.activeMode);
           if (fromRoute) return fromRoute;
+          if (siteMode.isInkbunny) return "inkbunny" as const;
           if (siteMode.isUnified) {
             const kids = poolFamilyChildren(main.$state);
             return kids.length === 1 ? kids[0].mode : null;
@@ -76,9 +84,8 @@ export default defineComponent({
         });
         const showPoolBrowse = computed(() => {
           if (!pool.value) return false;
-          // Inkbunny pools browse via Posts tags; Pool page is e621-shaped (H15/H13).
-          if (siteMode.isInkbunny) return false;
           if (!modeSupportsPools(siteMode.activeMode)) return false;
+          // Federated needs an origin when multiple pool children exist.
           if (siteMode.isUnified && !poolOrigin.value) return false;
           return true;
         });
@@ -105,21 +112,12 @@ export default defineComponent({
             },
             {
                 text: "Browse pool",
-                route: siteMode.isInkbunny
-                  ? { name: "Posts", query: { tags: `pool:${pool.value || 0}` } }
-                  : poolBrowseRoute.value,
+                route: poolBrowseRoute.value,
                 action: async () => {
                     if (!pool.value) return;
-                    if (siteMode.isInkbunny) {
-                      router.push({
-                        name: "Posts",
-                        query: { tags: `pool:${pool.value}` },
-                      });
-                      return;
-                    }
                     router.push(poolBrowseRoute.value);
                 },
-                visible: !!pool.value && (showPoolBrowse.value || siteMode.isInkbunny),
+                visible: !!pool.value && showPoolBrowse.value,
             },
             {
                 text: "Search",

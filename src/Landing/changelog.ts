@@ -23,6 +23,8 @@ export const changelogSections: ChangelogSection[] = [
       "Logo face raised to shorten the forehead; blink lids no longer cover the eyebrows",
       "Flayrah site mode: read-only RSS feed and article reader with taxonomy chips, archive, saved/unread, magazine layout, and j/k shortcuts",
       "Federated Pools: merged e621/e6ai browse with origin badges, sequential fetch/retry, and Updated/sort interleave",
+      "Inkbunny pools: site-mode /pools with open-by-id and watch; Federated reader via ?origin=inkbunny (no free-text IB name search)",
+      "Federated Watched Pools includes Inkbunny when that child is enabled; pool chips open the shared reader",
       "Federated Pools name browse can include Tailspace comics (Account setting, on by default); opens the Tailspace reader",
       "Federated Watched Pools & Comics aggregates e621/e6ai watched pools and Tailspace watched comics when Include Tailspace comics is on; eye toggle writes to the same per-source lists",
       "Federated Pools interleave Tailspace comics with e621/e6ai by Updated/sort (ISO comic dates parse correctly)",

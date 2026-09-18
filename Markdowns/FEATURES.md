@@ -209,16 +209,16 @@ This backlog is derived from `README.md`, `README-CONTINUED.md`, and `AI_CONTEXT
 
 ## 4. Comics, pools, and stories
 
-### 4.1 Keep pool reader e621-family-only; do not fall through — **DONE**
+### 4.1 Keep pool reader e621-family + Inkbunny; do not fall through — **DONE**
 
-- **Status:** Done (guards). `modeSupportsPools` (= e621/e6ai); router redirects non-pool modes from `/pools`; nav gated. Inkbunny submission pools stay on `__meta` — no IB `/pools` UI. Spec in `siteCapabilities.spec.ts`.
-- **User problem / motivation:** Fork adds `/pools` and `/pools/:id` (gallery, scroll/full-width, numbered chunk pagination). Inkbunny has pools; Itaku flattens multi-image posts; Tailspace has a **separate** reader and routes (`/tailspace/...`). Router guards already exist. Accidental fall-through would show e621 pool UI on SoFurry/Itaku.
-- **Proposed behavior:** Capability matrix: `modeSupportsPools` (e621/e6ai, and Inkbunny **only** if the Inkbunny adapter already has a real pool API — `TODO`). Tailspace stays on `src/Tailspace/`. Itaku multi-image stays flattened posts, not `/pools`.
+- **Status:** Done. `modeSupportsPools` (= e621/e6ai/inkbunny/unified); router redirects non-pool modes from `/pools`; nav gated. Inkbunny multi-file galleries stay on dialog chrome. Spec in `siteCapabilities.spec.ts`. Federated reader uses `?origin=e621|e6ai|inkbunny`. Inkbunny has no pools-list API — name/tags browse stays e621/e6ai; IB entry via watch, open-by-id, and `pool:` chips.
+- **User problem / motivation:** Fork adds `/pools` and `/pools/:id`. Inkbunny has real pools; accidental fall-through must not show e621 pool UI on SoFurry/Itaku.
+- **Proposed behavior:** Capability matrix includes Inkbunny; Tailspace stays on `src/Tailspace/`. Itaku multi-image stays flattened posts, not `/pools`.
 - **Why it fits m-e621 specifically:** Docs call out dedicated Tailspace comic reader and “do not fall through.”
-- **Affected areas/files:** `siteCapabilities.ts`, `router/index.ts`, `navigation.ts`.
-- **Effort / risk:** S (guards/tests) / L (Inkbunny pools UI if API exists) · **Impact:** medium
-- **Dependencies / blockers:** Inkbunny pool chrome still product + API confirmation.
-- **Agent vs product:** Guards shipped. New Inkbunny pool chrome still product.
+- **Affected areas/files:** `siteCapabilities.ts`, `router/index.ts`, `navigation.ts`, `poolOrigin.ts`, `inkbunny/api.ts`.
+- **Effort / risk:** M · **Impact:** medium
+- **Dependencies / blockers:** None for v1 (no scrape / name index).
+- **Agent vs product:** Shipped.
 
 ### 4.2 Shared reader chrome without merging Tailspace into Unified — **DONE** (slice)
 

@@ -24,8 +24,9 @@ Checklist for improving e621/e6ai pools (`src/Pool/`, `WatchedPoolsStore`, share
 
 ## Out of scope (for now)
 
-- [ ] ~~Inkbunny `/pools` UI~~ — product + API undecided; submission galleries stay outside `/pools`.
+- [x] ~~Inkbunny `/pools` UI~~ — shipped (open-by-id / watch / chips; no free-text name index).
 - [ ] ~~Merge Tailspace into Pools~~ — rejected; keep routes separate.
+- [ ] Inkbunny free-text pool name scrape — still rejected (no official list API).
 
 ## Suggested ship order
 
@@ -46,4 +47,4 @@ Checklist for improving e621/e6ai pools (`src/Pool/`, `WatchedPoolsStore`, share
 | Keyboard chunks | Done | ←/→ and `[`/`]` |
 | Browse/search API | Done | post_tags_match, Desc toggle, batch ids, filters |
 | Reader polish | Done | gaps/blur, save chunk/all, shared key helpers |
-| Out of scope | — | IB pools UI / Tailspace merge |
+| Out of scope | — | Tailspace merge / IB name scrape |

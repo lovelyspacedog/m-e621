@@ -35,12 +35,13 @@ export const modeSupportsOtherUserFavorites = (mode: SiteMode): boolean =>
   mode === "sofurry";
 
 /**
- * `/pools` + pool reader — e621-family, plus Federated (e621/e6ai children;
+ * `/pools` + pool reader — e621-family, Inkbunny, plus Federated
+ * (e621/e6ai name browse; Inkbunny via watch / open-by-id / chips;
  * Tailspace comics may join Federated name browse only).
- * Inkbunny submission pools stay on `__meta`, not this UI.
+ * Inkbunny multi-file submissions stay on gallery chrome, not this UI.
  */
 export const modeSupportsPools = (mode: SiteMode): boolean =>
-  isE621FamilyMode(mode) || mode === "unified";
+  isE621FamilyMode(mode) || mode === "inkbunny" || mode === "unified";
 
 export const modeSupportsVotes = (mode: SiteMode): boolean =>
   isE621FamilyMode(mode) || mode === "furbooru";

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   isPoolOriginMode,
+  isPoolListOrigin,
   parsePoolOriginQuery,
   poolFamilyChildren,
+  poolWatchChildren,
   poolKey,
   poolRouteQuery,
   resolvePoolOrigin,
@@ -20,6 +22,7 @@ const emptyState = (activeMode: ISettingsServiceState["activeMode"]): ISettingsS
     profiles: {
       e621: createEmptySiteProfile("e621"),
       e6ai: createEmptySiteProfile("e6ai"),
+      inkbunny: createEmptySiteProfile("inkbunny"),
       unified: {
         ...createEmptySiteProfile("unified"),
         unifiedSites: defaultUnifiedSites(),
@@ -32,32 +35,38 @@ describe("parsePoolOriginQuery / resolvePoolOrigin", () => {
   it("parses origin query", () => {
     expect(parsePoolOriginQuery("e621")).toBe("e621");
     expect(parsePoolOriginQuery("e6ai")).toBe("e6ai");
+    expect(parsePoolOriginQuery("inkbunny")).toBe("inkbunny");
     expect(parsePoolOriginQuery(["e6ai"])).toBe("e6ai");
     expect(parsePoolOriginQuery("furbooru")).toBeNull();
     expect(parsePoolOriginQuery(undefined)).toBeNull();
   });
 
-  it("requires origin in Federated; falls back on e621-family", () => {
+  it("requires origin in Federated; falls back on pool origins", () => {
     expect(resolvePoolOrigin("e6ai", "unified")).toBe("e6ai");
+    expect(resolvePoolOrigin("inkbunny", "unified")).toBe("inkbunny");
     expect(resolvePoolOrigin(undefined, "unified")).toBeNull();
     expect(resolvePoolOrigin(undefined, "e621")).toBe("e621");
     expect(resolvePoolOrigin("e6ai", "e621")).toBe("e6ai");
-    expect(resolvePoolOrigin(undefined, "inkbunny")).toBeNull();
+    expect(resolvePoolOrigin(undefined, "inkbunny")).toBe("inkbunny");
   });
 
   it("poolKey and route query", () => {
     expect(poolKey("e621", 12)).toBe("e621:12");
+    expect(poolKey("inkbunny", 99)).toBe("inkbunny:99");
     expect(poolRouteQuery("e6ai", { post: "3" })).toEqual({
       origin: "e6ai",
       post: "3",
     });
     expect(poolRouteQuery(null)).toEqual({});
     expect(isPoolOriginMode("e621")).toBe(true);
+    expect(isPoolOriginMode("inkbunny")).toBe(true);
     expect(isPoolOriginMode("unified")).toBe(false);
+    expect(isPoolListOrigin("e621")).toBe(true);
+    expect(isPoolListOrigin("inkbunny")).toBe(false);
   });
 });
 
-describe("poolFamilyChildren", () => {
+describe("poolFamilyChildren / poolWatchChildren", () => {
   it("returns the active e621-family site alone", () => {
     const kids = poolFamilyChildren(emptyState("e621"));
     expect(kids).toHaveLength(1);
@@ -65,10 +74,21 @@ describe("poolFamilyChildren", () => {
     expect(kids[0].baseUrl).toBe(SITE_MODE_URLS.e621);
   });
 
-  it("fans out to enabled Federated e621/e6ai children", () => {
+  it("returns Inkbunny alone in Inkbunny mode", () => {
+    const kids = poolFamilyChildren(emptyState("inkbunny"));
+    expect(kids.map((k) => k.mode)).toEqual(["inkbunny"]);
+  });
+
+  it("fans out to enabled Federated e621/e6ai children only for list browse", () => {
     const state = emptyState("unified");
     const kids = poolFamilyChildren(state);
     expect(kids.map((k) => k.mode)).toEqual(["e621", "e6ai"]);
+  });
+
+  it("includes Inkbunny in Federated watch children when enabled", () => {
+    const state = emptyState("unified");
+    const watch = poolWatchChildren(state);
+    expect(watch.map((k) => k.mode)).toEqual(["e621", "e6ai", "inkbunny"]);
   });
 
   it("omits disabled Federated pool children", () => {
@@ -76,12 +96,14 @@ describe("poolFamilyChildren", () => {
     state.profiles.unified!.unifiedSites = {
       ...defaultUnifiedSites(),
       e6ai: false,
+      inkbunny: false,
     };
     const kids = poolFamilyChildren(state);
     expect(kids.map((k) => k.mode)).toEqual(["e621"]);
+    expect(poolWatchChildren(state).map((k) => k.mode)).toEqual(["e621"]);
   });
 
-  it("returns empty when neither pool child is enabled", () => {
+  it("returns empty list browse when neither e621-family child is enabled", () => {
     const state = emptyState("unified");
     state.profiles.unified!.unifiedSites = {
       ...defaultUnifiedSites(),
@@ -89,6 +111,7 @@ describe("poolFamilyChildren", () => {
       e6ai: false,
     };
     expect(poolFamilyChildren(state)).toEqual([]);
+    expect(poolWatchChildren(state).map((k) => k.mode)).toEqual(["inkbunny"]);
   });
 });
 

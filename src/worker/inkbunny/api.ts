@@ -10,7 +10,7 @@
  */
 
 import { isAudioExt } from "@/misc/util/audioExts";
-import type { Post, PostTags, Tag } from "@/worker/api/returnTypes";
+import type { Pool, Post, PostTags, Tag } from "@/worker/api/returnTypes";
 
 export interface InkbunnyFile {
   file_id: number;
@@ -731,6 +731,137 @@ export async function getSubmissions(args: {
     });
     return asList(data.submissions);
   });
+}
+
+/** Parse pure `id:1,2,3` tag lists (pool chunk / cover fetch). */
+export function parseSubmissionIdsFromTags(tags: string[]): number[] | null {
+  const ids: number[] = [];
+  let sawId = false;
+  for (const raw of tags.filter(Boolean)) {
+    const tag = raw.trim();
+    const lower = tag.toLowerCase();
+    if (lower.startsWith("id:")) {
+      sawId = true;
+      for (const part of lower.slice(3).split(",")) {
+        const id = num(part.trim());
+        if (id) ids.push(id);
+      }
+      continue;
+    }
+    // Blacklist negations are fine alongside id:; other search terms are not.
+    if (lower.startsWith("-") || lower.startsWith("~")) continue;
+    return null;
+  }
+  return sawId ? ids : null;
+}
+
+/** Cap pool membership pagination (page size × pages). */
+export const INKBUNNY_POOL_PAGE_SIZE = 100;
+export const INKBUNNY_POOL_MAX_PAGES = 40;
+
+export type InkbunnyPoolResult = {
+  pool: Pool;
+  /** True when membership was capped before all submissions were fetched. */
+  truncated: boolean;
+};
+
+/**
+ * Build an e621-shaped Pool from Inkbunny `pool_id` search + `show_pools`.
+ * There is no pools-list API — name browse stays unsupported.
+ */
+export async function getPool(args: {
+  id: number;
+  sid?: string | null;
+}): Promise<InkbunnyPoolResult> {
+  const poolId = Math.floor(Number(args.id));
+  if (!Number.isFinite(poolId) || poolId <= 0) {
+    throw new Error("Invalid Inkbunny pool id");
+  }
+
+  const postIds: number[] = [];
+  let reportedTotal = 0;
+  let firstHit: InkbunnySearchHit | null = null;
+  let lastHit: InkbunnySearchHit | null = null;
+  let page = 1;
+
+  while (page <= INKBUNNY_POOL_MAX_PAGES) {
+    const result = await searchSubmissions({
+      tags: [`pool:${poolId}`],
+      page,
+      limit: INKBUNNY_POOL_PAGE_SIZE,
+      sid: args.sid,
+    });
+    if (!firstHit && result.hits[0]) firstHit = result.hits[0];
+    if (result.hits.length) {
+      lastHit = result.hits[result.hits.length - 1] || lastHit;
+    }
+    if (result.total > 0) reportedTotal = result.total;
+    for (const hit of result.hits) {
+      const id = num(hit.submission_id);
+      if (id) postIds.push(id);
+    }
+    if (
+      !result.hits.length ||
+      result.hits.length < INKBUNNY_POOL_PAGE_SIZE ||
+      (reportedTotal > 0 && postIds.length >= reportedTotal)
+    ) {
+      break;
+    }
+    page += 1;
+  }
+
+  const truncated =
+    page >= INKBUNNY_POOL_MAX_PAGES &&
+    reportedTotal > 0 &&
+    postIds.length < reportedTotal;
+
+  let name = `Pool ${poolId}`;
+  let description = "";
+  let postCount = reportedTotal || postIds.length;
+  let creatorId = 0;
+  let creatorName = "";
+
+  if (postIds[0]) {
+    const subs = await getSubmissions({ ids: [postIds[0]], sid: args.sid });
+    const sub = subs[0];
+    if (sub) {
+      creatorId = num(sub.user_id);
+      creatorName = sub.username || "";
+      const meta = (sub.pools || []).find((p) => num(p.pool_id) === poolId);
+      if (meta) {
+        if (meta.name) name = meta.name;
+        if (meta.description) description = meta.description;
+        const count = num(meta.count);
+        if (count > 0) postCount = count;
+      }
+    }
+  }
+
+  const parseDt = (raw?: string): Date => {
+    if (!raw) return new Date(0);
+    const t = Date.parse(raw);
+    return Number.isFinite(t) ? new Date(t) : new Date(0);
+  };
+  const created = parseDt(firstHit?.create_datetime);
+  const updated = parseDt(lastHit?.create_datetime || firstHit?.create_datetime);
+
+  return {
+    pool: {
+      id: poolId,
+      name,
+      created_at: created,
+      updated_at: updated,
+      creator_id: creatorId,
+      description,
+      is_active: true,
+      category: "",
+      is_deleted: false,
+      post_ids: postIds,
+      creator_name: creatorName,
+      post_count: Math.max(postCount, postIds.length),
+    },
+    truncated,
+  };
 }
 
 export async function searchKeywords(args: {

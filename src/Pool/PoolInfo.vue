@@ -49,7 +49,7 @@
 <script lang="ts">
 import AppLogo from "@/App/AppLogo.vue";
 import DText from "@/Parser/DText.vue";
-import { useSiteModeStore, useWatchedPoolsStore } from "@/services";
+import { useSiteModeStore, useSnackbarStore, useWatchedPoolsStore } from "@/services";
 import { useMainStore } from "@/services/state";
 import type { PoolOriginMode } from "@/services/types";
 import type { Pool } from "@/worker/api";
@@ -105,6 +105,7 @@ export default defineComponent({
     const main = useMainStore();
     const siteMode = useSiteModeStore();
     const watchedPools = useWatchedPoolsStore();
+    const snackbar = useSnackbarStore();
     const pool = ref<Pool>();
     const loading = ref(false);
     const error = ref<string | null>(null);
@@ -122,6 +123,9 @@ export default defineComponent({
     const siteUrl = computed(() => {
       const base = child.value?.baseUrl || "";
       const normalized = base.endsWith("/") ? base : `${base}/`;
+      if (poolOrigin.value === "inkbunny") {
+        return `${normalized}poolview_process.php?pool_id=${props.poolId}`;
+      }
       return `${normalized}pools/${props.poolId}`;
     });
     const browseQuery = computed(() => poolRouteQuery(poolOrigin.value));
@@ -169,6 +173,15 @@ export default defineComponent({
           auth: child.value.auth,
         });
         pool.value = result;
+        if (
+          origin === "inkbunny" &&
+          result.post_count > 0 &&
+          (result.post_ids?.length || 0) < result.post_count
+        ) {
+          snackbar.addMessage(
+            `Loaded ${result.post_ids?.length || 0} of ${result.post_count} Inkbunny pool pages (list capped)`,
+          );
+        }
         if (watchedPools.isWatched(origin, props.poolId)) {
           watchedPools.markSeen(origin, props.poolId, {
             postCount: result.post_count || result.post_ids?.length || 0,

@@ -7,7 +7,11 @@
         </v-btn>
       </slot>
     </template>
-    <tag-actions :category="tag.category" :name="tag.name" />
+    <tag-actions
+      :category="tag.category"
+      :name="tag.name"
+      :origin-mode="originMode"
+    />
   </v-menu>
 </template>
 
@@ -16,6 +20,7 @@ import type { PropType } from "vue";
 import { defineComponent } from "vue";
 import TagActions from "@/Tag/TagActions.vue";
 import type { ITag } from "./ITag";
+import type { PoolOriginMode } from "@/services/types";
 
 export default defineComponent({
   components: {
@@ -25,6 +30,10 @@ export default defineComponent({
     tag: {
       type: Object as PropType<ITag>,
       required: true,
+    },
+    originMode: {
+      type: String as PropType<PoolOriginMode | null>,
+      default: null,
     },
   },
   setup() {

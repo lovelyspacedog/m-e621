@@ -815,6 +815,33 @@ export class ApiService {
     }
 
     if (backend === "inkbunny") {
+      const idList = inkbunny.parseSubmissionIdsFromTags(args.tags.filter(Boolean));
+      if (idList?.length) {
+        const subs = await inkbunny.getSubmissions({
+          ids: idList,
+          sid: args.auth?.api_key ?? null,
+        });
+        const byId = new Map(
+          subs.map((sub) => [Number(sub.submission_id), sub] as const),
+        );
+        const sid = args.auth?.api_key ?? null;
+        const out: EnhancedPost[] = [];
+        for (const id of idList) {
+          const sub = byId.get(id);
+          if (!sub) continue;
+          const adapted = inkbunny.adaptDetails(sub, sid);
+          out.push({
+            ...adapted,
+            __meta: {
+              isBlacklisted: isPostBlacklisted(adapted, args.blacklist || []),
+              pageNumber: args.page,
+              originMode: originModeStamp(args.mode),
+              inkbunny: inkbunny.inkbunnyMetaFromHit(sub, sid, true),
+            },
+          });
+        }
+        return out;
+      }
       const hideNegations =
         args.blacklistMode === BlacklistMode.hide
           ? (args.blacklist || [])
@@ -1054,6 +1081,7 @@ export class ApiService {
   async getPools(args: IPoolsArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotDedicatedChrome(args.baseUrl, "getPools", args.mode);
+    // Inkbunny has no pools-list API — name/tags browse stays empty; use getPool(ids).
     if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
       return [];
     }
@@ -1064,7 +1092,16 @@ export class ApiService {
   async getPool(args: IGetPoolArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotDedicatedChrome(args.baseUrl, "getPool", args.mode);
-    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
+    if (backend === "inkbunny") {
+      const result = await withRetry(() =>
+        inkbunny.getPool({
+          id: args.id,
+          sid: args.auth?.api_key ?? null,
+        }),
+      );
+      return result.pool;
+    }
+    if (backend === "furbooru" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
       throw new Error("Pools are not supported on this site");
     }
     return withRetry(() => e621.pools.get(args));

@@ -8,9 +8,20 @@ import { createEmptySiteProfile } from "@/services/siteProfiles";
 import { authFromAccount } from "@/misc/util/postOrigin";
 import { toRaw } from "vue";
 
-export const POOL_ORIGIN_MODES: PoolOriginMode[] = ["e621", "e6ai"];
+/** Origins with a pools list API (Federated name/tags fan-out). */
+export const POOL_LIST_ORIGINS: PoolOriginMode[] = ["e621", "e6ai"];
+
+/** All pool reader / watch origins (`?origin=`). */
+export const POOL_ORIGIN_MODES: PoolOriginMode[] = [
+  "e621",
+  "e6ai",
+  "inkbunny",
+];
 
 export const isPoolOriginMode = (value: unknown): value is PoolOriginMode =>
+  value === "e621" || value === "e6ai" || value === "inkbunny";
+
+export const isPoolListOrigin = (value: unknown): value is PoolOriginMode =>
   value === "e621" || value === "e6ai";
 
 /** Parse `?origin=` (or array query). */
@@ -74,28 +85,61 @@ const childArgsFor = (
   };
 };
 
-/** Enabled e621/e6ai Federated children (or the single active e621-family site). */
+const unifiedSitesOf = (state: ISettingsServiceState) => ({
+  ...defaultUnifiedSites(),
+  ...toRaw(state.profiles.unified?.unifiedSites),
+});
+
+/**
+ * Enabled listable pool children for name/tags browse
+ * (e621/e6ai only — Inkbunny has no pools-list API).
+ * Single-site e621-family or Inkbunny returns that site alone.
+ */
 export const poolFamilyChildren = (
   state: ISettingsServiceState,
 ): PoolChildFetchArgs[] => {
   const active = state.activeMode;
   if (isPoolOriginMode(active)) {
-    return [childArgsFor(state, active, {
-      includeSharedBlacklist: false,
-      useLiveBlacklist: true,
-    })];
+    return [
+      childArgsFor(state, active, {
+        includeSharedBlacklist: false,
+        useLiveBlacklist: true,
+      }),
+    ];
   }
   if (active !== "unified") return [];
 
-  const sites = {
-    ...defaultUnifiedSites(),
-    ...toRaw(state.profiles.unified?.unifiedSites),
-  };
+  const sites = unifiedSitesOf(state);
   const out: PoolChildFetchArgs[] = [];
-  for (const mode of POOL_ORIGIN_MODES) {
+  for (const mode of POOL_LIST_ORIGINS) {
     if (!sites[mode]) continue;
     out.push(
       childArgsFor(state, mode, {
+        includeSharedBlacklist: true,
+        useLiveBlacklist: false,
+      }),
+    );
+  }
+  return out;
+};
+
+/**
+ * Origins that may appear in Watched Pools (listable + Inkbunny when enabled).
+ */
+export const poolWatchChildren = (
+  state: ISettingsServiceState,
+): PoolChildFetchArgs[] => {
+  const active = state.activeMode;
+  if (isPoolOriginMode(active)) {
+    return poolFamilyChildren(state);
+  }
+  if (active !== "unified") return [];
+
+  const sites = unifiedSitesOf(state);
+  const out = poolFamilyChildren(state);
+  if (sites.inkbunny) {
+    out.push(
+      childArgsFor(state, "inkbunny", {
         includeSharedBlacklist: true,
         useLiveBlacklist: false,
       }),
@@ -108,8 +152,8 @@ export const poolChildForOrigin = (
   state: ISettingsServiceState,
   origin: PoolOriginMode,
 ): PoolChildFetchArgs => {
-  const fromFamily = poolFamilyChildren(state).find((c) => c.mode === origin);
-  if (fromFamily) return fromFamily;
+  const fromWatch = poolWatchChildren(state).find((c) => c.mode === origin);
+  if (fromWatch) return fromWatch;
   return childArgsFor(state, origin, {
     includeSharedBlacklist: state.activeMode === "unified",
     useLiveBlacklist: state.activeMode === origin,
@@ -145,10 +189,20 @@ export const poolTimestampMs = (
   return Number.isFinite(t) ? t : 0;
 };
 
-/** Cross-origin merge sort so e621/e6ai results interleave by the browse order. */
+/** Cross-origin merge sort so pool results interleave by the browse order. */
 export const comparePoolsByOrder = (
-  a: { name?: string; post_count?: number; created_at?: Date | string; updated_at?: Date | string },
-  b: { name?: string; post_count?: number; created_at?: Date | string; updated_at?: Date | string },
+  a: {
+    name?: string;
+    post_count?: number;
+    created_at?: Date | string;
+    updated_at?: Date | string;
+  },
+  b: {
+    name?: string;
+    post_count?: number;
+    created_at?: Date | string;
+    updated_at?: Date | string;
+  },
   order: PoolBrowseOrder,
 ): number => {
   switch (order) {
@@ -166,12 +220,14 @@ export const comparePoolsByOrder = (
   }
 };
 
-export const sortPoolsByOrder = <T extends {
-  name?: string;
-  post_count?: number;
-  created_at?: Date | string;
-  updated_at?: Date | string;
-}>(
+export const sortPoolsByOrder = <
+  T extends {
+    name?: string;
+    post_count?: number;
+    created_at?: Date | string;
+    updated_at?: Date | string;
+  },
+>(
   pools: T[],
   order: PoolBrowseOrder,
 ): T[] => [...pools].sort((a, b) => comparePoolsByOrder(a, b, order));

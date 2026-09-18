@@ -192,6 +192,7 @@
             <TagWithMenu
               small
               :tag="{ name: `pool:${pool.id}`, category: 'pool' }"
+              origin-mode="inkbunny"
             />
             <span v-if="pool.name" class="text-caption text-medium-emphasis ml-1">
               {{ pool.name }}
