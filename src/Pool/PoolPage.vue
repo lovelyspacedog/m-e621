@@ -129,6 +129,8 @@ const savingChunk = ref(false);
 const savingAll = ref(false);
 /** When true, chunk URL changed because the post list advanced — skip replace fetch. */
 const syncingChunkFromList = ref(false);
+/** When true, ?post= changed from fullscreen nav — skip applyFocus echo. */
+const syncingPostFromFullscreen = ref(false);
 /** Dedupe pool id:tag truncation snackbar once per pool. */
 const lastPoolTruncationKey = ref("");
 /** Scroll mode: PoolReader scrolls this id into view once loaded. */
@@ -185,7 +187,14 @@ const syncPostQuery = async (postId: number) => {
     return;
   }
   if (queryPostId.value === postId) return;
-  await updateRouterQuery({ post: String(postId) });
+  // Mark before await so queryPostId watch sees the flag when the route settles.
+  syncingPostFromFullscreen.value = true;
+  try {
+    await updateRouterQuery({ post: String(postId) });
+  } finally {
+    await nextTick();
+    syncingPostFromFullscreen.value = false;
+  }
 };
 
 const fetchChunkPosts = async (pageNumber: number): Promise<EnhancedPost[]> => {
@@ -625,6 +634,9 @@ watch(fullscreenPost, (post) => {
 watch(queryPostId, (postId, prev) => {
   if (!poolMeta.value?.post_ids?.length) return;
   if (!postId || postId === prev) return;
+  // Fullscreen next/prev already moved the post; URL sync must not re-run
+  // applyFocus → fetchChunk → replacePosts (dialog close + gallery reload).
+  if (syncingPostFromFullscreen.value) return;
   if (fullscreenPost.value?.id === postId) return;
   void applyFocus(postId, {
     openFullscreen: viewMode.value === "gallery",

@@ -541,6 +541,16 @@ export const usePostListManager = ({
 
   /** Replace the in-memory list without page-window trimming (Saved posts). */
   const replacePosts = (next: EnhancedPost[]) => {
+    // Keep overlays open when the same post is still in the replacement list
+    // (pool chunk reload). Clearing always forced fullscreen close → reopen.
+    const prevFs = fullscreenPost.value;
+    const prevDetails = detailsPost.value;
+    const nextFs = prevFs
+      ? next.find((p) => postFeedKey(p) === postFeedKey(prevFs)) || null
+      : null;
+    const nextDetails = prevDetails
+      ? next.find((p) => postFeedKey(p) === postFeedKey(prevDetails)) || null
+      : null;
     generation.value += 1;
     faEnrichPending.clear();
     posts.value = next;
@@ -548,9 +558,9 @@ export const usePostListManager = ({
     loading.value = false;
     pendingFullscreenAdvance = null;
     pendingFullscreenAdvanceOpts = null;
-    fullscreenPost.value = null;
-    detailsPost.value = null;
-    useUiStore().fullscreenOpen = false;
+    fullscreenPost.value = nextFs;
+    detailsPost.value = nextDetails;
+    if (!nextFs) useUiStore().fullscreenOpen = false;
     scheduleFaFeedEnrich(next);
   };
 
