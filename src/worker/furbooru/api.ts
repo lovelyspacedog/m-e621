@@ -470,6 +470,29 @@ export function mapOrderTags(tags: string[]): { sort: FurbooruSort | null; tags:
   return { sort: map[orderTag] ?? null, tags: rest };
 }
 
+/**
+ * Philomena system filter "Everything" (no hidden/spoilered tags).
+ * Without this, anonymous searches use "Default" and drop most NSFW
+ * gallery covers / membership — pool cards look empty.
+ */
+export const FURBOORU_EVERYTHING_FILTER_ID = 2;
+
+/**
+ * Expand e621-style `id:1,2,3` (or `id:1, 2`) into Philomena
+ * `id:1 OR id:2 OR id:3`. Leaves other query text alone.
+ */
+export function expandPhilomenaIdQuery(query: string): string {
+  return (query || "").replace(/\bid:(\d+(?:\s*,\s*\d+)*)/gi, (_match, raw: string) => {
+    const ids = String(raw)
+      .split(/\s*,\s*/)
+      .map((s) => s.trim())
+      .filter((s) => /^\d+$/.test(s));
+    if (!ids.length) return "id:0";
+    if (ids.length === 1) return `id:${ids[0]}`;
+    return ids.map((id) => `id:${id}`).join(" OR ");
+  });
+}
+
 export interface FurbooruSearchArgs {
   /** Tag query string (same Philomena syntax: tag1, -tag2, my:faves, etc.) */
   query: string;
@@ -479,15 +502,27 @@ export interface FurbooruSearchArgs {
   apiKey?: string | null;
   /** Philomena sort — mapped from e621 order:* tags */
   sort?: FurbooruSort | null;
+  /**
+   * Philomena filter_id. Defaults to Everything so client blacklist owns
+   * hiding (matches e621-style browsing).
+   */
+  filterId?: number | null;
 }
 
 export async function searchImages(args: FurbooruSearchArgs): Promise<{ posts: Post[]; total: number }> {
   const q = new URLSearchParams({
-    q: args.query || "*",
+    q: expandPhilomenaIdQuery(args.query || "*") || "*",
     page: String(args.page),
     per_page: String(args.limit),
   });
   if (args.apiKey) q.set("key", args.apiKey);
+  const filterId =
+    args.filterId === null
+      ? null
+      : args.filterId ?? FURBOORU_EVERYTHING_FILTER_ID;
+  if (filterId != null && Number.isFinite(filterId) && filterId > 0) {
+    q.set("filter_id", String(Math.floor(filterId)));
+  }
   if (args.sort?.sf) {
     q.set("sf", args.sort.sf);
     if (args.sort.sd) q.set("sd", args.sort.sd);

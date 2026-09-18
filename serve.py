@@ -3197,7 +3197,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return vals[0] if vals else None
 
         fwd = {}
-        for key in ("q", "page", "per_page", "key", "sf", "sd"):
+        for key in ("q", "page", "per_page", "key", "sf", "sd", "filter_id"):
             v = _first(key)
             if v is not None:
                 fwd[key] = v

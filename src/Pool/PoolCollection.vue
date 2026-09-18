@@ -9,7 +9,7 @@
           </div>
           <div class="pools-badge pools-badge--pages">
             <v-icon size="12">mdi-image-multiple</v-icon>
-            {{ pool.post_count }}
+            {{ pageCountLabel(pool) }}
           </div>
           <div v-if="pool.category" class="pools-badge pools-badge--cat">
             {{ pool.category }}
@@ -69,7 +69,7 @@
         {{ displayName(pool.name) }}
       </v-list-item-title>
       <v-list-item-subtitle>
-        {{ pool.post_count }} {{ countNoun(pool) }} · {{ pool.creator_name }}
+        {{ pageCountLabel(pool) }} {{ countNoun(pool) }} · {{ pool.creator_name }}
         <span v-if="updatedLabel(pool)"> · {{ updatedLabel(pool) }}</span>
         <span v-if="pool.category"> · {{ pool.category }}</span>
         <span v-if="!pool.is_active"> · inactive</span>
@@ -111,6 +111,7 @@ import type { PoolBrowseOrigin, PoolOriginMode } from "@/services/types";
 import { poolKey, poolRouteQuery } from "@/misc/util/poolOrigin";
 import { unifiedChildIcon, unifiedChildLabel } from "@/misc/util/postOrigin";
 import { isTailspacePoolItem } from "@/misc/util/tailspacePoolBrowse";
+import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
 
 export type PoolListItem = Pool & {
   originMode?: PoolBrowseOrigin;
@@ -173,16 +174,24 @@ const coverLookupKey = (origin: string, id: number) =>
   origin ? `${origin}:${id}` : String(id);
 const coverUrl = (pool: PoolListItem) => {
   const origin = resolvedOrigin(pool);
+  let raw: string | null = null;
   if (origin === "tailspace") {
-    return props.covers[coverLookupKey(origin, pool.id)] || null;
+    raw = props.covers[coverLookupKey(origin, pool.id)] || null;
+  } else {
+    for (const id of pool.post_ids || []) {
+      if (typeof id !== "number" || id <= 0) continue;
+      const keyed = props.covers[coverLookupKey(origin, id)];
+      if (keyed) {
+        raw = keyed;
+        break;
+      }
+      if (props.covers[String(id)]) {
+        raw = props.covers[String(id)];
+        break;
+      }
+    }
   }
-  for (const id of pool.post_ids || []) {
-    if (typeof id !== "number" || id <= 0) continue;
-    const keyed = props.covers[coverLookupKey(origin, id)];
-    if (keyed) return keyed;
-    if (props.covers[String(id)]) return props.covers[String(id)];
-  }
-  return null;
+  return raw ? proxyDownloadUrl(raw) || raw : null;
 };
 const watchKey = (pool: PoolListItem) =>
   pool.originMode ? poolKey(pool.originMode, pool.id) : String(pool.id);
@@ -200,12 +209,21 @@ const updatedLabel = (pool: PoolListItem) => {
   const raw = pool.updated_at;
   if (!raw) return null;
   const date = raw instanceof Date ? raw : new Date(raw);
-  if (Number.isNaN(date.getTime())) return null;
+  const ms = date.getTime();
+  // Furbooru gallery list stubs use epoch until the reader hydrates membership.
+  if (Number.isNaN(ms) || ms <= 0) return null;
   return date.toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
+};
+/** Gallery list JSON has no image_count — show em dash until the reader fills it. */
+const pageCountLabel = (pool: PoolListItem) => {
+  const n = pool.post_count || 0;
+  if (n > 0) return String(n);
+  if (pool.originMode === "furbooru") return "—";
+  return String(n);
 };
 </script>
 

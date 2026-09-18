@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   adaptGallery,
   adaptImage,
+  expandPhilomenaIdQuery,
   mapPoolListQuery,
   stillRepUrl,
   stripPoolGlob,
@@ -93,6 +94,17 @@ describe("adaptImage video stills", () => {
       "https://furrycdn.org/img/x/thumb_small.jpg",
     );
     expect(post.sample.url).toBe("https://furrycdn.org/img/x/large.jpg");
+  });
+});
+
+describe("expandPhilomenaIdQuery", () => {
+  it("expands e621 comma id lists to Philomena OR clauses", () => {
+    expect(expandPhilomenaIdQuery("id:1,2,3")).toBe("id:1 OR id:2 OR id:3");
+    expect(expandPhilomenaIdQuery("id:505462")).toBe("id:505462");
+    expect(expandPhilomenaIdQuery("id:1, 2, score.gt:0")).toBe(
+      "id:1 OR id:2, score.gt:0",
+    );
+    expect(expandPhilomenaIdQuery("gallery_id:1820")).toBe("gallery_id:1820");
   });
 });
 

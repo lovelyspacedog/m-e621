@@ -509,7 +509,7 @@ function furbooruProxy(): Plugin {
         const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
         const params = new URLSearchParams(qs);
         const fwd = new URLSearchParams();
-        for (const key of ['q', 'page', 'per_page', 'key', 'sf', 'sd']) {
+        for (const key of ['q', 'page', 'per_page', 'key', 'sf', 'sd', 'filter_id']) {
           const v = params.get(key);
           if (v !== null) fwd.set(key, v);
         }
