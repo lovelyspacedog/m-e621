@@ -1,5 +1,6 @@
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { InkbunnyFile } from "@/worker/inkbunny/api";
+import { postSupportsInkbunnyGallery } from "@/misc/util/siteCapabilities";
 
 /** Best download URL for an Inkbunny submission file (already proxied when from adapter). */
 export const inkbunnyFileUrl = (file: InkbunnyFile): string =>
@@ -31,9 +32,9 @@ export const postInkbunnyGalleryFiles = (post: EnhancedPost): InkbunnyFile[] => 
   return files.filter((f) => Boolean(inkbunnyFileUrl(f)));
 };
 
+/** Multi-file / multi-page Inkbunny gallery (not writing types — use shouldUseInkbunnyViewer). */
 export const postHasInkbunnyGallery = (post: EnhancedPost): boolean =>
-  postInkbunnyGalleryFiles(post).length > 1 ||
-  (post.__meta?.inkbunny?.pagecount ?? 1) > 1;
+  postSupportsInkbunnyGallery(post);
 
 /**
  * `artist/foo.jpg` + page 2 of 12 → `artist/foo_p02.jpg`.

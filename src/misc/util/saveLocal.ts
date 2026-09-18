@@ -330,11 +330,18 @@ const fetchPostBytes = async (post: EnhancedPost): Promise<{ data: ArrayBuffer; 
  * Save every downloadable file from an Inkbunny multi-file submission.
  * Paths get `_pNN` before the extension. Not pools — submission files only.
  */
+export type SaveLocalResult = {
+  relativePath: string;
+  dirHandle: FileSystemDirectoryHandle | null;
+  saved?: number;
+  queued?: true;
+};
+
 export const saveInkbunnyGalleryLocally = async (
   post: EnhancedPost,
   files = postInkbunnyGalleryFiles(post),
   opts?: { quiet?: boolean; skipOfflineQueue?: boolean },
-) => {
+): Promise<SaveLocalResult> => {
   const snackbar = useSnackbarStore();
   const template =
     usePostsStore().saveLocalPathTemplate || "%artist%/%tags 1-5%.%ext%";
@@ -423,7 +430,7 @@ export const savePostLocally = async (
     /** When true, do not expand Inkbunny multi-file galleries. */
     skipGalleryExpand?: boolean;
   },
-) => {
+): Promise<SaveLocalResult> => {
   const posts = usePostsStore();
   const snackbar = useSnackbarStore();
   const template = posts.saveLocalPathTemplate || "%artist%/%tags 1-5%.%ext%";

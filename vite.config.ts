@@ -43,7 +43,10 @@ function furbooruUpstream(
     url,
     method: init.method || 'GET',
     body_b64: init.body
-      ? Buffer.from(init.body).toString('base64')
+      ? (typeof init.body === 'string'
+          ? Buffer.from(init.body, 'utf8')
+          : Buffer.from(init.body)
+        ).toString('base64')
       : undefined,
   });
   try {
@@ -74,7 +77,7 @@ function furbooruUpstream(
 
 const MEDIA_HOST_OK = (host: string) =>
   ['.e621.net', '.e926.net', '.e6ai.net', '.furaffinity.net', '.facdn.net'].some((s) => host.endsWith(s)) ||
-  ['e621.net', 'e926.net', 'e6ai.net', 'inkbunny.net', 'furaffinity.net', 'www.furaffinity.net', 'facdn.net'].includes(host) ||
+  ['e621.net', 'e926.net', 'e6ai.net', 'inkbunny.net', 'furaffinity.net', 'www.furaffinity.net', 'facdn.net', 'flayrah.com', 'www.flayrah.com'].includes(host) ||
   host === 'ib.metapix.net' ||
   host.endsWith('.metapix.net') ||
   isWeasylMediaHost(host) ||

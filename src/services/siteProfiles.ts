@@ -175,8 +175,9 @@ export const setLiveBaseUrl = (
     state.activeMode === mode ||
     (state.activeMode === "unified" && mode === "e621")
   ) {
-    if (!state.misc) state.misc = { urls: { e621: "", proxy: "" } };
+    if (!state.misc) state.misc = { urls: { e621: "", proxy: "" }, debugLogging: true };
     if (!state.misc.urls) state.misc.urls = { e621: "", proxy: "" };
+    if (state.misc.debugLogging === undefined) state.misc.debugLogging = true;
     state.misc.urls.e621 = value;
   }
 };
@@ -204,10 +205,13 @@ export const applyActiveProfileToMirrors = (state: ISettingsServiceState) => {
   state.searches = normalizeSavedSearches(cloneRaw(profile.searches, emptySearches()));
   state.history = cloneRaw(profile.history, { entries: [], maxLength: 100 });
   if (!state.misc) {
-    state.misc = { urls: { e621: "", proxy: "" } };
+    state.misc = { urls: { e621: "", proxy: "" }, debugLogging: true };
   }
   if (!state.misc.urls) {
     state.misc.urls = { e621: "", proxy: "" };
+  }
+  if (state.misc.debugLogging === undefined) {
+    state.misc.debugLogging = true;
   }
   // Unified has no single host; keep e621's URL for tag autocomplete.
   state.misc.urls.e621 =

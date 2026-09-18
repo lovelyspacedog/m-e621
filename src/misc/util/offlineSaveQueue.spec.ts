@@ -1,4 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// Module imports localforage; jsdom has no IndexedDB — mock before import.
+vi.mock("localforage", () => ({
+  default: {
+    config: vi.fn(),
+    getItem: vi.fn(async () => null),
+    setItem: vi.fn(async (_k: string, v: unknown) => v),
+    removeItem: vi.fn(async () => undefined),
+    ready: vi.fn(async () => undefined),
+    INDEXEDDB: "asyncStorage",
+    LOCALSTORAGE: "localStorageWrapper",
+  },
+}));
+
 import { isLikelyNetworkSaveError } from "./offlineSaveQueue";
 
 describe("isLikelyNetworkSaveError", () => {

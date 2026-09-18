@@ -381,7 +381,8 @@ const saveLocallyDescription = computed(() =>
 const audioPrefsEnabled = computed(
   () => Boolean(main.posts.playbackPrefs?.byKind?.audio),
 );
-const onAudioPrefsEnabled = (enabled: boolean) => {
+const onAudioPrefsEnabled = (enabled: boolean | null) => {
+  if (enabled == null) return;
   if (enabled) {
     ensureKindPlaybackPrefs(main.posts, "audio", {
       volume: posts.videoVolume,

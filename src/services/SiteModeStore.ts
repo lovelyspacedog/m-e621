@@ -246,18 +246,18 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       return;
     }
     if (!isModeOnlineCapable(mode)) {
-      snackbar.addMessage("Offline — only Local mode is available");
+      snackbar.addMessage("Offline — only Local and Flayrah are available");
       return;
     }
     const previous = main.activeMode;
     const previousWasUnified = previous === "unified";
     if (mode === "unified" && !previousWasUnified) {
       previousModeBeforeUnified.value = previous;
+      // Preserve persisted unifiedSites (Defaults / Auth-only / chip picks).
+      // Only create an empty profile when missing — defaults are already all-on.
       if (!main.profiles.unified) {
         main.profiles.unified = createEmptySiteProfile("unified");
       }
-      // Entering Federated always resets inclusion to all 8 search children.
-      main.profiles.unified.unifiedSites = defaultUnifiedSites();
     }
     syncMirrorsToActiveProfile(main.$state);
     if (!main.profiles[mode]) {
@@ -312,16 +312,6 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const supportsSavedPosts = computed(() =>
     modeSupportsSavedPosts(main.activeMode),
   );
-
-  const filterButtons = (buttons: ButtonType[]) => {
-    let list = buttons.filter(
-      (button) => !hiddenButtonsForMode(main.activeMode).has(button),
-    );
-    if (!supportsSavedPosts.value) {
-      list = list.filter((button) => button !== "bookmark");
-    }
-    return list;
-  };
 
   /** Prefer this for post cards / details / fullscreen so Unified origins gate correctly. */
   const filterButtonsForPost = (
@@ -393,7 +383,6 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     exitUnifiedMode,
     bumpModeChange,
     ensureCompatibleActiveMode,
-    filterButtons,
     filterButtonsForPost,
     siteModes,
     modeChangeCount,

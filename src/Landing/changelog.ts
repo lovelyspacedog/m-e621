@@ -41,6 +41,9 @@ export const changelogSections: ChangelogSection[] = [
       "Settings: safer backup/restore, per-site account panels, color scheme, data-saver Automatic, synonym search",
       "Local Tauri: MP4 ftyp sniff for mislabeled MPEG-TS; sidecar tag edits use the merge lock",
       "Furbooru rejects HTML error pages before JSON parse; Federated/Local autocomplete no longer hits e621",
+      "Federated site inclusion (chips / Defaults / Auth-only) persists when leaving and re-entering Federated",
+      "Dev download proxy allows Flayrah media hosts; notes/votes/comments no longer fall through to e621 on other modes",
+      "Pools, comments, and notes requests send Basic auth when the profile has credentials",
     ],
   },
   {

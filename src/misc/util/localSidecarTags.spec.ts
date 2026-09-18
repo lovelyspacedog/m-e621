@@ -1,4 +1,26 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// localMedia configures localforage at import — jsdom has no IndexedDB driver.
+vi.mock("localforage", () => {
+  const store = new Map<string, unknown>();
+  return {
+    default: {
+      config: vi.fn(),
+      getItem: vi.fn(async (key: string) => store.get(key) ?? null),
+      setItem: vi.fn(async (key: string, value: unknown) => {
+        store.set(key, value);
+        return value;
+      }),
+      removeItem: vi.fn(async (key: string) => {
+        store.delete(key);
+      }),
+      ready: vi.fn(async () => undefined),
+      INDEXEDDB: "asyncStorage",
+      LOCALSTORAGE: "localStorageWrapper",
+    },
+  };
+});
+
 import { flattenPostTagsForSidecar } from "./localMedia";
 
 describe("flattenPostTagsForSidecar", () => {

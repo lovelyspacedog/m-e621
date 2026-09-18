@@ -140,7 +140,7 @@ export const postPageUrl = (
     id: number;
     file?: { md5?: string };
     __meta?: {
-      originMode?: UnifiedChildMode;
+      originMode?: UnifiedChildMode | "local";
       originBaseUrl?: string;
       furaffinity?: { kind?: string };
       sofurry?: { id?: string };
@@ -221,7 +221,7 @@ export const buildUnifiedFetchArgs = (
 
 export const originAuthForPost = (
   post: {
-    __meta?: { originMode?: UnifiedChildMode; originBaseUrl?: string };
+    __meta?: { originMode?: UnifiedChildMode | "local"; originBaseUrl?: string };
   },
   state: ISettingsServiceState,
   fallbackMode: SiteMode,

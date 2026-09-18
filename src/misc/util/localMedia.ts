@@ -712,7 +712,8 @@ export const flattenPostTagsForSidecar = (
   return uniqueTags(out.map((t) => t.trim().toLowerCase()));
 };
 
-const persistExtraTags = async () => {
+/** Write in-memory extra tags to localforage + sidecar (caller must hold merge lock). */
+const persistExtraTagsUnlocked = async () => {
   const key = folderKey();
   if (!key) return;
   const all =
@@ -721,6 +722,9 @@ const persistExtraTags = async () => {
   await localforage.setItem(EXTRA_TAGS_KEY, all);
   await writeSidecar();
 };
+
+/** Serialize sidecar persist when called outside an existing merge lock. */
+const persistExtraTags = async () => withSidecarMergeLock(persistExtraTagsUnlocked);
 
 const loadExtraTags = async (
   root: FileSystemDirectoryHandle,
@@ -1219,7 +1223,7 @@ export const addLocalTags = async (relativePath: string, raw: string) => {
     for (const entry of cachedOrdered || []) {
       if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
     }
-    await persistExtraTags();
+    await persistExtraTagsUnlocked();
     return extraTagsByPath[relativePath] || [];
   });
 };
@@ -1237,7 +1241,7 @@ export const removeLocalTag = async (relativePath: string, tag: string) => {
     for (const entry of cachedOrdered || []) {
       if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
     }
-    await persistExtraTags();
+    await persistExtraTagsUnlocked();
     return extraTagsByPath[relativePath] || [];
   });
 };
@@ -1789,6 +1793,7 @@ export const localEntriesToPosts = async (
         __meta: {
           isBlacklisted: false,
           pageNumber: page,
+          originMode: "local",
           localPath: entry.relativePath,
           localExtraTags: [...entry.extraTags],
           localPlayable: entry.playable,

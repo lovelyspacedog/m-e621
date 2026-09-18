@@ -147,11 +147,11 @@ export const e621 = {
         "search[creator_name]": args.creatorName,
         "search[category]": args.category,
       });
-      return fetchJson<Pool[]>(url);
+      return fetchJson<Pool[]>(url, { headers: getAuthHeader(args.auth) });
     },
     get(args: IGetPoolArgs) {
       const url = buildUrl(args.baseUrl, `pools/${+args.id}.json`);
-      return fetchJson<Pool>(url);
+      return fetchJson<Pool>(url, { headers: getAuthHeader(args.auth) });
     },
   },
   comments: {
@@ -162,7 +162,7 @@ export const e621 = {
         "group_by": "comment",
         limit: args.limit ?? 100,
       });
-      return fetchJson<Comment[]>(url);
+      return fetchJson<Comment[]>(url, { headers: getAuthHeader(args.auth) });
     },
   },
   notes: {
@@ -171,7 +171,7 @@ export const e621 = {
         "search[post_id]": args.postId,
         limit: args.limit ?? 100,
       });
-      return fetchJson<Note[]>(url);
+      return fetchJson<Note[]>(url, { headers: getAuthHeader(args.auth) });
     },
   },
   users: {

@@ -608,11 +608,12 @@ export default defineComponent({
       const sampleOrPreview = props.sample.url || props.preview.url;
       return {
         // Grid thumbnails never pull file.url (full res).
+        // file.url may be null (e621 global blacklist / deleted).
         high: isGrid.value
-          ? sampleOrPreview || props.file.url
-          : props.file.url || sampleOrPreview,
-        medium: sampleOrPreview,
-        low: props.preview.url,
+          ? sampleOrPreview || props.file.url || props.preview.url || ""
+          : props.file.url || sampleOrPreview || props.preview.url || "",
+        medium: sampleOrPreview || props.preview.url || "",
+        low: props.preview.url || "",
       };
     });
 

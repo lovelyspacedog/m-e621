@@ -45,10 +45,18 @@ export interface IPoolsArgs extends IBaseArgs {
   isActive?: boolean;
   /** e621 search[creator_name] */
   creatorName?: string;
+  auth?: {
+    login: string;
+    api_key: string;
+  };
 }
 
 export interface IGetPoolArgs extends IBaseArgs {
   id: number;
+  auth?: {
+    login: string;
+    api_key: string;
+  };
 }
 
 export interface ICommentsListArgs extends IBaseArgs {
@@ -63,6 +71,10 @@ export interface ICommentsListArgs extends IBaseArgs {
 export interface INotesListArgs extends IBaseArgs {
   postId: number;
   limit?: number;
+  auth?: {
+    login: string;
+    api_key: string;
+  };
 }
 
 import type { SiteMode } from "@/services/types";

@@ -161,7 +161,7 @@ export interface EnhancedPost extends Post {
     itaku?: itaku.ItakuMeta;
     weasyl?: weasyl.WeasylMeta;
     kind?: string;
-    originMode?: UnifiedChildMode;
+    originMode?: UnifiedChildMode | "local";
     originBaseUrl?: string;
   };
 }
@@ -1096,6 +1096,11 @@ export class ApiService {
   }
 
   async getNotes(args: INotesListArgs) {
+    assertNotDedicatedChrome(args.baseUrl, "getNotes", args.mode);
+    // Local / Federated must never fall through to the e621 notes client.
+    if (args.mode === "local" || args.mode === "unified") {
+      return [];
+    }
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
       return [];
@@ -1192,6 +1197,10 @@ export class ApiService {
   }
 
   async votePost(args: IPostVoteArgs) {
+    assertNotDedicatedChrome(args.baseUrl, "votePost", args.mode);
+    if (args.mode === "local" || args.mode === "unified") {
+      return { score: 0, up: 0, down: 0 };
+    }
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     if (backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
       return { score: 0, up: 0, down: 0 };
@@ -1222,6 +1231,10 @@ export class ApiService {
   }
 
   async createComment(args: IPostCommentArgs) {
+    assertNotDedicatedChrome(args.baseUrl, "createComment", args.mode);
+    if (args.mode === "local" || args.mode === "unified") {
+      throw new Error("Posting comments is not available in this mode");
+    }
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     if (backend === "inkbunny") {
       throw new Error("Inkbunny does not support posting comments via API");
