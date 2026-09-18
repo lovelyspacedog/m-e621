@@ -34,7 +34,7 @@ export const changelogSections: ChangelogSection[] = [
       "More one-time tips (Reset tooltips): Federated Following, Local library, Layout shortcuts, pool origin/watched badges, watched comics, pool reader, fullscreen gestures, Saved posts, blacklist modes, Tailspace comics, Fluffle, remux, Suggester, Analyzer, Flayrah offline cache, starred tags",
       "Layout menu and Post settings: Infinite scroll toggle (off uses previous/next); Saved posts share the same Layout menu",
       "Pools: watched +N badges, chunk/deep-link resume, fullscreen across chunks, hidden-page placeholders, Save chunk / Save all",
-      "Pool fullscreen next/prev keeps the dialog open (no blank out-in flash or ?post= reload)",
+      "Pool fullscreen next/prev keeps the dialog open (no pool reload on ?post= sync)",
       "Tailspace Comics: local Watched Comics strip with eye toggle, +N new-page badges, and a one-time tip",
       "Scent Marks: host pin-to-top, unlock-gated moderation, rate-limited admin actions; feed heading is Scent Trail",
       "Landing: tag wiki snippets (Another page), darkened copy panels for Transparent Zen, Scent Marks / Browse no longer blank",

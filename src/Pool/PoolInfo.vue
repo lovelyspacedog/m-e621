@@ -205,8 +205,16 @@ export default defineComponent({
     onMounted(() => {
       getInfo();
     });
+    // Watch each source separately — a single getter that returns a new
+    // tuple array re-fires on any route.query replace (e.g. fullscreen
+    // ?post= sync), which reloaded the pool and closed the dialog.
     watch(
-      () => [props.poolId, props.originMode, route.query.origin, siteMode.activeMode] as const,
+      [
+        () => props.poolId,
+        () => props.originMode,
+        () => route.query.origin,
+        () => siteMode.activeMode,
+      ],
       () => {
         getInfo();
       },

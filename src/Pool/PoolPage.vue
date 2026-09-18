@@ -41,12 +41,7 @@
         :has-previous-fullscreen-post="hasPreviousFullscreenPost"
         :has-next-fullscreen-post="hasNextFullscreenPost"
         :current="fullscreenPost || null"
-        @close="
-          () => {
-            console.warn('[pf-fs] PoolPage @close', new Error().stack);
-            fullscreenPost = null;
-          }
-        "
+        @close="fullscreenPost = null"
         @next-post="openNextFullscreenPost()"
         @previous-post="openPreviousFullscreenPost()"
         @open-post-details="onOpenDetails"
@@ -557,7 +552,12 @@ const onViewModeChange = async (mode: PoolViewMode) => {
 
 const onPoolLoaded = (pool: Pool) => {
   poolError.value = null;
+  const samePool =
+    poolMeta.value?.id === pool.id &&
+    (poolMeta.value?.post_ids?.length || 0) === (pool.post_ids?.length || 0);
   poolMeta.value = pool;
+  // Same pool re-emitted (e.g. soft refetch) — do not clearPosts / tear down fullscreen.
+  if (samePool && posts.value.length) return;
   appliedFocusKey.value = "";
   void bootstrapPool(pool);
 };
