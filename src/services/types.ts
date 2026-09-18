@@ -266,8 +266,11 @@ export interface ISettingsServiceState {
     | 43
     | 44
     | 45
-    | 46;
+    | 46
+    | 47;
   activeMode: SiteMode;
+  /** Mode before entering Federated; restored when leaving or demoting on landing. */
+  previousModeBeforeUnified: SiteMode | null;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];
   blacklist: {

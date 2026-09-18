@@ -44,8 +44,6 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   /** Incremented on every mode switch; pages can watch this to force-reload
    *  even when the route query doesn't change (e.g. blank /posts). */
   const modeChangeCount = ref(0);
-  /** Session-only: mode before entering Federated; used by exitUnifiedMode. */
-  const previousModeBeforeUnified = ref<SiteMode | null>(null);
   const isOnline = ref(
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
@@ -238,7 +236,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     }
   };
 
-  const setMode = (mode: SiteMode) => {
+  const setMode = (mode: SiteMode, opts?: { silent?: boolean }) => {
     if (mode === main.activeMode) return;
     if (!isModeSupported(mode)) {
       snackbar.addMessage(
@@ -253,7 +251,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     const previous = main.activeMode;
     const previousWasUnified = previous === "unified";
     if (mode === "unified" && !previousWasUnified) {
-      previousModeBeforeUnified.value = previous;
+      main.previousModeBeforeUnified = previous;
       // Preserve persisted unifiedSites (Defaults / Auth-only / chip picks).
       // Only create an empty profile when missing — defaults are already all-on.
       if (!main.profiles.unified) {
@@ -269,7 +267,9 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       main.profiles[mode].baseUrl = SITE_MODE_URLS[mode];
     }
     applyActiveProfileToMirrors(main.$state);
-    snackbar.addMessage(`Switched to ${mode}`);
+    if (!opts?.silent) {
+      snackbar.addMessage(`Switched to ${mode}`);
+    }
     modeChangeCount.value++;
     if (mode === "unified" || previousWasUnified) {
       void getApiService().then((api) => api.resetUnifiedMerge());
@@ -277,16 +277,27 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   };
 
   /** Leave Federated for the prior site (fallback e621). */
-  const exitUnifiedMode = () => {
-    const prev = previousModeBeforeUnified.value;
-    previousModeBeforeUnified.value = null;
+  const exitUnifiedMode = (opts?: { silent?: boolean }) => {
+    const prev = main.previousModeBeforeUnified;
+    main.previousModeBeforeUnified = null;
     const target: SiteMode =
       prev && prev !== "unified" && isModeSupported(prev) && isModeOnlineCapable(prev)
         ? prev
         : "e621";
     if (main.activeMode === "unified") {
-      setMode(target);
+      setMode(target, opts);
     }
+  };
+
+  /**
+   * Landing should not open on Federated unless the user just came from Browse
+   * posts (`Posts`). Cold open / other routes demote to the persisted previous
+   * mode (fallback e621).
+   */
+  const demoteUnifiedOnLanding = (opts: { fromBrowsePosts: boolean }) => {
+    if (opts.fromBrowsePosts) return;
+    if (main.activeMode !== "unified") return;
+    exitUnifiedMode({ silent: true });
   };
 
   const isUnifiedChildMode = (mode: SiteMode): mode is UnifiedChildMode =>
@@ -382,6 +393,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     activeLabel,
     setMode,
     exitUnifiedMode,
+    demoteUnifiedOnLanding,
     bumpModeChange,
     ensureCompatibleActiveMode,
     filterButtonsForPost,

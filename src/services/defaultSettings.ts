@@ -33,8 +33,9 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 46,
+  configVersion: 47,
   activeMode: "e621",
+  previousModeBeforeUnified: null,
   profiles: {
     e621: createEmptySiteProfile("e621"),
     e6ai: createEmptySiteProfile("e6ai"),

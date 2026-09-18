@@ -758,6 +758,20 @@ class PersistanceService {
       newState.watchedComics = { entries: [] };
       newState.configVersion = 46;
     }
+    if (newState.configVersion < 47) {
+      newState.previousModeBeforeUnified = null;
+      newState.configVersion = 47;
+    }
+    if (
+      newState.previousModeBeforeUnified !== null &&
+      newState.previousModeBeforeUnified !== undefined &&
+      typeof newState.previousModeBeforeUnified !== "string"
+    ) {
+      newState.previousModeBeforeUnified = null;
+    }
+    if (newState.previousModeBeforeUnified === undefined) {
+      newState.previousModeBeforeUnified = null;
+    }
 
     if (!newState.watchedPools || !Array.isArray(newState.watchedPools.entries)) {
       newState.watchedPools = { entries: [] };

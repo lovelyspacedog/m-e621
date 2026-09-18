@@ -106,9 +106,21 @@ const { open: federatedTipOpen, tryOpenOnEdge: tryFederatedTip } = useTipOpen(
 useSyncedTheme();
 installOfflineSaveQueueListeners();
 
+const route = useRoute();
+const router = useRouter();
+const { mobile } = useDisplay();
+installSettingsOverlay(router, () => mobile.value);
+
+/** After settings hydrate; avoids demoting before restored activeMode is loaded. */
+const settingsHydrated = ref(false);
+
 onMounted(async () => {
   await persistance.persist();
   siteMode.ensureCompatibleActiveMode();
+  settingsHydrated.value = true;
+  if (route.name === "LandingPage") {
+    siteMode.demoteUnifiedOnLanding({ fromBrowsePosts: false });
+  }
   // Bind immediately — $subscribe alone waits for the first mutation (M30).
   shortcutService.setUpShortcuts();
   if (navigator.onLine) {
@@ -130,11 +142,11 @@ useHead({
   title: getAppName(),
 })
 
-const { mobile } = useDisplay();
-
-const route = useRoute();
-const router = useRouter();
-installSettingsOverlay(router, () => mobile.value);
+router.afterEach((to, from) => {
+  if (!settingsHydrated.value) return;
+  if (to.name !== "LandingPage") return;
+  siteMode.demoteUnifiedOnLanding({ fromBrowsePosts: from.name === "Posts" });
+});
 
 watch(
   () => [route.query.settings, mobile.value, route.path] as const,
