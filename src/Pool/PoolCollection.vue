@@ -19,6 +19,8 @@
           />
           <div v-if="coverShowLoading(pool)" class="pools-card-placeholder">
             <v-icon size="36" class="text-medium-emphasis">mdi-image-outline</v-icon>
+            <span class="pools-cover-loading-text" aria-hidden="true">{{ loadingTypeText }}</span>
+            <span class="sr-only">Loading</span>
           </div>
           <div v-else-if="coverShowMissing(pool)" class="pools-card-placeholder">
             <v-icon size="36" class="text-medium-emphasis">mdi-image-off-outline</v-icon>
@@ -88,9 +90,13 @@
             @load="onCoverLoad(activeCoverSrc(pool)!, poolRowKey(pool))"
             @error="onCoverError(activeCoverSrc(pool)!, poolRowKey(pool))"
           />
-          <v-icon v-if="coverShowLoading(pool)" size="32" class="text-medium-emphasis">
-            mdi-image-outline
-          </v-icon>
+          <div v-if="coverShowLoading(pool)" class="pool-cover-loading">
+            <v-icon size="22" class="text-medium-emphasis">mdi-image-outline</v-icon>
+            <span class="pools-cover-loading-text pools-cover-loading-text--compact" aria-hidden="true">{{
+              loadingTypeText
+            }}</span>
+            <span class="sr-only">Loading</span>
+          </div>
           <v-icon v-else-if="coverShowMissing(pool)" size="32" class="text-medium-emphasis">
             mdi-image-off-outline
           </v-icon>
@@ -140,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, reactive } from "vue";
+import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import type { Pool } from "@/worker/api";
 import type { PoolBrowseOrigin, PoolOriginMode } from "@/services/types";
 import { poolKey, poolRouteQuery } from "@/misc/util/poolOrigin";
@@ -156,6 +162,47 @@ export type PoolListItem = Pool & {
 
 /** Cap simultaneous cover image downloads across the visible grid. */
 const MAX_COVER_DOWNLOADS = 6;
+
+/** One shared typewriter cycle for every loading card (avoids N timers). */
+const LOADING_FULL = "Loading";
+const loadingTypeText = ref("");
+let loadingTypePos = 0;
+let loadingTypeDir: 1 | -1 = 1;
+let loadingTypePause = 0;
+let loadingTypeTimer: ReturnType<typeof setInterval> | null = null;
+let preferReducedMotion = false;
+
+const tickLoadingTypewriter = () => {
+  if (preferReducedMotion) {
+    loadingTypeText.value = LOADING_FULL;
+    return;
+  }
+  if (loadingTypePause > 0) {
+    loadingTypePause -= 1;
+    return;
+  }
+  loadingTypePos += loadingTypeDir;
+  if (loadingTypePos >= LOADING_FULL.length) {
+    loadingTypePos = LOADING_FULL.length;
+    loadingTypeDir = -1;
+    loadingTypePause = 10;
+  } else if (loadingTypePos <= 0) {
+    loadingTypePos = 0;
+    loadingTypeDir = 1;
+    loadingTypePause = 4;
+  }
+  loadingTypeText.value = LOADING_FULL.slice(0, loadingTypePos);
+};
+
+onMounted(() => {
+  preferReducedMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  tickLoadingTypewriter();
+  if (!preferReducedMotion) {
+    loadingTypeTimer = setInterval(tickLoadingTypewriter, 85);
+  }
+});
 
 const props = defineProps<{
   pools: PoolListItem[];
@@ -324,6 +371,10 @@ const observeCoverHost = (el: unknown, key: string) => {
 };
 
 onBeforeUnmount(() => {
+  if (loadingTypeTimer != null) {
+    clearInterval(loadingTypeTimer);
+    loadingTypeTimer = null;
+  }
   coverObserver?.disconnect();
   coverObserver = null;
 });
@@ -495,8 +546,47 @@ const pageCountLabel = (pool: PoolListItem) => {
   width: 100%;
   height: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+}
+.pool-cover-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+}
+.pools-cover-loading-text {
+  min-height: 1em;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(var(--v-theme-on-surface), 0.45);
+  font-variant-numeric: tabular-nums;
+  /* Reserve full word width so the icon does not shift while typing. */
+  width: 7ch;
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.pools-cover-loading-text--compact {
+  font-size: 0.55rem;
+  width: 7ch;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 .pools-badge {
   position: absolute;
