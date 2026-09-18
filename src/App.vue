@@ -1,11 +1,22 @@
 <template>
   <v-app :class="{ 'paw-cursor': appearance.pawCursor }">
     <v-navigation-drawer v-if="!minimalHeader" :color="theme.sidebar" v-model="drawer" floating
-      width="400" class="pa-2 app-sidebar">
+      :width="mobile ? 300 : 400" class="pa-2 app-sidebar">
       <div class="sidebar-sticky">
-        <router-link to="/">
-          <app-logo v-view-transition-name="'applogo'" :type="logoStyle" />
-        </router-link>
+        <div class="d-flex align-center">
+          <router-link to="/" class="sidebar-logo-link flex-grow-1 min-w-0">
+            <app-logo v-view-transition-name="'applogo'" :type="logoStyle" />
+          </router-link>
+          <v-btn
+            v-if="mobile"
+            icon
+            variant="text"
+            aria-label="Close menu"
+            @click="drawer = false"
+          >
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </div>
         <navigation-list section="primary" />
       </div>
       <div class="sidebar-scroll">
@@ -231,6 +242,11 @@ watch(mobile, (val, prevVal) => {
   z-index: 2;
   background: inherit;
   padding-bottom: 4px;
+}
+.sidebar-logo-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
 }
 .sidebar-scroll {
   flex: 1 1 auto;

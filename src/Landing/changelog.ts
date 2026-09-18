@@ -18,6 +18,7 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-18",
     title: "Federated Pools site toggles",
     items: [
+      "Mobile sidebar is narrower (300px) and has a close button so it no longer covers the whole screen",
       "Landing no longer opens on Federated after a previous Federated session; it restores the prior site (or e621), unless you navigated back from Browse posts",
       "Baxter logo refresh: longer basset ears, clearer tail, PawFeed wordmark in Fredoka, double-blink and a tilted loader pulse; favicon matches",
       "Desktop Settings open as an overlay over the current page (mobile stays full-page); landing gear opens Settings from the hero and footer",
