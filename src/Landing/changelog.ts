@@ -22,6 +22,7 @@ export const changelogSections: ChangelogSection[] = [
       "Include Tailspace comics moved out of Account settings into that Pools sidebar (still on by default)",
       "Furbooru pool cards: cover thumbnails load again (Philomena Everything filter + id:a,b,c → OR); hide stub epoch dates and unknown page counts on the list",
       "Pool cards show a static gray image icon while covers load and image-off when missing/failed; cover downloads are deferred/limited to the near viewport",
+      "Federated Pools: Tailspace comic cover thumbnails load again (pics.tailspace.com allowlisted on /api/download)",
     ],
   },
   {

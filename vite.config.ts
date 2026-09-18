@@ -84,7 +84,8 @@ const MEDIA_HOST_OK = (host: string) =>
   isItakuMediaHost(host) ||
   isSofurryMediaHost(host) ||
   host === 'furrycdn.org' ||
-  host.endsWith('.furrycdn.org');
+  host.endsWith('.furrycdn.org') ||
+  host === 'pics.tailspace.com';
 
 const isInkbunnyMediaHost = (host: string) =>
   host === 'inkbunny.net' || host === 'ib.metapix.net' || host.endsWith('.metapix.net');

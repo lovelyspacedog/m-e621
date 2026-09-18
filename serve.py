@@ -324,6 +324,8 @@ COMMENTS_PATH = re.compile(r"^/api/comments/?$")
 MEDIA_HOST_SUFFIXES = (".e621.net", ".e926.net", ".e6ai.net")
 TAILSPACE_BASE = "https://tailspace.com"
 TAILSPACE_CDN = "https://pics.tailspace.com"
+# Comic/post media CDN for /api/download (Pools covers, Save Locally, etc.).
+TAILSPACE_MEDIA_HOSTS = frozenset({"pics.tailspace.com"})
 TAILSPACE_POSTS_PATH = re.compile(r"^/api/tailspace/posts$")
 TAILSPACE_COMICS_PATH = re.compile(r"^/api/tailspace/comics$")
 TAILSPACE_COMIC_PATH = re.compile(r"^/api/tailspace/comic$")
@@ -1662,6 +1664,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if host in FLAYRAH_MEDIA_HOSTS:
             return parsed.geturl()
         if host in FURRYCDN_HOSTS or host.endswith(FURRYCDN_SUFFIXES):
+            return parsed.geturl()
+        if host in TAILSPACE_MEDIA_HOSTS:
             return parsed.geturl()
         return None
 
