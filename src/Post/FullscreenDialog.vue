@@ -101,9 +101,8 @@
             </div>
             <div v-else class="overflow">
               <div class="zoom-container text-center" style="position: relative">
-                <transition :enter-active-class="enterTransitionName" :leave-active-class="leaveTransitionName"
-                  mode="out-in">
-                  <div :key="currentFileUrl || 0" style="
+                <transition :enter-active-class="enterTransitionName" :leave-active-class="leaveTransitionName">
+                  <div :key="currentFeedKey || 0" style="
                       position: absolute;
                       width: 100%;
                       height: 100%;
@@ -594,7 +593,7 @@ const documentBodyText = computed(() => {
 
 const pdfFrameUrl = computed(() => {
   if (resolvedPdfUrl.value) return resolvedPdfUrl.value;
-  if (!isPdfPost.value || switched.value) return "";
+  if (!isPdfPost.value) return "";
   const url = props.current?.file.url;
   if (!url) return "";
   // Avoid embedding the preview thumbnail if enrich failed to attach a real file.
@@ -1065,11 +1064,15 @@ const scrollToPost = (post: { id: number; __meta?: { originMode?: string } } | n
   el?.scrollIntoView({ behavior: "smooth", block: "center" });
 };
 
-const switched = ref(false);
 const loading = ref(false);
 
+/** Stable key for image transition — never blank through `0` mid-nav (that
+ * cleared the dialog chrome with scrim=false and looked like close/reopen). */
+const currentFeedKey = computed(() =>
+  props.current ? postFeedKey(props.current) : null,
+);
+
 const currentFileUrl = computed(() => {
-  if (switched.value) return false;
   const url = props.current?.file.url;
   if (!url) return false;
   const ext = props.current?.file.ext;
@@ -1084,11 +1087,9 @@ const currentFileUrl = computed(() => {
   }
   return url;
 });
-const currentSampleFileUrl = computed(() =>
-  switched.value ? false : props.current?.preview.url,
-);
+const currentSampleFileUrl = computed(() => props.current?.preview.url || false);
 const audioCoverUrl = computed(() => {
-  if (!isAudioPost.value || switched.value) return "";
+  if (!isAudioPost.value) return "";
   const preview = props.current?.preview?.url;
   const sample = props.current?.sample?.url;
   return proxyDownloadUrl(preview) || proxyDownloadUrl(sample) || "";
@@ -1102,35 +1103,31 @@ watch(
       !!val && (!prev || postFeedKey(val) !== postFeedKey(prev));
     if (val && changed) {
       clearSlideshowTimer();
-      scrollToPost(props.current!);
-      switched.value = true;
+      // Scroll the underlying feed only when closing — mid-nav scroll with
+      // scrim=false showed the page moving behind an empty image slot.
       await nextTick();
-      switched.value = false;
-      if (val) {
+      loading.value = true;
+      const isDoc = postIsDocument(val);
+      if (isDoc) {
+        isZoomed.value = false;
+        await loadDocumentContent(val);
+        loadEnd();
+      } else if (
+        slideshowPlaying.value &&
+        (isVideoExt(val.file.ext) || isAudioExt(val.file.ext))
+      ) {
+        // Wait for media ended; ensure playback starts.
         await nextTick();
-        loading.value = true;
-        const isDoc = postIsDocument(val);
-        if (isDoc) {
-          isZoomed.value = false;
-          await loadDocumentContent(val);
-          loadEnd();
-        } else if (
-          slideshowPlaying.value &&
-          (isVideoExt(val.file.ext) || isAudioExt(val.file.ext))
-        ) {
-          // Wait for media ended; ensure playback starts.
-          await nextTick();
-          applyFullscreenPlaybackPrefs();
-          videoEl.value?.play().catch(() => undefined);
-          loadEnd();
-        } else if (isVideoExt(val.file.ext) || isAudioExt(val.file.ext)) {
-          await nextTick();
-          applyFullscreenPlaybackPrefs();
-          loadEnd();
-        } else {
-          // Cached images may not re-fire @load after remount (M19).
-          await syncCachedImageState();
-        }
+        applyFullscreenPlaybackPrefs();
+        videoEl.value?.play().catch(() => undefined);
+        loadEnd();
+      } else if (isVideoExt(val.file.ext) || isAudioExt(val.file.ext)) {
+        await nextTick();
+        applyFullscreenPlaybackPrefs();
+        loadEnd();
+      } else {
+        // Cached images may not re-fire @load after remount (M19).
+        await syncCachedImageState();
       }
     }
   },
