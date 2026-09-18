@@ -16,8 +16,9 @@
               block
               size="large"
               color="primary"
-              to="/settings/appearance/themes"
               class="mb-2"
+              :to="overlayNav ? undefined : '/settings/appearance/themes'"
+              @click="onBrowseThemes"
             >
               Browse themes
             </v-btn>
@@ -175,6 +176,7 @@ import ColorChooser from "./ColorChooser.vue";
 import transitions from "@/misc/data/transitions.json";
 import { useAppearanceStore, useSnackbarStore, type ColorScheme } from "@/services";
 import { useHead } from "@unhead/vue";
+import { useSettingsOverlayNav } from "./settingsOverlay";
 
 useHead({
   title: "Appearance Settings",
@@ -182,6 +184,13 @@ useHead({
 
 const appearance = useAppearanceStore();
 const snackbar = useSnackbarStore();
+const overlayNav = useSettingsOverlayNav();
+
+const onBrowseThemes = (event: MouseEvent) => {
+  if (!overlayNav) return;
+  event.preventDefault();
+  overlayNav.navigate("appearance/themes");
+};
 
 const navChips: SettingsNavChip[] = [
   { label: "Colors", anchor: "colors" },

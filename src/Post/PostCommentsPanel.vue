@@ -48,6 +48,7 @@
 <script setup lang="ts">
 import { computed, ref, toRaw, watch } from "vue";
 import { useRouter } from "vue-router";
+import { openSettings } from "@/Settings/settingsOverlay";
 import DText from "@/Parser/DText.vue";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { Comment } from "@/worker/api";
@@ -135,7 +136,7 @@ const submitComment = async () => {
   const origin = originAuthForPost(post, main.$state, siteMode.activeMode);
   if (!origin.auth) {
     snackbar.addMessage(`Not logged in to ${origin.mode}`);
-    router.push({ name: "AccountSettings" });
+    openSettings({ name: "AccountSettings" });
     return;
   }
   postingComment.value = true;

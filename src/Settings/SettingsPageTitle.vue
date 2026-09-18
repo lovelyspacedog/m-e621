@@ -5,7 +5,10 @@
       density="comfortable"
       v-view-transition-name="`settings-toolbar-${section}`"
     >
-      <v-btn icon exact :to="backTo">
+      <v-btn v-if="overlayNav" icon @click="overlayNav.back(backTo)">
+        <v-icon>mdi-arrow-left</v-icon>
+      </v-btn>
+      <v-btn v-else icon exact :to="backTo">
         <v-icon>mdi-arrow-left</v-icon>
       </v-btn>
       <v-toolbar-title class="text-left">
@@ -32,6 +35,7 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
+import { useSettingsOverlayNav } from "./settingsOverlay";
 
 export type SettingsNavChip = { label: string; anchor: string };
 
@@ -49,6 +53,8 @@ const props = withDefaults(
     backTo: () => ({ name: "Settings" }),
   },
 );
+
+const overlayNav = useSettingsOverlayNav();
 
 /** Named Vuetify colors fall back to secondary under the chip row */
 const resolvedColor = computed(() => {

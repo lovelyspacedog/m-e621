@@ -59,11 +59,12 @@
         site. Use the sidebar later if you want Following instead of Search.
       </p>
     </TipDialog>
+    <SettingsOverlay />
   </v-app>
 </template>
 
 <script setup lang="ts">
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import AppLogo from "./App/AppLogo.vue";
 import AppSnackbar from "./App/AppSnackbar.vue";
@@ -82,6 +83,15 @@ import { useHead } from '@unhead/vue';
 import { useDisplay } from 'vuetify';
 import { useSyncedTheme } from "./misc/util/syncTheme";
 import { installOfflineSaveQueueListeners, flushOfflineSaveQueue } from "./misc/util/offlineSaveQueue";
+import SettingsOverlay from "./Settings/SettingsOverlay.vue";
+import {
+  applySettingsOverlay,
+  closeSettings,
+  installSettingsOverlay,
+  isSettingsQuerySyncing,
+  routeLocationForSection,
+  settingsOverlayState,
+} from "./Settings/settingsOverlay";
 
 const persistance = usePersistanceService();
 const appearance = useAppearanceStore();
@@ -123,6 +133,37 @@ useHead({
 const { mobile } = useDisplay();
 
 const route = useRoute();
+const router = useRouter();
+installSettingsOverlay(router, () => mobile.value);
+
+watch(
+  () => [route.query.settings, mobile.value, route.path] as const,
+  ([settingsQuery, isMobile, path]) => {
+    if (isSettingsQuerySyncing()) return;
+    const raw = Array.isArray(settingsQuery) ? settingsQuery[0] : settingsQuery;
+    if (typeof raw !== "string" || !raw) return;
+    if (isMobile) {
+      const section = raw === "hub" ? "hub" : raw;
+      const dest = routeLocationForSection(section);
+      const query = { ...route.query };
+      delete query.settings;
+      void router.replace({ ...dest, query });
+      return;
+    }
+    if (path.startsWith("/settings")) return;
+    applySettingsOverlay(raw === "hub" ? "hub" : raw);
+  },
+  { immediate: true },
+);
+
+watch(mobile, (isMobile, wasMobile) => {
+  if (isMobile && wasMobile === false && settingsOverlayState.open) {
+    const section = settingsOverlayState.section;
+    closeSettings();
+    void router.push(routeLocationForSection(section));
+  }
+});
+
 const drawer_ = ref(true);
 const appName = getAppName();
 

@@ -14,6 +14,7 @@ import {
 } from "@/misc/util/postOrigin";
 import { isDocumentPost } from "@/misc/util/documentPost";
 import { faUnavailableMeta, isFaNotFoundError } from "@/worker/furaffinity/api";
+import { openSettings } from "@/Settings/settingsOverlay";
 
 type PostPointer = number | { postId: number; originMode?: string };
 type FullscreenAdvanceOpts = { skipDocuments?: boolean };
@@ -241,7 +242,7 @@ export const usePostListManager = ({
     const origin = originAuthForPost(post, main.$state, siteMode.activeMode);
     if (!origin.auth) {
       snackbar.addMessage(`Not logged in to ${unifiedChildLabel(origin.mode)}`);
-      router.push({ name: "AccountSettings" });
+      openSettings({ name: "AccountSettings" });
       return;
     }
     const service = await getApiService();
@@ -285,7 +286,7 @@ export const usePostListManager = ({
     const origin = originAuthForPost(post, main.$state, siteMode.activeMode);
     if (!origin.auth) {
       snackbar.addMessage(`Not logged in to ${unifiedChildLabel(origin.mode)}`);
-      router.push({ name: "AccountSettings" });
+      openSettings({ name: "AccountSettings" });
       return;
     }
     const service = await getApiService();

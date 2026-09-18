@@ -12,7 +12,16 @@
     <template v-if="section === 'secondary' || section === 'all'">
       <saved-search-nav />
       <template v-for="option in trailing" :key="option.resolved">
-        <v-list-item :to="option.to" :exact="option.exact">
+        <v-list-item
+          v-if="option.to.name === 'Settings'"
+          @click="openSettings({ name: 'Settings' })"
+        >
+          <template #prepend>
+            <v-icon>{{ option.icon }}</v-icon>
+          </template>
+          <v-list-item-title>{{ option.name }}</v-list-item-title>
+        </v-list-item>
+        <v-list-item v-else :to="option.to" :exact="option.exact">
           <template #prepend>
             <v-icon>{{ option.icon }}</v-icon>
           </template>
@@ -32,6 +41,7 @@
 import { useHomeNavigationItem, useTrailingNavigationItems } from "../App/navigation";
 import SavedSearchNav from "./SavedSearchNav.vue";
 import SiteModeSwitcher from "./SiteModeSwitcher.vue";
+import { openSettings } from "@/Settings/settingsOverlay";
 
 withDefaults(
   defineProps<{

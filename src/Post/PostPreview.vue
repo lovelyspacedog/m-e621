@@ -187,6 +187,7 @@ import type { PropType } from "vue";
 import { computed, defineComponent, inject, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import FixedAspectRatioBox from "./FixedAspectRatioBox.vue";
 import { useRouter } from "vue-router";
+import { openSettings } from "@/Settings/settingsOverlay";
 
 const VIDEO_EXTS = new Set(["webm", "mp4", "mkv", "mov"]);
 
@@ -549,7 +550,7 @@ export default defineComponent({
       if (imageSrc.value || isDocument.value || showUnavailable.value) {
         context.emit("open-post");
       } else {
-        router.push({ name: "AccountSettings" });
+        openSettings({ name: "AccountSettings" });
       }
     };
 

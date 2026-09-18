@@ -40,7 +40,8 @@
               <v-list-item
                 v-for="entry in matchedControls"
                 :key="`${entry.section}-${entry.hash}-${entry.label}`"
-                :to="settingsHref(entry)"
+                :to="overlayNav ? undefined : settingsHref(entry)"
+                @click="onSearchResultClick(entry, $event)"
               >
                 <v-list-item-title>{{ entry.label }}</v-list-item-title>
                 <v-list-item-subtitle>
@@ -128,11 +129,24 @@ import {
   SETTINGS_SECTIONS,
   matchSettingsQuery,
   settingsHref,
+  type SettingsIndexEntry,
 } from "./settingsIndex";
+import { useSettingsOverlayNav } from "./settingsOverlay";
 import { useHead } from "@unhead/vue";
 import MigrationInfo from "@/Landing/MigrationInfo.vue";
 
 useHead({ title: "Settings" });
+
+const overlayNav = useSettingsOverlayNav();
+
+const onSearchResultClick = (
+  entry: Pick<SettingsIndexEntry, "section" | "hash">,
+  event: MouseEvent,
+) => {
+  if (!overlayNav) return;
+  event.preventDefault();
+  overlayNav.navigate(entry.section, entry.hash);
+};
 
 const history = useHistoryStore();
 const blacklist = useBlacklistStore();

@@ -4,6 +4,12 @@ import { resolvePoolOrigin } from '@/misc/util/poolOrigin'
 import { isE621FamilyMode, modeSupportsFavoriteAnalyzer, modeSupportsPools, modeSupportsSuggester } from '@/misc/util/siteCapabilities'
 import { shouldSkipViewTransition } from '@/misc/util/viewTransition'
 import { useMainStore } from '@/services/state'
+import {
+  applySettingsOverlay,
+  queryValueForSection,
+  sectionFromSettingsPath,
+  settingsDesktopFallbackPath,
+} from '@/Settings/settingsOverlay'
 
 // TODO?
 // // workaround for errors in console
@@ -262,7 +268,32 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach((to, from) => {
+  // Desktop: /settings* opens as an overlay over the previous page.
+  if (to.path.startsWith("/settings")) {
+    try {
+      // Vuetify display is not available here — use matchMedia (same breakpoint).
+      const isMobile =
+        typeof window !== "undefined" &&
+        window.matchMedia("(max-width: 959.98px)").matches;
+      if (!isMobile) {
+        const section = sectionFromSettingsPath(to.path);
+        const hash = (to.hash || "").replace(/^#/, "");
+        const fallbackPath = settingsDesktopFallbackPath(from.path);
+        const query = { ...from.query, settings: queryValueForSection(section) };
+        // Prefer preserving the page under the overlay when navigating from elsewhere.
+        if (from.path && !from.path.startsWith("/settings")) {
+          applySettingsOverlay(section, hash);
+          return { path: from.path, query, hash: from.hash };
+        }
+        applySettingsOverlay(section, hash);
+        return { path: fallbackPath, query };
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   // Mode ↔ route guards (C3 / M31). Pinia may be unavailable during early boot.
   try {
     const mode = useMainStore().activeMode;

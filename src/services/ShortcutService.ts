@@ -5,6 +5,7 @@ import { useShortcutStore } from "./ShortcutStore";
 import { useUiStore } from "./UiStore";
 import { useSiteModeStore } from "./SiteModeStore";
 import { useRouter } from "vue-router";
+import { openSettings } from "@/Settings/settingsOverlay";
 
 export type Events = {
   focusSearch: void;
@@ -30,7 +31,7 @@ class ShortcutService {
       Mousetrap.bind(sequence, () => {
         switch (action) {
           case "go_to_settings":
-            this.router.push({ name: "Settings" });
+            openSettings({ name: "Settings" });
             break;
           case "go_to_posts": {
             const siteMode = useSiteModeStore();

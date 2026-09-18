@@ -46,12 +46,23 @@
             color="white"
             variant="outlined"
             class="landing-hero-link"
-            @click="changelogOpen = true"
+            @click="infoOpen = true"
           >
-            Changelog &amp; TOS
+            Info
+          </v-btn>
+          <v-btn
+            size="large"
+            color="white"
+            variant="outlined"
+            class="landing-hero-link"
+            icon
+            aria-label="Settings"
+            @click="openSettings()"
+          >
+            <v-icon>mdi-cog</v-icon>
           </v-btn>
         </div>
-        <ChangelogDialog v-model="changelogOpen" />
+        <InfoDialog v-model="infoOpen" />
       </div>
     </section>
     <MigrationInfo />
@@ -133,15 +144,24 @@
           :title="commitHistoryTitle"
         />
         <v-col cols="12" class="pb-2">
-          <div class="d-flex flex-wrap justify-center ga-2">
-            <v-btn color="primary" variant="tonal" @click="changelogOpen = true">
-              Changelog &amp; TOS
+          <div class="d-flex flex-wrap justify-center align-center ga-2">
+            <v-btn color="primary" variant="tonal" @click="infoOpen = true">
+              Info
+            </v-btn>
+            <v-btn
+              color="primary"
+              variant="tonal"
+              icon
+              aria-label="Settings"
+              @click="openSettings()"
+            >
+              <v-icon>mdi-cog</v-icon>
             </v-btn>
           </div>
         </v-col>
       </v-row>
     </section>
-    <Footer />
+    <Footer @open-info="infoOpen = true" @open-settings="openSettings()" />
   </div>
 </template>
 
@@ -152,7 +172,7 @@ import CommitTimeline from "@/About/CommitTimeline.vue";
 import { useHead } from "@unhead/vue";
 import TagSearch from "@/Tag/TagSearch.vue";
 import About from "./About.vue";
-import ChangelogDialog from "./ChangelogDialog.vue";
+import InfoDialog from "./InfoDialog.vue";
 import CommitHistoryDialog from "./CommitHistoryDialog.vue";
 import Footer from "./Footer.vue";
 import TagWikiSnippet from "./TagWikiSnippet.vue";
@@ -161,10 +181,11 @@ import { useRouter, type RouteLocationRaw } from "vue-router";
 import MigrationInfo from "./MigrationInfo.vue";
 import { useSiteModeStore } from "@/services/SiteModeStore";
 import { APP_NAME } from "@/misc/util/brand";
+import { openSettings } from "@/Settings/settingsOverlay";
 
 const router = useRouter();
 const siteMode = useSiteModeStore();
-const changelogOpen = ref(false);
+const infoOpen = ref(false);
 const commitHistoryOpen = ref(false);
 const commitHistorySource = ref<"fork" | "upstream">("fork");
 const commitHistoryTitle = computed(() =>

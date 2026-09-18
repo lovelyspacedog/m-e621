@@ -18,6 +18,8 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-18",
     title: "Federated Pools site toggles",
     items: [
+      "Desktop Settings open as an overlay over the current page (mobile stays full-page); landing gear opens Settings from the hero and footer",
+      "Landing Changelog & TOS renamed to Info, with an About tab (version, license, credits) beside Changelog and TOS",
       "Federated Pools: Sites in Pools sidebar toggles sit between Pools and Post Suggester (e621/e6ai/Furbooru/Inkbunny plus Tailspace comics)",
       "Include Tailspace comics moved out of Account settings into that Pools sidebar (still on by default)",
       "Furbooru pool cards: cover thumbnails load again (Philomena Everything filter + id:a,b,c → OR); hide stub epoch dates and unknown page counts on the list",

@@ -1,5 +1,9 @@
 <template>
-  <v-list-item v-view-transition-name="`settings-toolbar-${section}`" :to="{ path: '/settings/' + section }">
+  <v-list-item
+    v-view-transition-name="`settings-toolbar-${section}`"
+    :to="overlayNav ? undefined : { path: '/settings/' + section }"
+    @click="onClick"
+  >
     <template #prepend>
       <v-avatar :color="color">
         <v-icon>{{ icon }}</v-icon>
@@ -17,23 +21,21 @@
   </v-list-item>
 </template>
 
-<script lang="ts">
-import { defineComponent } from "vue";
+<script setup lang="ts">
+import { useSettingsOverlayNav } from "./settingsOverlay";
 
-export default defineComponent({
-  props: {
-    title: {
-      type: String,
-    },
-    section: {
-      type: String,
-    },
-    icon: {
-      type: String,
-    },
-    color: {
-      type: String,
-    },
-  },
-});
+const props = defineProps<{
+  title?: string;
+  section?: string;
+  icon?: string;
+  color?: string;
+}>();
+
+const overlayNav = useSettingsOverlayNav();
+
+const onClick = (event: MouseEvent) => {
+  if (!overlayNav || !props.section) return;
+  event.preventDefault();
+  overlayNav.navigate(props.section);
+};
 </script>

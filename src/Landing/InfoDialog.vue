@@ -37,12 +37,64 @@
         align-tabs="title"
         class="px-2"
       >
+        <v-tab value="about">About</v-tab>
         <v-tab value="changelog">Changelog</v-tab>
         <v-tab value="tos">TOS</v-tab>
       </v-tabs>
 
       <v-card-text class="dialog-body">
         <v-tabs-window v-model="tab">
+          <v-tabs-window-item value="about">
+            <div class="d-flex flex-column align-center text-center mb-4">
+              <app-logo type="face" size="72" class="mb-2" />
+              <h3 class="text-h5 mb-1">{{ APP_NAME }}</h3>
+              <p class="text-body-2 text-medium-emphasis mb-0">
+                Version {{ versionLabel }}
+              </p>
+            </div>
+            <p class="text-body-2 mb-3">
+              {{ APP_NAME }} is a personal, AI-assisted fork of
+              <a
+                class="text-primary text-decoration-underline"
+                target="_blank"
+                rel="noopener"
+                href="https://github.com/avoonix/material-e621"
+                >Material e621</a
+              >.
+              It browses multiple imageboards and Flayrah news from one client,
+              with Federated merge, Local folder browsing where available, and
+              tools like pools, suggester, and analyzer.
+            </p>
+            <p class="text-body-2 mb-3">
+              Last changed with commit
+              <a
+                class="text-primary text-decoration-underline"
+                :href="`https://github.com/lovelyspacedog/m-e621/commit/${commit.hash}`"
+                target="_blank"
+                rel="noopener"
+                >{{ commit.hash.substring(0, 7) }}</a
+              >
+              on {{ commitDate }} ({{ commitDateRelative }}) from branch
+              <strong>{{ branch }}</strong>.
+            </p>
+            <p class="text-body-2 mb-3">
+              Source is AGPL-3.0 on
+              <a
+                class="text-primary text-decoration-underline"
+                href="https://github.com/lovelyspacedog/m-e621"
+                target="_blank"
+                rel="noopener"
+                >GitHub</a
+              >.
+              Experimental — not affiliated with the supported sites or upstream
+              maintainers. Adult content; follow each site’s age requirements and
+              terms.
+            </p>
+            <p class="text-body-2 text-medium-emphasis mb-0">
+              For a stable e621-only client, use upstream Material e621.
+            </p>
+          </v-tabs-window-item>
+
           <v-tabs-window-item value="changelog">
             <p class="text-body-2 text-medium-emphasis mb-6">{{ changelogIntro }}</p>
             <section
@@ -119,7 +171,18 @@
 
       <v-card-actions>
         <v-btn
-          v-if="tab === 'changelog'"
+          v-if="tab === 'about'"
+          variant="text"
+          color="primary"
+          href="https://github.com/lovelyspacedog/m-e621"
+          target="_blank"
+          rel="noopener"
+        >
+          <v-icon start>mdi-open-in-new</v-icon>
+          GitHub
+        </v-btn>
+        <v-btn
+          v-else-if="tab === 'changelog'"
           variant="text"
           color="primary"
           href="https://github.com/lovelyspacedog/m-e621/commits/master"
@@ -155,6 +218,10 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { formatDistanceToNow } from "date-fns";
+import AppLogo from "@/App/AppLogo.vue";
+import { APP_NAME } from "@/misc/util/brand";
+import { getGitBranchInfo, getGitInfo } from "@/misc/util/git";
 import { changelogIntro, changelogSections } from "./changelog";
 import { tosIntro, tosSummaries } from "./tosSummaries";
 
@@ -166,8 +233,22 @@ const emit = defineEmits<{
   "update:modelValue": [value: boolean];
 }>();
 
-const tab = ref<"changelog" | "tos">("changelog");
+const tab = ref<"about" | "changelog" | "tos">("about");
 const selectedTosId = ref<string | null>(null);
+
+const commit = getGitInfo()[0];
+const branch = getGitBranchInfo();
+const commitDate = computed(() =>
+  commit.date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }),
+);
+const commitDateRelative = computed(() =>
+  formatDistanceToNow(commit.date, { addSuffix: true }),
+);
+const versionLabel = computed(() => commit.hash.substring(0, 7));
 
 const selectedTos = computed(
   () => tosSummaries.find((entry) => entry.id === selectedTosId.value) ?? null,
@@ -179,13 +260,16 @@ const dialogTitle = computed(() => {
   if (tab.value === "tos") {
     return selectedTos.value?.name ?? "Terms of Service";
   }
-  return "Changelog";
+  if (tab.value === "about") return "About";
+  if (tab.value === "changelog") return "Changelog";
+  return "Info";
 });
 
 const titleIcon = computed(() => {
   if (tab.value === "tos") {
     return selectedTos.value ? "mdi-file-document-outline" : "mdi-scale-balance";
   }
+  if (tab.value === "about") return "mdi-information-outline";
   return "mdi-newspaper-variant-outline";
 });
 
@@ -197,7 +281,7 @@ const onDialogUpdate = (open: boolean) => {
   emit("update:modelValue", open);
   if (!open) {
     selectedTosId.value = null;
-    tab.value = "changelog";
+    tab.value = "about";
   }
 };
 
