@@ -18,6 +18,7 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-18",
     title: "Federated Pools site toggles",
     items: [
+      "Baxter logo refresh: longer basset ears, clearer tail, PawFeed wordmark in Fredoka, double-blink and a tilted loader pulse; favicon matches",
       "Desktop Settings open as an overlay over the current page (mobile stays full-page); landing gear opens Settings from the hero and footer",
       "Landing Changelog & TOS renamed to Info, with an About tab (version, license, credits) beside Changelog and TOS",
       "Landing hero Settings gear matches the height of the Info / Scent Marks actions",

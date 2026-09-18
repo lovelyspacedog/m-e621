@@ -17,4 +17,21 @@ describe("AppLogo", () => {
     const wrapper = mount(AppLogo, { props: { type: "text" } });
     expect(wrapper.findAll(".eye")).toHaveLength(0);
   });
+
+  it("labels Baxter as the PawFeed mascot", () => {
+    const wrapper = mount(AppLogo, { props: { type: "face" } });
+    expect(wrapper.find("svg").attributes("aria-label")).toBe(
+      "Baxter, PawFeed mascot",
+    );
+  });
+
+  it("shows the PawFeed wordmark in text mode", () => {
+    const wrapper = mount(AppLogo, { props: { type: "text" } });
+    expect(wrapper.find(".wordmark text").text()).toBe("PawFeed");
+  });
+
+  it("draws the tail on the face mark", () => {
+    const wrapper = mount(AppLogo, { props: { type: "face" } });
+    expect(wrapper.find(".tail").exists()).toBe(true);
+  });
 });

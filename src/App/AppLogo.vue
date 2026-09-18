@@ -7,15 +7,19 @@
       :class="{ loader: type === 'loader' }"
       :style="{ height: `${size}px` }"
       role="img"
-      aria-label="PawFeed"
+      aria-label="Baxter, PawFeed mascot"
     >
-      <!-- Tail (face only) -->
+      <!-- Baxter: clearer tail (stem + tip below left ear). Face only. -->
       <g class="tail" v-if="type === 'face'">
         <path
-          d="M 290 780 C 200 800 120 760 100 700 C 80 640 140 600 190 620 C 230 640 260 700 290 760 Z"
+          d="M 340 900
+             C 280 930 200 955 130 945
+             C 70 935 40 880 55 830
+             C 70 785 120 780 160 810
+             C 210 850 280 880 340 900 Z"
           fill="rgb(5, 55, 98)"
         />
-        <ellipse cx="105" cy="700" rx="42" ry="38" fill="rgb(232, 49, 253)" />
+        <ellipse cx="70" cy="820" rx="50" ry="44" fill="rgb(232, 49, 253)" />
       </g>
 
       <!-- Pointy-top hexagon head. Heritage e621 blue contrasts theme primary (#1976d2). -->
@@ -75,61 +79,77 @@
         />
       </g>
 
-      <!-- Ears painted after face/eyelids -->
+      <!-- Longer thinner basset ears + soft crease at the hex join -->
       <g class="left-ear">
         <path
-          d="M 270 400
-             C 200 430 130 520 120 640
-             C 110 760 160 880 250 900
-             C 300 910 330 860 340 780
-             C 350 680 340 540 310 450
-             C 300 420 285 405 270 400 Z"
+          d="M 250 365
+             C 165 400 95 510 85 650
+             C 75 790 125 940 225 965
+             C 280 980 315 920 322 820
+             C 335 690 325 530 290 420
+             C 275 385 260 368 250 365 Z"
           fill="rgb(232, 49, 253)"
         />
         <path
-          d="M 275 430
-             C 220 460 165 540 160 640
-             C 155 740 195 830 255 845
-             C 290 855 310 815 315 750
-             C 322 670 315 550 295 470
-             C 288 445 280 432 275 430 Z"
+          d="M 258 400
+             C 195 435 140 530 132 650
+             C 124 770 165 885 228 905
+             C 270 918 295 870 300 790
+             C 310 680 302 545 280 445
+             C 272 415 265 402 258 400 Z"
           fill="rgb(255, 205, 241)"
+        />
+        <path
+          d="M 250 365
+             C 235 390 245 430 270 445
+             C 255 400 255 375 250 365 Z"
+          fill="rgb(190, 25, 210)"
+          opacity="0.85"
         />
       </g>
 
       <g class="right-ear">
         <path
-          d="M 730 400
-             C 800 430 870 520 880 640
-             C 890 760 840 880 750 900
-             C 700 910 670 860 660 780
-             C 650 680 660 540 690 450
-             C 700 420 715 405 730 400 Z"
+          d="M 750 365
+             C 835 400 905 510 915 650
+             C 925 790 875 940 775 965
+             C 720 980 685 920 678 820
+             C 665 690 675 530 710 420
+             C 725 385 740 368 750 365 Z"
           fill="rgb(232, 49, 253)"
         />
         <path
-          d="M 725 430
-             C 780 460 835 540 840 640
-             C 845 740 805 830 745 845
-             C 710 855 690 815 685 750
-             C 678 670 685 550 705 470
-             C 712 445 720 432 725 430 Z"
+          d="M 742 400
+             C 805 435 860 530 868 650
+             C 876 770 835 885 772 905
+             C 730 918 705 870 700 790
+             C 690 680 698 545 720 445
+             C 728 415 735 402 742 400 Z"
           fill="rgb(255, 205, 241)"
+        />
+        <path
+          d="M 750 365
+             C 765 390 755 430 730 445
+             C 745 400 745 375 750 365 Z"
+          fill="rgb(190, 25, 210)"
+          opacity="0.85"
         />
       </g>
 
-      <!-- Text wordmark -->
+      <!-- PawFeed wordmark (Fredoka) -->
       <g v-if="type === 'text'" class="wordmark">
         <text
           x="500"
-          y="620"
+          y="560"
           text-anchor="middle"
-          font-family="Roboto, Arial, sans-serif"
-          font-weight="700"
-          font-size="120"
+          dominant-baseline="middle"
+          font-family="Fredoka, sans-serif"
+          font-weight="600"
+          font-size="96"
+          letter-spacing="1"
           fill="rgb(255,255,255)"
         >
-          e621
+          PawFeed
         </text>
       </g>
     </svg>
@@ -155,6 +175,14 @@ export default defineComponent({
 </script>
 
 <style scoped>
+@font-face {
+  font-family: "Fredoka";
+  src: url("@/assets/fonts/Fredoka-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 .margin-auto {
   margin: auto;
 }
@@ -167,7 +195,7 @@ svg {
   padding-top: 5px;
 }
 svg.loader {
-  animation: load-logo 1s infinite;
+  animation: load-logo 1.1s infinite ease-in-out;
 }
 svg .tail {
   transform-box: fill-box;
@@ -178,7 +206,7 @@ svg .tail {
 }
 svg .eyelids {
   transform-origin: 100% 100%;
-  transform: translate(0) scale(1) rotate(0);
+  transform: translate(0) rotateZ(0deg);
   animation: close-eyes 30s infinite ease-in-out;
   animation-delay: 0s;
 }
@@ -230,14 +258,15 @@ svg .right-ear {
     transform: translate(0) rotateZ(-10deg);
   }
 }
+/* Loader pulse with a clearer head tilt */
 @keyframes load-logo {
   from,
   to {
-    transform: scale(0.7) rotate(0deg);
+    transform: scale(0.72) rotate(0deg);
     opacity: 0.2;
   }
   50% {
-    transform: scale(1) rotate(-10deg);
+    transform: scale(1) rotate(-14deg);
     opacity: 1;
   }
 }
@@ -270,7 +299,9 @@ svg .right-ear {
     transform: translate(0) rotateZ(4deg);
   }
 }
+/* Mostly single blinks; rare double-blink near the end of the cycle */
 @keyframes close-eyes {
+  0%,
   1%,
   19%,
   21%,
@@ -279,19 +310,20 @@ svg .right-ear {
   59%,
   61%,
   79%,
-  81%,
+  80.5%,
   82%,
-  84%,
-  99% {
+  83.5%,
+  85%,
+  99%,
+  100% {
     transform: translate(0) rotateZ(0deg);
   }
   20%,
   40%,
   60%,
-  80%,
+  81%,
   83%,
-  100%,
-  0% {
+  84.2% {
     /* ~18% of viewBox height clears brows and covers the eyes */
     transform: translateY(18%) rotateZ(0deg);
   }

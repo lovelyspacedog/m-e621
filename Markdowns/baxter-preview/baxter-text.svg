@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Baxter text/wordmark preview - item 6. Not wired into AppLogo.vue yet. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-label="PawFeed">
+  <defs>
+    <style type="text/css"><![CDATA[
+      @font-face {
+        font-family: "Fredoka";
+        src: url("fonts/Fredoka-SemiBold-static.ttf") format("truetype");
+        font-weight: 600;
+        font-style: normal;
+      }
+    ]]></style>
+  </defs>
+
+  <rect width="1000" height="1000" fill="rgb(12, 18, 28)"/>
+
+  <g class="tail">
+    <path
+      d="M 340 900
+         C 280 930 200 955 130 945
+         C 70 935 40 880 55 830
+         C 70 785 120 780 160 810
+         C 210 850 280 880 340 900 Z"
+      fill="rgb(5, 55, 98)"
+    />
+    <ellipse cx="70" cy="820" rx="50" ry="44" fill="rgb(232, 49, 253)" />
+  </g>
+
+  <path
+    class="background"
+    d="M 500 180
+       L 730 310
+       L 810 560
+       L 730 810
+       L 500 940
+       L 270 810
+       L 190 560
+       L 270 310
+       Z"
+    fill="rgb(0, 84, 159)"
+  />
+
+  <!-- 6: PawFeed in Fredoka SemiBold (static instance) -->
+  <text
+    x="500"
+    y="560"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-family="Fredoka"
+    font-weight="600"
+    font-size="96"
+    letter-spacing="1"
+    fill="rgb(255,255,255)"
+  >PawFeed</text>
+
+  <g class="left-ear">
+    <path
+      d="M 250 365
+         C 165 400 95 510 85 650
+         C 75 790 125 940 225 965
+         C 280 980 315 920 322 820
+         C 335 690 325 530 290 420
+         C 275 385 260 368 250 365 Z"
+      fill="rgb(232, 49, 253)"
+    />
+    <path
+      d="M 258 400
+         C 195 435 140 530 132 650
+         C 124 770 165 885 228 905
+         C 270 918 295 870 300 790
+         C 310 680 302 545 280 445
+         C 272 415 265 402 258 400 Z"
+      fill="rgb(255, 205, 241)"
+    />
+    <path
+      d="M 250 365
+         C 235 390 245 430 270 445
+         C 255 400 255 375 250 365 Z"
+      fill="rgb(190, 25, 210)"
+      opacity="0.85"
+    />
+  </g>
+
+  <g class="right-ear">
+    <path
+      d="M 750 365
+         C 835 400 905 510 915 650
+         C 925 790 875 940 775 965
+         C 720 980 685 920 678 820
+         C 665 690 675 530 710 420
+         C 725 385 740 368 750 365 Z"
+      fill="rgb(232, 49, 253)"
+    />
+    <path
+      d="M 742 400
+         C 805 435 860 530 868 650
+         C 876 770 835 885 772 905
+         C 730 918 705 870 700 790
+         C 690 680 698 545 720 445
+         C 728 415 735 402 742 400 Z"
+      fill="rgb(255, 205, 241)"
+    />
+    <path
+      d="M 750 365
+         C 765 390 755 430 730 445
+         C 745 400 745 375 750 365 Z"
+      fill="rgb(190, 25, 210)"
+      opacity="0.85"
+    />
+  </g>
+</svg>
