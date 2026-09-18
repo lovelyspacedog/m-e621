@@ -8,8 +8,14 @@
         <h1 class="mb-2 text-h1 text-center">{{ APP_NAME }}</h1>
         <p
           class="text-h6 text-center landing-splash mb-4"
+          role="button"
+          tabindex="0"
+          title="Click for another splash"
           aria-live="polite"
           :aria-label="splashFull || undefined"
+          @click="rerollSplash"
+          @keydown.enter.prevent="rerollSplash"
+          @keydown.space.prevent="rerollSplash"
         >
           <span>{{ splashTyped }}</span
           ><span
@@ -257,9 +263,9 @@ const finishSplashTyping = () => {
   }, CURSOR_HOLD_MS);
 };
 
-const startSplashTypewriter = () => {
+const startSplashTypewriter = (exclude?: string) => {
   clearSplashTimers();
-  splashFull.value = pickLandingSplash();
+  splashFull.value = pickLandingSplash(exclude);
   const preferReducedMotion =
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -280,7 +286,11 @@ const startSplashTypewriter = () => {
   }, TYPE_MS);
 };
 
-onMounted(startSplashTypewriter);
+const rerollSplash = () => {
+  startSplashTypewriter(splashFull.value || undefined);
+};
+
+onMounted(() => startSplashTypewriter());
 onUnmounted(clearSplashTimers);
 
 const capabilities = computed(() => [
@@ -328,6 +338,8 @@ const removeTag = (tag: string) => {
   max-width: 36rem;
   min-height: 1.35em;
   line-height: 1.35;
+  cursor: pointer;
+  user-select: none;
 }
 
 .landing-splash-cursor {
