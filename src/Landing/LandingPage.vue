@@ -54,12 +54,11 @@
             size="large"
             color="white"
             variant="outlined"
-            class="landing-hero-link"
-            icon
+            class="landing-hero-link landing-hero-settings"
             aria-label="Settings"
             @click="openSettings()"
           >
-            <v-icon>mdi-cog</v-icon>
+            <v-icon icon="mdi-cog" />
           </v-btn>
         </div>
         <InfoDialog v-model="infoOpen" />
@@ -151,11 +150,10 @@
             <v-btn
               color="primary"
               variant="tonal"
-              icon
               aria-label="Settings"
               @click="openSettings()"
             >
-              <v-icon>mdi-cog</v-icon>
+              <v-icon icon="mdi-cog" />
             </v-btn>
           </div>
         </v-col>
@@ -275,6 +273,13 @@ const removeTag = (tag: string) => {
   background-color: rgba(0, 0, 0, 0.34) !important;
   border-width: 2px !important;
   font-weight: 600;
+}
+
+/* Gear-only control: same height as sibling size="large" text buttons. */
+.landing-hero-settings {
+  min-width: unset;
+  aspect-ratio: 1;
+  padding-inline: 0;
 }
 
 .landing-capabilities {
