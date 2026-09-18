@@ -94,7 +94,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   });
   const unifiedSites = computed(() => ({
     ...defaultUnifiedSites(),
-    ...(main.profiles.unified?.unifiedSites || {}),
+    ...main.profiles.unified?.unifiedSites,
   }));
 
   const unifiedFeedSource = computed<UnifiedFeedSource>(

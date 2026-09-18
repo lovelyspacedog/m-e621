@@ -44,6 +44,7 @@ export const changelogSections: ChangelogSection[] = [
       "Federated site inclusion (chips / Defaults / Auth-only) persists when leaving and re-entering Federated",
       "Dev download proxy allows Flayrah media hosts; notes/votes/comments no longer fall through to e621 on other modes",
       "Pools, comments, and notes requests send Basic auth when the profile has credentials",
+      "Tailspace/Flayrah redirect away from the Parser debug route; oxlint ignores vendored ffmpeg/Ruffle",
     ],
   },
   {

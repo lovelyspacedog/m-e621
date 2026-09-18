@@ -178,7 +178,7 @@ export const buildUnifiedFetchArgs = (
 ): UnifiedFetchArgs => {
   const sites = {
     ...defaultUnifiedSites(),
-    ...(toRaw(state.profiles.unified?.unifiedSites) || {}),
+    ...toRaw(state.profiles.unified?.unifiedSites),
   };
   const feedSource: UnifiedFeedSource =
     state.profiles.unified?.unifiedFeedSource === "following"

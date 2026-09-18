@@ -135,11 +135,6 @@ const resolveCookiesWithSource = async (
   return { cookies: await guestSession(), source: "guest" };
 };
 
-const resolveCookies = async (payload: Record<string, unknown>): Promise<Cookie[]> => {
-  const { cookies } = await resolveCookiesWithSource(payload);
-  return cookies;
-};
-
 const parseFigures = (html: string) => {
   const results: Array<{
     id: number;

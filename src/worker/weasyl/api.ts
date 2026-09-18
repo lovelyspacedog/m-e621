@@ -11,7 +11,7 @@
 
 import { isAudioExt } from "@/misc/util/audioExts";
 import { shuffled } from "@/misc/util/shuffle";
-import type { Post, PostTags, Tag } from "@/worker/api/returnTypes";
+import type { Post, PostTags } from "@/worker/api/returnTypes";
 
 // ---------------------------------------------------------------------------
 // Weasyl wire types

@@ -721,7 +721,7 @@ export class ApiService {
             return stamp({
               ...post,
               __meta: {
-                ...((post as EnhancedPost).__meta || {}),
+                ...(post as EnhancedPost).__meta,
                 isBlacklisted: isPostBlacklisted(post, child.blacklist),
                 pageNumber: 1,
               },
@@ -947,7 +947,7 @@ export class ApiService {
         return feedPosts.map((post: Post): EnhancedPost => ({
           ...post,
           __meta: {
-            ...((post as EnhancedPost).__meta || {}),
+            ...(post as EnhancedPost).__meta,
             isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
             pageNumber: args.page,
             originMode: originModeStamp(args.mode),
@@ -968,7 +968,7 @@ export class ApiService {
       return browsePosts.map((post: Post): EnhancedPost => ({
         ...post,
         __meta: {
-          ...((post as EnhancedPost).__meta || {}),
+          ...(post as EnhancedPost).__meta,
           isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
           pageNumber: args.page,
           originMode: originModeStamp(args.mode),

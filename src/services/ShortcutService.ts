@@ -27,7 +27,7 @@ class ShortcutService {
   public setUpShortcuts() {
     Mousetrap.reset();
     for (const { action, sequence } of this.shortcutStore.shortcuts) {
-      Mousetrap.bind(sequence, (e) => {
+      Mousetrap.bind(sequence, () => {
         switch (action) {
           case "go_to_settings":
             this.router.push({ name: "Settings" });

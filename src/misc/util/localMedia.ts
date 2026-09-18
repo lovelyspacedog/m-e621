@@ -590,7 +590,7 @@ export const mergeSidecarTagsForPath = async (
     const all =
       (await localforage.getItem<ExtraTagsStore>(EXTRA_TAGS_KEY)) || {};
     const bucket: Record<string, string[]> = {
-      ...(storeBucket(all, key, root.name) || {}),
+      ...storeBucket(all, key, root.name),
     };
     const disk = await readSidecar(root);
     if (disk) {
@@ -653,7 +653,7 @@ export const mergeSidecarTagsForTauriRoot = async (
     const all =
       (await localforage.getItem<ExtraTagsStore>(EXTRA_TAGS_KEY)) || {};
     const bucket: Record<string, string[]> = {
-      ...(storeBucket(all, key, displayName) || {}),
+      ...storeBucket(all, key, displayName),
     };
     try {
       const text = await tauriReadLocalText(root, SIDECAR_NAME);
@@ -736,7 +736,7 @@ const loadExtraTags = async (
   try {
     const all =
       (await localforage.getItem<ExtraTagsStore>(EXTRA_TAGS_KEY)) || {};
-    extraTagsByPath = { ...(storeBucket(all, key, legacyName) || {}) };
+    extraTagsByPath = { ...storeBucket(all, key, legacyName) };
   } catch {
     extraTagsByPath = {};
   }
@@ -757,7 +757,7 @@ const loadExtraTagsForKey = async (key: string, legacyName: string) => {
   try {
     const all =
       (await localforage.getItem<ExtraTagsStore>(EXTRA_TAGS_KEY)) || {};
-    extraTagsByPath = { ...(storeBucket(all, key, legacyName) || {}) };
+    extraTagsByPath = { ...storeBucket(all, key, legacyName) };
   } catch {
     extraTagsByPath = {};
   }
@@ -792,7 +792,7 @@ const loadPosterMeta = async (key: string, legacyName: string) => {
   try {
     const all =
       (await localforage.getItem<PosterMetaStore>(POSTER_META_KEY)) || {};
-    posterMetaByPath = { ...(storeBucket(all, key, legacyName) || {}) };
+    posterMetaByPath = { ...storeBucket(all, key, legacyName) };
   } catch {
     posterMetaByPath = {};
   }
@@ -1375,7 +1375,7 @@ const editDistance = (a: string, b: string) => {
   if (!a.length) return b.length;
   if (!b.length) return a.length;
   const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-  const next = new Array<number>(b.length + 1);
+  const next = Array.from<number>({ length: b.length + 1 });
   for (let i = 0; i < a.length; i++) {
     next[0] = i + 1;
     for (let j = 0; j < b.length; j++) {

@@ -1,0 +1,9 @@
+# Vendored / minified — not owned by app lint
+public/ffmpeg/**
+public/ruffle/**
+src/misc/plugins/mousetrap.ts
+
+# Build outputs
+dist/**
+dist-ssr/**
+coverage/**

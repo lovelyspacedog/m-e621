@@ -149,10 +149,13 @@ async function sofurryRequest(
     headers["X-CSRF-TOKEN"] = csrf;
   }
   try {
+    const method = opts.method || "GET";
     const resp = await fetch(url, {
-      method: opts.method || "GET",
+      method,
       headers,
-      body: opts.body == null ? undefined : opts.body,
+      ...(method !== "GET" && method !== "HEAD" && opts.body != null
+        ? { body: opts.body }
+        : {}),
       redirect: "manual",
     });
     const cookie = mergeSetCookies(opts.cookie || "", resp.headers);
@@ -473,7 +476,7 @@ export function sofurryProxy(): Plugin {
           }
 
           const method = req.method || "GET";
-          let bodyBuf =
+          const bodyBuf =
             method === "GET" || method === "HEAD" ? null : await readBody(req);
           const accept =
             upstreamPath.endsWith(".data") || upstreamPath.includes(".data?")

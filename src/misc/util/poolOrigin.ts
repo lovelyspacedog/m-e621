@@ -89,7 +89,7 @@ export const poolFamilyChildren = (
 
   const sites = {
     ...defaultUnifiedSites(),
-    ...(toRaw(state.profiles.unified?.unifiedSites) || {}),
+    ...toRaw(state.profiles.unified?.unifiedSites),
   };
   const out: PoolChildFetchArgs[] = [];
   for (const mode of POOL_ORIGIN_MODES) {

@@ -293,11 +293,10 @@ const heading = computed(() => {
 
 const suggesterLink = computed(() => ({
   name: "SuggesterResult" as const,
-  query: {
-    ...(needsUsername.value && username.value
+  query:
+    needsUsername.value && username.value
       ? { name: username.value }
-      : {}),
-  },
+      : {},
 }));
 
 type RankedTag = { name: string; count: number; category: string };

@@ -2,7 +2,7 @@ import { useMainStore } from "./state";
 import localforage from "localforage";
 // TODO: remove localforage and implement persistance ourselves
 import type { FavoriteTagEntry, FavoriteTagGroup, ISettingsServiceState } from "./types";
-import { DataSaverType, FullscreenZoomUiMode, SITE_MODE_URLS, UNGROUPED_FAVORITE_GROUP_ID } from "./types";
+import { DataSaverType, SITE_MODE_URLS, UNGROUPED_FAVORITE_GROUP_ID } from "./types";
 import clone from "clone";
 import { nextTick, reactive, toRaw } from "vue";
 import { defaultSettings, focusSearchShortcut, fullscreenFavoriteShortcuts, fullscreenSlideshowShortcut, historyNavigationShortcuts } from "./defaultSettings";
@@ -367,7 +367,7 @@ class PersistanceService {
     if (newState.configVersion < 11) {
       const raw = newState.blacklist?.tags as unknown;
       if (Array.isArray(raw)) {
-        const alreadyNested = raw.length === 0 || raw.every((row) => Array.isArray(row));
+        const alreadyNested = raw.every((row) => Array.isArray(row));
         if (!alreadyNested) {
           newState.blacklist.tags = reactive((raw as string[]).map((tag) => [String(tag)]));
         } else {
@@ -375,7 +375,7 @@ class PersistanceService {
         }
       } else {
         newState.blacklist = reactive({
-          ...(newState.blacklist || {}),
+          ...newState.blacklist,
           tags: [],
           mode: newState.blacklist?.mode ?? defaultSettings.blacklist.mode,
           hideServerSideBlacklisted: newState.blacklist?.hideServerSideBlacklisted ?? defaultSettings.blacklist.hideServerSideBlacklisted,

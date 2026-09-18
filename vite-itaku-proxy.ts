@@ -60,10 +60,16 @@ async function itakuRequest(
     headers["Content-Type"] = "application/json";
   }
   try {
+    const method = opts.method || "GET";
     const resp = await fetch(url, {
-      method: opts.method || "GET",
+      method,
       headers,
-      body: opts.body && opts.body.length ? opts.body : undefined,
+      ...(method !== "GET" &&
+      method !== "HEAD" &&
+      opts.body &&
+      opts.body.length
+        ? { body: opts.body }
+        : {}),
     });
     const body = Buffer.from(await resp.arrayBuffer());
     const contentType = resp.headers.get("content-type") || "application/json";

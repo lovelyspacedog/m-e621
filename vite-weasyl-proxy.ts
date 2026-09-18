@@ -4,6 +4,7 @@
  * this handles the same routes for `npm run dev`.
  */
 import type { Plugin } from "vite";
+import type { ServerResponse } from "node:http";
 
 const WEASYL_API_BASE = "https://www.weasyl.com";
 const UA =
@@ -46,7 +47,6 @@ function parseWeasylSearchHtml(html: string): {
   // Weasyl search thumbnails are in <figure class="thumb ..."> blocks
   const figurePattern = /<figure[^>]*\bthumb\b[^>]*>([\s\S]*?)<\/figure>/gi;
   let figMatch: RegExpExecArray | null;
-  // eslint-disable-next-line no-cond-assign
   while ((figMatch = figurePattern.exec(html)) !== null) {
     const block = figMatch[1];
 
@@ -118,7 +118,7 @@ async function weasylApiRequest(
 }
 
 function sendJson(
-  res: import("node:http").ServerResponse,
+  res: ServerResponse,
   status: number,
   data: unknown,
 ): void {
@@ -131,7 +131,7 @@ function sendJson(
 }
 
 function sendBuffer(
-  res: import("node:http").ServerResponse,
+  res: ServerResponse,
   status: number,
   body: Buffer,
   _contentType: string,

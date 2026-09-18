@@ -283,6 +283,8 @@ router.beforeEach((to) => {
       "FavoritesAnalyzerResult",
       "Dashboard",
       "DashboardResult",
+      // e621 DText debug page — not dedicated-chrome browse
+      "Parser",
     ]);
     if (mode === "tailspace" && e621ShapedRoutes.has(String(to.name))) {
       return { name: "TailspacePosts", query: to.query };

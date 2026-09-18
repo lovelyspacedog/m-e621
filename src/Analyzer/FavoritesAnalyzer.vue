@@ -95,9 +95,7 @@ const canSubmitOwn = computed(() => {
 
 const query = computed<RouteLocationRaw>(() => ({
   name: "FavoritesAnalyzerResult",
-  query: {
-    ...(showUsername.value ? { name: username.value.trim() } : {}),
-  },
+  query: showUsername.value ? { name: username.value.trim() } : {},
 }));
 
 const submit = async (event?: SubmitEvent | MouseEvent) => {

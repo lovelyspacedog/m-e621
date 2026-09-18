@@ -38,7 +38,7 @@ async function fetchUpstreamWithSessionFallback(
   accept: string,
   referer?: string,
 ): Promise<{ remote: Response; sessionRejected: boolean }> {
-  let remote = await fetchUpstream(url, cookie, accept, referer);
+  const remote = await fetchUpstream(url, cookie, accept, referer);
   if (cookie && remote.status === 500) {
     const anon = await fetchUpstream(url, '', accept, referer);
     if (anon.ok) return { remote: anon, sessionRejected: true };
