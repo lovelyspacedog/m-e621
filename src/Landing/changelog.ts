@@ -15,6 +15,14 @@ export interface ChangelogSection {
  */
 export const changelogSections: ChangelogSection[] = [
   {
+    date: "2026-09-18",
+    title: "Federated Pools site toggles",
+    items: [
+      "Federated Pools: Sites in Pools sidebar toggles sit between Pools and Post Suggester (e621/e6ai/Furbooru/Inkbunny plus Tailspace comics)",
+      "Include Tailspace comics moved out of Account settings into that Pools sidebar (still on by default)",
+    ],
+  },
+  {
     date: "2026-09-17",
     title: "PawFeed, Flayrah, Federated Pools, and hardening",
     items: [
@@ -26,8 +34,8 @@ export const changelogSections: ChangelogSection[] = [
       "Inkbunny pools: site-mode /pools with open-by-id and watch; Federated reader via ?origin=inkbunny (no free-text IB name search)",
       "Federated Watched Pools includes Inkbunny when that child is enabled; pool chips open the shared reader",
       "Furbooru galleries: site-mode /pools plus Federated name browse/reader via ?origin=furbooru (Philomena search/galleries; tag browse stays e621/e6ai)",
-      "Federated Pools name browse can include Tailspace comics (Account setting, on by default); opens the Tailspace reader",
-      "Federated Watched Pools & Comics aggregates e621/e6ai watched pools and Tailspace watched comics when Include Tailspace comics is on; eye toggle writes to the same per-source lists",
+      "Federated Pools name browse can include Tailspace comics (sidebar Sites in Pools, on by default); opens the Tailspace reader",
+      "Federated Watched Pools & Comics aggregates e621/e6ai watched pools and Tailspace watched comics when Tailspace comics is on; eye toggle writes to the same per-source lists",
       "Federated Pools interleave Tailspace comics with e621/e6ai by Updated/sort (ISO comic dates parse correctly)",
       "Site mode renamed from Unified to Federated; sidebar Defaults / Auth-only presets sit as a compact toolbar",
       "Landing Federated chips: multi-select sites for search inclusion, close/label exits to the previous site, and a one-time tip (Appearance → Reset tooltips)",

@@ -413,7 +413,8 @@
       <p class="mb-0">
         Rating, follow, and comments need a Tailspace login under Account.
         Watching a comic is local (eye button) and works without login.
-        Federated Pools can open comics here when Tailspace comics are enabled.
+        Federated Pools can open comics here when Tailspace comics is on under
+        Sites in Pools.
       </p>
     </TipDialog>
   </div>

@@ -11,17 +11,19 @@
     </template>
     <template v-if="section === 'secondary' || section === 'all'">
       <saved-search-nav />
-      <v-list-item
-        v-for="option in trailing"
-        :key="option.resolved"
-        :to="option.to"
-        :exact="option.exact"
-      >
-        <template #prepend>
-          <v-icon>{{ option.icon }}</v-icon>
-        </template>
-        <v-list-item-title>{{ option.name }}</v-list-item-title>
-      </v-list-item>
+      <template v-for="option in trailing" :key="option.resolved">
+        <v-list-item :to="option.to" :exact="option.exact">
+          <template #prepend>
+            <v-icon>{{ option.icon }}</v-icon>
+          </template>
+          <v-list-item-title>{{ option.name }}</v-list-item-title>
+        </v-list-item>
+        <!-- Federated Pools page injects site toggles between Pools and Post Suggester -->
+        <portal-target
+          v-if="option.to.name === 'Pools'"
+          name="sidebar-pool-sites"
+        />
+      </template>
     </template>
   </v-list>
 </template>

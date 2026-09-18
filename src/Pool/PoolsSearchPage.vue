@@ -113,6 +113,74 @@
       </div>
     </portal>
 
+    <portal to="sidebar-pool-sites">
+      <v-list
+        v-if="isFederatedPools"
+        class="pa-0 mt-1 mb-2 unified-sidebar"
+        density="compact"
+      >
+        <v-list-item
+          class="sidebar-section-header unified-sidebar__sites-header"
+          @click="togglePoolSitesOpen"
+        >
+          <template #prepend>
+            <v-icon size="small">
+              {{ poolSitesOpen ? "mdi-chevron-down" : "mdi-chevron-right" }}
+            </v-icon>
+          </template>
+          <v-list-item-title class="text-overline">Sites in Pools</v-list-item-title>
+          <template #append>
+            <span class="text-caption text-medium-emphasis mr-1">
+              {{ poolSitesSummary }}
+            </span>
+          </template>
+        </v-list-item>
+        <template v-if="poolSitesOpen">
+          <v-list-item
+            v-for="child in poolSidebarSites"
+            :key="child"
+          >
+            <template #prepend>
+              <v-icon>{{ unifiedChildIcon(child) }}</v-icon>
+            </template>
+            <v-list-item-title>{{ unifiedChildLabel(child) }}</v-list-item-title>
+            <v-list-item-subtitle v-if="child === 'inkbunny'">
+              Watched / open by ID
+            </v-list-item-subtitle>
+            <template #append>
+              <v-switch
+                class="ma-0"
+                color="accent"
+                density="compact"
+                hide-details
+                :model-value="siteMode.unifiedSites[child]"
+                @update:model-value="siteMode.setUnifiedChild(child, !!$event)"
+              />
+            </template>
+          </v-list-item>
+          <v-list-item>
+            <template #prepend>
+              <v-icon>{{ unifiedChildIcon("tailspace") }}</v-icon>
+            </template>
+            <v-list-item-title>Tailspace comics</v-list-item-title>
+            <v-list-item-subtitle>Name browse</v-list-item-subtitle>
+            <template #append>
+              <v-switch
+                class="ma-0"
+                color="accent"
+                density="compact"
+                hide-details
+                :model-value="siteMode.unifiedIncludeTailspaceComics"
+                @update:model-value="
+                  siteMode.setUnifiedIncludeTailspaceComics(!!$event)
+                "
+              />
+            </template>
+          </v-list-item>
+        </template>
+      </v-list>
+    </portal>
+
     <v-container>
       <section class="mb-8">
         <div class="d-flex align-center ga-2 mb-3">
@@ -243,7 +311,8 @@
       </p>
       <p class="mb-0">
         Opening a pool keeps that origin for browsing and resume. Optional
-        Tailspace comics can appear in name browse when enabled under Account.
+        Tailspace comics can appear in name browse when enabled in the sidebar
+        Sites in Pools toggles.
       </p>
     </TipDialog>
     <TipDialog
@@ -255,7 +324,7 @@
         A +N badge on a watched pool or comic means new pages since you last
         checked. Watch with the eye button; open the watched section at the top
         of this page to catch up. In Federated, Tailspace comics share the same
-        list when Include Tailspace comics is on.
+        list when Tailspace comics is on under Sites in Pools.
       </p>
     </TipDialog>
   </div>
@@ -291,6 +360,7 @@ import { BlacklistMode } from "@/services/types";
 import { useRouterQueryHelpers } from "@/misc/util/utilities";
 import {
   isPoolOriginMode,
+  POOL_ORIGIN_MODES,
   poolFamilyChildren,
   poolWatchChildren,
   poolKey,
@@ -298,7 +368,11 @@ import {
   sortPoolsByOrder,
   type PoolChildFetchArgs,
 } from "@/misc/util/poolOrigin";
-import { unifiedChildLabel } from "@/misc/util/postOrigin";
+import { unifiedChildIcon, unifiedChildLabel } from "@/misc/util/postOrigin";
+import {
+  readSidebarSectionOpen,
+  writeSidebarSectionOpen,
+} from "@/misc/util/sidebarSections";
 import {
   poolOrderToTailspaceSort,
   tailspaceComicCoverUrl,
@@ -335,6 +409,23 @@ const watchedPoolStore = useWatchedPoolsStore();
 const watchedComicStore = useWatchedComicsStore();
 const { updateRouterQuery, removeRouterQuery } = useRouterQueryHelpers();
 const { tags, addTag, removeTag } = useRouterTagManager();
+
+/** Pool-capable Federated children (name browse + watched / open-by-id). */
+const poolSidebarSites = POOL_ORIGIN_MODES;
+const poolSitesOpen = ref(readSidebarSectionOpen("pool-sites", true));
+const togglePoolSitesOpen = () => {
+  poolSitesOpen.value = !poolSitesOpen.value;
+  writeSidebarSectionOpen("pool-sites", poolSitesOpen.value);
+};
+const poolSitesSummary = computed(() => {
+  const enabledSites = poolSidebarSites.filter(
+    (child) => siteMode.unifiedSites[child],
+  ).length;
+  const enabled =
+    enabledSites + (siteMode.unifiedIncludeTailspaceComics ? 1 : 0);
+  const total = poolSidebarSites.length + 1;
+  return `${enabled}/${total} sites`;
+});
 
 const orderItems = [
   { title: "Post count", value: "post_count" },
@@ -1055,7 +1146,7 @@ const fetchPoolsByName = async (append: boolean) => {
     const withTailspace = includeTailspaceComics.value;
     if (!children.length && !withTailspace) {
       error.value =
-        "No e621, e6ai, Furbooru, or Tailspace comics sources — enable sites in Federated Account settings";
+        "No e621, e6ai, Furbooru, or Tailspace comics sources — enable sites under Sites in Pools";
       if (!append) pools.value = [];
       hasMore.value = false;
       searched.value = true;
@@ -1444,5 +1535,13 @@ watch(
 .pools-mode-toggle,
 .pools-layout-toggle {
   flex-shrink: 0;
+}
+
+.sidebar-section-header {
+  cursor: pointer;
+  user-select: none;
+}
+.unified-sidebar__sites-header {
+  margin-top: 0;
 }
 </style>
