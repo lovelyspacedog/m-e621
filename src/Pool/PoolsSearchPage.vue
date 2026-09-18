@@ -199,6 +199,7 @@
           :pools="watchedPoolResults"
           :layout="browseLayout"
           :covers="covers"
+          :covers-pending="coversPending"
           :cover-origin="defaultCoverOrigin"
           :show-origin-badges="isFederatedPools"
           :watched-ids="watchedIds"
@@ -283,6 +284,7 @@
         :pools="pools"
         :layout="browseLayout"
         :covers="covers"
+        :covers-pending="coversPending"
         :cover-origin="defaultCoverOrigin"
         :show-origin-badges="isFederatedPools"
         :watched-ids="watchedIds"
@@ -508,6 +510,9 @@ const watchedPoolResults = ref<PoolListItem[]>([]);
 const watchedLoading = ref(false);
 const unavailableWatchedComics = ref<WatchedComicEntry[]>([]);
 const covers = ref<Record<string, string>>({});
+/** Pool row keys whose cover URL fetch is in flight (ref-counted for overlap). */
+const coversPending = ref<Set<string>>(new Set());
+const coversPendingDepth = new Map<string, number>();
 const loading = ref(false);
 const error = ref<string | null>(null);
 const searched = ref(false);
@@ -820,21 +825,55 @@ const fetchCoversFor = async (list: PoolListItem[], child: PoolChildFetchArgs) =
   }
 };
 
-const fetchCovers = async (list: PoolListItem[]) => {
-  const byOrigin = new Map<PoolOriginMode, PoolListItem[]>();
-  for (const pool of list) {
-    if (!pool.originMode || pool.originMode === "tailspace") continue;
-    const arr = byOrigin.get(pool.originMode) || [];
-    arr.push(pool);
-    byOrigin.set(pool.originMode, arr);
+const poolRowKeyForCover = (pool: PoolListItem) =>
+  pool.originMode ? poolKey(pool.originMode, pool.id) : String(pool.id);
+
+const poolNeedsCoverFetch = (pool: PoolListItem) => {
+  if (!pool.originMode || pool.originMode === "tailspace") return false;
+  const origin = pool.originMode;
+  const candidates = (pool.post_ids || [])
+    .filter((id): id is number => typeof id === "number" && id > 0)
+    .slice(0, COVER_CANDIDATES);
+  if (!candidates.length) return false;
+  return !candidates.some(
+    (id) => covers.value[`${origin}:${id}`] || covers.value[String(id)],
+  );
+};
+
+const bumpCoversPending = (keys: string[], delta: 1 | -1) => {
+  for (const key of keys) {
+    const next = (coversPendingDepth.get(key) || 0) + delta;
+    if (next <= 0) coversPendingDepth.delete(key);
+    else coversPendingDepth.set(key, next);
   }
-  for (const [origin, poolsForOrigin] of byOrigin.entries()) {
-    const child =
-      watchChildren.value.find((c) => c.mode === origin) ||
-      browseChildren.value.find((c) => c.mode === origin) ||
-      poolWatchChildren(main.$state).find((c) => c.mode === origin);
-    if (!child) continue;
-    await fetchCoversFor(poolsForOrigin, child);
+  coversPending.value = new Set(coversPendingDepth.keys());
+};
+
+const fetchCovers = async (list: PoolListItem[]) => {
+  const pendingKeys = [
+    ...new Set(
+      list.filter(poolNeedsCoverFetch).map(poolRowKeyForCover),
+    ),
+  ];
+  if (pendingKeys.length) bumpCoversPending(pendingKeys, 1);
+  try {
+    const byOrigin = new Map<PoolOriginMode, PoolListItem[]>();
+    for (const pool of list) {
+      if (!pool.originMode || pool.originMode === "tailspace") continue;
+      const arr = byOrigin.get(pool.originMode) || [];
+      arr.push(pool);
+      byOrigin.set(pool.originMode, arr);
+    }
+    for (const [origin, poolsForOrigin] of byOrigin.entries()) {
+      const child =
+        watchChildren.value.find((c) => c.mode === origin) ||
+        browseChildren.value.find((c) => c.mode === origin) ||
+        poolWatchChildren(main.$state).find((c) => c.mode === origin);
+      if (!child) continue;
+      await fetchCoversFor(poolsForOrigin, child);
+    }
+  } finally {
+    if (pendingKeys.length) bumpCoversPending(pendingKeys, -1);
   }
 };
 

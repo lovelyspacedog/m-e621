@@ -3,8 +3,21 @@
     <div v-for="pool in pools" :key="poolRowKey(pool)" class="pools-card">
       <router-link class="pools-card-link" :to="poolLink(pool)" :title="displayName(pool.name)">
         <div class="pools-card-thumb">
-          <img v-if="coverUrl(pool)" class="pools-card-img" :src="coverUrl(pool)!" :alt="displayName(pool.name)" loading="lazy" />
-          <div v-else class="pools-card-placeholder">
+          <img
+            v-if="coverUrl(pool) && !coverImgFailed(coverUrl(pool)!)"
+            class="pools-card-img"
+            :class="{ 'pools-card-img--loading': !coverImgReady(coverUrl(pool)!) }"
+            :src="coverUrl(pool)!"
+            :alt="displayName(pool.name)"
+            loading="lazy"
+            :ref="(el) => syncCoverImg(el, coverUrl(pool)!)"
+            @load="onCoverLoad(coverUrl(pool)!)"
+            @error="onCoverError(coverUrl(pool)!)"
+          />
+          <div v-if="coverShowSpinner(pool)" class="pools-card-placeholder">
+            <v-progress-circular indeterminate size="28" width="2" color="accent" />
+          </div>
+          <div v-else-if="coverShowMissing(pool)" class="pools-card-placeholder">
             <v-icon size="36" class="text-medium-emphasis"> mdi-image-off-outline </v-icon>
           </div>
           <div class="pools-badge pools-badge--pages">
@@ -58,8 +71,27 @@
     >
       <template #prepend>
         <div class="pool-cover">
-          <img v-if="coverUrl(pool)" :src="coverUrl(pool)!" :alt="displayName(pool.name)" class="pool-cover-img" loading="lazy" />
-          <v-icon v-else size="32" class="text-medium-emphasis"> mdi-image-off-outline </v-icon>
+          <img
+            v-if="coverUrl(pool) && !coverImgFailed(coverUrl(pool)!)"
+            :src="coverUrl(pool)!"
+            :alt="displayName(pool.name)"
+            class="pool-cover-img"
+            :class="{ 'pool-cover-img--loading': !coverImgReady(coverUrl(pool)!) }"
+            loading="lazy"
+            :ref="(el) => syncCoverImg(el, coverUrl(pool)!)"
+            @load="onCoverLoad(coverUrl(pool)!)"
+            @error="onCoverError(coverUrl(pool)!)"
+          />
+          <v-progress-circular
+            v-if="coverShowSpinner(pool)"
+            indeterminate
+            size="22"
+            width="2"
+            color="accent"
+          />
+          <v-icon v-else-if="coverShowMissing(pool)" size="32" class="text-medium-emphasis">
+            mdi-image-off-outline
+          </v-icon>
         </div>
       </template>
       <v-list-item-title>
@@ -106,6 +138,7 @@
 </template>
 
 <script setup lang="ts">
+import { reactive } from "vue";
 import type { Pool } from "@/worker/api";
 import type { PoolBrowseOrigin, PoolOriginMode } from "@/services/types";
 import { poolKey, poolRouteQuery } from "@/misc/util/poolOrigin";
@@ -132,6 +165,8 @@ const props = defineProps<{
   coverOrigin?: string;
   /** Show origin chips (Federated browse). */
   showOriginBadges?: boolean;
+  /** Pool row keys still waiting on cover URL resolution. */
+  coversPending?: Set<string>;
 }>();
 
 defineEmits<{
@@ -193,6 +228,45 @@ const coverUrl = (pool: PoolListItem) => {
   }
   return raw ? proxyDownloadUrl(raw) || raw : null;
 };
+
+const coverImgReadyMap = reactive<Record<string, boolean>>({});
+const coverImgFailedMap = reactive<Record<string, boolean>>({});
+
+const coverImgReady = (url: string) => !!coverImgReadyMap[url];
+const coverImgFailed = (url: string) => !!coverImgFailedMap[url];
+
+const onCoverLoad = (url: string) => {
+  coverImgReadyMap[url] = true;
+  coverImgFailedMap[url] = false;
+};
+const onCoverError = (url: string) => {
+  coverImgReadyMap[url] = false;
+  coverImgFailedMap[url] = true;
+};
+
+/** Cached images may already be complete before @load fires. */
+const syncCoverImg = (el: unknown, url: string) => {
+  if (!(el instanceof HTMLImageElement) || !url) return;
+  if (!el.complete) return;
+  if (el.naturalWidth > 0) onCoverLoad(url);
+  else onCoverError(url);
+};
+
+const coverIsPending = (pool: PoolListItem) =>
+  !!props.coversPending?.has(poolRowKey(pool));
+
+const coverShowSpinner = (pool: PoolListItem) => {
+  const url = coverUrl(pool);
+  if (url) return !coverImgReady(url) && !coverImgFailed(url);
+  return coverIsPending(pool);
+};
+
+const coverShowMissing = (pool: PoolListItem) => {
+  const url = coverUrl(pool);
+  if (url) return coverImgFailed(url);
+  return !coverIsPending(pool);
+};
+
 const watchKey = (pool: PoolListItem) =>
   pool.originMode ? poolKey(pool.originMode, pool.id) : String(pool.id);
 const isWatched = (pool: PoolListItem) =>
@@ -232,6 +306,7 @@ const pageCountLabel = (pool: PoolListItem) => {
   margin-inline-end: 12px;
 }
 .pool-cover {
+  position: relative;
   width: 56px;
   height: 56px;
   border-radius: 8px;
@@ -247,6 +322,10 @@ const pageCountLabel = (pool: PoolListItem) => {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+.pool-cover-img--loading {
+  opacity: 0;
+  position: absolute;
 }
 .pools-grid {
   display: grid;
@@ -302,6 +381,11 @@ const pageCountLabel = (pool: PoolListItem) => {
   object-fit: cover;
   display: block;
   transition: transform 0.2s ease;
+}
+.pools-card-img--loading {
+  opacity: 0;
+  position: absolute;
+  inset: 0;
 }
 .pools-card:hover .pools-card-img {
   transform: scale(1.04);
