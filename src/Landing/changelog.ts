@@ -36,6 +36,7 @@ export const changelogSections: ChangelogSection[] = [
       "Pool cards show a static gray image icon while covers load (with a shared Loading typewriter cycle) and image-off when missing/failed; cover downloads are deferred/limited to the near viewport",
       "Federated Pools: Tailspace comic cover thumbnails load again (pics.tailspace.com allowlisted on /api/download)",
       "Landing hero under PawFeed types a random furry/pup splash once and leaves it on screen (click or Enter/Space for another); the site-summary line moves above What it does",
+      "Mode-switch toast says Switched to Federated (not unified)",
     ],
   },
   {

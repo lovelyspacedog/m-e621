@@ -1,6 +1,10 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { modeSupportsSavedPosts, originModeOf } from "@/misc/util/postOrigin";
+import {
+  modeSupportsSavedPosts,
+  originModeOf,
+  unifiedChildLabel,
+} from "@/misc/util/postOrigin";
 import { supportsLocalBrowse } from "@/misc/util/tauriLocalFs";
 import { hiddenButtonsForMode, modeSupportsFollowing } from "@/misc/util/siteCapabilities";
 import { postSupportsFluffle } from "@/misc/util/fluffleSearch";
@@ -260,7 +264,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     }
     applyActiveProfileToMirrors(main.$state);
     if (!opts?.silent) {
-      snackbar.addMessage(`Switched to ${mode}`);
+      snackbar.addMessage(`Switched to ${unifiedChildLabel(mode)}`);
     }
     modeChangeCount.value++;
     if (mode === "unified" || previousWasUnified) {
