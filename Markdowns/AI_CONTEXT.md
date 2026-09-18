@@ -8,7 +8,9 @@ Onboarding for other AI agents. Prefer this file plus `README.md` / `README-CONT
 
 Supported **site modes** (`SiteMode` in `src/services/types.ts`): `e621`, `e6ai`, `furbooru`, `inkbunny`, `furaffinity`, `weasyl`, `itaku`, `sofurry`, `flayrah`, `tailspace`, `local`, `unified`.
 
-- **Unified** date-merges remote gallery children. **Tailspace, Flayrah, and Local are not Unified children.**
+- **Federated** is the UI label for SiteMode `"unified"` (code, profiles, URLs, and merge helpers still use `unified`). Date-merges remote gallery children into a Search or Following feed.
+- **Tailspace, Flayrah, and Local are not Federated Posts children.** Greyed on landing chips (`isFederatedIncompatible`).
+- Tailspace comics can join **Federated Pools** name browse when `unifiedIncludeTailspaceComics` is on (Pools sidebar **Sites in Pools**; default true; independent of Defaults / Auth-only).
 - Flayrah uses dedicated news routes (`/#/flayrah`) backed by RSS — never `getPosts` / e621 fall-through (same dedicated-chrome pattern as Tailspace).
 - Flayrah proxy: `GET /api/flayrah/rss?feed=` (allowlisted taxonomy feeds) and `GET /api/flayrah/article/:id` (HTML archive fallback). Offline last-good RSS is cached in IndexedDB; Flayrah stays selectable when offline.
 - Each mode has an independent **site profile** (auth, blacklist, starred tags, saved searches, history).
@@ -22,7 +24,7 @@ Repos: origin `lovelyspacedog/m-e621`; upstream remote `avoonix/material-e621`. 
 | Layer | Choice |
 | --- | --- |
 | UI | Vue 3.5, Vue Router 4 (**hash history**), Pinia 3, Vuetify 3 (MD3 blueprint), Portal Vue, `@unhead/vue` |
-| Build | Vite 6, `vite-plugin-vue`, `vite-plugin-vuetify`, `vite-plugin-pwa`, Vue DevTools plugin |
+| Build | Vite 6, `@vitejs/plugin-vue`, `vite-plugin-vuetify`, `vite-plugin-pwa`, Vue DevTools plugin |
 | Language | TypeScript ~5.8 (`vue-tsc` for type-check) |
 | Package manager | **npm only**. `package.json` `engines` blocks yarn/pnpm. Node **≥20** |
 | Lockfile | `package-lock.json` |
@@ -40,28 +42,34 @@ Path alias: `@/` → `src/`.
 
 ```
 src/main.ts                 # Vue bootstrap, Pinia, router, SW register
-src/App.vue                 # Shell: drawer, toolbar, snackbar, PWA banner
+src/App.vue                 # Shell: drawer, toolbar, snackbar, PWA banner, Settings overlay
 src/router/index.ts         # Hash routes + mode guards
 src/services/               # Pinia stores, persistence, defaults
 src/worker/                 # API workers + per-site adapters
-src/Post/                   # Feed, cards, fullscreen, comments, save
-src/Pool/                   # e621-family pools + comic reader
+src/Post/                   # Feed, cards, fullscreen, comments, save, Saved posts
+src/Pool/                   # e621-family / Furbooru / Inkbunny / Federated pools + reader
 src/Tailspace/              # Tailspace-only pages/reader
-src/Settings/               # Settings routes
+src/Flayrah/                # Flayrah RSS feed + article reader
+src/Landing/                # Landing, Scent Marks, changelog, TOS, Info, tag wiki
+src/Suggester/              # Post Suggester
+src/Analyzer/               # Favorite Analyzer
+src/ArtistDashboard/        # e621-family artist dashboard
+src/Settings/               # Settings routes + desktop overlay
 src/App/                    # Nav, logo, mode switcher
-src/misc/util/              # Capabilities, proxies, local FS, unified merge
+src/misc/util/              # Capabilities, proxies, local FS, federated merge
 src/misc/plugins/           # Vuetify + Unhead
 vite.config.ts              # Dev proxies, PWA, sitemap, git define
-vite-*-proxy.ts             # Dev-only site proxies (FA, Tailspace, Weasyl, Itaku, SoFurry, Flayrah)
+vite-*-proxy.ts             # Dev-only site proxies (FA, Tailspace, Weasyl, Itaku, SoFurry, Flayrah) + Scent Marks stub
 serve.py                    # Production static server + same-origin proxies
 fa_proxy.py / furbooru_cf.py
-src-tauri/                  # Desktop shell + Local FS commands
+src-tauri/                  # Desktop shell + Local FS commands (pick/list/read/write)
 start / sync / deploy.sh    # Self-host + SSH deploy
 ```
 
 Other notable files:
 
-- `FEATURES.md` — fork backlog / session log.
+- `Markdowns/FEATURES.md` — fork backlog / session log.
+- `Markdowns/TIP_CHECKLIST.md` / `TIP_DIALOGS.md` — one-time tip ids (Appearance → Reset tooltips).
 - `deploy.env.example` — env template. Real values: `~/.config/m-e621/env` or gitignored `deploy.env`.
 - `public/zen-browser.css` — Zen / Transparent Zen.
 - `public/ffmpeg/` — ffmpeg.wasm assets used under `BASE_URL`.
@@ -75,9 +83,10 @@ UI (Vue pages)
   → useMainStore()  // single persisted state tree
   → getApiService() Comlink worker
        ApiService.resolveApiBackend(mode|hostname)
-         → e621 / furbooru / inkbunny / furaffinity / weasyl / itaku / sofurry / tailspace adapters
+         → e621 / furbooru / inkbunny / furaffinity / weasyl / itaku / sofurry / tailspace / flayrah adapters
          → same-origin /api/* proxies (Vite in dev, serve.py in prod)
-       Unified: prepareUnifiedChildTags + unifiedMerge leftover buffers
+       Federated Posts: prepareUnifiedChildTags + unifiedMerge leftover buffers
+       Federated Pools: poolOrigin fan-out (e621/e6ai/Furbooru list; Inkbunny watch/open-by-id; optional Tailspace comics)
   → EnhancedPost[] (__meta.originMode, site-specific blobs)
   → usePostListManager (pagination, fullscreen, blacklist, FA enrich)
 ```
@@ -90,22 +99,32 @@ UI (Vue pages)
 
 **State**
 
-- `useMainStore` (`src/services/state.ts`) is a clone of `defaultSettings` (`configVersion` **46**).
+- `useMainStore` (`src/services/state.ts`) is a clone of `defaultSettings` (`configVersion` **47**).
 - Domain stores are mostly getters/setters over slices of that tree.
 - **Profile mirrors:** live `account` / `blacklist` / `favorites` / `searches` / `history` on main state are copied into `profiles[activeMode]` on save and mode switch (`siteProfiles.ts`). Always sync both; do not persist only the detached copy.
+- Top-level (not under profiles): `savedPosts`, `watchedPools`, `watchedComics`, `flayrahNews`, `previousModeBeforeUnified`.
 - `PersistanceService` (filename spelling is upstream) writes the whole tree to localforage. **Never `JSON.stringify` reactive proxies inside `$subscribe`** — that retriggers the deep watcher and freezes the tab. Snackbar is stripped before save.
 
 **Posts**
 
 - Canonical post shape is e621-like (`src/worker/api/returnTypes.ts`). Adapters map foreign APIs onto it and stash extras on `EnhancedPost.__meta`.
-- Identity in Unified / caches: `postFeedKey` = `` `${originMode}:${id}` `` (`postOrigin.ts`). Comment/notes caches must use this, not raw numeric id.
-- UI capability gates: `src/misc/util/siteCapabilities.ts` (votes, faves, comments, notes, hidden buttons). Origin-aware actions: `filterButtonsForPost` / `originModeOf`.
-- Local mode does **not** go through `ApiService`; `PostsPage.vue` calls `getLocalPostsPage` (`localMedia.ts`). Chromium File System Access API, or Tauri `pick_local_folder` / `list_local_media` / `read_local_file`.
+- Identity in Federated / caches: `postFeedKey` = `` `${originMode}:${id}` `` (`postOrigin.ts`). Comment/notes caches must use this, not raw numeric id.
+- UI capability gates: `src/misc/util/siteCapabilities.ts` (votes, faves, comments, notes, pools, hidden buttons). Origin-aware actions: `filterButtonsForPost` / `originModeOf`.
+- Saved posts (`/#/saved`) are mode-independent bookmarks of Federated child origins (`modeSupportsSavedPosts`). Same Layout menu as Posts.
+- Local mode does **not** go through `ApiService`; `PostsPage.vue` calls `getLocalPostsPage` (`localMedia.ts`). Chromium File System Access API, or Tauri `pick_local_folder` / `list_local_media` / `read_local_file` / `write_local_file`.
 - Tailspace browsing uses dedicated routes (`/tailspace/...`), not the e621-shaped Posts/Pools/Analyzer/Dashboard pages (Post Suggester is multi-mode but still blocked for Tailspace). Router guards enforce this.
+
+**Pools**
+
+- `/pools` + `/pools/:id` for e621, e6ai, Furbooru galleries, Inkbunny (open-by-id / watch / chips — no free-text name search), and Federated.
+- Federated reader requires `?origin=` (`e621` / `e6ai` / `furbooru` / `inkbunny`) so IDs never collide. Tailspace comics from Federated Pools open the Tailspace reader without leaving Federated mode.
+- Watched pools/comics: `watchedPools` / `watchedComics` with +N new-page badges. Federated Watched Pools & Comics aggregates enabled children plus Tailspace comics when Include is on.
 
 **Proxies**
 
 Dev (`vite.config.ts`) and prod (`serve.py`) both expose same-origin APIs, including `/api/download` (media), e621 votes/favorites/comments, Furbooru, Inkbunny, Fluffle, plus per-site files. Host allowlists are security-sensitive; re-validate redirect hops.
+
+**Scent Marks** (`/#/scent-marks`) persist only in `serve.py` (`/api/scent-marks*`). Vite `vite-scent-marks-proxy.ts` returns 501 so `npm run dev` does not look like a silent CORS/404.
 
 COOP `same-origin` + COEP `credentialless` exist so ffmpeg.wasm can use SharedArrayBuffer **and** so Firefox/Zen can play media via `/api/download` (`mediaProxy.ts`). Do not drop those headers without a replacement plan.
 
@@ -158,6 +177,7 @@ Deploy helpers: `./deploy.sh` (SSH via `EXPEDITION_HOST` + `EXPEDITION_SECRET`),
 - Product bias (`FEATURES.md`): “works for me” over general polish. Prefer extending `siteCapabilities.ts` and adapters over special-casing every button in templates.
 - Adding a settings field: bump `configVersion` in `defaultSettings.ts` **and** `ISettingsServiceState`, add a `< N` migration in `PersistanceService`.
 - Adding a site mode: types + `SITE_MODE_URLS` + empty profile + `SiteModeStore` + nav/router guards + worker adapter + Vite/`serve.py` proxy + capability flags. Do not fall through to the e621 client.
+- User-facing Federated vs code `unified`: keep identifiers (`SiteMode`, `UNIFIED_CHILD_MODES`, `unifiedMerge`, `unifiedSites`) unless there is an explicit product rename of the type. `SiteModeStore.modeLabel` maps `"unified"` → `"Federated"`.
 - User-Agent / `_client` query: `PawFeed/<git>` (`src/worker/api/index.ts`). Fluffle UA: `PawFeed/1.0 (by lovelyspacedog on GitHub)`.
 
 ## Configuration and external services
@@ -215,20 +235,23 @@ PWA: `registerType: 'prompt'`, update poll every 10 minutes, Workbox max cache *
 - **Weasyl guests are SFW-only.** Inkbunny and Weasyl have **no public fav-toggle API** — keep the favorite button hidden (`modeSupportsFavoriteToggle`).
 - **SoFurry / Flayrah / other non-e621 modes must not fall through to e621 comments, notes, pools, or dashboard.** Post Suggester and Favorite Analyzer are allowed outside Tailspace and Flayrah via `modeSupportsSuggester` / `modeSupportsFavoriteAnalyzer` (`isDedicatedChromeMode`), using mode-native favorite queries — never the e621 client.
 - **Flayrah** is read-only RSS news chrome (`/#/flayrah`); proxy is `GET /api/flayrah/rss?feed=` plus `GET /api/flayrah/article/:id` for archive HTML.
-- **Unified merge** keeps sticky per-child leftovers (`unifiedMerge.ts`). Sequential pages reuse discarded posts; tag/children changes must reset state. Page jumps use legacy merge then reseed.
-- **Unified tag translation** (`unifiedTags.ts`) strips/remaps metatags per child (`order:`, `favs:me` → `my:faves` / `stars:me`, etc.) and may snackbar ignored tokens.
+- **Federated merge** keeps sticky per-child leftovers (`unifiedMerge.ts`). Sequential pages reuse discarded posts; tag/children changes must reset state. Page jumps use legacy merge then reseed.
+- **Federated tag translation** (`unifiedTags.ts`) strips/remaps metatags per child (`order:`, `favs:me` → `my:faves` / `stars:me`, etc.) and may snackbar ignored tokens.
+- **Landing does not restore Federated** as the selected mode (`demoteUnifiedOnLanding` unless navigating back from Browse posts). Close/label exits via `previousModeBeforeUnified` (fallback e621). Inclusion chips persist when leaving and re-entering Federated.
+- **Federated Pools** name browse fans out enabled e621/e6ai/Furbooru; Inkbunny is watch / open-by-id / chips only. Open with `?origin=`. Tag-based pool search stays e621-family.
 - **e621 hide-mode blacklist** is folded into the **40-tag API cap** on page 1 only (`createTagQuery.ts` / `PostsPage.vue`). Other modes do not use that path.
 - **View transitions / router-view:** `router.beforeResolve` must not start a transition on first load (`!from.name`). Doing so captures an empty shell and Posts looks stuck. Skip VT when leaving `LandingPage`. `LandingPage` must keep a **single root** element — multi-root fragments never finish `<Transition mode="out-in">` leave and blank `v-main` (Scent Marks / Browse posts).
-- **`debug()` in `src/misc/util/debug.ts` only logs in production** (`if (!import.meta.env.PROD) return`). Do not treat it as a debug-package enable/disable API.
-- **Local writes** (remux, `.me621-tags.json` sidecar, save-into-folder) still need Chromium FSA. Tauri is read/browse only. Remux is **not** added to the offline save queue (ffmpeg core may need network on first load).
+- **`debug()` in `src/misc/util/debug.ts` only logs in production** (`if (!import.meta.env.PROD) return`). Gated further by `misc.debugLogging` / localStorage. Do not treat it as a debug-package enable/disable API.
+- **Local writes** (remux, `.me621-tags.json` sidecar, save-into-folder) work on Chromium FSA **and** Tauri once a browse root is picked (`write_local_file`). Remux is **not** added to the offline save queue (ffmpeg core may need network on first load).
 - **Sidecar:** folder saves merge tags into `.me621-tags.json` with serialized writes so bulk save does not clobber.
 - **Story preview:** RTF + DOCX yes; legacy `.doc` remains blocked.
+- **Settings:** desktop overlay keeps the current page mounted (`settingsOverlay.ts`); mobile stays full-page `/settings*`. Landing gear opens Settings from the hero and footer. One-time tips live in `appearance.dismissedTips` (Reset tooltips). Mobile sidebar is 300px with a close button (desktop 400px).
 - **Vuetify defaults:** global `transition: 'no'`, `ripple: false`; `VBtn` variant `text`.
 - **PWA Reload** needs the `controllerchange` workaround in `misc/serviceWorker/register.ts`.
 - **`.github/workflows/docker.yml`** publishes the fork Docker image (`serve.py` runtime) to GHCR on push to main/master (`latest` + sha). Local docs still prefer `docker compose up --build`; GHCR is the optional personal registry (FEATURES 7.1 — **keep**).
 - **e2e:** hash-route Playwright smoke; CI uses npm + Node 20. Prefer local `npm run test:unit` as the merge gate.
 - **`tsconfig.node.json` `include`** covers `vite-*-proxy.ts`.
-- Default Unified children (`defaultUnifiedSites`): all remote children on (including Weasyl and Itaku); Tailspace/Local are never children.
+- Default Federated children (`defaultUnifiedSites`): all eight remote children on (including Weasyl and Itaku); Tailspace/Flayrah/Local are never Posts children.
 - `getAppName()` appends a short git hash when `VITE_GIT_COMMIT_INFO` parsed successfully.
 - Fork vs upstream commit URLs use author matching `tony pup` / `lovelyspacedog` (`src/misc/util/git.ts`).
 - Docker/sync skip `vue-tsc` (`build-only`).
@@ -244,13 +267,15 @@ PWA: `registerType: 'prompt'`, update poll every 10 minutes, Workbox max cache *
 - Proxy **host allowlists** and redirect re-validation on `/api/download` and Fluffle.
 - **COOP/COEP** headers in Vite and `serve.py`.
 - **Mode ↔ route guards** in `router/index.ts`.
-- **`postFeedKey` / origin-aware caches and buttons** on Unified.
+- **`postFeedKey` / origin-aware caches and buttons** on Federated.
 - **Capability matrix** as the source of truth for hiding e621-only tools.
 - **Profile mirror sync** before persistence; snackbar must stay ephemeral.
 - Persistence **`$subscribe` scheduling** (timeout + `toPlain`); do not stringify Pinia proxies inline.
 - **View-transition first-load skip.**
+- **Landing Federated demote** (`demoteUnifiedOnLanding`) unless coming from Browse posts.
 - Do not add **Inkbunny/Weasyl favorite toggles** without a real public API.
-- Do not put Tailspace or Local into `UNIFIED_CHILD_MODES` without an explicit product change.
+- Do not put Tailspace, Flayrah, or Local into `UNIFIED_CHILD_MODES` without an explicit product change.
+- Do not rename SiteMode `"unified"` / `UNIFIED_CHILD_MODES` / `unifiedMerge` solely to match the Federated UI label.
 - Do not commit `FA_COOKIE_*`, API keys, `deploy.env`, or `~/.config/m-e621/*`.
 - Do not switch the package manager to yarn/pnpm.
 - Do not “fix” screenshot/content policy by stripping NSFW capability; this is an adult imageboard client. Keep existing age/ToS language in the README.
