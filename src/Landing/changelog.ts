@@ -24,6 +24,7 @@ export const changelogSections: ChangelogSection[] = [
       "Flayrah site mode: read-only RSS feed and article reader with taxonomy chips, archive, saved/unread, magazine layout, and j/k shortcuts",
       "Federated Pools: merged e621/e6ai browse with origin badges, sequential fetch/retry, and Updated/sort interleave",
       "Federated Pools name browse can include Tailspace comics (Account setting, on by default); opens the Tailspace reader",
+      "Federated Watched Pools & Comics aggregates e621/e6ai watched pools and Tailspace watched comics when Include Tailspace comics is on; eye toggle writes to the same per-source lists",
       "Federated Pools interleave Tailspace comics with e621/e6ai by Updated/sort (ISO comic dates parse correctly)",
       "Site mode renamed from Unified to Federated; sidebar Defaults / Auth-only presets sit as a compact toolbar",
       "Landing Federated chips: multi-select sites for search inclusion, close/label exits to the previous site, and a one-time tip (Appearance → Reset tooltips)",

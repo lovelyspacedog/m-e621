@@ -99,10 +99,15 @@
       <section class="mb-8">
         <div class="d-flex align-center ga-2 mb-3">
           <v-icon color="accent">mdi-eye</v-icon>
-          <h2 class="text-h6">Watched Pools</h2>
+          <h2 class="text-h6">{{ watchedSectionTitle }}</h2>
           <v-progress-circular v-if="watchedLoading" indeterminate size="18" width="2" />
         </div>
-        <div v-if="!watchedLoading && !watchedEntries.length" class="text-body-2 text-medium-emphasis">No watched pools for this site.</div>
+        <div
+          v-if="!watchedLoading && !hasAnyWatchedEntries"
+          class="text-body-2 text-medium-emphasis"
+        >
+          {{ watchedEmptyCopy }}
+        </div>
         <PoolCollection
           v-else-if="watchedPoolResults.length"
           :pools="watchedPoolResults"
@@ -129,6 +134,32 @@
                 title="Unwatch pool"
                 aria-label="Unwatch pool"
                 @click="removeUnavailableWatch(entry)"
+              >
+                <v-icon>mdi-eye-off-outline</v-icon>
+              </v-btn>
+            </template>
+          </v-list-item>
+        </v-list>
+        <v-list
+          v-if="unavailableWatchedComics.length"
+          class="mt-2"
+          bg-color="transparent"
+          density="compact"
+        >
+          <v-list-item
+            v-for="entry in unavailableWatchedComics"
+            :key="`tailspace:${entry.id}`"
+            :title="entry.name || `Comic ${entry.id}`"
+            subtitle="Tailspace · Comic details are unavailable"
+          >
+            <template #append>
+              <v-btn
+                icon
+                size="small"
+                variant="text"
+                title="Unwatch comic"
+                aria-label="Unwatch comic"
+                @click="removeUnavailableComicWatch(entry)"
               >
                 <v-icon>mdi-eye-off-outline</v-icon>
               </v-btn>
@@ -193,9 +224,10 @@
       v-model="watchedPoolsTipOpen"
     >
       <p class="mb-0">
-        A +N badge on a watched pool means new pages since you last checked.
-        Watch pools with the eye button; open Watched Pools at the top of this
-        page to catch up.
+        A +N badge on a watched pool or comic means new pages since you last
+        checked. Watch with the eye button; open the watched section at the top
+        of this page to catch up. In Federated, Tailspace comics share the same
+        list when Include Tailspace comics is on.
       </p>
     </TipDialog>
   </div>
@@ -217,10 +249,16 @@ import {
   usePostsStore,
   useSiteModeStore,
   useSnackbarStore,
+  useWatchedComicsStore,
   useWatchedPoolsStore,
 } from "@/services";
 import { useMainStore } from "@/services/state";
-import type { PoolOriginMode, PoolBrowseOrigin, WatchedPoolEntry } from "@/services/types";
+import type {
+  PoolOriginMode,
+  PoolBrowseOrigin,
+  WatchedComicEntry,
+  WatchedPoolEntry,
+} from "@/services/types";
 import { BlacklistMode } from "@/services/types";
 import { useRouterQueryHelpers } from "@/misc/util/utilities";
 import {
@@ -237,7 +275,8 @@ import {
   tailspaceComicToPoolListItem,
   tailspaceCoverKey,
 } from "@/misc/util/tailspacePoolBrowse";
-import { getComics } from "@/worker/tailspace/api";
+import { comicThumb, getComic, getComics } from "@/worker/tailspace/api";
+import type { TailspaceComicDetail } from "@/worker/tailspace/types";
 import { getApiService } from "@/worker/services";
 
 useHead({ title: "Pools" });
@@ -262,6 +301,7 @@ const siteMode = useSiteModeStore();
 const postsStore = usePostsStore();
 const snackbar = useSnackbarStore();
 const watchedPoolStore = useWatchedPoolsStore();
+const watchedComicStore = useWatchedComicsStore();
 const { updateRouterQuery, removeRouterQuery } = useRouterQueryHelpers();
 const { tags, addTag, removeTag } = useRouterTagManager();
 
@@ -348,6 +388,7 @@ const browseLayout = ref<BrowseLayout>(loadBrowseLayout());
 const pools = ref<PoolListItem[]>([]);
 const watchedPoolResults = ref<PoolListItem[]>([]);
 const watchedLoading = ref(false);
+const unavailableWatchedComics = ref<WatchedComicEntry[]>([]);
 const covers = ref<Record<string, string>>({});
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -382,6 +423,15 @@ const defaultCoverOrigin = computed(() => {
   return browseChildren.value[0]?.mode || "e621";
 });
 
+const watchedSectionTitle = computed(() =>
+  includeTailspaceComics.value ? "Watched Pools & Comics" : "Watched Pools",
+);
+const watchedEmptyCopy = computed(() =>
+  includeTailspaceComics.value
+    ? "No watched pools or comics for this site."
+    : "No watched pools for this site.",
+);
+
 const watchedEntries = computed(() => {
   if (isFederatedPools.value) {
     const enabled = new Set(browseChildren.value.map((c) => c.mode));
@@ -391,21 +441,49 @@ const watchedEntries = computed(() => {
   return watchedPoolStore.entriesFor(siteMode.activeMode);
 });
 
-const watchedIds = computed(
-  () => new Set(watchedEntries.value.map((entry) => poolKey(entry.originMode, entry.id))),
+const watchedComicEntries = computed(() =>
+  includeTailspaceComics.value ? watchedComicStore.entries : [],
 );
+
+const hasAnyWatchedEntries = computed(
+  () => watchedEntries.value.length > 0 || watchedComicEntries.value.length > 0,
+);
+
+const watchedIds = computed(() => {
+  const ids = new Set<string | number>(
+    watchedEntries.value.map((entry) => poolKey(entry.originMode, entry.id)),
+  );
+  for (const entry of watchedComicEntries.value) {
+    ids.add(poolKey("tailspace", entry.id));
+  }
+  return ids;
+});
+
+const watchedNewCountFor = (pool: PoolListItem) => {
+  const origin = pool.originMode;
+  if (!origin) return 0;
+  if (origin === "tailspace") {
+    return watchedComicStore.newCount(
+      pool.id,
+      pool.post_count || 0,
+      pool.updated_at,
+    );
+  }
+  return watchedPoolStore.newCount(
+    origin,
+    pool.id,
+    pool.post_count || 0,
+    pool.updated_at,
+  );
+};
 
 const newCounts = computed(() => {
   const out: Record<string, number> = {};
   for (const pool of [...watchedPoolResults.value, ...pools.value]) {
     const origin = pool.originMode;
-    if (!origin || origin === "tailspace") continue;
-    const n = watchedPoolStore.newCount(
-      origin,
-      pool.id,
-      pool.post_count || 0,
-      pool.updated_at,
-    );
+    if (!origin) continue;
+    if (origin === "tailspace" && !includeTailspaceComics.value) continue;
+    const n = watchedNewCountFor(pool);
     if (n > 0) out[poolKey(origin, pool.id)] = n;
   }
   return out;
@@ -414,7 +492,8 @@ const newCounts = computed(() => {
 const hasWatchedNewBadge = computed(() =>
   watchedPoolResults.value.some((pool) => {
     const origin = pool.originMode;
-    if (!origin || origin === "tailspace") return false;
+    if (!origin) return false;
+    if (origin === "tailspace" && !includeTailspaceComics.value) return false;
     return (newCounts.value[poolKey(origin, pool.id)] || 0) > 0;
   }),
 );
@@ -423,9 +502,9 @@ watch(hasWatchedNewBadge, tryWatchedPoolsTip);
 const unavailableWatched = computed(() => {
   if (watchedLoading.value) return [];
   const loaded = new Set(
-    watchedPoolResults.value.map((pool) =>
-      pool.originMode ? poolKey(pool.originMode, pool.id) : String(pool.id),
-    ),
+    watchedPoolResults.value
+      .filter((pool) => pool.originMode && pool.originMode !== "tailspace")
+      .map((pool) => poolKey(pool.originMode!, pool.id)),
   );
   return watchedEntries.value.filter(
     (entry) => !loaded.has(poolKey(entry.originMode, entry.id)),
@@ -660,6 +739,68 @@ const poolSnapshot = (pool: Pool) => ({
   updatedAt: pool.updated_at,
 });
 
+const comicSnapshotFromPool = (pool: PoolListItem) => ({
+  pageCount: pool.post_count || 0,
+  updatedAt: pool.updated_at,
+});
+
+const tailspaceDetailToPoolListItem = (
+  detail: TailspaceComicDetail,
+): PoolListItem => {
+  const cancelled = detail.state === "cancelled";
+  const creator =
+    (detail.artistDisplayName || "").trim() ||
+    (detail.artistName || "").trim() ||
+    "Unknown";
+  return {
+    id: detail.id,
+    name: detail.name,
+    created_at: new Date(0),
+    updated_at: new Date(0),
+    creator_id: 0,
+    description: detail.description || "",
+    is_active: !cancelled,
+    category: detail.category || detail.state || "",
+    is_deleted: cancelled,
+    post_ids: [],
+    creator_name: creator,
+    post_count: detail.numberOfPages || detail.pages?.length || 0,
+    originMode: "tailspace",
+    comicName: detail.name,
+  };
+};
+
+const hydrateWatchedComics = async (): Promise<{
+  list: PoolListItem[];
+  missing: WatchedComicEntry[];
+  covers: Record<string, string>;
+}> => {
+  const entries = watchedComicEntries.value;
+  if (!entries.length) return { list: [], missing: [], covers: {} };
+  const list: PoolListItem[] = [];
+  const missing: WatchedComicEntry[] = [];
+  const nextCovers: Record<string, string> = {};
+  await Promise.all(
+    entries.map(async (entry) => {
+      try {
+        const detail = await getComic(entry.name);
+        if (!detail?.id || !detail.name) {
+          missing.push(entry);
+          return;
+        }
+        list.push(tailspaceDetailToPoolListItem(detail));
+        nextCovers[tailspaceCoverKey(detail.id)] = comicThumb(
+          detail.id,
+          detail.thumbnailVersion,
+        );
+      } catch {
+        missing.push(entry);
+      }
+    }),
+  );
+  return { list, missing, covers: nextCovers };
+};
+
 const loadWatchedPools = async () => {
   watchedLoading.value = true;
   try {
@@ -676,30 +817,44 @@ const loadWatchedPools = async () => {
       if (!ids.length) return;
       hydrated.push(...(await hydratePoolsForChild(child, ids)));
     });
+
+    const comicHydrate = includeTailspaceComics.value
+      ? await hydrateWatchedComics()
+      : { list: [] as PoolListItem[], missing: [] as WatchedComicEntry[], covers: {} };
+    unavailableWatchedComics.value = comicHydrate.missing;
+    if (Object.keys(comicHydrate.covers).length) {
+      covers.value = { ...covers.value, ...comicHydrate.covers };
+    }
+
     const byKey = new Map(
-      hydrated.map((pool) => [poolKey(pool.originMode!, pool.id), pool]),
+      [...hydrated, ...comicHydrate.list].map((pool) => [
+        poolKey(pool.originMode!, pool.id),
+        pool,
+      ]),
     );
-    watchedPoolResults.value = watchedEntries.value
-      .map((entry) => byKey.get(poolKey(entry.originMode, entry.id)))
+
+    const orderedKeys = [
+      ...watchedEntries.value.map((entry) => poolKey(entry.originMode, entry.id)),
+      ...watchedComicEntries.value.map((entry) => poolKey("tailspace", entry.id)),
+    ];
+    watchedPoolResults.value = orderedKeys
+      .map((key) => byKey.get(key))
       .filter((pool): pool is PoolListItem => !!pool);
+
     for (const pool of watchedPoolResults.value) {
       if (!pool.originMode) continue;
-      watchedPoolStore.ensureBaseline(pool.originMode, pool.id, poolSnapshot(pool));
+      if (pool.originMode === "tailspace") {
+        watchedComicStore.ensureBaseline(pool.id, comicSnapshotFromPool(pool));
+      } else {
+        watchedPoolStore.ensureBaseline(
+          pool.originMode,
+          pool.id,
+          poolSnapshot(pool),
+        );
+      }
     }
     watchedPoolResults.value = [...watchedPoolResults.value].sort((a, b) => {
-      const delta =
-        watchedPoolStore.newCount(
-          b.originMode!,
-          b.id,
-          b.post_count || 0,
-          b.updated_at,
-        ) -
-        watchedPoolStore.newCount(
-          a.originMode!,
-          a.id,
-          a.post_count || 0,
-          a.updated_at,
-        );
+      const delta = watchedNewCountFor(b) - watchedNewCountFor(a);
       if (delta) return delta;
       return 0;
     });
@@ -711,7 +866,32 @@ const loadWatchedPools = async () => {
 
 const toggleWatch = (pool: PoolListItem) => {
   const origin = pool.originMode;
-  if (!origin || origin === "tailspace") return;
+  if (!origin) return;
+  if (origin === "tailspace") {
+    if (!includeTailspaceComics.value) return;
+    const name = pool.comicName || pool.name;
+    const watched = watchedComicStore.toggle(
+      pool.id,
+      name,
+      comicSnapshotFromPool(pool),
+    );
+    if (watched) {
+      watchedPoolResults.value = [
+        pool,
+        ...watchedPoolResults.value.filter(
+          (item) => !(item.originMode === "tailspace" && item.id === pool.id),
+        ),
+      ];
+      unavailableWatchedComics.value = unavailableWatchedComics.value.filter(
+        (entry) => entry.id !== pool.id,
+      );
+    } else {
+      watchedPoolResults.value = watchedPoolResults.value.filter(
+        (item) => !(item.originMode === "tailspace" && item.id === pool.id),
+      );
+    }
+    return;
+  }
   const watched = watchedPoolStore.toggle(origin, pool.id, poolSnapshot(pool));
   if (watched) {
     watchedPoolResults.value = [
@@ -730,6 +910,13 @@ const toggleWatch = (pool: PoolListItem) => {
 
 const removeUnavailableWatch = (entry: WatchedPoolEntry) => {
   watchedPoolStore.remove(entry.originMode, entry.id);
+};
+
+const removeUnavailableComicWatch = (entry: WatchedComicEntry) => {
+  watchedComicStore.remove(entry.id);
+  unavailableWatchedComics.value = unavailableWatchedComics.value.filter(
+    (item) => item.id !== entry.id,
+  );
 };
 
 const fetchNamePageForChild = async (

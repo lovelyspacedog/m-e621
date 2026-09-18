@@ -160,8 +160,7 @@ const poolLink = (pool: PoolListItem) => {
   };
 };
 
-const canWatch = (pool: PoolListItem) =>
-  pool.originMode !== "tailspace";
+const canWatch = (_pool: PoolListItem) => true;
 
 const countNoun = (pool: PoolListItem) =>
   pool.originMode === "tailspace" ? "pages" : "posts";
@@ -183,9 +182,7 @@ const coverUrl = (pool: PoolListItem) => {
   return null;
 };
 const watchKey = (pool: PoolListItem) =>
-  pool.originMode && pool.originMode !== "tailspace"
-    ? poolKey(pool.originMode, pool.id)
-    : String(pool.id);
+  pool.originMode ? poolKey(pool.originMode, pool.id) : String(pool.id);
 const isWatched = (pool: PoolListItem) =>
   props.watchedIds.has(watchKey(pool)) || props.watchedIds.has(pool.id);
 const newCount = (pool: PoolListItem) =>

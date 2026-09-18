@@ -87,7 +87,7 @@ export interface FlayrahNewsState {
 
 export type PoolOriginMode = "e621" | "e6ai";
 
-/** Federated Pools browse rows — Tailspace comics join name browse only. */
+/** Federated Pools browse / watched rows — Tailspace comics join when Include is on. */
 export type PoolBrowseOrigin = PoolOriginMode | "tailspace";
 
 export interface WatchedPoolEntry {
