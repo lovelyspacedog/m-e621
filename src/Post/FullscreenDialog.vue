@@ -869,6 +869,10 @@ const showNotesOverlay = computed(
 );
 
 const exitFullscreen = () => {
+  console.warn(
+    "[pf-fs] exitFullscreen",
+    new Error().stack?.split("\n").slice(0, 8).join(" | "),
+  );
   stopSlideshow();
   const postId = props.current?.id;
   if (postId) {
@@ -1165,7 +1169,8 @@ watch(open, () => {
   }
 });
 
-watch(appIsFullscreen, () => {
+watch(appIsFullscreen, (v, prev) => {
+  console.warn("[pf-fs] appIsFullscreen", { v, prev, open: open.value });
   if (!appIsFullscreen.value && open.value) {
     exitFullscreen();
   }

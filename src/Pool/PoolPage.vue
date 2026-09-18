@@ -41,7 +41,12 @@
         :has-previous-fullscreen-post="hasPreviousFullscreenPost"
         :has-next-fullscreen-post="hasNextFullscreenPost"
         :current="fullscreenPost || null"
-        @close="fullscreenPost = null"
+        @close="
+          () => {
+            console.warn('[pf-fs] PoolPage @close', new Error().stack);
+            fullscreenPost = null;
+          }
+        "
         @next-post="openNextFullscreenPost()"
         @previous-post="openPreviousFullscreenPost()"
         @open-post-details="onOpenDetails"

@@ -551,6 +551,14 @@ export const usePostListManager = ({
     const nextDetails = prevDetails
       ? next.find((p) => postFeedKey(p) === postFeedKey(prevDetails)) || null
       : null;
+    if (prevFs && !nextFs) {
+      console.warn(
+        "[pf-fs] replacePosts cleared fullscreen",
+        prevFs.id,
+        "nextLen",
+        next.length,
+      );
+    }
     generation.value += 1;
     faEnrichPending.clear();
     posts.value = next;
