@@ -236,9 +236,10 @@
       v-model="poolsOriginTipOpen"
     >
       <p class="mb-3">
-        In Federated mode, Pools merges e621 and e6ai results. Small origin
-        icons on cards show which site a pool comes from. Inkbunny pools open
-        from watches, pool chips, or by ID — there is no free-text IB name search.
+        In Federated mode, Pools merges e621, e6ai, and Furbooru gallery results.
+        Small origin icons on cards show which site a pool comes from. Inkbunny
+        pools open from watches, pool chips, or by ID — there is no free-text IB
+        name search.
       </p>
       <p class="mb-0">
         Opening a pool keeps that origin for browsing and resume. Optional
@@ -1054,7 +1055,7 @@ const fetchPoolsByName = async (append: boolean) => {
     const withTailspace = includeTailspaceComics.value;
     if (!children.length && !withTailspace) {
       error.value =
-        "No e621, e6ai, or Tailspace comics sources — enable sites in Federated Account settings";
+        "No e621, e6ai, Furbooru, or Tailspace comics sources — enable sites in Federated Account settings";
       if (!append) pools.value = [];
       hasMore.value = false;
       searched.value = true;
@@ -1173,7 +1174,7 @@ const fetchPoolsByTags = async (append: boolean) => {
     if (!children.length) {
       if (generation !== tagsFetchGeneration) return;
       error.value =
-        "No e621 or e6ai sites enabled — turn them on in Federated Account settings";
+        "No e621 or e6ai sites enabled — turn them on in Federated Account settings (Furbooru galleries are name-browse only)";
       if (!append) pools.value = [];
       hasMore.value = false;
       searched.value = true;

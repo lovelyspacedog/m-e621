@@ -517,6 +517,23 @@ function furbooruProxy(): Plugin {
         respondUpstream(res, furbooruUpstream(url));
       });
 
+      // ── Gallery search: GET /api/furbooru/galleries?q=...&page=... ─────────
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url?.startsWith('/api/furbooru/galleries') || req.method !== 'GET') {
+          next();
+          return;
+        }
+        const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+        const params = new URLSearchParams(qs);
+        const fwd = new URLSearchParams();
+        for (const key of ['q', 'page', 'per_page', 'key', 'sf', 'sd']) {
+          const v = params.get(key);
+          if (v !== null) fwd.set(key, v);
+        }
+        const url = `${FURBOORU_BASE}/api/v1/json/search/galleries?${fwd}`;
+        respondUpstream(res, furbooruUpstream(url));
+      });
+
       // ── Tag search: GET /api/furbooru/tags?q=...&per_page=... ──────────────
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith('/api/furbooru/tags') || req.method !== 'GET') {

@@ -86,7 +86,7 @@ export interface FlayrahNewsState {
 }
 
 /** Origins that can open `/pools/:id?origin=` (reader + watch). */
-export type PoolOriginMode = "e621" | "e6ai" | "inkbunny";
+export type PoolOriginMode = "e621" | "e6ai" | "inkbunny" | "furbooru";
 
 /** Federated Pools browse / watched rows — Tailspace comics join when Include is on. */
 export type PoolBrowseOrigin = PoolOriginMode | "tailspace";

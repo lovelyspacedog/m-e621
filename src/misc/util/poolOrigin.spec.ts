@@ -22,6 +22,7 @@ const emptyState = (activeMode: ISettingsServiceState["activeMode"]): ISettingsS
     profiles: {
       e621: createEmptySiteProfile("e621"),
       e6ai: createEmptySiteProfile("e6ai"),
+      furbooru: createEmptySiteProfile("furbooru"),
       inkbunny: createEmptySiteProfile("inkbunny"),
       unified: {
         ...createEmptySiteProfile("unified"),
@@ -36,23 +37,27 @@ describe("parsePoolOriginQuery / resolvePoolOrigin", () => {
     expect(parsePoolOriginQuery("e621")).toBe("e621");
     expect(parsePoolOriginQuery("e6ai")).toBe("e6ai");
     expect(parsePoolOriginQuery("inkbunny")).toBe("inkbunny");
+    expect(parsePoolOriginQuery("furbooru")).toBe("furbooru");
     expect(parsePoolOriginQuery(["e6ai"])).toBe("e6ai");
-    expect(parsePoolOriginQuery("furbooru")).toBeNull();
+    expect(parsePoolOriginQuery("weasyl")).toBeNull();
     expect(parsePoolOriginQuery(undefined)).toBeNull();
   });
 
   it("requires origin in Federated; falls back on pool origins", () => {
     expect(resolvePoolOrigin("e6ai", "unified")).toBe("e6ai");
     expect(resolvePoolOrigin("inkbunny", "unified")).toBe("inkbunny");
+    expect(resolvePoolOrigin("furbooru", "unified")).toBe("furbooru");
     expect(resolvePoolOrigin(undefined, "unified")).toBeNull();
     expect(resolvePoolOrigin(undefined, "e621")).toBe("e621");
     expect(resolvePoolOrigin("e6ai", "e621")).toBe("e6ai");
     expect(resolvePoolOrigin(undefined, "inkbunny")).toBe("inkbunny");
+    expect(resolvePoolOrigin(undefined, "furbooru")).toBe("furbooru");
   });
 
   it("poolKey and route query", () => {
     expect(poolKey("e621", 12)).toBe("e621:12");
     expect(poolKey("inkbunny", 99)).toBe("inkbunny:99");
+    expect(poolKey("furbooru", 7)).toBe("furbooru:7");
     expect(poolRouteQuery("e6ai", { post: "3" })).toEqual({
       origin: "e6ai",
       post: "3",
@@ -60,8 +65,10 @@ describe("parsePoolOriginQuery / resolvePoolOrigin", () => {
     expect(poolRouteQuery(null)).toEqual({});
     expect(isPoolOriginMode("e621")).toBe(true);
     expect(isPoolOriginMode("inkbunny")).toBe(true);
+    expect(isPoolOriginMode("furbooru")).toBe(true);
     expect(isPoolOriginMode("unified")).toBe(false);
     expect(isPoolListOrigin("e621")).toBe(true);
+    expect(isPoolListOrigin("furbooru")).toBe(true);
     expect(isPoolListOrigin("inkbunny")).toBe(false);
   });
 });
@@ -79,16 +86,26 @@ describe("poolFamilyChildren / poolWatchChildren", () => {
     expect(kids.map((k) => k.mode)).toEqual(["inkbunny"]);
   });
 
-  it("fans out to enabled Federated e621/e6ai children only for list browse", () => {
+  it("returns Furbooru alone in Furbooru mode", () => {
+    const kids = poolFamilyChildren(emptyState("furbooru"));
+    expect(kids.map((k) => k.mode)).toEqual(["furbooru"]);
+  });
+
+  it("fans out to enabled Federated listable children for name browse", () => {
     const state = emptyState("unified");
     const kids = poolFamilyChildren(state);
-    expect(kids.map((k) => k.mode)).toEqual(["e621", "e6ai"]);
+    expect(kids.map((k) => k.mode)).toEqual(["e621", "e6ai", "furbooru"]);
   });
 
   it("includes Inkbunny in Federated watch children when enabled", () => {
     const state = emptyState("unified");
     const watch = poolWatchChildren(state);
-    expect(watch.map((k) => k.mode)).toEqual(["e621", "e6ai", "inkbunny"]);
+    expect(watch.map((k) => k.mode)).toEqual([
+      "e621",
+      "e6ai",
+      "furbooru",
+      "inkbunny",
+    ]);
   });
 
   it("omits disabled Federated pool children", () => {
@@ -96,6 +113,7 @@ describe("poolFamilyChildren / poolWatchChildren", () => {
     state.profiles.unified!.unifiedSites = {
       ...defaultUnifiedSites(),
       e6ai: false,
+      furbooru: false,
       inkbunny: false,
     };
     const kids = poolFamilyChildren(state);
@@ -103,15 +121,18 @@ describe("poolFamilyChildren / poolWatchChildren", () => {
     expect(poolWatchChildren(state).map((k) => k.mode)).toEqual(["e621"]);
   });
 
-  it("returns empty list browse when neither e621-family child is enabled", () => {
+  it("returns Furbooru-only list browse when e621-family children are off", () => {
     const state = emptyState("unified");
     state.profiles.unified!.unifiedSites = {
       ...defaultUnifiedSites(),
       e621: false,
       e6ai: false,
     };
-    expect(poolFamilyChildren(state)).toEqual([]);
-    expect(poolWatchChildren(state).map((k) => k.mode)).toEqual(["inkbunny"]);
+    expect(poolFamilyChildren(state).map((k) => k.mode)).toEqual(["furbooru"]);
+    expect(poolWatchChildren(state).map((k) => k.mode)).toEqual([
+      "furbooru",
+      "inkbunny",
+    ]);
   });
 });
 

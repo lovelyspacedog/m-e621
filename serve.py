@@ -343,6 +343,7 @@ TAILSPACE_SESSION_HEADER = "X-Tailspace-Session"
 
 FURBOORU_BASE = "https://furbooru.org"
 FURBOORU_IMAGES_PATH = re.compile(r"^/api/furbooru/images$")
+FURBOORU_GALLERIES_PATH = re.compile(r"^/api/furbooru/galleries$")
 FURBOORU_TAGS_PATH = re.compile(r"^/api/furbooru/tags$")
 FURBOORU_COMMENTS_GET_PATH = re.compile(r"^/api/furbooru/comments$")
 FURBOORU_USER_PATH = re.compile(r"^/api/furbooru/user$")
@@ -3204,6 +3205,23 @@ class SpaHandler(SimpleHTTPRequestHandler):
         body, status, ct = self._furbooru_request(url)
         self._furbooru_respond(body, status, ct)
 
+    def _proxy_furbooru_galleries(self, parsed) -> None:
+        """GET /api/furbooru/galleries → /api/v1/json/search/galleries"""
+        params = parse_qs(parsed.query)
+
+        def _first(key: str) -> str | None:
+            vals = params.get(key)
+            return vals[0] if vals else None
+
+        fwd = {}
+        for key in ("q", "page", "per_page", "key", "sf", "sd"):
+            v = _first(key)
+            if v is not None:
+                fwd[key] = v
+        url = f"{FURBOORU_BASE}/api/v1/json/search/galleries?{urlencode(fwd)}"
+        body, status, ct = self._furbooru_request(url)
+        self._furbooru_respond(body, status, ct)
+
     def _proxy_furbooru_tags(self, parsed) -> None:
         """GET /api/furbooru/tags → /api/v1/json/search/tags"""
         params = parse_qs(parsed.query)
@@ -3424,6 +3442,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return
         if FURBOORU_IMAGES_PATH.match(path):
             self._proxy_furbooru_images(parsed)
+            return
+        if FURBOORU_GALLERIES_PATH.match(path):
+            self._proxy_furbooru_galleries(parsed)
             return
         if FURBOORU_TAGS_PATH.match(path):
             self._proxy_furbooru_tags(parsed)

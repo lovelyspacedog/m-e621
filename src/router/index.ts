@@ -314,7 +314,7 @@ router.beforeEach((to) => {
         ? { name: "FlayrahFeed", query: to.query }
         : { name: "Posts", query: to.query };
     }
-    // Federated pool reader needs ?origin=e621|e6ai|inkbunny (IDs collide across sites).
+    // Federated pool reader needs ?origin=e621|e6ai|inkbunny|furbooru (IDs collide across sites).
     if (
       mode === "unified" &&
       to.name === "Pool" &&

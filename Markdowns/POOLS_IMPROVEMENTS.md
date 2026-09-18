@@ -25,6 +25,7 @@ Checklist for improving e621/e6ai pools (`src/Pool/`, `WatchedPoolsStore`, share
 ## Out of scope (for now)
 
 - [x] ~~Inkbunny `/pools` UI~~ — shipped (open-by-id / watch / chips; no free-text name index).
+- [x] ~~Furbooru galleries in Federated Pools~~ — shipped (`POOL_LIST_ORIGINS`; `?origin=furbooru`; standalone Furbooru `/pools`).
 - [ ] ~~Merge Tailspace into Pools~~ — rejected; keep routes separate.
 - [ ] Inkbunny free-text pool name scrape — still rejected (no official list API).
 

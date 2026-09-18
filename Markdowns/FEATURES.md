@@ -211,9 +211,9 @@ This backlog is derived from `README.md`, `README-CONTINUED.md`, and `AI_CONTEXT
 
 ### 4.1 Keep pool reader e621-family + Inkbunny; do not fall through — **DONE**
 
-- **Status:** Done. `modeSupportsPools` (= e621/e6ai/inkbunny/unified); router redirects non-pool modes from `/pools`; nav gated. Inkbunny multi-file galleries stay on dialog chrome. Spec in `siteCapabilities.spec.ts`. Federated reader uses `?origin=e621|e6ai|inkbunny`. Inkbunny has no pools-list API — name/tags browse stays e621/e6ai; IB entry via watch, open-by-id, and `pool:` chips.
-- **User problem / motivation:** Fork adds `/pools` and `/pools/:id`. Inkbunny has real pools; accidental fall-through must not show e621 pool UI on SoFurry/Itaku.
-- **Proposed behavior:** Capability matrix includes Inkbunny; Tailspace stays on `src/Tailspace/`. Itaku multi-image stays flattened posts, not `/pools`.
+- **Status:** Done. `modeSupportsPools` (= e621/e6ai/furbooru/inkbunny/unified); router redirects non-pool modes from `/pools`; nav gated. Inkbunny multi-file galleries stay on dialog chrome. Spec in `siteCapabilities.spec.ts`. Federated reader uses `?origin=e621|e6ai|furbooru|inkbunny`. Furbooru galleries list via Philomena `search/galleries`; membership via `gallery_id`. Inkbunny has no pools-list API — name/tags browse stays e621/e6ai/Furbooru; IB entry via watch, open-by-id, and `pool:` chips. Tag browse omits Furbooru (no post-tag gallery search).
+- **User problem / motivation:** Fork adds `/pools` and `/pools/:id`. Inkbunny and Furbooru have real ordered collections; accidental fall-through must not show e621 pool UI on SoFurry/Itaku.
+- **Proposed behavior:** Capability matrix includes Furbooru and Inkbunny; Tailspace stays on `src/Tailspace/`. Itaku multi-image stays flattened posts, not `/pools`.
 - **Why it fits m-e621 specifically:** Docs call out dedicated Tailspace comic reader and “do not fall through.”
 - **Affected areas/files:** `siteCapabilities.ts`, `router/index.ts`, `navigation.ts`, `poolOrigin.ts`, `inkbunny/api.ts`.
 - **Effort / risk:** M · **Impact:** medium

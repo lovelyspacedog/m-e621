@@ -126,6 +126,9 @@ export default defineComponent({
       if (poolOrigin.value === "inkbunny") {
         return `${normalized}poolview_process.php?pool_id=${props.poolId}`;
       }
+      if (poolOrigin.value === "furbooru") {
+        return `${normalized}galleries/${props.poolId}`;
+      }
       return `${normalized}pools/${props.poolId}`;
     });
     const browseQuery = computed(() => poolRouteQuery(poolOrigin.value));
@@ -174,12 +177,13 @@ export default defineComponent({
         });
         pool.value = result;
         if (
-          origin === "inkbunny" &&
+          (origin === "inkbunny" || origin === "furbooru") &&
           result.post_count > 0 &&
           (result.post_ids?.length || 0) < result.post_count
         ) {
+          const label = origin === "furbooru" ? "Furbooru gallery" : "Inkbunny pool";
           snackbar.addMessage(
-            `Loaded ${result.post_ids?.length || 0} of ${result.post_count} Inkbunny pool pages (list capped)`,
+            `Loaded ${result.post_ids?.length || 0} of ${result.post_count} ${label} pages (list capped)`,
           );
         }
         if (watchedPools.isWatched(origin, props.poolId)) {

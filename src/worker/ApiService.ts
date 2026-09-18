@@ -1081,8 +1081,28 @@ export class ApiService {
   async getPools(args: IPoolsArgs) {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotDedicatedChrome(args.baseUrl, "getPools", args.mode);
+    if (backend === "furbooru") {
+      const query = furbooru.mapPoolListQuery({
+        query: args.query,
+        descriptionMatches: args.descriptionMatches,
+        postTagsMatch: args.postTagsMatch,
+        creatorName: args.creatorName,
+        ids: args.ids,
+      });
+      // No gallery↔post-tag search; category/active are e621-only.
+      if (query == null) return [];
+      const result = await withRetry(() =>
+        furbooru.searchGalleries({
+          query,
+          page: args.page ?? 1,
+          limit: args.limit,
+          apiKey: args.auth?.api_key ?? null,
+        }),
+      );
+      return result.pools;
+    }
     // Inkbunny has no pools-list API — name/tags browse stays empty; use getPool(ids).
-    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
+    if (backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
       return [];
     }
     // Retry: concurrent e621/e6ai fetches under COEP often throw "Failed to fetch".
@@ -1101,7 +1121,16 @@ export class ApiService {
       );
       return result.pool;
     }
-    if (backend === "furbooru" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
+    if (backend === "furbooru") {
+      const result = await withRetry(() =>
+        furbooru.getPool({
+          id: args.id,
+          apiKey: args.auth?.api_key ?? null,
+        }),
+      );
+      return result.pool;
+    }
+    if (backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
       throw new Error("Pools are not supported on this site");
     }
     return withRetry(() => e621.pools.get(args));

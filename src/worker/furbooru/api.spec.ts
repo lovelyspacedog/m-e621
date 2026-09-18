@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { adaptImage, stillRepUrl, type PhilomenaImage } from "./api";
+import {
+  adaptGallery,
+  adaptImage,
+  mapPoolListQuery,
+  stillRepUrl,
+  stripPoolGlob,
+  type PhilomenaGallery,
+  type PhilomenaImage,
+} from "./api";
 
 const baseReps = {
   full: "https://furrycdn.org/img/view/2026/9/16/600867.webm",
@@ -85,5 +93,37 @@ describe("adaptImage video stills", () => {
       "https://furrycdn.org/img/x/thumb_small.jpg",
     );
     expect(post.sample.url).toBe("https://furrycdn.org/img/x/large.jpg");
+  });
+});
+
+describe("mapPoolListQuery / adaptGallery", () => {
+  it("strips e621 globs and builds Philomena gallery queries", () => {
+    expect(stripPoolGlob("*fox*")).toBe("fox");
+    expect(mapPoolListQuery({})).toBe("*");
+    expect(mapPoolListQuery({ query: "*comic*" })).toBe("title:comic*");
+    expect(mapPoolListQuery({ descriptionMatches: "*arc*" })).toBe(
+      "description:arc*",
+    );
+    expect(mapPoolListQuery({ creatorName: "tony" })).toBe("user:tony");
+    expect(mapPoolListQuery({ ids: [3, 9] })).toBe("id:3 OR id:9");
+    expect(mapPoolListQuery({ postTagsMatch: "wolf" })).toBeNull();
+  });
+
+  it("maps gallery fields and uses thumbnail as cover post id", () => {
+    const g: PhilomenaGallery = {
+      id: 42,
+      title: "Mean Gallery",
+      description: "desc",
+      thumbnail_id: 99,
+      user: "artist",
+      user_id: 7,
+    };
+    const pool = adaptGallery(g);
+    expect(pool.id).toBe(42);
+    expect(pool.name).toBe("Mean Gallery");
+    expect(pool.creator_name).toBe("artist");
+    expect(pool.creator_id).toBe(7);
+    expect(pool.post_ids).toEqual([99]);
+    expect(pool.post_count).toBe(0);
   });
 });

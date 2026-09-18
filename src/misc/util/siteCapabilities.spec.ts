@@ -10,16 +10,17 @@ import {
 import type { SiteMode } from "@/services/types";
 
 describe("modeSupportsPools", () => {
-  it("matches e621-family, Inkbunny, and Federated", () => {
+  it("matches e621-family, Furbooru, Inkbunny, and Federated", () => {
     expect(modeSupportsPools("e621")).toBe(true);
     expect(modeSupportsPools("e6ai")).toBe(true);
+    expect(modeSupportsPools("furbooru")).toBe(true);
     expect(modeSupportsPools("inkbunny")).toBe(true);
     expect(modeSupportsPools("unified")).toBe(true);
     expect(isE621FamilyMode("unified")).toBe(false);
     expect(isE621FamilyMode("inkbunny")).toBe(false);
+    expect(isE621FamilyMode("furbooru")).toBe(false);
     const blocked: SiteMode[] = [
       "furaffinity",
-      "furbooru",
       "weasyl",
       "itaku",
       "sofurry",

@@ -12,7 +12,7 @@ When a tip ships: check the box, keep the tip id stable, mention it in `src/Land
 
 ## High priority
 
-- [x] `pools-origin-badge` — First open of Federated Pools. Host: `PoolsSearchPage.vue`. Origin icons + e621/e6ai merge.
+- [x] `pools-origin-badge` — First open of Federated Pools. Host: `PoolsSearchPage.vue`. Origin icons + e621/e6ai/Furbooru merge (Inkbunny via watch/open-by-id).
 - [x] `federated-following` — First switch Search → Following. Host: `PostsPage.vue`. Tag search ignored; needs per-site login.
 - [x] `local-mode` — First enter Local mode. Host: `PostsPage.vue`. Folder picker, fuzzy search, Chromium/FSA.
 - [x] `feed-layout` — First open of Layout menu. Host: `FeedLayoutMenu.vue`. Grid / compact / infinite scroll / j·k·Space.

@@ -8,7 +8,7 @@
  * Auth: Furbooru uses a single API key (no username) sent as ?key=API_KEY.
  */
 
-import type { Post, PostTags, Tag, Comment } from "@/worker/api/returnTypes";
+import type { Post, PostTags, Tag, Comment, Pool } from "@/worker/api/returnTypes";
 
 // ---------------------------------------------------------------------------
 // Philomena wire types
@@ -99,6 +99,21 @@ export interface PhilomenaComment {
 
 export interface PhilomenaCommentSearchResponse {
   comments: PhilomenaComment[];
+  total: number;
+}
+
+export interface PhilomenaGallery {
+  id: number;
+  title: string;
+  description?: string | null;
+  spoiler_warning?: string | null;
+  thumbnail_id?: number | null;
+  user?: string | null;
+  user_id?: number | null;
+}
+
+export interface PhilomenaGallerySearchResponse {
+  galleries: PhilomenaGallery[];
   total: number;
 }
 
@@ -497,6 +512,179 @@ export async function getImage(args: {
     apiKey: args.apiKey,
   });
   return result.posts.find((p) => p.id === args.id) || result.posts[0] || null;
+}
+
+/** Strip e621-style `*glob*` wrappers for Philomena field queries. */
+export const stripPoolGlob = (raw: string | undefined | null): string =>
+  (raw || "").trim().replace(/^\*+/, "").replace(/\*+$/, "").trim();
+
+/**
+ * Map e621 pool list args onto a Philomena galleries `q` string.
+ * Returns null when the request cannot be satisfied (e.g. post tag match).
+ */
+export function mapPoolListQuery(args: {
+  query?: string;
+  descriptionMatches?: string;
+  postTagsMatch?: string;
+  creatorName?: string;
+  ids?: number[] | string;
+}): string | null {
+  if (args.postTagsMatch?.trim()) return null;
+
+  const parts: string[] = [];
+  const idsRaw = args.ids;
+  const idList = Array.isArray(idsRaw)
+    ? idsRaw.map((n) => Math.floor(Number(n))).filter((n) => n > 0)
+    : String(idsRaw || "")
+        .split(/[,\s]+/)
+        .map((s) => Math.floor(Number(s)))
+        .filter((n) => n > 0);
+  if (idList.length) {
+    parts.push(idList.map((id) => `id:${id}`).join(" OR "));
+  }
+
+  const title = stripPoolGlob(args.query);
+  if (title) parts.push(`title:${title}*`);
+
+  const desc = stripPoolGlob(args.descriptionMatches);
+  if (desc) parts.push(`description:${desc}*`);
+
+  const creator = (args.creatorName || "").trim();
+  if (creator) parts.push(`user:${creator}`);
+
+  return parts.length ? parts.join(", ") : "*";
+}
+
+/** Map Philomena gallery → e621 Pool shape (list cards; membership via getPool). */
+export function adaptGallery(g: PhilomenaGallery): Pool {
+  const thumb =
+    typeof g.thumbnail_id === "number" && g.thumbnail_id > 0
+      ? g.thumbnail_id
+      : 0;
+  return {
+    id: g.id,
+    name: g.title || `Gallery ${g.id}`,
+    created_at: new Date(0),
+    updated_at: new Date(0),
+    creator_id: g.user_id ?? 0,
+    description: g.description || "",
+    is_active: true,
+    category: "",
+    is_deleted: false,
+    // Cover only — full membership comes from getPool(gallery_id).
+    post_ids: thumb ? [thumb] : [],
+    creator_name: g.user || "",
+    post_count: 0,
+  };
+}
+
+export interface FurbooruGalleriesArgs {
+  query: string;
+  page: number;
+  limit: number;
+  apiKey?: string | null;
+}
+
+export async function searchGalleries(
+  args: FurbooruGalleriesArgs,
+): Promise<{ pools: Pool[]; total: number }> {
+  const q = new URLSearchParams({
+    q: args.query || "*",
+    page: String(args.page),
+    per_page: String(args.limit),
+  });
+  if (args.apiKey) q.set("key", args.apiKey);
+  const url = `${proxyBase()}/galleries?${q}`;
+  const data = await fetchJson<PhilomenaGallerySearchResponse>(url);
+  return {
+    pools: (data.galleries ?? []).map(adaptGallery),
+    total: data.total ?? 0,
+  };
+}
+
+export const FURBOORU_POOL_PAGE_SIZE = 50;
+export const FURBOORU_POOL_MAX_PAGES = 40;
+
+export type FurbooruPoolResult = {
+  pool: Pool;
+  truncated: boolean;
+};
+
+/**
+ * Resolve a gallery and paginate membership via `gallery_id:N` image search.
+ */
+export async function getPool(args: {
+  id: number;
+  apiKey?: string | null;
+}): Promise<FurbooruPoolResult> {
+  const galleryId = Math.floor(Number(args.id));
+  if (!Number.isFinite(galleryId) || galleryId <= 0) {
+    throw new Error("Invalid Furbooru gallery id");
+  }
+
+  const listed = await searchGalleries({
+    query: `id:${galleryId}`,
+    page: 1,
+    limit: 1,
+    apiKey: args.apiKey,
+  });
+  const meta = listed.pools.find((p) => p.id === galleryId) || listed.pools[0];
+  if (!meta) {
+    throw new Error(`Furbooru gallery ${galleryId} not found`);
+  }
+
+  const postIds: number[] = [];
+  let reportedTotal = 0;
+  let firstCreated = "";
+  let lastUpdated = "";
+  let page = 1;
+
+  while (page <= FURBOORU_POOL_MAX_PAGES) {
+    const result = await searchImages({
+      query: `gallery_id:${galleryId}`,
+      page,
+      limit: FURBOORU_POOL_PAGE_SIZE,
+      apiKey: args.apiKey,
+    });
+    if (result.total > 0) reportedTotal = result.total;
+    for (const post of result.posts) {
+      if (post.id) postIds.push(post.id);
+      if (!firstCreated && post.created_at) firstCreated = String(post.created_at);
+      if (post.updated_at) lastUpdated = String(post.updated_at);
+      else if (post.created_at) lastUpdated = String(post.created_at);
+    }
+    if (
+      !result.posts.length ||
+      result.posts.length < FURBOORU_POOL_PAGE_SIZE ||
+      (reportedTotal > 0 && postIds.length >= reportedTotal)
+    ) {
+      break;
+    }
+    page += 1;
+  }
+
+  const truncated =
+    page >= FURBOORU_POOL_MAX_PAGES &&
+    reportedTotal > 0 &&
+    postIds.length < reportedTotal;
+
+  const parseDt = (raw?: string): Date => {
+    if (!raw) return new Date(0);
+    const t = Date.parse(raw);
+    return Number.isFinite(t) ? new Date(t) : new Date(0);
+  };
+
+  const postCount = Math.max(reportedTotal || 0, postIds.length);
+  return {
+    pool: {
+      ...meta,
+      post_ids: postIds,
+      post_count: postCount,
+      created_at: parseDt(firstCreated),
+      updated_at: parseDt(lastUpdated || firstCreated),
+    },
+    truncated,
+  };
 }
 
 export interface FurbooruTagsArgs {

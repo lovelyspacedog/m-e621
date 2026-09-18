@@ -9,20 +9,24 @@ import { authFromAccount } from "@/misc/util/postOrigin";
 import { toRaw } from "vue";
 
 /** Origins with a pools list API (Federated name/tags fan-out). */
-export const POOL_LIST_ORIGINS: PoolOriginMode[] = ["e621", "e6ai"];
+export const POOL_LIST_ORIGINS: PoolOriginMode[] = ["e621", "e6ai", "furbooru"];
 
 /** All pool reader / watch origins (`?origin=`). */
 export const POOL_ORIGIN_MODES: PoolOriginMode[] = [
   "e621",
   "e6ai",
   "inkbunny",
+  "furbooru",
 ];
 
 export const isPoolOriginMode = (value: unknown): value is PoolOriginMode =>
-  value === "e621" || value === "e6ai" || value === "inkbunny";
+  value === "e621" ||
+  value === "e6ai" ||
+  value === "inkbunny" ||
+  value === "furbooru";
 
 export const isPoolListOrigin = (value: unknown): value is PoolOriginMode =>
-  value === "e621" || value === "e6ai";
+  value === "e621" || value === "e6ai" || value === "furbooru";
 
 /** Parse `?origin=` (or array query). */
 export const parsePoolOriginQuery = (raw: unknown): PoolOriginMode | null => {
@@ -92,8 +96,8 @@ const unifiedSitesOf = (state: ISettingsServiceState) => ({
 
 /**
  * Enabled listable pool children for name/tags browse
- * (e621/e6ai only — Inkbunny has no pools-list API).
- * Single-site e621-family or Inkbunny returns that site alone.
+ * (e621/e6ai/furbooru — Inkbunny has no pools-list API).
+ * Single-site e621-family, Furbooru, or Inkbunny returns that site alone.
  */
 export const poolFamilyChildren = (
   state: ISettingsServiceState,
