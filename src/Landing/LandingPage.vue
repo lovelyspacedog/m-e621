@@ -6,8 +6,18 @@
       <div class="w-100 d-flex flex-column align-center justify-center fill-height py-10 px-4">
         <app-logo v-view-transition-name="'applogo'" type="face" size="160" />
         <h1 class="mb-2 text-h1 text-center">{{ APP_NAME }}</h1>
-        <p class="text-h6 text-center landing-tagline mb-4">
-          {{ tagline }}
+        <p
+          class="text-h6 text-center landing-splash mb-4"
+          aria-live="polite"
+          :aria-label="splashFull || undefined"
+        >
+          <span>{{ splashTyped }}</span
+          ><span
+            v-if="splashShowCursor"
+            class="landing-splash-cursor"
+            aria-hidden="true"
+            >▍</span
+          >
         </p>
         <site-mode-switcher class="mb-5" variant="chips" :navigate-on-change="false" />
         <div v-if="showTagSearch" class="landing-search mb-4">
@@ -66,6 +76,17 @@
     </section>
     <MigrationInfo />
     <section class="mt-8 mb-2">
+      <v-container>
+        <v-row justify="center">
+          <v-col cols="12" md="8" lg="6">
+            <div class="landing-text-panel landing-tagline-panel">
+              <p class="text-h6 text-center mb-0">{{ tagline }}</p>
+            </div>
+          </v-col>
+        </v-row>
+      </v-container>
+    </section>
+    <section class="mt-4 mb-2">
       <v-container>
         <v-row justify="center">
           <v-col cols="12" md="8" lg="6">
@@ -174,7 +195,8 @@ import InfoDialog from "./InfoDialog.vue";
 import CommitHistoryDialog from "./CommitHistoryDialog.vue";
 import Footer from "./Footer.vue";
 import TagWikiSnippet from "./TagWikiSnippet.vue";
-import { computed, ref } from "vue";
+import { pickLandingSplash } from "./splashes";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 import MigrationInfo from "./MigrationInfo.vue";
 import { useSiteModeStore } from "@/services/SiteModeStore";
@@ -199,11 +221,67 @@ useHead({
   titleTemplate: null,
 });
 
+/** Descriptive copy — sits above What it does, not under the logo. */
 const tagline = computed(() =>
   siteMode.supportsLocalMode
     ? "Browse nine imageboards, Flayrah news, and a local folder from one client."
     : "Browse nine imageboards and Flayrah news from one client.",
 );
+
+/** One-shot typewriter: types in, stays on screen (no erase cycle). */
+const TYPE_MS = 28;
+const CURSOR_HOLD_MS = 1200;
+const splashFull = ref("");
+const splashTyped = ref("");
+const splashShowCursor = ref(false);
+let typeTimer: ReturnType<typeof setInterval> | null = null;
+let cursorHoldTimer: ReturnType<typeof setTimeout> | null = null;
+
+const clearSplashTimers = () => {
+  if (typeTimer) {
+    clearInterval(typeTimer);
+    typeTimer = null;
+  }
+  if (cursorHoldTimer) {
+    clearTimeout(cursorHoldTimer);
+    cursorHoldTimer = null;
+  }
+};
+
+const finishSplashTyping = () => {
+  clearSplashTimers();
+  splashTyped.value = splashFull.value;
+  cursorHoldTimer = setTimeout(() => {
+    splashShowCursor.value = false;
+    cursorHoldTimer = null;
+  }, CURSOR_HOLD_MS);
+};
+
+const startSplashTypewriter = () => {
+  clearSplashTimers();
+  splashFull.value = pickLandingSplash();
+  const preferReducedMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (preferReducedMotion || splashFull.value.length === 0) {
+    splashTyped.value = splashFull.value;
+    splashShowCursor.value = false;
+    return;
+  }
+  splashTyped.value = "";
+  splashShowCursor.value = true;
+  let pos = 0;
+  typeTimer = setInterval(() => {
+    pos += 1;
+    splashTyped.value = splashFull.value.slice(0, pos);
+    if (pos >= splashFull.value.length) {
+      finishSplashTyping();
+    }
+  }, TYPE_MS);
+};
+
+onMounted(startSplashTypewriter);
+onUnmounted(clearSplashTimers);
 
 const capabilities = computed(() => [
   siteMode.supportsLocalMode
@@ -246,9 +324,34 @@ const removeTag = (tag: string) => {
   min-height: min(70vh, 36rem);
 }
 
-.landing-tagline {
+.landing-splash {
   max-width: 36rem;
+  min-height: 1.35em;
   line-height: 1.35;
+}
+
+.landing-splash-cursor {
+  display: inline-block;
+  margin-left: 0.05em;
+  font-weight: 400;
+  opacity: 0.85;
+  animation: landing-splash-blink 0.9s step-end infinite;
+}
+
+@keyframes landing-splash-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-splash-cursor {
+    animation: none;
+  }
+}
+
+.landing-tagline-panel {
+  text-align: center;
 }
 
 .landing-search {
