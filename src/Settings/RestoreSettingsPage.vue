@@ -45,7 +45,7 @@
 
         <settings-group
           title="Library"
-          description="Mode-independent bookmarks and watched pools. Clearing does not affect site credentials."
+          description="Mode-independent bookmarks, watched pools, and watched Tailspace comics. Clearing does not affect site credentials."
           anchor="library"
         >
           <settings-row
@@ -86,6 +86,20 @@
               size="small"
               :disabled="!watchedCount"
               @click="pendingSlice = 'watchedPools'"
+            >
+              Clear
+            </v-btn>
+          </settings-row>
+          <settings-row
+            title="Watched comics"
+            :description="`${watchedComicsCount} watch${watchedComicsCount === 1 ? '' : 'es'}`"
+          >
+            <v-btn
+              variant="text"
+              color="error"
+              size="small"
+              :disabled="!watchedComicsCount"
+              @click="pendingSlice = 'watchedComics'"
             >
               Clear
             </v-btn>
@@ -161,6 +175,7 @@
                 <li>Saved posts: {{ importPreview.savedPosts }}</li>
                 <li>Flayrah saved: {{ importPreview.flayrahSaved }}</li>
                 <li>Watched pools: {{ importPreview.watchedPools }}</li>
+                <li>Watched comics: {{ importPreview.watchedComics }}</li>
               </ul>
             </v-card-text>
             <v-card-actions>
@@ -183,6 +198,7 @@ import {
   usePersistanceService,
   useSavedPostsStore,
   useSnackbarStore,
+  useWatchedComicsStore,
   useWatchedPoolsStore,
 } from "@/services";
 import type {
@@ -212,6 +228,7 @@ const persistanceService = usePersistanceService();
 const savedPosts = useSavedPostsStore();
 const flayrahNews = useFlayrahNewsStore();
 const watchedPools = useWatchedPoolsStore();
+const watchedComics = useWatchedComicsStore();
 const fileInput = ref<HTMLInputElement>();
 const confirmReset = ref(false);
 const confirmImport = ref(false);
@@ -224,6 +241,7 @@ const savedCount = computed(() => savedPosts.count);
 const flayrahSavedCount = computed(() => flayrahNews.savedCount);
 const flayrahReadCount = computed(() => flayrahNews.readCount);
 const watchedCount = computed(() => watchedPools.entries.length);
+const watchedComicsCount = computed(() => watchedComics.entries.length);
 
 const partialItems: { slice: SettingsResetSlice; label: string }[] = [
   { slice: "posts", label: "Posts" },
@@ -243,6 +261,8 @@ const sliceTitle = computed(() => {
       return "Clear Flayrah news state?";
     case "watchedPools":
       return "Clear watched pools?";
+    case "watchedComics":
+      return "Clear watched comics?";
     case "posts":
       return "Reset Posts settings?";
     case "appearance":
@@ -270,6 +290,8 @@ const sliceBody = computed(() => {
       return "Clears Flayrah read marks, saved articles, and resets the feed layout. Site credentials are kept.";
     case "watchedPools":
       return "Unwatches every pool. Site credentials are kept.";
+    case "watchedComics":
+      return "Unwatches every Tailspace comic. Site credentials are kept.";
     case "blacklist":
     case "history":
     case "searches":

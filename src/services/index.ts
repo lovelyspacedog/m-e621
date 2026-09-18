@@ -13,6 +13,7 @@ export * from "./ArtistDashboardStore";
 export * from "./SavedPostsStore";
 export * from "./FlayrahNewsStore";
 export * from "./WatchedPoolsStore";
+export * from "./WatchedComicsStore";
 export * from "./SiteModeStore";
 export * from "./PwaUpdateStore";
 export * from "./UiStore";

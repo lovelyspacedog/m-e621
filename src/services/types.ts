@@ -100,6 +100,18 @@ export interface WatchedPoolEntry {
   lastSeenUpdatedAt?: string;
 }
 
+/** Local Tailspace comic watch (not Tailspace-server bookmarks). */
+export interface WatchedComicEntry {
+  id: number;
+  /** Comic slug for `/tailspace/comic/:name` and `getComic`. */
+  name: string;
+  watchedAt: number;
+  /** Page count when last opened (or when watch was added). Used for +N badges. */
+  lastSeenPageCount?: number;
+  /** Comic `updated` ISO when last opened / watched. */
+  lastSeenUpdatedAt?: string;
+}
+
 export const UNIFIED_CHILD_MODES: UnifiedChildMode[] = ["e621", "e6ai", "furbooru", "inkbunny", "furaffinity", "weasyl", "itaku", "sofurry"];
 
 export type UnifiedSites = Record<UnifiedChildMode, boolean>;
@@ -251,7 +263,9 @@ export interface ISettingsServiceState {
     | 41
     | 42
     | 43
-    | 44;
+    | 44
+    | 45
+    | 46;
   activeMode: SiteMode;
   profiles: Record<SiteMode, SiteProfile>;
   shortcuts: Shortcut[];
@@ -351,6 +365,10 @@ export interface ISettingsServiceState {
   /** Mode-independent registry; views filter entries by their origin site. */
   watchedPools: {
     entries: WatchedPoolEntry[];
+  };
+  /** Local Tailspace comic watches with new-page badges. Not under profiles. */
+  watchedComics: {
+    entries: WatchedComicEntry[];
   };
   /** Recently viewed e621-family artist dashboard tags (MRU). */
   artistDashboard: {

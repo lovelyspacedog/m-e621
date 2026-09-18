@@ -33,7 +33,7 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 45,
+  configVersion: 46,
   activeMode: "e621",
   profiles: {
     e621: createEmptySiteProfile("e621"),
@@ -147,6 +147,9 @@ export const defaultSettings: ISettingsServiceState = {
     layout: "list",
   },
   watchedPools: {
+    entries: [],
+  },
+  watchedComics: {
     entries: [],
   },
   posts: {

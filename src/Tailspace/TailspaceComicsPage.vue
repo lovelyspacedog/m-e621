@@ -79,6 +79,90 @@
       </div>
     </div>
 
+    <!-- Watched Comics -->
+    <section class="ts-watched-section">
+      <div class="ts-watched-heading">
+        <v-icon color="accent">mdi-eye</v-icon>
+        <h2 class="text-h6">Watched Comics</h2>
+        <v-progress-circular v-if="watchedLoading" indeterminate size="18" width="2" />
+      </div>
+      <div
+        v-if="!watchedLoading && !watchedEntries.length"
+        class="text-body-2 text-medium-emphasis px-3"
+      >
+        No watched comics yet. Use the eye button on a comic to watch it.
+      </div>
+      <div v-else-if="watchedResults.length" class="ts-grid ts-watched-grid">
+        <div v-for="comic in watchedResults" :key="`watched-${comic.id}`" class="ts-comic-wrap">
+          <router-link
+            class="ts-comic-card"
+            :to="{ name: 'TailspaceComic', params: { name: comic.name } }"
+            :title="comic.name"
+          >
+            <div class="ts-comic-thumb">
+              <img
+                class="ts-comic-img"
+                :src="comicThumb(comic.id, comic.thumbnailVersion)"
+                loading="lazy"
+                :alt="comic.name"
+              />
+              <div class="ts-badge ts-badge--pages">
+                <v-icon size="12">mdi-book-open-page-variant</v-icon>
+                {{ comic.numberOfPages }}
+              </div>
+              <div v-if="comic.state === 'wip'" class="ts-badge ts-badge--wip">WIP</div>
+              <div v-else-if="comic.state === 'cancelled'" class="ts-badge ts-badge--cancelled">
+                Cancelled
+              </div>
+              <div v-if="comic.category" class="ts-badge ts-badge--cat">{{ comic.category }}</div>
+              <div v-if="newCountFor(comic) > 0" class="ts-badge ts-badge--new">
+                +{{ newCountFor(comic) }}
+              </div>
+            </div>
+            <div class="ts-comic-info">
+              <div class="ts-comic-title">{{ comic.name }}</div>
+              <div class="ts-comic-artist">{{ comic.displayName || comic.artistName }}</div>
+            </div>
+          </router-link>
+          <v-btn
+            class="ts-watch-btn"
+            icon
+            size="x-small"
+            variant="tonal"
+            color="accent"
+            title="Unwatch comic"
+            aria-label="Unwatch comic"
+            @click="toggleWatch(comic)"
+          >
+            <v-icon size="18">mdi-eye</v-icon>
+          </v-btn>
+        </div>
+      </div>
+      <v-list v-if="unavailableWatched.length" class="mt-2 mx-2" bg-color="transparent" density="compact">
+        <v-list-item
+          v-for="entry in unavailableWatched"
+          :key="`missing-${entry.id}`"
+          :title="entry.name || `Comic ${entry.id}`"
+          subtitle="Unavailable or failed to load"
+        >
+          <template #append>
+            <v-btn
+              icon
+              size="small"
+              variant="text"
+              title="Unwatch comic"
+              aria-label="Unwatch comic"
+              @click="watchedStore.remove(entry.id)"
+            >
+              <v-icon>mdi-eye-off-outline</v-icon>
+            </v-btn>
+          </template>
+        </v-list-item>
+      </v-list>
+    </section>
+
+    <v-divider class="mb-4 mx-3" />
+
     <!-- Error -->
     <v-alert v-if="error" type="error" class="ma-4" closable @click:close="error = null">
       {{ error }}
@@ -94,48 +178,62 @@
 
     <!-- Comics grid -->
     <div v-else-if="comics.length > 0" class="ts-grid">
-      <router-link
-        v-for="comic in comics"
-        :key="comic.id"
-        class="ts-comic-card"
-        :to="{ name: 'TailspaceComic', params: { name: comic.name } }"
-        :title="comic.name"
-      >
-        <div class="ts-comic-thumb">
-          <img
-            class="ts-comic-img"
-            :src="comicThumb(comic.id, comic.thumbnailVersion)"
-            loading="lazy"
-            :alt="comic.name"
-          />
-          <!-- Page count badge -->
-          <div class="ts-badge ts-badge--pages">
-            <v-icon size="12">mdi-book-open-page-variant</v-icon>
-            {{ comic.numberOfPages }}
+      <div v-for="comic in comics" :key="comic.id" class="ts-comic-wrap">
+        <router-link
+          class="ts-comic-card"
+          :to="{ name: 'TailspaceComic', params: { name: comic.name } }"
+          :title="comic.name"
+        >
+          <div class="ts-comic-thumb">
+            <img
+              class="ts-comic-img"
+              :src="comicThumb(comic.id, comic.thumbnailVersion)"
+              loading="lazy"
+              :alt="comic.name"
+            />
+            <div class="ts-badge ts-badge--pages">
+              <v-icon size="12">mdi-book-open-page-variant</v-icon>
+              {{ comic.numberOfPages }}
+            </div>
+            <div v-if="comic.state === 'wip'" class="ts-badge ts-badge--wip">WIP</div>
+            <div v-else-if="comic.state === 'cancelled'" class="ts-badge ts-badge--cancelled">
+              Cancelled
+            </div>
+            <div class="ts-badge ts-badge--cat">{{ comic.category }}</div>
+            <div v-if="newCountFor(comic) > 0" class="ts-badge ts-badge--new">
+              +{{ newCountFor(comic) }}
+            </div>
           </div>
-          <!-- WIP badge -->
-          <div v-if="comic.state === 'wip'" class="ts-badge ts-badge--wip">WIP</div>
-          <div v-else-if="comic.state === 'cancelled'" class="ts-badge ts-badge--cancelled">
-            Cancelled
+          <div class="ts-comic-info">
+            <div class="ts-comic-title">{{ comic.name }}</div>
+            <div class="ts-comic-artist">{{ comic.displayName || comic.artistName }}</div>
+            <div class="ts-comic-stats">
+              <span title="Rating">
+                <v-icon size="12">mdi-star</v-icon>
+                {{ Number(comic.avgStars ?? 0).toFixed(1) }}
+              </span>
+              <span title="Comments">
+                <v-icon size="12">mdi-comment-outline</v-icon>
+                {{ comic.commentCount }}
+              </span>
+            </div>
           </div>
-          <!-- Category badge -->
-          <div class="ts-badge ts-badge--cat">{{ comic.category }}</div>
-        </div>
-        <div class="ts-comic-info">
-          <div class="ts-comic-title">{{ comic.name }}</div>
-          <div class="ts-comic-artist">{{ comic.displayName || comic.artistName }}</div>
-          <div class="ts-comic-stats">
-            <span title="Rating">
-              <v-icon size="12">mdi-star</v-icon>
-              {{ Number(comic.avgStars ?? 0).toFixed(1) }}
-            </span>
-            <span title="Comments">
-              <v-icon size="12">mdi-comment-outline</v-icon>
-              {{ comic.commentCount }}
-            </span>
-          </div>
-        </div>
-      </router-link>
+        </router-link>
+        <v-btn
+          class="ts-watch-btn"
+          icon
+          size="x-small"
+          variant="tonal"
+          :color="watchedStore.isWatched(comic.id) ? 'accent' : undefined"
+          :title="watchedStore.isWatched(comic.id) ? 'Unwatch comic' : 'Watch comic'"
+          :aria-label="watchedStore.isWatched(comic.id) ? 'Unwatch comic' : 'Watch comic'"
+          @click="toggleWatch(comic)"
+        >
+          <v-icon size="18">
+            {{ watchedStore.isWatched(comic.id) ? "mdi-eye" : "mdi-eye-outline" }}
+          </v-icon>
+        </v-btn>
+      </div>
     </div>
 
     <!-- Empty -->
@@ -157,7 +255,6 @@
         @click="changePage(page - 1)"
       />
 
-      <!-- Page number buttons (show up to 7) -->
       <template v-for="(p, i) in pageButtons" :key="`${p}-${i}`">
         <v-btn
           v-if="p !== '...'"
@@ -180,6 +277,18 @@
         @click="changePage(page + 1)"
       />
     </div>
+
+    <TipDialog
+      :tip-id="TIP_IDS.watchedComics"
+      title="Watched comic badges"
+      v-model="watchedComicsTipOpen"
+    >
+      <p class="mb-0">
+        A +N badge on a watched comic means new pages since you last checked.
+        Watch comics with the eye button; open Watched Comics at the top of this
+        page to catch up.
+      </p>
+    </TipDialog>
   </div>
 </template>
 
@@ -188,18 +297,43 @@ import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   getComics,
+  getComic,
   comicThumb,
   type TailspaceComic,
 } from "@/worker/tailspace/api";
+import type { TailspaceComicDetail } from "@/worker/tailspace/types";
+import type { WatchedComicEntry } from "@/services/types";
+import { useWatchedComicsStore } from "@/services/WatchedComicsStore";
+import { coerceTailspaceTimestamp } from "@/misc/util/tailspacePoolBrowse";
+import { TIP_IDS } from "@/misc/tipIds";
+import { useTipOpen } from "@/misc/useTipOpen";
+import TipDialog from "@/misc/TipDialog.vue";
 import { useTailspaceSession } from "./useTailspaceSession";
 
 useTailspaceSession();
+
+type ComicCard = Pick<
+  TailspaceComic,
+  | "id"
+  | "name"
+  | "numberOfPages"
+  | "thumbnailVersion"
+  | "displayName"
+  | "artistName"
+  | "category"
+  | "state"
+> & {
+  updated?: TailspaceComic["updated"];
+  avgStars?: number | null;
+  commentCount?: number;
+};
 
 const CATEGORIES = ["Male", "Female", "Mix", "Intersex"];
 const SORT_OPTIONS = ["Updated", "Newest", "Rating", "Alphabetical"];
 
 const route = useRoute();
 const router = useRouter();
+const watchedStore = useWatchedComicsStore();
 
 // State
 const comics = ref<TailspaceComic[]>([]);
@@ -207,6 +341,107 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 const numberOfPages = ref(1);
 const totalNumComics = ref(0);
+
+const watchedLoading = ref(false);
+const watchedResults = ref<ComicCard[]>([]);
+const unavailableWatched = ref<WatchedComicEntry[]>([]);
+
+const watchedEntries = computed(() => watchedStore.entries);
+
+const { open: watchedComicsTipOpen, tryOpenOnEdge: tryWatchedComicsTip } =
+  useTipOpen(TIP_IDS.watchedComics);
+
+const comicSnapshot = (comic: {
+  numberOfPages: number;
+  updated?: TailspaceComic["updated"] | null;
+}) => {
+  const updated =
+    comic.updated != null ? coerceTailspaceTimestamp(comic.updated) : undefined;
+  return {
+    pageCount: comic.numberOfPages || 0,
+    updatedAt:
+      updated && Number.isFinite(updated.getTime()) && updated.getTime() > 0
+        ? updated
+        : undefined,
+  };
+};
+
+const newCountFor = (comic: { id: number; numberOfPages: number; updated?: unknown }) => {
+  const snap = comicSnapshot(comic as ComicCard);
+  return watchedStore.newCount(comic.id, snap.pageCount, snap.updatedAt);
+};
+
+const hasWatchedNewBadge = computed(() =>
+  watchedResults.value.some((comic) => newCountFor(comic) > 0),
+);
+watch(hasWatchedNewBadge, tryWatchedComicsTip);
+
+const detailToCard = (detail: TailspaceComicDetail): ComicCard => ({
+  id: detail.id,
+  name: detail.name,
+  numberOfPages: detail.numberOfPages,
+  thumbnailVersion: detail.thumbnailVersion,
+  displayName: detail.artistDisplayName || null,
+  artistName: detail.artistName,
+  category: detail.category || "",
+  state: (detail.state as TailspaceComic["state"]) || "complete",
+  avgStars: detail.avgStars,
+  commentCount: detail.commentCount,
+});
+
+const loadWatchedComics = async () => {
+  watchedLoading.value = true;
+  try {
+    const entries = watchedEntries.value;
+    if (!entries.length) {
+      watchedResults.value = [];
+      unavailableWatched.value = [];
+      return;
+    }
+    const hydrated: ComicCard[] = [];
+    const missing: WatchedComicEntry[] = [];
+    await Promise.all(
+      entries.map(async (entry) => {
+        try {
+          const detail = await getComic(entry.name);
+          if (!detail?.id || !detail.name) {
+            missing.push(entry);
+            return;
+          }
+          hydrated.push(detailToCard(detail));
+        } catch {
+          missing.push(entry);
+        }
+      }),
+    );
+    for (const comic of hydrated) {
+      watchedStore.ensureBaseline(comic.id, comicSnapshot(comic));
+    }
+    watchedResults.value = [...hydrated].sort((a, b) => {
+      const delta = newCountFor(b) - newCountFor(a);
+      if (delta) return delta;
+      return 0;
+    });
+    unavailableWatched.value = missing;
+  } finally {
+    watchedLoading.value = false;
+  }
+};
+
+const toggleWatch = (comic: ComicCard) => {
+  const watched = watchedStore.toggle(comic.id, comic.name, comicSnapshot(comic));
+  if (watched) {
+    watchedResults.value = [
+      comic,
+      ...watchedResults.value.filter((item) => item.id !== comic.id),
+    ];
+    unavailableWatched.value = unavailableWatched.value.filter(
+      (entry) => entry.id !== comic.id,
+    );
+  } else {
+    watchedResults.value = watchedResults.value.filter((item) => item.id !== comic.id);
+  }
+};
 
 // Filter state
 const page = ref(Number(route.query.page) || 1);
@@ -317,8 +552,17 @@ const pageButtons = computed((): (number | "...")[] => {
   return pages;
 });
 
-onMounted(() => loadPage(page.value));
+onMounted(() => {
+  void loadPage(page.value);
+  void loadWatchedComics();
+});
 watch(page, (p) => loadPage(p));
+watch(
+  () => watchedStore.entries.map((e) => `${e.id}:${e.name}`).join(","),
+  () => {
+    void loadWatchedComics();
+  },
+);
 // Sync from browser history (M24/M25).
 watch(
   () => ({
@@ -417,6 +661,40 @@ watch(
   max-width: 1800px;
 }
 
+/* ── Watched section ── */
+.ts-watched-section {
+  max-width: 1800px;
+  margin: 0 auto 0.5rem;
+  padding: 0 0.75rem;
+}
+@media (min-width: 960px) {
+  .ts-watched-section {
+    padding: 0 1.25rem;
+  }
+}
+.ts-watched-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0.75rem;
+  padding: 0 0.25rem;
+}
+.ts-watched-grid {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.ts-comic-wrap {
+  position: relative;
+}
+.ts-watch-btn {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.45) !important;
+}
+
 /* ── Grid ── */
 .ts-grid {
   display: grid;
@@ -491,13 +769,13 @@ watch(
   color: #fff;
 }
 .ts-badge--wip {
-  top: 5px;
+  top: 36px;
   left: 5px;
   background: rgba(255, 165, 0, 0.8);
   color: #000;
 }
 .ts-badge--cancelled {
-  top: 5px;
+  top: 36px;
   left: 5px;
   background: rgba(180, 0, 0, 0.75);
   color: #fff;
@@ -507,6 +785,12 @@ watch(
   right: 5px;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
+}
+.ts-badge--new {
+  bottom: 5px;
+  left: 5px;
+  background: rgb(var(--v-theme-accent));
+  color: rgb(var(--v-theme-on-accent));
 }
 
 .ts-comic-info {

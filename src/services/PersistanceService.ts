@@ -44,6 +44,7 @@ export type SettingsImportPreview = {
   savedPosts: number;
   flayrahSaved: number;
   watchedPools: number;
+  watchedComics: number;
 };
 
 export type SettingsResetSlice =
@@ -56,7 +57,8 @@ export type SettingsResetSlice =
   | "favorites"
   | "savedPosts"
   | "flayrahNews"
-  | "watchedPools";
+  | "watchedPools"
+  | "watchedComics";
 
 const clearAccountSecrets = (account: {
   username?: string | null;
@@ -98,6 +100,7 @@ export const summarizeSettingsImport = (
     savedPosts: settings.savedPosts?.entries?.length ?? 0,
     flayrahSaved: settings.flayrahNews?.saved?.length ?? 0,
     watchedPools: settings.watchedPools?.entries?.length ?? 0,
+    watchedComics: settings.watchedComics?.entries?.length ?? 0,
   };
 };
 
@@ -251,6 +254,9 @@ class PersistanceService {
         break;
       case "watchedPools":
         this.main.watchedPools = { entries: [] };
+        break;
+      case "watchedComics":
+        this.main.watchedComics = { entries: [] };
         break;
       default:
         return;
@@ -747,9 +753,16 @@ class PersistanceService {
       }
       newState.configVersion = 45;
     }
+    if (newState.configVersion < 46) {
+      newState.watchedComics = { entries: [] };
+      newState.configVersion = 46;
+    }
 
     if (!newState.watchedPools || !Array.isArray(newState.watchedPools.entries)) {
       newState.watchedPools = { entries: [] };
+    }
+    if (!newState.watchedComics || !Array.isArray(newState.watchedComics.entries)) {
+      newState.watchedComics = { entries: [] };
     }
     if (!newState.savedPosts || !Array.isArray(newState.savedPosts.entries)) {
       newState.savedPosts = { entries: [] };

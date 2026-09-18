@@ -46,6 +46,15 @@
             >
               {{ following ? "Following" : "Follow" }}
             </v-btn>
+            <v-btn
+              size="x-small"
+              variant="tonal"
+              :color="comicWatched ? 'accent' : undefined"
+              :prepend-icon="comicWatched ? 'mdi-eye' : 'mdi-eye-outline'"
+              @click="onToggleWatch"
+            >
+              {{ comicWatched ? "Unwatch" : "Watch" }}
+            </v-btn>
             <button
               type="button"
               class="ts-reader-comments-link"
@@ -56,7 +65,7 @@
             </button>
           </div>
           <div v-if="!loggedIn" class="text-caption text-medium-emphasis mt-1">
-            Log in under Account to rate, follow, or comment.
+            Log in under Account to rate, follow, or comment. Watching comics is local and does not need login.
           </div>
           <div v-else-if="actionError" class="text-caption text-error mt-1">{{ actionError }}</div>
         </div>
@@ -403,6 +412,7 @@
       </p>
       <p class="mb-0">
         Rating, follow, and comments need a Tailspace login under Account.
+        Watching a comic is local (eye button) and works without login.
         Federated Pools can open comics here when Tailspace comics are enabled.
       </p>
     </TipDialog>
@@ -427,7 +437,7 @@ import {
   type TailspaceComicDetail,
 } from "@/worker/tailspace/api";
 import { useTailspaceSession } from "./useTailspaceSession";
-import { useSiteModeStore } from "@/services";
+import { useSiteModeStore, useWatchedComicsStore } from "@/services";
 import {
   buildChunkButtons,
   GALLERY_CHUNK_SIZE,
@@ -447,6 +457,7 @@ const route = useRoute();
 const router = useRouter();
 const { isLoggedIn } = useTailspaceSession();
 const siteMode = useSiteModeStore();
+const watchedComics = useWatchedComicsStore();
 const { open: tailspaceComicsTipOpen, tryOpen: tryTailspaceComicsTip } =
   useTipOpen(TIP_IDS.tailspaceComics);
 onMounted(() => tryTailspaceComicsTip());
@@ -473,6 +484,19 @@ const followLoading = ref(false);
 const commentDraft = ref("");
 const commentSending = ref(false);
 const actionError = ref<string | null>(null);
+
+const comicWatched = computed(() =>
+  comic.value ? watchedComics.isWatched(comic.value.id) : false,
+);
+
+const comicWatchSnapshot = (c: TailspaceComicDetail) => ({
+  pageCount: c.numberOfPages || c.pages?.length || 0,
+});
+
+const onToggleWatch = () => {
+  if (!comic.value) return;
+  watchedComics.toggle(comic.value.id, comic.value.name, comicWatchSnapshot(comic.value));
+};
 
 watch(viewMode, (mode) => {
   saveComicViewMode(VIEW_MODE_KEY, mode);
@@ -619,6 +643,9 @@ async function loadComic(name: string) {
     following.value = false;
     actionError.value = null;
     commentDraft.value = "";
+    if (watchedComics.isWatched(comic.value.id)) {
+      watchedComics.markSeen(comic.value.id, comicWatchSnapshot(comic.value));
+    }
     const qPage = Number(route.query.page);
     const qChunk = Number(route.query.chunk);
     if (qPage > 0) {

@@ -21,6 +21,7 @@ When a tip ships: check the box, keep the tip id stable, mention it in `src/Land
 ## Medium priority
 
 - [x] `watched-pools` — First Watched Pools visit with a `+N` badge. Host: `PoolsSearchPage.vue`. New-page badges after watching.
+- [x] `watched-comics` — First Watched Comics visit with a `+N` badge. Host: `TailspaceComicsPage.vue`. New-page badges after watching.
 - [x] `fullscreen-gestures` — First fullscreen open. Host: `FullscreenDialog.vue`. Swipe, pinch zoom, notes, slideshow, comments rail.
 - [x] `saved-posts` — First Saved Posts visit. Host: `SavedPostsPage.vue`. Mode-independent list vs site favorites.
 - [x] `blacklist-modes` — First Blacklist settings visit. Host: `BlacklistSettingsPage.vue`. Display mode vs server-side hide vs custom lines.

@@ -123,10 +123,11 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { label: "Restore settings", keywords: ["restore", "upload", "import", "reset"], section: "restore", hash: "restore" },
   { label: "Saved posts library", keywords: ["bookmarks", "saved posts", "clear library"], section: "restore", hash: "library" },
   { label: "Watched pools library", keywords: ["watched", "pools", "clear library"], section: "restore", hash: "library" },
+  { label: "Watched comics library", keywords: ["watched", "comics", "tailspace", "clear library"], section: "restore", hash: "library" },
   { label: "Reset section", keywords: ["partial reset", "reset posts", "reset appearance"], section: "restore", hash: "partial" },
   { label: "Color scheme", keywords: ["system", "dark", "light", "os theme"], section: "appearance", hash: "colors" },
   { label: "Prompts", keywords: ["install", "github", "migration", "hide prompt"], section: "appearance", hash: "prompts" },
-  { label: "Reset tooltips", keywords: ["tooltip", "tips", "reset", "federated", "following", "local", "layout", "pools", "fullscreen", "saved posts", "blacklist", "tailspace", "fluffle", "remux", "suggester", "analyzer", "flayrah", "starred", "don't show", "dialog"], section: "appearance", hash: "prompts" },
+  { label: "Reset tooltips", keywords: ["tooltip", "tips", "reset", "federated", "following", "local", "layout", "pools", "watched comics", "fullscreen", "saved posts", "blacklist", "tailspace", "fluffle", "remux", "suggester", "analyzer", "flayrah", "starred", "don't show", "dialog"], section: "appearance", hash: "prompts" },
   { label: "Version / Force Update", keywords: ["version", "commit", "update", "storage"], section: "info" },
   { label: "Pull from Git", keywords: ["git", "pull", "sync", "deploy"], section: "info" },
   { label: "Storage persistence", keywords: ["storage", "quota", "persist", "indexeddb"], section: "info" },
@@ -147,6 +148,7 @@ const SETTINGS_SYNONYMS: Record<string, string[]> = {
   folder: ["local", "save"],
   bookmark: ["saved posts", "library"],
   pool: ["watched", "library"],
+  comic: ["watched", "tailspace", "library"],
 };
 
 const tokenMatchesHay = (hay: string, token: string) => {
