@@ -2,22 +2,23 @@
   <div v-if="layout === 'grid'" class="pools-grid">
     <div v-for="pool in pools" :key="poolRowKey(pool)" class="pools-card">
       <router-link class="pools-card-link" :to="poolLink(pool)" :title="displayName(pool.name)">
-        <div class="pools-card-thumb">
+        <div
+          class="pools-card-thumb"
+          :class="{ 'pools-cover--pulse': coverShowLoading(pool) }"
+          :ref="(el) => observeCoverHost(el, poolRowKey(pool))"
+        >
           <img
-            v-if="coverUrl(pool) && !coverImgFailed(coverUrl(pool)!)"
+            v-if="activeCoverSrc(pool) && !coverImgFailed(activeCoverSrc(pool)!)"
             class="pools-card-img"
-            :class="{ 'pools-card-img--loading': !coverImgReady(coverUrl(pool)!) }"
-            :src="coverUrl(pool)!"
+            :class="{ 'pools-card-img--loading': !coverImgReady(activeCoverSrc(pool)!) }"
+            :src="activeCoverSrc(pool)!"
             :alt="displayName(pool.name)"
-            loading="lazy"
-            :ref="(el) => syncCoverImg(el, coverUrl(pool)!)"
-            @load="onCoverLoad(coverUrl(pool)!)"
-            @error="onCoverError(coverUrl(pool)!)"
+            decoding="async"
+            :ref="(el) => syncCoverImg(el, activeCoverSrc(pool)!, poolRowKey(pool))"
+            @load="onCoverLoad(activeCoverSrc(pool)!, poolRowKey(pool))"
+            @error="onCoverError(activeCoverSrc(pool)!, poolRowKey(pool))"
           />
-          <div v-if="coverShowSpinner(pool)" class="pools-card-placeholder">
-            <v-progress-circular indeterminate size="28" width="2" color="accent" />
-          </div>
-          <div v-else-if="coverShowMissing(pool)" class="pools-card-placeholder">
+          <div v-if="coverShowMissing(pool)" class="pools-card-placeholder">
             <v-icon size="36" class="text-medium-emphasis"> mdi-image-off-outline </v-icon>
           </div>
           <div class="pools-badge pools-badge--pages">
@@ -70,24 +71,21 @@
       class="mb-1 pool-row"
     >
       <template #prepend>
-        <div class="pool-cover">
+        <div
+          class="pool-cover"
+          :class="{ 'pools-cover--pulse': coverShowLoading(pool) }"
+          :ref="(el) => observeCoverHost(el, poolRowKey(pool))"
+        >
           <img
-            v-if="coverUrl(pool) && !coverImgFailed(coverUrl(pool)!)"
-            :src="coverUrl(pool)!"
+            v-if="activeCoverSrc(pool) && !coverImgFailed(activeCoverSrc(pool)!)"
+            :src="activeCoverSrc(pool)!"
             :alt="displayName(pool.name)"
             class="pool-cover-img"
-            :class="{ 'pool-cover-img--loading': !coverImgReady(coverUrl(pool)!) }"
-            loading="lazy"
-            :ref="(el) => syncCoverImg(el, coverUrl(pool)!)"
-            @load="onCoverLoad(coverUrl(pool)!)"
-            @error="onCoverError(coverUrl(pool)!)"
-          />
-          <v-progress-circular
-            v-if="coverShowSpinner(pool)"
-            indeterminate
-            size="22"
-            width="2"
-            color="accent"
+            :class="{ 'pool-cover-img--loading': !coverImgReady(activeCoverSrc(pool)!) }"
+            decoding="async"
+            :ref="(el) => syncCoverImg(el, activeCoverSrc(pool)!, poolRowKey(pool))"
+            @load="onCoverLoad(activeCoverSrc(pool)!, poolRowKey(pool))"
+            @error="onCoverError(activeCoverSrc(pool)!, poolRowKey(pool))"
           />
           <v-icon v-else-if="coverShowMissing(pool)" size="32" class="text-medium-emphasis">
             mdi-image-off-outline
@@ -138,7 +136,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from "vue";
+import { onBeforeUnmount, reactive } from "vue";
 import type { Pool } from "@/worker/api";
 import type { PoolBrowseOrigin, PoolOriginMode } from "@/services/types";
 import { poolKey, poolRouteQuery } from "@/misc/util/poolOrigin";
@@ -151,6 +149,9 @@ export type PoolListItem = Pool & {
   /** Tailspace comic slug when originMode is tailspace. */
   comicName?: string;
 };
+
+/** Cap simultaneous cover image downloads across the visible grid. */
+const MAX_COVER_DOWNLOADS = 6;
 
 const props = defineProps<{
   pools: PoolListItem[];
@@ -231,39 +232,136 @@ const coverUrl = (pool: PoolListItem) => {
 
 const coverImgReadyMap = reactive<Record<string, boolean>>({});
 const coverImgFailedMap = reactive<Record<string, boolean>>({});
+/** Pool keys that have entered (or are near) the viewport. */
+const nearViewport = reactive<Record<string, boolean>>({});
+/** Pool keys allowed to set <img src> (concurrency-gated). */
+const downloadAllowed = reactive<Record<string, boolean>>({});
 
 const coverImgReady = (url: string) => !!coverImgReadyMap[url];
 const coverImgFailed = (url: string) => !!coverImgFailedMap[url];
 
-const onCoverLoad = (url: string) => {
+const downloadQueue: string[] = [];
+const downloadInFlight = new Set<string>();
+
+const pumpCoverDownloads = () => {
+  while (downloadInFlight.size < MAX_COVER_DOWNLOADS && downloadQueue.length) {
+    const key = downloadQueue.shift()!;
+    if (downloadAllowed[key] || downloadInFlight.has(key)) continue;
+    downloadInFlight.add(key);
+    downloadAllowed[key] = true;
+  }
+};
+
+const enqueueCoverDownload = (key: string) => {
+  if (downloadAllowed[key] || downloadInFlight.has(key) || downloadQueue.includes(key)) {
+    return;
+  }
+  downloadQueue.push(key);
+  pumpCoverDownloads();
+};
+
+const releaseCoverDownload = (key: string) => {
+  if (!downloadInFlight.has(key)) return;
+  downloadInFlight.delete(key);
+  pumpCoverDownloads();
+};
+
+const onCoverLoad = (url: string, poolKeyStr: string) => {
   coverImgReadyMap[url] = true;
   coverImgFailedMap[url] = false;
+  releaseCoverDownload(poolKeyStr);
 };
-const onCoverError = (url: string) => {
+const onCoverError = (url: string, poolKeyStr: string) => {
   coverImgReadyMap[url] = false;
   coverImgFailedMap[url] = true;
+  releaseCoverDownload(poolKeyStr);
 };
 
 /** Cached images may already be complete before @load fires. */
-const syncCoverImg = (el: unknown, url: string) => {
+const syncCoverImg = (el: unknown, url: string, poolKeyStr: string) => {
   if (!(el instanceof HTMLImageElement) || !url) return;
   if (!el.complete) return;
-  if (el.naturalWidth > 0) onCoverLoad(url);
-  else onCoverError(url);
+  if (el.naturalWidth > 0) onCoverLoad(url, poolKeyStr);
+  else onCoverError(url, poolKeyStr);
+};
+
+const observedEls = new WeakMap<Element, string>();
+let coverObserver: IntersectionObserver | null = null;
+
+const ensureCoverObserver = () => {
+  if (coverObserver) return coverObserver;
+  if (typeof IntersectionObserver === "undefined") return null;
+  coverObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const key = observedEls.get(entry.target);
+        if (!key) continue;
+        nearViewport[key] = true;
+        coverObserver?.unobserve(entry.target);
+      }
+    },
+    { rootMargin: "280px 0px", threshold: 0.01 },
+  );
+  return coverObserver;
+};
+
+const observeCoverHost = (el: unknown, key: string) => {
+  if (!(el instanceof Element)) return;
+  if (nearViewport[key]) return;
+  const obs = ensureCoverObserver();
+  if (!obs) {
+    nearViewport[key] = true;
+    return;
+  }
+  if (observedEls.get(el) === key) return;
+  observedEls.set(el, key);
+  obs.observe(el);
+};
+
+onBeforeUnmount(() => {
+  coverObserver?.disconnect();
+  coverObserver = null;
+});
+
+/**
+ * Only attach src for near-viewport cards, and only up to MAX_COVER_DOWNLOADS
+ * simultaneous downloads so a full watched grid does not stampede the network/GPU.
+ */
+const activeCoverSrc = (pool: PoolListItem) => {
+  const key = poolRowKey(pool);
+  if (!nearViewport[key]) return null;
+  const url = coverUrl(pool);
+  if (!url) return null;
+  if (coverImgReady(url) || coverImgFailed(url)) return url;
+  if (!downloadAllowed[key]) {
+    enqueueCoverDownload(key);
+    return null;
+  }
+  return url;
 };
 
 const coverIsPending = (pool: PoolListItem) =>
   !!props.coversPending?.has(poolRowKey(pool));
 
-const coverShowSpinner = (pool: PoolListItem) => {
+const coverShowLoading = (pool: PoolListItem) => {
+  const key = poolRowKey(pool);
+  if (!nearViewport[key]) return false;
   const url = coverUrl(pool);
-  if (url) return !coverImgReady(url) && !coverImgFailed(url);
+  if (url) {
+    if (coverImgReady(url) || coverImgFailed(url)) return false;
+    return true;
+  }
   return coverIsPending(pool);
 };
 
 const coverShowMissing = (pool: PoolListItem) => {
+  const key = poolRowKey(pool);
   const url = coverUrl(pool);
-  if (url) return coverImgFailed(url);
+  if (url) {
+    if (!nearViewport[key]) return false;
+    return coverImgFailed(url);
+  }
   return !coverIsPending(pool);
 };
 
@@ -396,6 +494,37 @@ const pageCountLabel = (pool: PoolListItem) => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+/* Lightweight CSS pulse — avoids N× Vuetify progress-circular SVG animations. */
+.pools-cover--pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.08) 45%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.08) 55%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: pools-cover-shimmer 1.35s ease-in-out infinite;
+}
+@keyframes pools-cover-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pools-cover--pulse::after {
+    animation: none;
+    background: rgba(255, 255, 255, 0.06);
+  }
 }
 .pools-badge {
   position: absolute;
