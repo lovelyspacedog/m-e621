@@ -15,6 +15,14 @@ export interface ChangelogSection {
  */
 export const changelogSections: ChangelogSection[] = [
   {
+    date: "2026-09-20",
+    title: "Clearer Suggester and Analyzer tips",
+    items: [
+      "Post Suggester and Favorite Analyzer first-visit tips explain how each tool works in plain language (Appearance → Reset tooltips to see them again)",
+      "Post Suggester and Favorite Analyzer pages include a short on-page primer of how each tool works",
+    ],
+  },
+  {
     date: "2026-09-18",
     title: "Federated Pools site toggles",
     items: [

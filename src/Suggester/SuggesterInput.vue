@@ -3,7 +3,14 @@
     <v-row align-center>
       <v-col class="text-center" cols="12" md="8" offset-md="2">
         <v-card>
+          <v-card-title>Post Suggester</v-card-title>
           <v-card-text>
+            <p class="text-body-2 text-medium-emphasis text-start mb-4">
+              Builds a taste profile from favorites, then ranks new posts that
+              share those tags (recent posts plus searches for your top tags).
+              Already-favorited posts are skipped. Use the sliders to weight
+              tag types — for example artist vs character.
+            </p>
             <v-form @submit="submit">
               <v-text-field
                 v-if="showUsername"
@@ -44,13 +51,19 @@
       v-model="suggesterTipOpen"
     >
       <p class="mb-3">
-        Suggests posts from weighted tag categories based on favorites (your
-        login, another user’s public favorites where supported, Federated
-        children, or Local).
+        Learns a taste profile from favorites (yours, another user’s public
+        favorites where supported, Federated children, or your Local library),
+        then finds posts you have not favorited yet that look similar.
+      </p>
+      <p class="mb-3">
+        It mixes recent posts with searches for your most common tags, scores
+        each candidate by how well its tags match that profile, and ranks the
+        results. Already-favorited posts are skipped.
       </p>
       <p class="mb-0">
-        Adjust the sliders to bias which tag types matter more. Some modes only
-        support your own favorites; Federated uses each enabled child’s auth.
+        Use the sliders to decide which tag types matter more (for example
+        artist vs character). Some sites only support your own favorites;
+        Federated uses each enabled child’s sign-in.
       </p>
     </TipDialog>
   </v-container>

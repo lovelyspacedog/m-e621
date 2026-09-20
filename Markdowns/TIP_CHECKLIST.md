@@ -31,8 +31,8 @@ When a tip ships: check the box, keep the tip id stable, mention it in `src/Land
 
 - [x] `fluffle-search` — First Fluffle dialog open. Host: `FluffleSearchDialog.vue`. Reverse-image search.
 - [x] `remux-local` — First Remux (toolbar or card). Host: `PostsPage.vue` (+ `PostPreview` inject). FFmpeg remux path.
-- [x] `post-suggester` — First Post Suggester visit. Host: `SuggesterInput.vue`. Multi-site weights / mode exclusions.
-- [x] `favorites-analyzer` — First Favorite Analyzer visit. Host: `FavoritesAnalyzer.vue`. Own/other/Federated/Local modes.
+- [x] `post-suggester` — First Post Suggester visit. Host: `SuggesterInput.vue`. Layman taste-profile → hybrid candidates → score/rank; weights / mode exclusions.
+- [x] `favorites-analyzer` — First Favorite Analyzer visit. Host: `FavoritesAnalyzer.vue`. Layman sample → tag frequency ranks; own/other/Federated/Local; link to Suggester.
 - [x] `flayrah-offline` — First offline Flayrah cache alert. Host: `FlayrahFeedPage.vue`. Last-good RSS cache.
 - [x] `starred-tags` — First Favorites / starred-tag groups page. Host: `FavoritesPage.vue`. Starred groups + cross-site copy.
 

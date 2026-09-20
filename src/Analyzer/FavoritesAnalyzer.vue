@@ -5,6 +5,11 @@
         <v-card>
           <v-card-title>Favorite Analyzer</v-card-title>
           <v-card-text>
+            <p class="text-body-2 text-medium-emphasis text-start mb-4">
+              Samples favorites and ranks tags by how often they appear, so you
+              can see which themes show up most. From the results you can copy
+              top tags, export JSON, or open the same profile in Post Suggester.
+            </p>
             <v-form @submit="submit">
               <v-text-field
                 v-if="showUsername"
@@ -31,9 +36,6 @@
                 Analyze favorites
               </v-btn>
             </v-form>
-            <div class="text-caption text-medium-emphasis mt-2">
-              Ranks tags by how often they appear in a sample of favorites.
-            </div>
           </v-card-text>
         </v-card>
       </v-col>
@@ -44,10 +46,19 @@
       title="Favorite Analyzer"
       v-model="analyzerTipOpen"
     >
+      <p class="mb-3">
+        Takes a sample of favorites and counts how often each tag appears, so
+        you can see which themes show up most (artists, characters, species,
+        and so on).
+      </p>
+      <p class="mb-3">
+        Pick another username where the site supports public favorites; on
+        other sites it uses your signed-in account. Federated merges each
+        enabled child’s favorites; Local uses your library favorites.
+      </p>
       <p class="mb-0">
-        Samples favorites and ranks tags by frequency. Use another username
-        where the site supports public favorites; Federated and Local use
-        enabled children or your library instead.
+        From the results you can copy top tags, export JSON, or open the same
+        profile in Post Suggester to get ranked recommendations.
       </p>
     </TipDialog>
   </v-container>
