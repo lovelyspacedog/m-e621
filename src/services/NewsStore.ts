@@ -1,7 +1,13 @@
 import { defineStore } from "pinia";
 import { computed } from "vue";
 import { useMainStore } from "./state";
-import type { NewsFeedLayout, NewsSavedArticle, NewsState } from "./types";
+import type {
+  NewsFeedLayout,
+  NewsReaderFontScale,
+  NewsReaderWidth,
+  NewsSavedArticle,
+  NewsState,
+} from "./types";
 import { migrateLegacyNewsId } from "@/worker/news/ids";
 import { saveNewsArticleOffline } from "@/worker/news/offlineCache";
 import {
@@ -12,13 +18,29 @@ import {
 const READ_CAP = 500;
 const SAVED_CAP = 200;
 
+function normalizeFontScale(raw: unknown): NewsReaderFontScale {
+  return raw === "sm" || raw === "lg" ? raw : "md";
+}
+
+function normalizeWidth(raw: unknown): NewsReaderWidth {
+  return raw === "narrow" || raw === "wide" ? raw : "normal";
+}
+
 function ensureState(main: ReturnType<typeof useMainStore>): NewsState {
   if (!main.news) {
-    main.news = { readIds: [], saved: [], layout: "list" };
+    main.news = {
+      readIds: [],
+      saved: [],
+      layout: "list",
+      readerFontScale: "md",
+      readerWidth: "normal",
+    };
   }
   if (!Array.isArray(main.news.readIds)) main.news.readIds = [];
   if (!Array.isArray(main.news.saved)) main.news.saved = [];
   if (main.news.layout !== "magazine") main.news.layout = "list";
+  main.news.readerFontScale = normalizeFontScale(main.news.readerFontScale);
+  main.news.readerWidth = normalizeWidth(main.news.readerWidth);
   return main.news;
 }
 
@@ -39,6 +61,21 @@ export const useNewsStore = defineStore("news", () => {
     get: (): NewsFeedLayout => ensureState(main).layout,
     set: (value: NewsFeedLayout) => {
       ensureState(main).layout = value === "magazine" ? "magazine" : "list";
+    },
+  });
+
+  const readerFontScale = computed({
+    get: (): NewsReaderFontScale =>
+      normalizeFontScale(ensureState(main).readerFontScale),
+    set: (value: NewsReaderFontScale) => {
+      ensureState(main).readerFontScale = normalizeFontScale(value);
+    },
+  });
+
+  const readerWidth = computed({
+    get: (): NewsReaderWidth => normalizeWidth(ensureState(main).readerWidth),
+    set: (value: NewsReaderWidth) => {
+      ensureState(main).readerWidth = normalizeWidth(value);
     },
   });
 
@@ -179,6 +216,8 @@ export const useNewsStore = defineStore("news", () => {
 
   return {
     layout,
+    readerFontScale,
+    readerWidth,
     saved,
     savedCount,
     readCount,

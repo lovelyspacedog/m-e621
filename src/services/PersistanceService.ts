@@ -251,7 +251,13 @@ class PersistanceService {
         this.main.savedPosts = { entries: [] };
         break;
       case "news":
-        this.main.news = { readIds: [], saved: [], layout: "list" };
+        this.main.news = {
+          readIds: [],
+          saved: [],
+          layout: "list",
+          readerFontScale: "md",
+          readerWidth: "normal",
+        };
         break;
       case "watchedPools":
         this.main.watchedPools = { entries: [] };
@@ -715,7 +721,13 @@ class PersistanceService {
     }
     if (newState.configVersion < 43) {
       if (!newState.news) {
-        newState.news = { readIds: [], saved: [], layout: "list" };
+        newState.news = {
+          readIds: [],
+          saved: [],
+          layout: "list",
+          readerFontScale: "md",
+          readerWidth: "normal",
+        };
       } else {
         if (!Array.isArray(newState.news.readIds)) {
           newState.news.readIds = [];
@@ -882,7 +894,13 @@ class PersistanceService {
       newState.savedPosts = { entries: [] };
     }
     if (!newState.news) {
-      newState.news = { readIds: [], saved: [], layout: "list" };
+      newState.news = {
+        readIds: [],
+        saved: [],
+        layout: "list",
+        readerFontScale: "md",
+        readerWidth: "normal",
+      };
     } else {
       if (!Array.isArray(newState.news.readIds)) {
         newState.news.readIds = [];
@@ -895,6 +913,20 @@ class PersistanceService {
         newState.news.layout !== "magazine"
       ) {
         newState.news.layout = "list";
+      }
+      if (
+        newState.news.readerFontScale !== "sm" &&
+        newState.news.readerFontScale !== "md" &&
+        newState.news.readerFontScale !== "lg"
+      ) {
+        newState.news.readerFontScale = "md";
+      }
+      if (
+        newState.news.readerWidth !== "narrow" &&
+        newState.news.readerWidth !== "normal" &&
+        newState.news.readerWidth !== "wide"
+      ) {
+        newState.news.readerWidth = "normal";
       }
     }
     if (!newState.artistDashboard || !Array.isArray(newState.artistDashboard.recentArtists)) {

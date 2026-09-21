@@ -30,7 +30,7 @@ Ship these first: News looks feature-complete, but Dogpatch reading, saved items
 - [x] **Keyboard focus scroll** — `j`/`k` focus does not `scrollIntoView`; focused row can leave the viewport.
 - [x] **Magazine layout parity** — Cards omit author-click, per-row tags, and a source chip (list layout has all three).
 - [x] **Relative dates** — Recent feed rows show “2h ago” (older than a week stay calendar dates).
-- [ ] **Day headings** — Group the feed by calendar day.
+- [x] **Day headings** — Group the feed by calendar day.
 - [x] **Go to top** — Posts has a floating control; News feed/article do not.
 - [x] **Structured filter prefixes** — Cheap win on existing search: `author:`, `tag:`, `source:` (keep AND-of-tokens for plain terms).
 - [x] **Copy-link keeps query** — Shared article URLs should keep `source` / `feed` / `view` / `tags` context.
@@ -39,8 +39,8 @@ Ship these first: News looks feature-complete, but Dogpatch reading, saved items
 
 - [x] **Embed placeholders** — Sanitizer drops `iframe`/`video`; Dogpatch embeds become holes. Replace with “Open embed on {source}” instead of disappearing. (`newsHtml.ts`)
 - [x] **Figure CSS by source** — Float-right suits Flayrah magazine; WordPress figures often want full width. Scope float to Flayrah or only when the figure is small. (`NewsArticlePage.vue`)
-- [ ] **Reader chrome** — Small type-scale / width control (higher value than a third layout).
-- [ ] **Image lightbox** — Click proxied in-article images (`/api/download`) to enlarge.
+- [x] **Reader chrome** — Small type-scale / width control (higher value than a third layout).
+- [x] **Image lightbox** — Click proxied in-article images (`/api/download`) to enlarge.
 - [x] **News intro tip** — First-visit tip for sources, attribution, Dogpatch content warning. Only `flayrah-offline` ships today. (`tipIds.ts`, `TIP_CHECKLIST.md`)
 
 ### History / deeper feed
@@ -64,14 +64,16 @@ Every source is hardcoded as `flayrah | dogpatch` in ids, proxy regexes, parsers
 
 ### Candidate sources (after registry)
 
+Chosen next outlets for the merged News feed (after the source registry lands):
+
 | Candidate | Why | Caution |
 | --- | --- | --- |
-| Dogpatch categories | Same site, already parsed | Allowlist slugs only |
-| More Flayrah terms | Same Drupal parser | Only if `/taxonomy/term/N/0/feed` still exists; no tag-index scrape |
-| [adjective][species] (`adjectivespecies.com/feed/`) | Furry literary magazine, RSS | Different CMS/HTML; TOS/license pass first |
-| Furscience blog RSS (if live) | Research, work-safe | Confirm feed + reuse policy |
+| **InFurNation** (`infurnation.com`) | Furry fandom news/guide; WordPress with a public RSS subscribe link | Confirm feed URL, HTML archive shape, media hosts, and reuse/attribution before wiring |
+| **Furry Writers’ Guild** (`furrywritersguild.com`) | Guild newsletters and anthro fiction community updates; WordPress site | Confirm `/feed/` (or equivalent), HTML archive shape, media hosts, and reuse/attribution before wiring |
 
-When a new source lands: namespaced ids (`source:numericId`), TOS row, `/api/download` hosts, changelog, source chip.
+Ship order among those two is open; registry first either way. Namespaced ids (`infurnation:…` / `fwg:…` or similar), TOS row, `/api/download` hosts, changelog, and a source chip per outlet.
+
+Already covered on existing sources (not candidates): Dogpatch category feeds (shipped). Optional later: more Flayrah taxonomy terms only if `/taxonomy/term/N/0/feed` still exists.
 
 ## Tests
 
@@ -85,9 +87,9 @@ When a new source lands: namespaced ids (`source:numericId`), TOS row, `/api/dow
 
 1. ~~Correctness: `content:encoded`, saved-filter `source`, taxonomy chips honesty, SFW vs Dogpatch~~ — shipped
 2. ~~Durability: saved body snapshots, unread undo + badge, archive-first for saved, last-opened eviction~~ — shipped
-3. ~~Reader polish: scroll-into-view, magazine parity, go-to-top, embed placeholders, News intro tip~~ — shipped (relative dates and `author:`/`tag:`/`source:` included; day headings, type scale, and lightbox still open)
+3. ~~Reader polish: scroll-into-view, magazine parity, go-to-top, embed placeholders, News intro tip~~ — shipped (day headings, type scale, lightbox included)
 4. ~~Same sources, more feed: Dogpatch categories + paged RSS + media: tags~~ — shipped (Atom still open)
-5. Source registry, then one new magazine (not five)
+5. Source registry, then InFurNation and/or Furry Writers’ Guild (not five at once)
 
 ## Progress
 
@@ -96,7 +98,7 @@ When a new source lands: namespaced ids (`source:numericId`), TOS row, `/api/dow
 | Checklist doc | Done | This file |
 | Correctness | Done | encoded, source query, chips, SFW |
 | Durability | Done | saved bodies, unread, cache eviction |
-| Reader polish | Done | scroll, magazine, go-to-top, embeds, intro tip; day headings / lightbox / type scale still open |
+| Reader polish | Done | day headings, type/width chrome, lightbox; Atom still open |
 | Deeper feed | Done | Dogpatch categories, paged Dogpatch RSS, media: thumbs; Atom still open |
-| Registry / new sources | Pending | after slices above |
+| Registry / new sources | Pending | after slices above; next outlets = InFurNation + Furry Writers’ Guild |
 | Non-goals | Held | no Federated-as-posts, no scrape |

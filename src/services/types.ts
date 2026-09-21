@@ -95,11 +95,19 @@ export interface NewsSavedArticle {
 
 export type NewsFeedLayout = "list" | "magazine";
 
+/** Article body text size. */
+export type NewsReaderFontScale = "sm" | "md" | "lg";
+
+/** Article column max-width. */
+export type NewsReaderWidth = "narrow" | "normal" | "wide";
+
 export interface NewsState {
   /** MRU namespaced article ids marked read (capped). */
   readIds: string[];
   saved: NewsSavedArticle[];
   layout: NewsFeedLayout;
+  readerFontScale?: NewsReaderFontScale;
+  readerWidth?: NewsReaderWidth;
 }
 
 /** @deprecated Use NewsSavedArticle */

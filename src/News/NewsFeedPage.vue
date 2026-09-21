@@ -177,147 +177,157 @@
     </div>
 
     <div v-else-if="layout === 'magazine'" class="news-magazine pa-3">
-      <router-link
-        v-for="(article, idx) in filtered"
-        :key="article.id"
-        class="news-card"
-        :class="{
-          'news-unread': !newsStore.isRead(article.id),
-          'news-focused': idx === focusIndex,
-        }"
-        :to="articleRoute(article)"
-      >
-        <img
-          v-if="article.thumbUrl"
-          class="news-card-thumb"
-          :src="thumbSrc(article)"
-          :alt="article.title"
-          loading="lazy"
-        />
-        <div class="news-card-body">
-          <div class="mb-1">
-            <v-chip size="x-small" variant="tonal" label>
-              {{ sourceLabel(article.source) }}
-            </v-chip>
-          </div>
-          <div class="news-card-title">{{ article.title }}</div>
-          <div class="text-caption text-medium-emphasis">
-            <a
-              class="news-author-link"
-              href="#"
-              @click.prevent.stop="filterAuthor(article.author)"
-            >{{ article.author }}</a>
-            <template v-if="formatDate(article)"> · {{ formatDate(article) }}</template>
-          </div>
-          <p class="text-body-2 mt-1 mb-0">{{ article.excerpt }}</p>
-          <div v-if="article.tags.length" class="d-flex flex-wrap ga-1 mt-2">
-            <v-chip
-              v-for="tag in article.tags.slice(0, 4)"
-              :key="tag"
-              size="x-small"
-              variant="tonal"
-              @click.prevent.stop="filterTag(tag)"
-            >
-              {{ tag }}
-            </v-chip>
-          </div>
-          <div class="d-flex align-center ga-1 mt-2">
-            <v-btn
-              icon
-              size="x-small"
-              variant="text"
-              :aria-label="newsStore.isSaved(article.id) ? 'Unsave' : 'Save'"
-              @click.prevent.stop="toggleSave(article)"
-            >
-              <v-icon size="small">
-                {{ newsStore.isSaved(article.id) ? "mdi-bookmark" : "mdi-bookmark-outline" }}
-              </v-icon>
-            </v-btn>
-          </div>
-        </div>
-      </router-link>
-    </div>
-
-    <v-list v-else class="news-list pa-0" lines="three">
-      <v-list-item
-        v-for="(article, idx) in filtered"
-        :key="article.id"
-        class="news-item"
-        :class="{
-          'news-unread': !newsStore.isRead(article.id),
-          'news-focused': idx === focusIndex,
-        }"
-        :to="articleRoute(article)"
-      >
-        <template v-if="article.thumbUrl" #prepend>
+      <template v-for="group in dayGroups" :key="group.key">
+        <h2 class="news-day-heading news-day-heading--magazine">
+          {{ group.label }}
+        </h2>
+        <router-link
+          v-for="(article, localIdx) in group.articles"
+          :key="article.id"
+          class="news-card"
+          :class="{
+            'news-unread': !newsStore.isRead(article.id),
+            'news-focused': group.startIndex + localIdx === focusIndex,
+          }"
+          :to="articleRoute(article)"
+        >
           <img
-            class="news-thumb"
+            v-if="article.thumbUrl"
+            class="news-card-thumb"
             :src="thumbSrc(article)"
             :alt="article.title"
             loading="lazy"
           />
-        </template>
-        <v-list-item-title
-          class="text-wrap"
-          :class="newsStore.isRead(article.id) ? '' : 'font-weight-bold'"
-        >
-          <v-chip size="x-small" variant="tonal" class="mr-2" label>
-            {{ sourceLabel(article.source) }}
-          </v-chip>
-          {{ article.title }}
-        </v-list-item-title>
-        <v-list-item-subtitle class="text-wrap">
-          <a
-            class="news-author-link"
-            href="#"
-            @click.prevent.stop="filterAuthor(article.author)"
-          >{{ article.author }}</a>
-          <template v-if="formatDate(article)"> · {{ formatDate(article) }}</template>
-        </v-list-item-subtitle>
-        <v-list-item-subtitle class="text-wrap mt-1">
-          {{ article.excerpt }}
-        </v-list-item-subtitle>
-        <div v-if="article.tags.length" class="d-flex flex-wrap ga-1 mt-2">
-          <v-chip
-            v-for="tag in article.tags.slice(0, 6)"
-            :key="tag"
-            size="x-small"
-            variant="tonal"
-            @click.prevent.stop="filterTag(tag)"
+          <div class="news-card-body">
+            <div class="mb-1">
+              <v-chip size="x-small" variant="tonal" label>
+                {{ sourceLabel(article.source) }}
+              </v-chip>
+            </div>
+            <div class="news-card-title">{{ article.title }}</div>
+            <div class="text-caption text-medium-emphasis">
+              <a
+                class="news-author-link"
+                href="#"
+                @click.prevent.stop="filterAuthor(article.author)"
+              >{{ article.author }}</a>
+              <template v-if="formatDate(article)"> · {{ formatDate(article) }}</template>
+            </div>
+            <p class="text-body-2 mt-1 mb-0">{{ article.excerpt }}</p>
+            <div v-if="article.tags.length" class="d-flex flex-wrap ga-1 mt-2">
+              <v-chip
+                v-for="tag in article.tags.slice(0, 4)"
+                :key="tag"
+                size="x-small"
+                variant="tonal"
+                @click.prevent.stop="filterTag(tag)"
+              >
+                {{ tag }}
+              </v-chip>
+            </div>
+            <div class="d-flex align-center ga-1 mt-2">
+              <v-btn
+                icon
+                size="x-small"
+                variant="text"
+                :aria-label="newsStore.isSaved(article.id) ? 'Unsave' : 'Save'"
+                @click.prevent.stop="toggleSave(article)"
+              >
+                <v-icon size="small">
+                  {{ newsStore.isSaved(article.id) ? "mdi-bookmark" : "mdi-bookmark-outline" }}
+                </v-icon>
+              </v-btn>
+            </div>
+          </div>
+        </router-link>
+      </template>
+    </div>
+
+    <div v-else class="news-list-wrap">
+      <template v-for="group in dayGroups" :key="group.key">
+        <h2 class="news-day-heading px-4 pt-3 pb-1">{{ group.label }}</h2>
+        <v-list class="news-list pa-0" lines="three">
+          <v-list-item
+            v-for="(article, localIdx) in group.articles"
+            :key="article.id"
+            class="news-item"
+            :class="{
+              'news-unread': !newsStore.isRead(article.id),
+              'news-focused': group.startIndex + localIdx === focusIndex,
+            }"
+            :to="articleRoute(article)"
           >
-            {{ tag }}
-          </v-chip>
-        </div>
-        <template #append>
-          <v-btn
-            icon
-            size="small"
-            variant="text"
-            :aria-label="newsStore.isRead(article.id) ? 'Mark unread' : 'Mark read'"
-            @click.prevent.stop="toggleRead(article)"
-          >
-            <v-icon>
-              {{
-                newsStore.isRead(article.id)
-                  ? "mdi-email-open-outline"
-                  : "mdi-email-outline"
-              }}
-            </v-icon>
-          </v-btn>
-          <v-btn
-            icon
-            size="small"
-            variant="text"
-            :aria-label="newsStore.isSaved(article.id) ? 'Unsave' : 'Save'"
-            @click.prevent.stop="toggleSave(article)"
-          >
-            <v-icon>
-              {{ newsStore.isSaved(article.id) ? "mdi-bookmark" : "mdi-bookmark-outline" }}
-            </v-icon>
-          </v-btn>
-        </template>
-      </v-list-item>
-    </v-list>
+            <template v-if="article.thumbUrl" #prepend>
+              <img
+                class="news-thumb"
+                :src="thumbSrc(article)"
+                :alt="article.title"
+                loading="lazy"
+              />
+            </template>
+            <v-list-item-title
+              class="text-wrap"
+              :class="newsStore.isRead(article.id) ? '' : 'font-weight-bold'"
+            >
+              <v-chip size="x-small" variant="tonal" class="mr-2" label>
+                {{ sourceLabel(article.source) }}
+              </v-chip>
+              {{ article.title }}
+            </v-list-item-title>
+            <v-list-item-subtitle class="text-wrap">
+              <a
+                class="news-author-link"
+                href="#"
+                @click.prevent.stop="filterAuthor(article.author)"
+              >{{ article.author }}</a>
+              <template v-if="formatDate(article)"> · {{ formatDate(article) }}</template>
+            </v-list-item-subtitle>
+            <v-list-item-subtitle class="text-wrap mt-1">
+              {{ article.excerpt }}
+            </v-list-item-subtitle>
+            <div v-if="article.tags.length" class="d-flex flex-wrap ga-1 mt-2">
+              <v-chip
+                v-for="tag in article.tags.slice(0, 6)"
+                :key="tag"
+                size="x-small"
+                variant="tonal"
+                @click.prevent.stop="filterTag(tag)"
+              >
+                {{ tag }}
+              </v-chip>
+            </div>
+            <template #append>
+              <v-btn
+                icon
+                size="small"
+                variant="text"
+                :aria-label="newsStore.isRead(article.id) ? 'Mark unread' : 'Mark read'"
+                @click.prevent.stop="toggleRead(article)"
+              >
+                <v-icon>
+                  {{
+                    newsStore.isRead(article.id)
+                      ? "mdi-email-open-outline"
+                      : "mdi-email-outline"
+                  }}
+                </v-icon>
+              </v-btn>
+              <v-btn
+                icon
+                size="small"
+                variant="text"
+                :aria-label="newsStore.isSaved(article.id) ? 'Unsave' : 'Save'"
+                @click.prevent.stop="toggleSave(article)"
+              >
+                <v-icon>
+                  {{ newsStore.isSaved(article.id) ? "mdi-bookmark" : "mdi-bookmark-outline" }}
+                </v-icon>
+              </v-btn>
+            </template>
+          </v-list-item>
+        </v-list>
+      </template>
+    </div>
     <div
       v-if="canLoadOlder"
       class="d-flex justify-center pa-4"
@@ -381,6 +391,7 @@ import {
   parseNewsQueryTerms,
 } from "@/worker/news/parseRss";
 import { proxyDownloadUrl } from "@/misc/util/newsHtml";
+import { groupNewsByDay } from "@/misc/util/newsDayGroups";
 import { prefersReducedMotion } from "@/misc/util/reducedMotion";
 import { useGoToTop } from "@/misc/useGoToTop";
 import { useNewsStore, useShortcutService } from "@/services";
@@ -485,6 +496,8 @@ const filtered = computed(() => {
 const unreadInFeed = computed(
   () => articles.value.filter((a) => !newsStore.isRead(a.id)).length,
 );
+
+const dayGroups = computed(() => groupNewsByDay(filtered.value));
 
 const emptyMessage = computed(() => {
   if (viewFilter.value === "saved") {
@@ -901,6 +914,18 @@ onUnmounted(() => {
   object-fit: cover;
   border-radius: 8px;
   margin-inline-end: 12px;
+}
+.news-day-heading {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+.news-day-heading--magazine {
+  grid-column: 1 / -1;
+  margin: 4px 0 0;
+  padding: 4px 2px;
 }
 .news-author-link {
   color: inherit;

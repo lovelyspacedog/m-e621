@@ -26,6 +26,7 @@ export const changelogSections: ChangelogSection[] = [
       "Saved News articles keep a body snapshot and offline cache evicts by last opened; mark unread (u), mark filtered read, and a sidebar unread badge",
       "News reader: j/k scrolls the focused row, magazine cards match the list, relative dates, Go to top, author:/tag:/source: filters, embed links instead of blank players, Flayrah-only figure float, and a first-visit tip",
       "Dogpatch category chips (allowlisted feeds) and Load older for Dogpatch pages; Flayrah’s public RSS is not paged",
+      "News feed groups headlines by day; article reader has text size and column width controls plus click-to-enlarge images",
     ],
   },
   {

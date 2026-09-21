@@ -65,6 +65,40 @@
       >
         Open on {{ sourceLabel }}
       </v-btn>
+      <v-btn-toggle
+        v-if="article"
+        :model-value="newsStore.readerFontScale"
+        density="compact"
+        variant="outlined"
+        divided
+        mandatory
+        class="news-reader-toggle"
+        @update:model-value="onFontScale"
+      >
+        <v-btn value="sm" size="small" aria-label="Smaller text">A−</v-btn>
+        <v-btn value="md" size="small" aria-label="Default text">A</v-btn>
+        <v-btn value="lg" size="small" aria-label="Larger text">A+</v-btn>
+      </v-btn-toggle>
+      <v-btn-toggle
+        v-if="article"
+        :model-value="newsStore.readerWidth"
+        density="compact"
+        variant="outlined"
+        divided
+        mandatory
+        class="news-reader-toggle"
+        @update:model-value="onReaderWidth"
+      >
+        <v-btn value="narrow" size="small" aria-label="Narrow column" icon>
+          <v-icon size="small">mdi-arrow-collapse-horizontal</v-icon>
+        </v-btn>
+        <v-btn value="normal" size="small" aria-label="Normal column" icon>
+          <v-icon size="small">mdi-arrow-expand-horizontal</v-icon>
+        </v-btn>
+        <v-btn value="wide" size="small" aria-label="Wide column" icon>
+          <v-icon size="small">mdi-arrow-left-right</v-icon>
+        </v-btn>
+      </v-btn-toggle>
     </div>
 
     <v-alert v-if="error" type="error" class="ma-4" closable @click:close="error = null">
@@ -78,7 +112,11 @@
     <article
       v-else-if="article"
       class="news-article pa-4"
-      :class="{ 'news-article--flayrah': article.source === 'flayrah' }"
+      :class="[
+        `news-article--font-${newsStore.readerFontScale}`,
+        `news-article--width-${newsStore.readerWidth}`,
+        { 'news-article--flayrah': article.source === 'flayrah' },
+      ]"
     >
       <p class="text-overline text-medium-emphasis mb-1">
         {{ sourceLabel }}
@@ -109,7 +147,11 @@
       </div>
       <!-- Sanitized in sanitizeNewsHtml before bind. -->
       <!-- eslint-disable-next-line vue/no-v-html -->
-      <div class="news-body text-body-1" v-html="bodyHtml" />
+      <div
+        class="news-body text-body-1"
+        v-html="bodyHtml"
+        @click="onBodyClick"
+      />
       <p class="text-caption text-medium-emphasis mt-6 mb-0">
         <template v-if="article.source === 'flayrah'">
           Content © Flayrah staff and contributors — some rights reserved. Default license is
@@ -123,6 +165,17 @@
         </template>
       </p>
     </article>
+    <v-dialog v-model="lightboxOpen" max-width="96vw" scrim>
+      <div class="news-lightbox" @click="lightboxOpen = false">
+        <img
+          v-if="lightboxSrc"
+          :src="lightboxSrc"
+          :alt="lightboxAlt"
+          class="news-lightbox-img"
+          @click.stop
+        />
+      </div>
+    </v-dialog>
     <Teleport to="body">
       <v-btn
         v-show="goToTopVisible"
@@ -163,7 +216,11 @@ import {
 } from "@/worker/news/parseRss";
 import { sanitizeNewsHtml } from "@/misc/util/newsHtml";
 import { useGoToTop } from "@/misc/useGoToTop";
-import { useNewsStore, useSnackbarStore } from "@/services";
+import {
+  useNewsStore,
+  useSnackbarStore,
+} from "@/services";
+import type { NewsReaderFontScale, NewsReaderWidth } from "@/services/types";
 
 const route = useRoute();
 const router = useRouter();
@@ -180,6 +237,32 @@ const article = ref<NewsArticle | null>(null);
 const siblings = ref<NewsArticle[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const lightboxOpen = ref(false);
+const lightboxSrc = ref("");
+const lightboxAlt = ref("");
+
+function onFontScale(value: unknown) {
+  if (value === "sm" || value === "md" || value === "lg") {
+    newsStore.readerFontScale = value as NewsReaderFontScale;
+  }
+}
+
+function onReaderWidth(value: unknown) {
+  if (value === "narrow" || value === "normal" || value === "wide") {
+    newsStore.readerWidth = value as NewsReaderWidth;
+  }
+}
+
+function onBodyClick(e: MouseEvent) {
+  const t = e.target;
+  if (!(t instanceof HTMLImageElement)) return;
+  const src = t.currentSrc || t.src;
+  if (!src) return;
+  e.preventDefault();
+  lightboxSrc.value = src;
+  lightboxAlt.value = t.alt || article.value?.title || "Article image";
+  lightboxOpen.value = true;
+}
 
 const articleId = computed(() => {
   const rawSource = route.params.source;
@@ -444,12 +527,36 @@ onUnmounted(() => {
 
 <style scoped>
 .news-article {
-  max-width: 48rem;
   margin-inline: auto;
+}
+.news-article--width-narrow {
+  max-width: 36rem;
+}
+.news-article--width-normal {
+  max-width: 48rem;
+}
+.news-article--width-wide {
+  max-width: 64rem;
+}
+.news-article--font-sm .news-body {
+  font-size: 0.925rem;
+  line-height: 1.55;
+}
+.news-article--font-md .news-body {
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+.news-article--font-lg .news-body {
+  font-size: 1.2rem;
+  line-height: 1.7;
+}
+.news-reader-toggle {
+  flex: 0 0 auto;
 }
 .news-body :deep(img) {
   max-width: 100%;
   height: auto;
+  cursor: zoom-in;
 }
 .news-article--flayrah .news-body :deep(figure) {
   float: right;
@@ -498,5 +605,20 @@ onUnmounted(() => {
   z-index: 2300;
   min-width: 44px;
   min-height: 44px;
+}
+.news-lightbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  padding: 12px;
+  cursor: zoom-out;
+}
+.news-lightbox-img {
+  max-width: min(96vw, 1200px);
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 4px;
+  cursor: default;
 }
 </style>
