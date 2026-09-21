@@ -1,6 +1,6 @@
 /**
  * Vite-dev News proxy matching serve.py:
- *   GET /api/news/rss?source=all|flayrah|dogpatch&feed=…
+ *   GET /api/news/rss?source=all|flayrah|dogpatch|infurnation|fwg&feed=…
  *   GET /api/news/article/:source/:id
  *
  * Also accepts legacy /api/flayrah/* for old clients.
@@ -8,12 +8,17 @@
 import type { Plugin } from "vite";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolveNewsRssUrl } from "./src/worker/news/feeds";
+import {
+  isNewsSource,
+  newsArticleUpstreamUrl,
+} from "./src/worker/news/registry";
 
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) " +
   "Chrome/124.0.0.0 Safari/537.36 m-e621-news-proxy/1.0";
 
-const NEWS_ARTICLE_RE = /^\/api\/news\/article\/(flayrah|dogpatch)\/(\d+)$/;
+const NEWS_ARTICLE_RE =
+  /^\/api\/news\/article\/(flayrah|dogpatch|infurnation|fwg)\/(\d+)$/;
 const LEGACY_ARTICLE_RE = /^\/api\/flayrah\/article\/(\d+)$/;
 
 function send(
@@ -84,7 +89,7 @@ async function proxyRss(
   try {
     const resp = await fetchUpstream(
       target,
-      "application/rss+xml, application/xml, text/xml, */*",
+      "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
     );
     send(res, resp.status, resp.body, resp.contentType, 300);
   } catch (err) {
@@ -105,10 +110,15 @@ async function proxyArticle(
     sendJson(res, 400, { ok: false, message: "invalid article id" });
     return;
   }
-  const target =
-    source === "dogpatch"
-      ? `https://dogpatch.press/?p=${id}`
-      : `https://www.flayrah.com/node/${id}`;
+  if (!isNewsSource(source)) {
+    sendJson(res, 400, { ok: false, message: `unknown news source: ${source}` });
+    return;
+  }
+  const target = newsArticleUpstreamUrl(source, id);
+  if (!target) {
+    sendJson(res, 400, { ok: false, message: "invalid article id" });
+    return;
+  }
   try {
     const resp = await fetchUpstream(
       target,

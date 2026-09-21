@@ -24,7 +24,7 @@ A public instance is operable at **[pawfeed.tonypup.box.ca](https://pawfeed.tony
 
 ## Highlights
 
-- **Nine imageboards plus News** — browse e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry, and Tailspace, plus a News mode that merges Flayrah and Dogpatch Press via attributed RSS (source filters, Flayrah taxonomy feeds, Dogpatch category feeds, archive deep-links, read/saved state with body snapshots, offline last-good cache).
+- **Nine imageboards plus News** — browse e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry, and Tailspace, plus a News mode that merges Flayrah, Dogpatch Press, InFurNation, and Furry Writers’ Guild via attributed RSS (source filters, Flayrah taxonomy feeds, Dogpatch category feeds, archive deep-links, read/saved state with body snapshots, offline last-good cache).
 - **Federated browsing** — date-merge child sites into a Search or Following feed; landing chips multi-select inclusion; Defaults / Auth-only presets, per-site filters, origin-aware actions, and Federated Pools browse/reader for e621/e6ai plus Furbooru galleries (Inkbunny via watch / open-by-id / chips; optional Tailspace comics via sidebar Sites in Pools).
 - **Local library** — browse a folder on disk with fuzzy search, favorites, remux, and portable sidecars (Chromium or the Tauri desktop build).
 - **Independent accounts** — configure authentication, blacklists, favorites, history, and preferences for each site.

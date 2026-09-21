@@ -1,9 +1,14 @@
 /**
  * Sanitize news article HTML for in-app rendering.
- * Rewrites Flayrah / Dogpatch images through /api/download.
+ * Rewrites allowlisted source images through /api/download.
  */
 
 import type { NewsSource } from "@/worker/news/ids";
+import {
+  newsExactMediaHostSet,
+  newsSourceBaseOrigin,
+  newsSourceLabel,
+} from "@/worker/news/registry";
 
 const ALLOWED_TAGS = new Set([
   "A",
@@ -59,22 +64,20 @@ const DROP_TAGS = new Set([
   "BUTTON",
 ]);
 
+const EXACT_MEDIA_HOSTS = newsExactMediaHostSet();
+
 function isProxiedMediaHost(host: string): boolean {
   const h = host.toLowerCase();
   return (
-    h === "flayrah.com" ||
-    h === "www.flayrah.com" ||
-    h === "dogpatch.press" ||
-    h === "www.dogpatch.press" ||
+    EXACT_MEDIA_HOSTS.has(h) ||
     h.endsWith(".wp.com") ||
     h.endsWith(".wordpress.com")
   );
 }
 
 function baseOriginForSource(source?: NewsSource): string {
-  return source === "dogpatch"
-    ? "https://dogpatch.press"
-    : "https://www.flayrah.com";
+  if (!source) return "https://www.flayrah.com";
+  return newsSourceBaseOrigin(source);
 }
 
 export function absolutizeNewsUrl(
@@ -132,9 +135,8 @@ function rewriteSrcset(srcset: string, source?: NewsSource): string {
 }
 
 function sourceEmbedLabel(source?: NewsSource): string {
-  if (source === "dogpatch") return "Dogpatch Press";
-  if (source === "flayrah") return "Flayrah";
-  return "the original site";
+  if (!source) return "the original site";
+  return newsSourceLabel(source);
 }
 
 /** Replace dropped media embeds with an attributed outbound link. */

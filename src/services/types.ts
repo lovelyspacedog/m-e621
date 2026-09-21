@@ -1,3 +1,5 @@
+import type { NewsSource } from "@/worker/news/ids";
+
 export enum BlacklistMode {
   hide,
   blur,
@@ -77,14 +79,14 @@ export interface SavedPostEntry {
 }
 
 export interface NewsSavedArticle {
-  /** Namespaced id: `flayrah:123` / `dogpatch:456`. */
+  /** Namespaced id: `flayrah:123` / `dogpatch:456` / `infurnation:…` / `fwg:…`. */
   id: string;
   title: string;
   link: string;
   author: string;
   thumbUrl: string | null;
   savedAt: number;
-  source?: "flayrah" | "dogpatch";
+  source?: NewsSource;
   /** Sanitized-ready HTML snapshot so Saved survives RSS window expiry. */
   descriptionHtml?: string;
   excerpt?: string;

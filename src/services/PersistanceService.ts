@@ -806,8 +806,8 @@ class PersistanceService {
       const seenRead = new Set<string>();
       for (const id of legacyNews?.readIds || []) {
         let next: string | null = null;
-        if (typeof id === "string" && /^(flayrah|dogpatch):\d+$/i.test(id)) {
-          const m = id.match(/^(flayrah|dogpatch):(\d+)$/i);
+        if (typeof id === "string" && /^(flayrah|dogpatch|infurnation|fwg):\d+$/i.test(id)) {
+          const m = id.match(/^(flayrah|dogpatch|infurnation|fwg):(\d+)$/i);
           if (m) next = `${m[1].toLowerCase()}:${m[2]}`;
         } else if (typeof id === "number" && Number.isFinite(id) && id > 0) {
           next = `flayrah:${Math.floor(id)}`;
@@ -828,8 +828,8 @@ class PersistanceService {
         if (!entry || typeof entry !== "object") continue;
         const rawId = entry.id;
         let id: string | null = null;
-        if (typeof rawId === "string" && /^(flayrah|dogpatch):\d+$/i.test(rawId)) {
-          const m = rawId.match(/^(flayrah|dogpatch):(\d+)$/i);
+        if (typeof rawId === "string" && /^(flayrah|dogpatch|infurnation|fwg):\d+$/i.test(rawId)) {
+          const m = rawId.match(/^(flayrah|dogpatch|infurnation|fwg):(\d+)$/i);
           if (m) id = `${m[1].toLowerCase()}:${m[2]}`;
         } else if (typeof rawId === "number" && rawId > 0) {
           id = `flayrah:${Math.floor(rawId)}`;
@@ -842,7 +842,13 @@ class PersistanceService {
         if (!id || seenSaved.has(id)) continue;
         seenSaved.add(id);
         const source =
-          id.startsWith("dogpatch:") ? ("dogpatch" as const) : ("flayrah" as const);
+          id.startsWith("dogpatch:")
+            ? ("dogpatch" as const)
+            : id.startsWith("infurnation:")
+              ? ("infurnation" as const)
+              : id.startsWith("fwg:")
+                ? ("fwg" as const)
+                : ("flayrah" as const);
         saved.push({
           id,
           title: typeof entry.title === "string" ? entry.title : "",

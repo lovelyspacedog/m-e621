@@ -26,4 +26,14 @@ describe("resolveNewsRssUrl", () => {
     );
     expect(resolveNewsRssUrl("flayrah", "nope", 1)).toBeNull();
   });
+
+  it("serves InFurNation and FWG full feeds with paging", () => {
+    expect(resolveNewsRssUrl("infurnation", "full", 1)).toBe(
+      "https://www.infurnation.com/feed/",
+    );
+    expect(resolveNewsRssUrl("fwg", "full", 2)).toBe(
+      "https://furrywritersguild.com/feed/?paged=2",
+    );
+    expect(resolveNewsRssUrl("infurnation", "reviews", 1)).toBeNull();
+  });
 });

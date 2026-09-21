@@ -8,7 +8,7 @@ import type {
   NewsSavedArticle,
   NewsState,
 } from "./types";
-import { migrateLegacyNewsId } from "@/worker/news/ids";
+import { migrateLegacyNewsId, parseNewsId, isNewsSource, type NewsSource } from "@/worker/news/ids";
 import { saveNewsArticleOffline } from "@/worker/news/offlineCache";
 import {
   excerptFromDescription,
@@ -47,11 +47,14 @@ function ensureState(main: ReturnType<typeof useMainStore>): NewsState {
 function resolveSource(
   id: string,
   source?: string,
-): "flayrah" | "dogpatch" {
-  if (source === "dogpatch" || source === "flayrah") return source;
-  return migrateLegacyNewsId(id)?.startsWith("dogpatch:")
-    ? "dogpatch"
-    : "flayrah";
+): NewsSource {
+  if (isNewsSource(source)) return source;
+  const migrated = migrateLegacyNewsId(id);
+  if (migrated) {
+    const parsed = parseNewsId(migrated);
+    if (parsed) return parsed.source;
+  }
+  return "flayrah";
 }
 
 export const useNewsStore = defineStore("news", () => {

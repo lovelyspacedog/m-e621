@@ -16,7 +16,7 @@ export interface ChangelogSection {
 export const changelogSections: ChangelogSection[] = [
   {
     date: "2026-09-21",
-    title: "Go to top and News correctness",
+    title: "Go to top, News polish, and more News sources",
     items: [
       "Posts search feed shows a floating Go to top button after you scroll (list and grid), pinned for mobile safe areas and tip toasts",
       "Go to top sits bottom-right of the viewport so it stays clear of the floating sidebar",
@@ -25,8 +25,9 @@ export const changelogSections: ChangelogSection[] = [
       "Flayrah taxonomy chips only show when filtering to Flayrah; SFW only is hidden in News (it never applied there)",
       "Saved News articles keep a body snapshot and offline cache evicts by last opened; mark unread (u), mark filtered read, and a sidebar unread badge",
       "News reader: j/k scrolls the focused row, magazine cards match the list, relative dates, Go to top, author:/tag:/source: filters, embed links instead of blank players, Flayrah-only figure float, and a first-visit tip",
-      "Dogpatch category chips (allowlisted feeds) and Load older for Dogpatch pages; Flayrah’s public RSS is not paged",
+      "Dogpatch category chips (allowlisted feeds) and Load older for WordPress-paged sources; Flayrah’s public RSS is not paged",
       "News feed groups headlines by day; article reader has text size and column width controls plus click-to-enlarge images",
+      "News source registry plus InFurNation and Furry Writers’ Guild in the merged feed (Atom parse when a feed is Atom)",
     ],
   },
   {

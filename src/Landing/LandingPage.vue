@@ -295,8 +295,8 @@ onUnmounted(clearSplashTimers);
 
 const capabilities = computed(() => [
   siteMode.supportsLocalMode
-    ? "Nine imageboards, News (Flayrah + Dogpatch Press), Federated date-merge (Search or Following), and a Local folder library"
-    : "Nine imageboards, News (Flayrah + Dogpatch Press), and Federated date-merge (Search or Following)",
+    ? "Nine imageboards, News (Flayrah / Dogpatch / InFurNation / FWG), Federated date-merge (Search or Following), and a Local folder library"
+    : "Nine imageboards, News (Flayrah / Dogpatch / InFurNation / FWG), and Federated date-merge (Search or Following)",
   "Federated chips multi-select which sites merge; independent accounts, blacklists, and prefs per site",
   "Saved posts across origins, watched pools with new-page badges, and starred tag groups",
   "Feed Layout: full-width, grid, or compact cards; infinite scroll or page buttons",

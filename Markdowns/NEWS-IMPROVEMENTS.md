@@ -1,6 +1,6 @@
 # News mode improvements
 
-Checklist for improving News (`src/News/`, `src/worker/news/`, `vite-news-proxy.ts`, `serve.py` `/api/news/*`). Merged Flayrah + Dogpatch Press RSS; keep read-only attributed redistribution.
+Checklist for improving News (`src/News/`, `src/worker/news/`, `vite-news-proxy.ts`, `serve.py` `/api/news/*`). Merged Flayrah + Dogpatch Press + InFurNation + Furry Writers’ Guild RSS; keep read-only attributed redistribution.
 
 Predecessor: [FLAYRAH-IMPROVEMENTS.md](./FLAYRAH-IMPROVEMENTS.md) (all items done; mode renamed to News).
 
@@ -45,35 +45,31 @@ Ship these first: News looks feature-complete, but Dogpatch reading, saved items
 
 ### History / deeper feed
 
-- [x] **Load older (paged RSS)** — WP `?paged=2` on `/feed/`; Flayrah taxonomies are also windowed. Allowlisted paged fetch with attribution before chasing a third source. Dogpatch pages ship; Flayrah’s public RSS ignores `page` so Load older is Dogpatch-only.
+- [x] **Load older (paged RSS)** — WP `?paged=2` on `/feed/`; Flayrah taxonomies are also windowed. Allowlisted paged fetch with attribution before chasing a third source. Dogpatch / InFurNation / FWG pages ship; Flayrah’s public RSS ignores `page` so Load older skips Flayrah.
 
 ## Same sources, more feed
 
 - [x] **Dogpatch category feeds** — Mirror Flayrah taxonomies via allowlisted `https://dogpatch.press/category/{slug}/feed/` (News, Reviews, Opinion, Interviews, etc.). Keep allowlists in sync across `feeds.ts`, `vite-news-proxy.ts`, and `serve.py`.
 - [x] **Parse `media:content` / `media:thumbnail`** — WP often puts the hero there; do not rely on `<enclosure>` alone.
-- [ ] **Atom support** — So the next source is not blocked on RSS 2.0 only.
+- [x] **Atom support** — Parse Atom `<feed>` / `<entry>` so a source is not blocked on RSS 2.0 only.
 
 ## Architecture (before a third outlet)
 
-Every source is hardcoded as `flayrah | dogpatch` in ids, proxy regexes, parsers, sanitizer hosts, TOS, and download allowlists.
+Every source was hardcoded as `flayrah | dogpatch` in ids, proxy regexes, parsers, sanitizer hosts, TOS, and download allowlists.
 
-- [ ] **Source registry** — Shared config: id, label, home URL, RSS allowlist, article URL template, HTML parser, media hosts, TOS entry. One config consumed by client + Vite proxy + `serve.py`.
+- [x] **Source registry** — Shared config: id, label, home URL, RSS allowlist, article URL template, HTML parser, media hosts, TOS entry. (`src/worker/news/registry.ts`; Vite uses `resolveNewsRssUrl` / `newsArticleUpstreamUrl`; `serve.py` NEWS_* tables kept in sync.)
 - [ ] **Optional same-story clustering** — Fuzzy match title + date in the merged feed with “also on Flayrah/Dogpatch”; only after source chips and unread are solid.
 - [ ] **Watch authors (local)** — Local author list → filter chip; not accounts.
 - [ ] **New-since-last-visit** — Optional notifications (off by default); last-seen cursor in `NewsState`.
 
 ### Candidate sources (after registry)
 
-Chosen next outlets for the merged News feed (after the source registry lands):
-
-| Candidate | Why | Caution |
+| Candidate | Why | Status |
 | --- | --- | --- |
-| **InFurNation** (`infurnation.com`) | Furry fandom news/guide; WordPress with a public RSS subscribe link | Confirm feed URL, HTML archive shape, media hosts, and reuse/attribution before wiring |
-| **Furry Writers’ Guild** (`furrywritersguild.com`) | Guild newsletters and anthro fiction community updates; WordPress site | Confirm `/feed/` (or equivalent), HTML archive shape, media hosts, and reuse/attribution before wiring |
+| **InFurNation** (`infurnation.com`) | Furry fandom news/guide; WordPress public RSS | Shipped (`infurnation:N`) |
+| **Furry Writers’ Guild** (`furrywritersguild.com`) | Guild newsletters and anthro fiction community updates | Shipped (`fwg:N`) |
 
-Ship order among those two is open; registry first either way. Namespaced ids (`infurnation:…` / `fwg:…` or similar), TOS row, `/api/download` hosts, changelog, and a source chip per outlet.
-
-Already covered on existing sources (not candidates): Dogpatch category feeds (shipped). Optional later: more Flayrah taxonomy terms only if `/taxonomy/term/N/0/feed` still exists.
+Optional later: more Flayrah taxonomy terms only if `/taxonomy/term/N/0/feed` still exists.
 
 ## Tests
 
@@ -81,6 +77,7 @@ Already covered on existing sources (not candidates): Dogpatch category feeds (s
 - [ ] Saved-filter `source` round-trip.
 - [x] Dogpatch category allowlist rejects unknown slugs (400).
 - [x] Embed/iframe placeholder after sanitize.
+- [x] Atom entry parse (`fwg` fixture).
 - [ ] Unread mark / mark-all-read persistence.
 
 ## Suggested ship order
@@ -88,8 +85,8 @@ Already covered on existing sources (not candidates): Dogpatch category feeds (s
 1. ~~Correctness: `content:encoded`, saved-filter `source`, taxonomy chips honesty, SFW vs Dogpatch~~ — shipped
 2. ~~Durability: saved body snapshots, unread undo + badge, archive-first for saved, last-opened eviction~~ — shipped
 3. ~~Reader polish: scroll-into-view, magazine parity, go-to-top, embed placeholders, News intro tip~~ — shipped (day headings, type scale, lightbox included)
-4. ~~Same sources, more feed: Dogpatch categories + paged RSS + media: tags~~ — shipped (Atom still open)
-5. Source registry, then InFurNation and/or Furry Writers’ Guild (not five at once)
+4. ~~Same sources, more feed: Dogpatch categories + paged RSS + media: tags~~ — shipped
+5. ~~Source registry + InFurNation + Furry Writers’ Guild + Atom~~ — shipped
 
 ## Progress
 
@@ -98,7 +95,7 @@ Already covered on existing sources (not candidates): Dogpatch category feeds (s
 | Checklist doc | Done | This file |
 | Correctness | Done | encoded, source query, chips, SFW |
 | Durability | Done | saved bodies, unread, cache eviction |
-| Reader polish | Done | day headings, type/width chrome, lightbox; Atom still open |
-| Deeper feed | Done | Dogpatch categories, paged Dogpatch RSS, media: thumbs; Atom still open |
-| Registry / new sources | Pending | after slices above; next outlets = InFurNation + Furry Writers’ Guild |
+| Reader polish | Done | day headings, type/width chrome, lightbox |
+| Deeper feed | Done | Dogpatch categories, paged WP RSS, media: thumbs, Atom |
+| Registry / new sources | Done | registry + InFurNation + FWG |
 | Non-goals | Held | no Federated-as-posts, no scrape |

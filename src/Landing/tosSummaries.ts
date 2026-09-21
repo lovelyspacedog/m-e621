@@ -338,16 +338,17 @@ export const tosSummaries: TosSummary[] = [
   },
   {
     id: "news",
-    name: "News (Flayrah + Dogpatch Press)",
+    name: "News (multi-source)",
     sourceUrl: "https://www.flayrah.com/about",
     sourceLabel: "Flayrah About",
-    note: "PawFeed’s News mode reads public RSS from Flayrah and Dogpatch Press. Flayrah does not publish a single formal Terms of Service page; this summary combines Flayrah’s About notes with Dogpatch’s public-site expectations. Not legal advice.",
+    note: "PawFeed’s News mode reads public RSS from Flayrah, Dogpatch Press, InFurNation, and Furry Writers’ Guild. Flayrah does not publish a single formal Terms of Service page; this summary combines each outlet’s public-site expectations. Not legal advice.",
     sections: [
       {
         heading: "What it is",
         paragraphs: [
           "Flayrah is a community furry news magazine since 2001; content is intended to be work-safe to read.",
           "Dogpatch Press publishes furry community news and investigative reporting. Topics can include adult or disturbing material; PawFeed does not filter that feed.",
+          "InFurNation covers furry fandom news and guides. Furry Writers’ Guild posts guild and anthro-fiction community updates.",
         ],
       },
       {
@@ -362,8 +363,8 @@ export const tosSummaries: TosSummary[] = [
         heading: "PawFeed use",
         bullets: [
           "Read-only merged RSS browsing with Flayrah taxonomy feeds, Dogpatch category feeds, in-app reading, archive deep-links, local read/saved state (with article body snapshots), and links back to each source",
-          "No Flayrah or Dogpatch login, comments, or ratings through PawFeed",
-          "Dogpatch articles are shown from the public feed with attribution and an open-on-source link",
+          "No login, comments, or ratings through PawFeed for any News outlet",
+          "WordPress outlets are shown from their public feeds with attribution and an open-on-source link",
           "SFW only does not apply in News mode; Dogpatch may include adult or investigative topics",
         ],
       },
@@ -387,6 +388,50 @@ export const tosSummaries: TosSummary[] = [
         bullets: [
           "Read-only public RSS and in-app article view with a link back to dogpatch.press",
           "No Dogpatch login or commenting through PawFeed",
+        ],
+      },
+    ],
+  },
+  {
+    id: "infurnation",
+    name: "InFurNation",
+    sourceUrl: "https://www.infurnation.com/",
+    sourceLabel: "infurnation.com",
+    note: "InFurNation does not publish a formal Terms of Service summary here. PawFeed uses their public WordPress RSS only. Visit the site for current policies.",
+    sections: [
+      {
+        heading: "What it is",
+        paragraphs: [
+          "Furry fandom news and community guides.",
+        ],
+      },
+      {
+        heading: "PawFeed use",
+        bullets: [
+          "Read-only public RSS and in-app article view with a link back to infurnation.com",
+          "No InFurNation login or commenting through PawFeed",
+        ],
+      },
+    ],
+  },
+  {
+    id: "fwg",
+    name: "Furry Writers’ Guild",
+    sourceUrl: "https://furrywritersguild.com/",
+    sourceLabel: "furrywritersguild.com",
+    note: "Furry Writers’ Guild does not publish a formal Terms of Service summary here. PawFeed uses their public WordPress RSS only. Visit the site for current policies.",
+    sections: [
+      {
+        heading: "What it is",
+        paragraphs: [
+          "Guild newsletters and anthro fiction community updates.",
+        ],
+      },
+      {
+        heading: "PawFeed use",
+        bullets: [
+          "Read-only public RSS and in-app article view with a link back to furrywritersguild.com",
+          "No Guild login or commenting through PawFeed",
         ],
       },
     ],

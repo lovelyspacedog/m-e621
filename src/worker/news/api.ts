@@ -1,5 +1,5 @@
 /**
- * News RSS + archive article client (Flayrah + Dogpatch Press).
+ * News RSS + archive article client (multi-source via registry).
  * Fetches via local proxy (/api/news/…) — no CORS on source hosts.
  */
 import {
@@ -17,6 +17,11 @@ import {
 } from "./offlineCache";
 import { parseNewsArticleHtml } from "./parseArticleHtml";
 import { parseNewsRss, type NewsArticle } from "./parseRss";
+import {
+  newsSourceLabel,
+  newsSourceSupportsPaging,
+  newsSourcesInAll,
+} from "./registry";
 
 export type { NewsArticle };
 export type { NewsSource, NewsSourceFilter };
@@ -35,14 +40,10 @@ function proxyBase(): string {
 }
 
 function cacheKey(source: NewsSourceFilter, feed: string, page = 1): string {
-  const section = normalizeNewsFeedId(
-    source === "dogpatch" ? "dogpatch" : "flayrah",
-    feed,
-  );
+  const section =
+    source === "all" ? "full" : normalizeNewsFeedId(source, feed);
   const p = normalizeNewsPage(page);
-  if (source === "all") return `all:${section}:p${p}`;
-  if (source === "dogpatch") return `dogpatch:${section}:p${p}`;
-  return `flayrah:${section}:p${p}`;
+  return `${source}:${section}:p${p}`;
 }
 
 export function getNewsCacheAgeMs(
@@ -89,13 +90,69 @@ async function fetchOneSource(
   const section = normalizeNewsFeedId(source, feed);
   if (section !== "full") qs.set("feed", section);
   const response = await fetch(`${proxyBase()}/rss?${qs.toString()}`, {
-    headers: { Accept: "application/rss+xml, application/xml, text/xml, */*" },
+    headers: {
+      Accept:
+        "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+    },
   });
   if (!response.ok) {
     throw new Error(`${source} RSS failed (${response.status})`);
   }
   const xml = await response.text();
   return parseNewsRss(xml, source);
+}
+
+/** Page>1 for "all": merge every source that supports paging. */
+async function fetchAllOlder(page: number): Promise<NewsArticle[]> {
+  const pageable = newsSourcesInAll().filter(newsSourceSupportsPaging);
+  const results = await Promise.allSettled(
+    pageable.map((s) => fetchOneSource(s, "full", page)),
+  );
+  const parts: NewsArticle[] = [];
+  const failed: string[] = [];
+  results.forEach((r, i) => {
+    const src = pageable[i];
+    if (r.status === "fulfilled") parts.push(...r.value);
+    else failed.push(newsSourceLabel(src));
+  });
+  if (!parts.length) {
+    const firstReject = results.find((r) => r.status === "rejected") as
+      | PromiseRejectedResult
+      | undefined;
+    throw firstReject?.reason || new Error("News RSS failed");
+  }
+  if (failed.length) {
+    lastPartialWarning = `${failed.join(", ")} unavailable — showing other sources.`;
+  }
+  return sortByPublished(parts);
+}
+
+async function fetchAllPageOne(feed: string): Promise<NewsArticle[]> {
+  const sources = newsSourcesInAll();
+  const results = await Promise.allSettled(
+    sources.map((s) =>
+      fetchOneSource(s, s === "flayrah" ? feed : "full", 1),
+    ),
+  );
+  const parts: NewsArticle[] = [];
+  const failed: string[] = [];
+  results.forEach((r, i) => {
+    if (r.status === "fulfilled") parts.push(...r.value);
+    else failed.push(newsSourceLabel(sources[i]));
+  });
+  if (!parts.length) {
+    const firstReject = results.find((r) => r.status === "rejected") as
+      | PromiseRejectedResult
+      | undefined;
+    throw firstReject?.reason || new Error("News RSS failed");
+  }
+  if (failed.length) {
+    lastPartialWarning =
+      failed.length === 1
+        ? `${failed[0]} unavailable — showing other sources.`
+        : `${failed.join(", ")} unavailable — showing other sources.`;
+  }
+  return sortByPublished(parts);
 }
 
 export async function fetchNewsArticles(opts?: {
@@ -105,10 +162,8 @@ export async function fetchNewsArticles(opts?: {
   page?: number;
 }): Promise<NewsArticle[]> {
   const source = normalizeNewsSourceFilter(opts?.source);
-  const feed = normalizeNewsFeedId(
-    source === "dogpatch" ? "dogpatch" : "flayrah",
-    opts?.feed,
-  );
+  const feed =
+    source === "all" ? "full" : normalizeNewsFeedId(source, opts?.feed);
   const page = normalizeNewsPage(opts?.page ?? 1);
   const key = cacheKey(source, feed, page);
   const now = Date.now();
@@ -124,33 +179,10 @@ export async function fetchNewsArticles(opts?: {
   try {
     let articles: NewsArticle[];
     if (source === "all") {
-      if (page > 1) {
-        articles = sortByPublished(
-          await fetchOneSource("dogpatch", "full", page),
-        );
-      } else {
-        const results = await Promise.allSettled([
-          fetchOneSource("flayrah", feed, 1),
-          fetchOneSource("dogpatch", "full", 1),
-        ]);
-        const parts: NewsArticle[] = [];
-        const failed: string[] = [];
-        if (results[0].status === "fulfilled") parts.push(...results[0].value);
-        else failed.push("Flayrah");
-        if (results[1].status === "fulfilled") parts.push(...results[1].value);
-        else failed.push("Dogpatch Press");
-        if (!parts.length) {
-          throw results[0].status === "rejected"
-            ? results[0].reason
-            : results[1].status === "rejected"
-              ? results[1].reason
-              : new Error("News RSS failed");
-        }
-        if (failed.length) {
-          lastPartialWarning = `${failed.join(" and ")} unavailable — showing the other source.`;
-        }
-        articles = sortByPublished(parts);
-      }
+      articles =
+        page > 1
+          ? await fetchAllOlder(page)
+          : await fetchAllPageOne(opts?.feed || "full");
     } else {
       articles = sortByPublished(await fetchOneSource(source, feed, page));
     }
@@ -244,7 +276,6 @@ export function peekNewsCachedArticles(
 ): NewsArticle[] {
   const hit = cacheByKey.get(cacheKey(source, feed));
   if (hit?.articles?.length) return hit.articles;
-  // Fall back to any cached feed so the nav badge still works after a taxonomy view.
   for (const entry of cacheByKey.values()) {
     if (entry.articles?.length) return entry.articles;
   }

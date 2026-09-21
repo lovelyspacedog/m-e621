@@ -1,5 +1,5 @@
 /**
- * Parse Flayrah Drupal node HTML or Dogpatch WordPress post HTML into NewsArticle.
+ * Parse Flayrah Drupal node HTML or WordPress post HTML into NewsArticle.
  */
 import { makeNewsId, type NewsSource } from "./ids";
 import {
@@ -7,6 +7,7 @@ import {
   firstImageUrl,
   type NewsArticle,
 } from "./parseRss";
+import { getNewsSourceDef, newsSourceBaseOrigin } from "./registry";
 
 function metaContent(doc: Document, attr: string, value: string): string {
   const el =
@@ -128,7 +129,7 @@ function parseFlayrahHtml(html: string, idHint: number): NewsArticle | null {
   };
 }
 
-function dogpatchIdFromDoc(doc: Document, idHint: number): number {
+function wordpressIdFromDoc(doc: Document, idHint: number): number {
   const body = doc.body;
   if (body) {
     for (const cls of Array.from(body.classList)) {
@@ -160,7 +161,7 @@ function dogpatchIdFromDoc(doc: Document, idHint: number): number {
   return idHint > 0 ? idHint : 0;
 }
 
-function extractDogpatchBodyHtml(doc: Document): string {
+function extractWordpressBodyHtml(doc: Document): string {
   const selectors = [
     "article .entry-content",
     ".post .entry-content",
@@ -183,22 +184,26 @@ function extractDogpatchBodyHtml(doc: Document): string {
   return "";
 }
 
-function parseDogpatchHtml(html: string, idHint: number): NewsArticle | null {
+function parseWordpressHtml(
+  html: string,
+  source: NewsSource,
+  idHint: number,
+): NewsArticle | null {
   const doc = new DOMParser().parseFromString(html, "text/html");
-  const numericId = dogpatchIdFromDoc(doc, 0);
+  const numericId = wordpressIdFromDoc(doc, 0);
   if (!numericId) return null;
   if (idHint > 0 && numericId !== idHint) return null;
 
+  const baseOrigin = newsSourceBaseOrigin(source);
   const title =
     metaContent(doc, "property", "og:title") ||
     (doc.querySelector("h1.entry-title, h1")?.textContent || "").trim();
   if (!title) return null;
 
   const link =
-    metaContent(doc, "property", "og:url") ||
-    `https://dogpatch.press/?p=${numericId}`;
+    metaContent(doc, "property", "og:url") || `${baseOrigin}/?p=${numericId}`;
 
-  const descriptionHtml = extractDogpatchBodyHtml(doc);
+  const descriptionHtml = extractWordpressBodyHtml(doc);
   if (!descriptionHtml) return null;
 
   const publishedAt =
@@ -208,8 +213,8 @@ function parseDogpatchHtml(html: string, idHint: number): NewsArticle | null {
   const ogImage = metaContent(doc, "property", "og:image");
 
   return {
-    id: makeNewsId("dogpatch", numericId),
-    source: "dogpatch",
+    id: makeNewsId(source, numericId),
+    source,
     title,
     link,
     author: authorFromDoc(doc),
@@ -218,8 +223,7 @@ function parseDogpatchHtml(html: string, idHint: number): NewsArticle | null {
     tags: tagsFromDoc(doc),
     descriptionHtml,
     excerpt: excerptFromDescription(descriptionHtml),
-    thumbUrl:
-      ogImage || firstImageUrl(descriptionHtml, "https://dogpatch.press"),
+    thumbUrl: ogImage || firstImageUrl(descriptionHtml, baseOrigin),
     fromArchive: true,
   };
 }
@@ -231,7 +235,10 @@ export function parseNewsArticleHtml(
   idHint = 0,
 ): NewsArticle | null {
   if (!html) return null;
-  if (source === "dogpatch") return parseDogpatchHtml(html, idHint);
+  const def = getNewsSourceDef(source);
+  if (def?.parser === "wordpress") {
+    return parseWordpressHtml(html, source, idHint);
+  }
   return parseFlayrahHtml(html, idHint);
 }
 

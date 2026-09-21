@@ -4,6 +4,7 @@ import {
   firstImageUrl,
   parseFlayrahRss,
   parseDogpatchRss,
+  parseNewsRss,
   articleMatchesQuery,
 } from "./parseRss";
 
@@ -89,6 +90,30 @@ describe("parseDogpatchRss", () => {
     expect(articles[0].descriptionHtml).toContain("Full body that only appears");
     expect(articles[0].descriptionHtml).toContain("Dogpatch excerpt");
     expect(articles[0].thumbUrl).toContain("hero.jpg");
+  });
+});
+
+describe("parseNewsRss Atom", () => {
+  it("parses Atom entries into namespaced WordPress ids", () => {
+    const xml = `<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Sample</title>
+  <entry>
+    <title>Atom guild note</title>
+    <link href="https://furrywritersguild.com/2026/09/20/note/" rel="alternate"/>
+    <id>https://furrywritersguild.com/?p=99</id>
+    <published>2026-09-20T12:00:00Z</published>
+    <author><name>Guild</name></author>
+    <category term="News"/>
+    <content type="html"><![CDATA[<p>Hello from Atom.</p>]]></content>
+  </entry>
+</feed>`;
+    const articles = parseNewsRss(xml, "fwg");
+    expect(articles).toHaveLength(1);
+    expect(articles[0].id).toBe("fwg:99");
+    expect(articles[0].author).toBe("Guild");
+    expect(articles[0].descriptionHtml).toContain("Hello from Atom");
+    expect(articles[0].tags).toEqual(["News"]);
   });
 });
 

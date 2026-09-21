@@ -159,8 +159,9 @@
       v-model="newsIntroTipOpen"
     >
       <p class="mb-2">
-        News merges public RSS from Flayrah and Dogpatch Press. Flayrah
-        section chips only appear when Flayrah is selected.
+        News merges public RSS from Flayrah, Dogpatch Press, InFurNation, and
+        Furry Writers’ Guild. Section chips only appear when a source that has
+        them is selected.
       </p>
       <p class="mb-0">
         Dogpatch can include adult or investigative topics. Articles stay
@@ -337,7 +338,11 @@
         :loading="loadingMore"
         @click="loadOlder"
       >
-        {{ sourceFilter === "all" ? "Load older Dogpatch" : "Load older" }}
+        {{
+          sourceFilter === "all"
+            ? "Load older pages"
+            : "Load older"
+        }}
       </v-btn>
     </div>
     <Teleport to="body">
@@ -372,12 +377,11 @@ import {
   type NewsArticle,
 } from "@/worker/news/api";
 import {
-  DOGPATCH_FEED_OPTIONS,
-  FLAYRAH_FEED_OPTIONS,
   NEWS_RSS_PAGE_MAX,
   NEWS_SOURCE_OPTIONS,
   normalizeNewsFeedId,
   normalizeNewsSourceFilter,
+  sectionFeedOptions,
   type NewsSourceFilter,
 } from "@/worker/news/feeds";
 import {
@@ -386,6 +390,10 @@ import {
   parseNewsId,
   type NewsSource,
 } from "@/worker/news/ids";
+import {
+  isNewsSource,
+  newsSourceSupportsPaging,
+} from "@/worker/news/registry";
 import {
   articleMatchesQuery,
   parseNewsQueryTerms,
@@ -430,9 +438,10 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null;
 let ageTimer: ReturnType<typeof setInterval> | null = null;
 
 const sourceOptions = NEWS_SOURCE_OPTIONS;
-const feedOptions = computed(() =>
-  sourceFilter.value === "dogpatch" ? DOGPATCH_FEED_OPTIONS : FLAYRAH_FEED_OPTIONS,
-);
+const feedOptions = computed(() => {
+  if (!isNewsSource(sourceFilter.value)) return [];
+  return sectionFeedOptions(sourceFilter.value);
+});
 const viewOptions: { id: ViewFilter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "unread", label: "Unread" },
@@ -450,13 +459,12 @@ const sourceFilter = computed(() =>
   normalizeNewsSourceFilter(route.query.source),
 );
 const feedId = computed(() =>
-  normalizeNewsFeedId(
-    sourceFilter.value === "dogpatch" ? "dogpatch" : "flayrah",
-    route.query.feed,
-  ),
+  normalizeNewsFeedId(sourceFilter.value, route.query.feed),
 );
 const showTaxonomyChips = computed(
-  () => sourceFilter.value === "flayrah" || sourceFilter.value === "dogpatch",
+  () =>
+    isNewsSource(sourceFilter.value) &&
+    sectionFeedOptions(sourceFilter.value).length > 1,
 );
 const viewFilter = computed((): ViewFilter => {
   const raw = route.query.view;
@@ -530,27 +538,25 @@ const popularTags = computed(() => {
 });
 
 const feedBlurb = computed(() => {
-  if (sourceFilter.value === "dogpatch") {
-    const opt = DOGPATCH_FEED_OPTIONS.find((f) => f.id === feedId.value);
-    if (!opt || opt.id === "full") return "Recent RSS feed from Dogpatch Press.";
-    return `${opt.label} category feed from Dogpatch Press.`;
+  if (sourceFilter.value === "all") {
+    return "Merged RSS from Flayrah, Dogpatch Press, InFurNation, and Furry Writers’ Guild.";
   }
-  if (sourceFilter.value === "flayrah") {
-    const opt = FLAYRAH_FEED_OPTIONS.find((f) => f.id === feedId.value);
-    if (!opt || opt.id === "full") return "Recent RSS feed from Flayrah.";
-    return `${opt.label} taxonomy feed from Flayrah.`;
-  }
-  return "Merged RSS from Flayrah and Dogpatch Press.";
+  if (!isNewsSource(sourceFilter.value)) return "Recent news RSS.";
+  const label = newsSourceLabel(sourceFilter.value);
+  const opts = sectionFeedOptions(sourceFilter.value);
+  const opt = opts.find((f) => f.id === feedId.value);
+  if (!opt || opt.id === "full") return `Recent RSS feed from ${label}.`;
+  const kind = sourceFilter.value === "flayrah" ? "taxonomy" : "category";
+  return `${opt.label} ${kind} feed from ${label}.`;
 });
 
 const externalHome = computed(() => {
-  if (sourceFilter.value === "dogpatch") {
-    return { href: newsSourceHomeUrl("dogpatch"), label: "Open Dogpatch" };
-  }
-  if (sourceFilter.value === "flayrah") {
-    return { href: newsSourceHomeUrl("flayrah"), label: "Open Flayrah" };
-  }
-  return null;
+  if (!isNewsSource(sourceFilter.value)) return null;
+  const src = sourceFilter.value;
+  return {
+    href: newsSourceHomeUrl(src),
+    label: `Open ${newsSourceLabel(src)}`,
+  };
 });
 
 const updatedLabel = computed(() => {
@@ -570,10 +576,7 @@ function sourceLabel(source: NewsSource) {
 function listQuery(extra?: Record<string, string>) {
   const q: Record<string, string> = { ...extra };
   if (sourceFilter.value !== "all") q.source = sourceFilter.value;
-  if (
-    (sourceFilter.value === "flayrah" || sourceFilter.value === "dogpatch") &&
-    feedId.value !== "full"
-  ) {
+  if (showTaxonomyChips.value && feedId.value !== "full") {
     q.feed = feedId.value;
   }
   if (tagsQuery.value.trim()) q.tags = tagsQuery.value.trim();
@@ -606,7 +609,8 @@ function replaceListQuery(partial: {
   const view = partial.view ?? viewFilter.value;
   if (source && source !== "all") q.source = source;
   if (
-    (source === "flayrah" || source === "dogpatch") &&
+    isNewsSource(source) &&
+    sectionFeedOptions(source).length > 1 &&
     feed &&
     feed !== "full"
   ) {
@@ -638,10 +642,7 @@ function filterAuthor(author: string) {
 
 function setFeed(id: string) {
   void replaceListQuery({
-    feed: normalizeNewsFeedId(
-      sourceFilter.value === "dogpatch" ? "dogpatch" : "flayrah",
-      id,
-    ),
+    feed: normalizeNewsFeedId(sourceFilter.value, id),
   });
 }
 
@@ -649,7 +650,7 @@ function setSource(id: NewsSourceFilter) {
   const next = normalizeNewsSourceFilter(id);
   void replaceListQuery({
     source: next,
-    feed: normalizeNewsFeedId(next === "dogpatch" ? "dogpatch" : "flayrah", feedId.value),
+    feed: normalizeNewsFeedId(next, feedId.value),
   });
 }
 
@@ -723,7 +724,11 @@ function formatDate(article: NewsArticle): string {
 
 function thumbSrc(article: NewsArticle): string {
   const url = article.thumbUrl || "";
-  if (/flayrah\.com|dogpatch\.press|\.wp\.com/i.test(url)) {
+  if (
+    /flayrah\.com|dogpatch\.press|infurnation\.com|furrywritersguild\.com|\.wp\.com/i.test(
+      url,
+    )
+  ) {
     return proxyDownloadUrl(url);
   }
   return url;
@@ -755,14 +760,21 @@ function refresh() {
   void load(true);
 }
 
-const canLoadOlder = computed(
-  () =>
-    !noMore.value &&
-    !loading.value &&
-    viewFilter.value !== "saved" &&
-    (sourceFilter.value === "dogpatch" || sourceFilter.value === "all") &&
-    articles.value.length > 0,
-);
+const canLoadOlder = computed(() => {
+  if (
+    noMore.value ||
+    loading.value ||
+    viewFilter.value === "saved" ||
+    !articles.value.length
+  ) {
+    return false;
+  }
+  if (sourceFilter.value === "all") return true;
+  return (
+    isNewsSource(sourceFilter.value) &&
+    newsSourceSupportsPaging(sourceFilter.value)
+  );
+});
 
 async function loadOlder() {
   if (!canLoadOlder.value || loadingMore.value) return;
@@ -772,11 +784,13 @@ async function loadOlder() {
     const seen = new Set(articles.value.map((a) => a.id));
     let page = 2;
     let fresh: NewsArticle[] = [];
+    const olderSource =
+      sourceFilter.value === "all" ? "all" : sourceFilter.value;
     // Walk pages until something new appears or the window is exhausted.
     while (page <= NEWS_RSS_PAGE_MAX && !fresh.length) {
       const more = await fetchNewsArticles({
-        source: "dogpatch",
-        feed: sourceFilter.value === "dogpatch" ? feedId.value : "full",
+        source: olderSource,
+        feed: sourceFilter.value === "all" ? "full" : feedId.value,
         page,
       });
       fresh = more.filter((a) => !seen.has(a.id));

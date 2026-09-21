@@ -407,10 +407,14 @@ SOFURRY_AUTH_POSTS = {
     "/api/sofurry/login-cookies",
 }
 
+# Must match src/worker/news/registry.ts + feeds.ts (resolveNewsRssUrl).
+NEWS_RSS_PAGE_MAX = 8
+NEWS_SOURCES = frozenset({"flayrah", "dogpatch", "infurnation", "fwg"})
+NEWS_PAGING_SOURCES = frozenset({"dogpatch", "infurnation", "fwg"})
 FLAYRAH_RSS_URL = "https://www.flayrah.com/rss-full.xml"
 DOGPATCH_RSS_URL = "https://dogpatch.press/feed/"
-# Must match src/worker/news/feeds.ts (resolveNewsRssUrl).
-NEWS_RSS_PAGE_MAX = 8
+INFURNATION_RSS_URL = "https://www.infurnation.com/feed/"
+FWG_RSS_URL = "https://furrywritersguild.com/feed/"
 DOGPATCH_CATEGORY_FEEDS = {
     "announcements": "https://dogpatch.press/category/announcements/feed/",
     "business": "https://dogpatch.press/category/business/feed/",
@@ -431,14 +435,20 @@ NEWS_MEDIA_HOSTS = frozenset({
     "www.flayrah.com",
     "dogpatch.press",
     "www.dogpatch.press",
+    "infurnation.com",
+    "www.infurnation.com",
+    "furrywritersguild.com",
+    "www.furrywritersguild.com",
 })
 # Back-compat alias
 FLAYRAH_MEDIA_HOSTS = NEWS_MEDIA_HOSTS
 NEWS_RSS_PATH = "/api/news/rss"
-NEWS_ARTICLE_PATH = re.compile(r"^/api/news/article/(flayrah|dogpatch)/(\d+)$")
+NEWS_ARTICLE_PATH = re.compile(
+    r"^/api/news/article/(flayrah|dogpatch|infurnation|fwg)/(\d+)$"
+)
 FLAYRAH_RSS_PATH = "/api/flayrah/rss"
 FLAYRAH_ARTICLE_PATH = re.compile(r"^/api/flayrah/article/(\d+)$")
-# Curated taxonomy feeds (must match src/worker/news/feeds.ts).
+# Curated taxonomy feeds (must match src/worker/news/registry.ts).
 FLAYRAH_FEEDS = {
     "full": FLAYRAH_RSS_URL,
     "reviews": "https://www.flayrah.com/taxonomy/term/37/0/feed",
@@ -449,6 +459,18 @@ FLAYRAH_FEEDS = {
     "science-fiction": "https://www.flayrah.com/taxonomy/term/32/0/feed",
     "art": "https://www.flayrah.com/taxonomy/term/49/0/feed",
     "wikifur-news": "https://www.flayrah.com/taxonomy/term/51/0/feed",
+}
+NEWS_ARTICLE_URLS = {
+    "flayrah": "https://www.flayrah.com/node/{id}",
+    "dogpatch": "https://dogpatch.press/?p={id}",
+    "infurnation": "https://www.infurnation.com/?p={id}",
+    "fwg": "https://furrywritersguild.com/?p={id}",
+}
+NEWS_FULL_RSS = {
+    "flayrah": FLAYRAH_RSS_URL,
+    "dogpatch": DOGPATCH_RSS_URL,
+    "infurnation": INFURNATION_RSS_URL,
+    "fwg": FWG_RSS_URL,
 }
 
 
@@ -3004,6 +3026,14 @@ class SpaHandler(SimpleHTTPRequestHandler):
         """Allowlisted RSS URL. None → 400. Mirrors resolveNewsRssUrl."""
         if page < 1 or page > NEWS_RSS_PAGE_MAX:
             return None
+        if source == "all":
+            if page > 1:
+                return None
+            return FLAYRAH_FEEDS.get("full")
+        if source == "flayrah":
+            if page > 1:
+                return None
+            return FLAYRAH_FEEDS.get(feed)
         if source == "dogpatch":
             if feed == "full":
                 base = DOGPATCH_RSS_URL
@@ -3014,11 +3044,15 @@ class SpaHandler(SimpleHTTPRequestHandler):
             if page <= 1:
                 return base
             return f"{base}?paged={page}"
-        if source in ("flayrah", "all"):
-            if page > 1:
+        if source in ("infurnation", "fwg"):
+            if feed != "full":
                 return None
-            key = "full" if source == "all" else feed
-            return FLAYRAH_FEEDS.get(key)
+            base = NEWS_FULL_RSS.get(source)
+            if not base:
+                return None
+            if page <= 1:
+                return base
+            return f"{base}?paged={page}"
         return None
 
     def _proxy_news_rss(self) -> None:
@@ -3073,10 +3107,14 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if not node_id.isdigit() or int(node_id) <= 0:
             self._json(400, {"ok": False, "message": "invalid article id"})
             return
-        if source == "dogpatch":
-            target = f"https://dogpatch.press/?p={node_id}"
-        else:
-            target = f"https://www.flayrah.com/node/{node_id}"
+        if source not in NEWS_SOURCES:
+            self._json(400, {"ok": False, "message": f"unknown news source: {source}"})
+            return
+        tmpl = NEWS_ARTICLE_URLS.get(source)
+        if not tmpl:
+            self._json(400, {"ok": False, "message": f"unknown news source: {source}"})
+            return
+        target = tmpl.format(id=node_id)
         req = urllib.request.Request(target, method="GET")
         req.add_header(
             "User-Agent",

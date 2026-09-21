@@ -159,8 +159,8 @@
           <a :href="article.link" target="_blank" rel="noopener">flayrah.com</a>.
         </template>
         <template v-else>
-          Content © Dogpatch Press and contributors. Attribution: {{ article.author }} /
-          <a :href="article.link" target="_blank" rel="noopener">dogpatch.press</a>.
+          Content © {{ attributionSite }} and contributors. Attribution: {{ article.author }} /
+          <a :href="article.link" target="_blank" rel="noopener">{{ attributionSite }}</a>.
           PawFeed shows the public RSS for reading with a link back to the original.
         </template>
       </p>
@@ -209,6 +209,7 @@ import {
   newsSourceLabel,
   parseNewsId,
 } from "@/worker/news/ids";
+import { getNewsSourceDef } from "@/worker/news/registry";
 import { saveNewsArticleOffline } from "@/worker/news/offlineCache";
 import {
   articleMatchesQuery,
@@ -281,10 +282,7 @@ const sourceFilter = computed(() =>
   normalizeNewsSourceFilter(route.query.source),
 );
 const feedId = computed(() =>
-  normalizeNewsFeedId(
-    sourceFilter.value === "dogpatch" ? "dogpatch" : "flayrah",
-    route.query.feed,
-  ),
+  normalizeNewsFeedId(sourceFilter.value, route.query.feed),
 );
 const tagsQuery = computed(() => {
   const raw = route.query.tags;
@@ -299,8 +297,9 @@ const feedQuery = computed(() => {
   const q: Record<string, string> = {};
   if (sourceFilter.value !== "all") q.source = sourceFilter.value;
   if (
-    (sourceFilter.value === "flayrah" || sourceFilter.value === "dogpatch") &&
-    feedId.value !== "full"
+    isNewsSource(sourceFilter.value) &&
+    feedId.value !== "full" &&
+    (sourceFilter.value === "flayrah" || sourceFilter.value === "dogpatch")
   ) {
     q.feed = feedId.value;
   }
@@ -375,6 +374,14 @@ const saved = computed(() =>
 const sourceLabel = computed(() =>
   article.value ? newsSourceLabel(article.value.source) : "News",
 );
+
+const attributionSite = computed(() => {
+  if (!article.value) return "";
+  return (
+    getNewsSourceDef(article.value.source)?.attributionName ||
+    article.value.source
+  );
+});
 
 const bodyHtml = computed(() =>
   article.value

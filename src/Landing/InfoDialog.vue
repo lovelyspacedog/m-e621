@@ -61,7 +61,7 @@
                 href="https://github.com/avoonix/material-e621"
                 >Material e621</a
               >.
-              It browses multiple imageboards and furry news (Flayrah + Dogpatch Press) from one client,
+              It browses multiple imageboards and furry news (Flayrah, Dogpatch, InFurNation, FWG) from one client,
               with Federated merge, Local folder browsing where available, and
               tools like pools, suggester, and analyzer.
             </p>

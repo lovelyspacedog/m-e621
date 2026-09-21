@@ -1,9 +1,14 @@
 /**
- * Parse Flayrah / Dogpatch Press RSS 2.0 into namespaced NewsArticle records.
+ * Parse News RSS 2.0 / Atom into namespaced NewsArticle records.
  * Uses DOMParser — browser / jsdom only.
  */
 
 import { makeNewsId, type NewsSource } from "./ids";
+import {
+  getNewsSourceDef,
+  newsSourceBaseOrigin,
+  newsSourceLabel,
+} from "./registry";
 
 export interface NewsArticle {
   id: string;
@@ -57,7 +62,8 @@ function flayrahNidFromGuidOrLink(guid: string, link: string): number {
   return 0;
 }
 
-function dogpatchIdFromItem(item: Element, guid: string, link: string): number {
+/** WordPress post id from wp:post_id, ?p=, or guid. */
+function wordpressIdFromItem(item: Element, guid: string, link: string): number {
   const all = item.getElementsByTagName("*");
   for (let i = 0; i < all.length; i++) {
     const el = all[i];
@@ -72,12 +78,6 @@ function dogpatchIdFromItem(item: Element, guid: string, link: string): number {
       const n = parseInt(m[1], 10);
       if (Number.isFinite(n) && n > 0) return n;
     }
-  }
-  // WP often puts the post id in guid even without ?p=
-  const guidNum = guid.match(/dogpatch\.press\/\?p=(\d+)/i);
-  if (guidNum) {
-    const n = parseInt(guidNum[1], 10);
-    if (Number.isFinite(n) && n > 0) return n;
   }
   return 0;
 }
@@ -210,13 +210,21 @@ function descriptionHtmlFromItem(item: Element): string {
   return childText(item, "description");
 }
 
-function parseRssItems(xml: string, source: NewsSource): NewsArticle[] {
-  const doc = new DOMParser().parseFromString(xml, "application/xml");
-  if (doc.querySelector("parsererror")) {
-    throw new Error(`Failed to parse ${source} RSS`);
+function numericIdForSource(
+  source: NewsSource,
+  item: Element,
+  guid: string,
+  link: string,
+): number {
+  const def = getNewsSourceDef(source);
+  if (def?.parser === "wordpress") {
+    return wordpressIdFromItem(item, guid, link);
   }
-  const baseOrigin =
-    source === "dogpatch" ? "https://dogpatch.press" : "https://www.flayrah.com";
+  return flayrahNidFromGuidOrLink(guid, link);
+}
+
+function parseRssItems(xml: string, source: NewsSource, doc: Document): NewsArticle[] {
+  const baseOrigin = newsSourceBaseOrigin(source);
   const items = doc.getElementsByTagName("item");
   const out: NewsArticle[] = [];
   for (let i = 0; i < items.length; i++) {
@@ -224,10 +232,7 @@ function parseRssItems(xml: string, source: NewsSource): NewsArticle[] {
     const title = childText(item, "title");
     const link = childText(item, "link");
     const guid = childText(item, "guid") || link;
-    const numericId =
-      source === "dogpatch"
-        ? dogpatchIdFromItem(item, guid, link)
-        : flayrahNidFromGuidOrLink(guid, link);
+    const numericId = numericIdForSource(source, item, guid, link);
     if (!numericId || !title || !link) continue;
     const descriptionHtml = descriptionHtmlFromItem(item);
     const pubDate = childText(item, "pubDate");
@@ -252,16 +257,141 @@ function parseRssItems(xml: string, source: NewsSource): NewsArticle[] {
   return out;
 }
 
+function atomLinkHref(entry: Element): string {
+  const links = entry.getElementsByTagName("link");
+  let alternate = "";
+  for (let i = 0; i < links.length; i++) {
+    const el = links[i];
+    const rel = (el.getAttribute("rel") || "alternate").toLowerCase();
+    const href = (el.getAttribute("href") || "").trim();
+    if (!href) continue;
+    if (rel === "alternate") return href;
+    if (!alternate) alternate = href;
+  }
+  return alternate || childText(entry, "id");
+}
+
+function atomContentHtml(entry: Element): string {
+  const all = entry.getElementsByTagName("*");
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i];
+    if (el.localName === "content") {
+      const type = (el.getAttribute("type") || "").toLowerCase();
+      if (type === "html" || type === "xhtml" || type.includes("html")) {
+        const html = el.innerHTML?.trim() || textContent(el);
+        if (html) return html;
+      }
+      const t = textContent(el);
+      if (t) return t;
+    }
+  }
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i];
+    if (el.localName === "summary") {
+      const t = textContent(el);
+      if (t) return t;
+    }
+  }
+  return "";
+}
+
+function atomAuthor(entry: Element): string {
+  const authors = entry.getElementsByTagName("author");
+  if (authors[0]) {
+    const name = childText(authors[0], "name");
+    if (name) return name;
+    const t = textContent(authors[0]);
+    if (t) return t;
+  }
+  return creatorText(entry);
+}
+
+function atomCategories(entry: Element): string[] {
+  const tags: string[] = [];
+  const seen = new Set<string>();
+  const cats = entry.getElementsByTagName("category");
+  for (let i = 0; i < cats.length; i++) {
+    const el = cats[i];
+    const t =
+      (el.getAttribute("term") || "").trim() || textContent(el);
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    tags.push(t);
+  }
+  return tags;
+}
+
+function atomNumericId(
+  source: NewsSource,
+  entry: Element,
+  link: string,
+  idText: string,
+): number {
+  const def = getNewsSourceDef(source);
+  if (def?.parser === "wordpress") {
+    return wordpressIdFromItem(entry, idText, link);
+  }
+  return flayrahNidFromGuidOrLink(idText, link);
+}
+
+function parseAtomEntries(source: NewsSource, doc: Document): NewsArticle[] {
+  const baseOrigin = newsSourceBaseOrigin(source);
+  const entries = doc.getElementsByTagName("entry");
+  const out: NewsArticle[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    const title = childText(entry, "title");
+    const link = atomLinkHref(entry);
+    const idText = childText(entry, "id") || link;
+    const numericId = atomNumericId(source, entry, link, idText);
+    if (!numericId || !title || !link) continue;
+    const descriptionHtml = atomContentHtml(entry);
+    const publishedAt =
+      childText(entry, "published") || childText(entry, "updated");
+    const publishedMs = publishedAt ? Date.parse(publishedAt) : NaN;
+    out.push({
+      id: makeNewsId(source, numericId),
+      source,
+      title,
+      link,
+      author: atomAuthor(entry),
+      publishedAt,
+      publishedMs: Number.isFinite(publishedMs) ? publishedMs : 0,
+      tags: atomCategories(entry),
+      descriptionHtml,
+      excerpt: excerptFromDescription(descriptionHtml),
+      thumbUrl:
+        mediaImageUrl(entry, baseOrigin) ||
+        firstImageUrl(descriptionHtml, baseOrigin),
+    });
+  }
+  return out;
+}
+
+function isAtomFeed(doc: Document): boolean {
+  const root = doc.documentElement;
+  if (!root) return false;
+  const name = root.localName || root.tagName;
+  return name.toLowerCase() === "feed";
+}
+
 export function parseFlayrahRss(xml: string): NewsArticle[] {
-  return parseRssItems(xml, "flayrah");
+  return parseNewsRss(xml, "flayrah");
 }
 
 export function parseDogpatchRss(xml: string): NewsArticle[] {
-  return parseRssItems(xml, "dogpatch");
+  return parseNewsRss(xml, "dogpatch");
 }
 
 export function parseNewsRss(xml: string, source: NewsSource): NewsArticle[] {
-  return parseRssItems(xml, source);
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  if (doc.querySelector("parsererror")) {
+    throw new Error(`Failed to parse ${source} feed`);
+  }
+  if (isAtomFeed(doc)) return parseAtomEntries(source, doc);
+  return parseRssItems(xml, source, doc);
 }
 
 function plainHaystack(article: NewsArticle): string {
@@ -270,6 +400,7 @@ function plainHaystack(article: NewsArticle): string {
     article.author,
     article.excerpt,
     article.source,
+    newsSourceLabel(article.source),
     bodySearchText(article.descriptionHtml),
     ...article.tags,
   ]
@@ -287,8 +418,7 @@ function termMatches(article: NewsArticle, term: string): boolean {
     if (kind === "tag") {
       return article.tags.some((t) => t.toLowerCase().includes(val));
     }
-    const sourceLabel =
-      article.source === "dogpatch" ? "dogpatch press" : "flayrah";
+    const sourceLabel = newsSourceLabel(article.source).toLowerCase();
     return (
       article.source.toLowerCase().includes(val) || sourceLabel.includes(val)
     );
