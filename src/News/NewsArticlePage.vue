@@ -75,7 +75,11 @@
       <v-skeleton-loader type="article" />
     </div>
 
-    <article v-else-if="article" class="news-article pa-4">
+    <article
+      v-else-if="article"
+      class="news-article pa-4"
+      :class="{ 'news-article--flayrah': article.source === 'flayrah' }"
+    >
       <p class="text-overline text-medium-emphasis mb-1">
         {{ sourceLabel }}
         <template v-if="article.fromArchive"> · Archive</template>
@@ -119,6 +123,21 @@
         </template>
       </p>
     </article>
+    <Teleport to="body">
+      <v-btn
+        v-show="goToTopVisible"
+        class="news-go-to-top"
+        color="primary"
+        elevation="6"
+        :icon="goToTopNarrow"
+        aria-label="Go to top"
+        :style="goToTopStyle"
+        @click="scrollToTop"
+      >
+        <v-icon>mdi-arrow-up</v-icon>
+        <span v-if="!goToTopNarrow" class="ml-1">Go to top</span>
+      </v-btn>
+    </Teleport>
   </div>
 </template>
 
@@ -143,12 +162,19 @@ import {
   parseNewsQueryTerms,
 } from "@/worker/news/parseRss";
 import { sanitizeNewsHtml } from "@/misc/util/newsHtml";
+import { useGoToTop } from "@/misc/useGoToTop";
 import { useNewsStore, useSnackbarStore } from "@/services";
 
 const route = useRoute();
 const router = useRouter();
 const snackbar = useSnackbarStore();
 const newsStore = useNewsStore();
+const {
+  visible: goToTopVisible,
+  narrow: goToTopNarrow,
+  style: goToTopStyle,
+  scrollToTop,
+} = useGoToTop();
 
 const article = ref<NewsArticle | null>(null);
 const siblings = ref<NewsArticle[]>([]);
@@ -417,10 +443,15 @@ onUnmounted(() => {
   max-width: 100%;
   height: auto;
 }
-.news-body :deep(figure) {
+.news-article--flayrah .news-body :deep(figure) {
   float: right;
   margin: 0 0 1rem 1.25rem;
   max-width: min(45%, 20rem);
+  text-align: center;
+}
+.news-body :deep(figure) {
+  margin: 1rem 0;
+  max-width: 100%;
   text-align: center;
 }
 .news-body :deep(figure img) {
@@ -443,7 +474,7 @@ onUnmounted(() => {
   color: rgb(var(--v-theme-primary));
 }
 @media (max-width: 600px) {
-  .news-body :deep(figure) {
+  .news-article--flayrah .news-body :deep(figure) {
     float: none;
     margin: 1rem 0;
     max-width: 100%;
@@ -453,5 +484,11 @@ onUnmounted(() => {
   color: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+.news-go-to-top {
+  position: fixed;
+  z-index: 2300;
+  min-width: 44px;
+  min-height: 44px;
 }
 </style>

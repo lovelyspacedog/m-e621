@@ -231,12 +231,8 @@ export function parseNewsRss(xml: string, source: NewsSource): NewsArticle[] {
   return parseRssItems(xml, source);
 }
 
-export function articleMatchesQuery(
-  article: NewsArticle,
-  terms: string[],
-): boolean {
-  if (!terms.length) return true;
-  const hay = [
+function plainHaystack(article: NewsArticle): string {
+  return [
     article.title,
     article.author,
     article.excerpt,
@@ -246,7 +242,33 @@ export function articleMatchesQuery(
   ]
     .join(" ")
     .toLowerCase();
-  return terms.every((t) => hay.includes(t.toLowerCase()));
+}
+
+function termMatches(article: NewsArticle, term: string): boolean {
+  const prefixed = term.match(/^(author|tag|source):(.+)$/i);
+  if (prefixed) {
+    const kind = prefixed[1].toLowerCase();
+    const val = prefixed[2].toLowerCase();
+    if (!val) return true;
+    if (kind === "author") return article.author.toLowerCase().includes(val);
+    if (kind === "tag") {
+      return article.tags.some((t) => t.toLowerCase().includes(val));
+    }
+    const sourceLabel =
+      article.source === "dogpatch" ? "dogpatch press" : "flayrah";
+    return (
+      article.source.toLowerCase().includes(val) || sourceLabel.includes(val)
+    );
+  }
+  return plainHaystack(article).includes(term.toLowerCase());
+}
+
+export function articleMatchesQuery(
+  article: NewsArticle,
+  terms: string[],
+): boolean {
+  if (!terms.length) return true;
+  return terms.every((t) => termMatches(article, t));
 }
 
 export function parseNewsQueryTerms(raw: string): string[] {

@@ -65,6 +65,17 @@ describe("sanitizeNewsHtml", () => {
     expect(html).toContain('target="_blank"');
     expect(html).toContain("noopener");
   });
+
+  it("replaces iframes with an outbound embed link", () => {
+    const html = sanitizeNewsHtml(
+      `<p>Lead</p><iframe src="https://www.youtube.com/embed/abc"></iframe>`,
+      "dogpatch",
+    );
+    expect(html).not.toContain("<iframe");
+    expect(html).toContain("Open embed on Dogpatch Press");
+    expect(html).toContain('href="https://www.youtube.com/embed/abc"');
+    expect(html).toContain("noopener");
+  });
 });
 
 describe("proxyDownloadUrl", () => {

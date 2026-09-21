@@ -153,6 +153,20 @@
         cached snapshot until a refresh succeeds.
       </p>
     </TipDialog>
+    <TipDialog
+      :tip-id="TIP_IDS.newsIntro"
+      title="Furry news"
+      v-model="newsIntroTipOpen"
+    >
+      <p class="mb-2">
+        News merges public RSS from Flayrah and Dogpatch Press. Flayrah
+        section chips only appear when Flayrah is selected.
+      </p>
+      <p class="mb-0">
+        Dogpatch can include adult or investigative topics. Articles stay
+        attributed, with a link back to the original.
+      </p>
+    </TipDialog>
 
     <div v-if="loading && !articles.length" class="pa-4">
       <v-skeleton-loader v-for="n in 8" :key="n" type="article" class="mb-3" />
@@ -181,15 +195,32 @@
           loading="lazy"
         />
         <div class="news-card-body">
-          <div class="text-caption text-medium-emphasis mb-1">
-            {{ sourceLabel(article.source) }}
+          <div class="mb-1">
+            <v-chip size="x-small" variant="tonal" label>
+              {{ sourceLabel(article.source) }}
+            </v-chip>
           </div>
           <div class="news-card-title">{{ article.title }}</div>
           <div class="text-caption text-medium-emphasis">
-            {{ article.author }}
+            <a
+              class="news-author-link"
+              href="#"
+              @click.prevent.stop="filterAuthor(article.author)"
+            >{{ article.author }}</a>
             <template v-if="formatDate(article)"> · {{ formatDate(article) }}</template>
           </div>
           <p class="text-body-2 mt-1 mb-0">{{ article.excerpt }}</p>
+          <div v-if="article.tags.length" class="d-flex flex-wrap ga-1 mt-2">
+            <v-chip
+              v-for="tag in article.tags.slice(0, 4)"
+              :key="tag"
+              size="x-small"
+              variant="tonal"
+              @click.prevent.stop="filterTag(tag)"
+            >
+              {{ tag }}
+            </v-chip>
+          </div>
           <div class="d-flex align-center ga-1 mt-2">
             <v-btn
               icon
@@ -287,6 +318,21 @@
         </template>
       </v-list-item>
     </v-list>
+    <Teleport to="body">
+      <v-btn
+        v-show="goToTopVisible"
+        class="news-go-to-top"
+        color="primary"
+        elevation="6"
+        :icon="goToTopNarrow"
+        aria-label="Go to top"
+        :style="goToTopStyle"
+        @click="scrollToTop"
+      >
+        <v-icon>mdi-arrow-up</v-icon>
+        <span v-if="!goToTopNarrow" class="ml-1">Go to top</span>
+      </v-btn>
+    </Teleport>
   </div>
 </template>
 
@@ -321,6 +367,8 @@ import {
   parseNewsQueryTerms,
 } from "@/worker/news/parseRss";
 import { proxyDownloadUrl } from "@/misc/util/newsHtml";
+import { prefersReducedMotion } from "@/misc/util/reducedMotion";
+import { useGoToTop } from "@/misc/useGoToTop";
 import { useNewsStore, useShortcutService } from "@/services";
 
 type ViewFilter = "all" | "unread" | "saved";
@@ -338,6 +386,15 @@ const partialWarning = ref<string | null>(null);
 const { open: newsOfflineTipOpen, tryOpenOnEdge: tryNewsOfflineTip } =
   useTipOpen(TIP_IDS.newsOffline);
 watch(fromOffline, tryNewsOfflineTip);
+const { open: newsIntroTipOpen, tryOpen: tryNewsIntroTip } = useTipOpen(
+  TIP_IDS.newsIntro,
+);
+const {
+  visible: goToTopVisible,
+  narrow: goToTopNarrow,
+  style: goToTopStyle,
+  scrollToTop,
+} = useGoToTop();
 const cacheAgeTick = ref(0);
 const focusIndex = ref(0);
 const searchField = ref<{ focus?: () => void } | null>(null);
@@ -579,8 +636,28 @@ watch(filtered, () => {
   }
 });
 
+watch(focusIndex, () => {
+  void nextTick(() => {
+    const el = pageEl.value?.querySelector(".news-focused");
+    el?.scrollIntoView({
+      block: "nearest",
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+    });
+  });
+});
+
 function formatDate(article: NewsArticle): string {
   if (!article.publishedMs) return "";
+  const delta = Date.now() - article.publishedMs;
+  if (delta >= 0) {
+    const mins = Math.floor(delta / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins === 1 ? "1 min ago" : `${mins} min ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return days === 1 ? "1 day ago" : `${days} days ago`;
+  }
   try {
     return new Date(article.publishedMs).toLocaleDateString(undefined, {
       year: "numeric",
@@ -694,6 +771,7 @@ watch([sourceFilter, feedId], () => {
 
 onMounted(() => {
   void load();
+  tryNewsIntroTip();
   ageTimer = setInterval(() => {
     cacheAgeTick.value += 1;
   }, 30000);
@@ -782,5 +860,11 @@ onUnmounted(() => {
 .news-card-title {
   font-weight: 600;
   line-height: 1.3;
+}
+.news-go-to-top {
+  position: fixed;
+  z-index: 2300;
+  min-width: 44px;
+  min-height: 44px;
 }
 </style>

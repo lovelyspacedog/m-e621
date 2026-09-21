@@ -110,4 +110,13 @@ describe("articleMatchesQuery", () => {
     expect(articleMatchesQuery(articles[0], ["eberrawolf"])).toBe(true);
     expect(articleMatchesQuery(articles[0], ["livestream"])).toBe(true);
   });
+
+  it("supports author tag and source prefixes", () => {
+    const articles = parseFlayrahRss(FLAYRAH_FIXTURE);
+    expect(articleMatchesQuery(articles[0], ["author:Eberra"])).toBe(true);
+    expect(articleMatchesQuery(articles[0], ["author:earth"])).toBe(false);
+    expect(articleMatchesQuery(articles[0], ["tag:furmeets"])).toBe(true);
+    expect(articleMatchesQuery(articles[0], ["source:flayrah"])).toBe(true);
+    expect(articleMatchesQuery(articles[0], ["source:dogpatch"])).toBe(false);
+  });
 });

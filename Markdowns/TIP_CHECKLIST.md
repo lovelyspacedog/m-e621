@@ -34,6 +34,7 @@ When a tip ships: check the box, keep the tip id stable, mention it in `src/Land
 - [x] `post-suggester` — First Post Suggester visit. Host: `SuggesterInput.vue`. Layman taste-profile → hybrid candidates → score/rank; weights / mode exclusions.
 - [x] `favorites-analyzer` — First Favorite Analyzer visit. Host: `FavoritesAnalyzer.vue`. Layman sample → tag frequency ranks; own/other/Federated/Local; link to Suggester.
 - [x] `flayrah-offline` — First offline News cache alert (tip id kept). Host: `NewsFeedPage.vue`. Last-good RSS cache.
+- [x] `news-intro` — First News feed visit. Host: `NewsFeedPage.vue`. Sources, Flayrah sections, Dogpatch content note, attribution.
 - [x] `starred-tags` — First Favorites / starred-tag groups page. Host: `FavoritesPage.vue`. Starred groups + cross-site copy.
 
 ## Done / out of scope

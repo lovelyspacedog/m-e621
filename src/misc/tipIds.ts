@@ -16,6 +16,8 @@ export const TIP_IDS = {
   remuxLocal: "remux-local",
   postSuggester: "post-suggester",
   favoritesAnalyzer: "favorites-analyzer",
+  /** First visit to News: sources, attribution, Dogpatch content note. */
+  newsIntro: "news-intro",
   /** Kept id for dismissedTips continuity; copy says News offline cache. */
   newsOffline: "flayrah-offline",
   /** @deprecated use newsOffline */

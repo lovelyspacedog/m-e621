@@ -27,20 +27,21 @@ Ship these first: News looks feature-complete, but Dogpatch reading, saved items
 
 ### Feed
 
-- [ ] **Keyboard focus scroll** — `j`/`k` focus does not `scrollIntoView`; focused row can leave the viewport.
-- [ ] **Magazine layout parity** — Cards omit author-click, per-row tags, and a source chip (list layout has all three).
-- [ ] **Relative dates + day headings** — Feed dates are calendar-only; add “2h ago” and optional day section headers.
-- [ ] **Go to top** — Posts has a floating control; News feed/article do not.
-- [ ] **Structured filter prefixes** — Cheap win on existing search: `author:`, `tag:`, `source:` (keep AND-of-tokens for plain terms).
+- [x] **Keyboard focus scroll** — `j`/`k` focus does not `scrollIntoView`; focused row can leave the viewport.
+- [x] **Magazine layout parity** — Cards omit author-click, per-row tags, and a source chip (list layout has all three).
+- [x] **Relative dates** — Recent feed rows show “2h ago” (older than a week stay calendar dates).
+- [ ] **Day headings** — Group the feed by calendar day.
+- [x] **Go to top** — Posts has a floating control; News feed/article do not.
+- [x] **Structured filter prefixes** — Cheap win on existing search: `author:`, `tag:`, `source:` (keep AND-of-tokens for plain terms).
 - [x] **Copy-link keeps query** — Shared article URLs should keep `source` / `feed` / `view` / `tags` context.
 
 ### Article
 
-- [ ] **Embed placeholders** — Sanitizer drops `iframe`/`video`; Dogpatch embeds become holes. Replace with “Open embed on {source}” instead of disappearing. (`newsHtml.ts`)
-- [ ] **Figure CSS by source** — Float-right suits Flayrah magazine; WordPress figures often want full width. Scope float to Flayrah or only when the figure is small. (`NewsArticlePage.vue`)
+- [x] **Embed placeholders** — Sanitizer drops `iframe`/`video`; Dogpatch embeds become holes. Replace with “Open embed on {source}” instead of disappearing. (`newsHtml.ts`)
+- [x] **Figure CSS by source** — Float-right suits Flayrah magazine; WordPress figures often want full width. Scope float to Flayrah or only when the figure is small. (`NewsArticlePage.vue`)
 - [ ] **Reader chrome** — Small type-scale / width control (higher value than a third layout).
 - [ ] **Image lightbox** — Click proxied in-article images (`/api/download`) to enlarge.
-- [ ] **News intro tip** — First-visit tip for sources, attribution, Dogpatch content warning. Only `flayrah-offline` ships today. (`tipIds.ts`, `TIP_CHECKLIST.md`)
+- [x] **News intro tip** — First-visit tip for sources, attribution, Dogpatch content warning. Only `flayrah-offline` ships today. (`tipIds.ts`, `TIP_CHECKLIST.md`)
 
 ### History / deeper feed
 
@@ -77,14 +78,14 @@ When a new source lands: namespaced ids (`source:numericId`), TOS row, `/api/dow
 - [x] Prefer `content:encoded` when present (Dogpatch fixture).
 - [ ] Saved-filter `source` round-trip.
 - [ ] Dogpatch category allowlist rejects unknown slugs (400).
-- [ ] Embed/iframe placeholder after sanitize.
+- [x] Embed/iframe placeholder after sanitize.
 - [ ] Unread mark / mark-all-read persistence.
 
 ## Suggested ship order
 
 1. ~~Correctness: `content:encoded`, saved-filter `source`, taxonomy chips honesty, SFW vs Dogpatch~~ — shipped
 2. ~~Durability: saved body snapshots, unread undo + badge, archive-first for saved, last-opened eviction~~ — shipped
-3. Reader polish: scroll-into-view, magazine parity, go-to-top, embed placeholders, News intro tip
+3. ~~Reader polish: scroll-into-view, magazine parity, go-to-top, embed placeholders, News intro tip~~ — shipped (relative dates and `author:`/`tag:`/`source:` included; day headings, type scale, and lightbox still open)
 4. Same sources, more feed: Dogpatch categories + paged RSS + media: tags
 5. Source registry, then one new magazine (not five)
 
@@ -95,7 +96,7 @@ When a new source lands: namespaced ids (`source:numericId`), TOS row, `/api/dow
 | Checklist doc | Done | This file |
 | Correctness | Done | encoded, source query, chips, SFW |
 | Durability | Done | saved bodies, unread, cache eviction |
-| Reader polish | Pending | feed + article UX (copy-link query done) |
+| Reader polish | Done | scroll, magazine, go-to-top, embeds, intro tip; day headings / lightbox / type scale still open |
 | Deeper feed | Pending | Dogpatch categories, paged RSS |
 | Registry / new sources | Pending | after slices above |
 | Non-goals | Held | no Federated-as-posts, no scrape |

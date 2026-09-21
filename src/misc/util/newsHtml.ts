@@ -131,8 +131,46 @@ function rewriteSrcset(srcset: string, source?: NewsSource): string {
     .join(", ");
 }
 
+function sourceEmbedLabel(source?: NewsSource): string {
+  if (source === "dogpatch") return "Dogpatch Press";
+  if (source === "flayrah") return "Flayrah";
+  return "the original site";
+}
+
+/** Replace dropped media embeds with an attributed outbound link. */
+function embedPlaceholder(el: Element, source?: NewsSource): HTMLElement {
+  const raw =
+    el.getAttribute("src") ||
+    el.querySelector("source")?.getAttribute("src") ||
+    "";
+  const abs = raw ? absolutizeNewsUrl(raw, source) : null;
+  const label = sourceEmbedLabel(source);
+  const p = el.ownerDocument.createElement("p");
+  p.setAttribute("class", "news-embed-placeholder");
+  if (abs) {
+    const a = el.ownerDocument.createElement("a");
+    a.setAttribute("href", abs);
+    a.setAttribute("target", "_blank");
+    a.setAttribute("rel", "noopener noreferrer");
+    a.textContent = `Open embed on ${label}`;
+    p.appendChild(a);
+  } else {
+    p.textContent = `Embed removed — open the article on ${label}.`;
+  }
+  return p;
+}
+
 function sanitizeElement(el: Element, source?: NewsSource): void {
   const tag = el.tagName.toUpperCase();
+  if (
+    tag === "IFRAME" ||
+    tag === "VIDEO" ||
+    tag === "EMBED" ||
+    tag === "OBJECT"
+  ) {
+    el.replaceWith(embedPlaceholder(el, source));
+    return;
+  }
   if (DROP_TAGS.has(tag)) {
     el.remove();
     return;
