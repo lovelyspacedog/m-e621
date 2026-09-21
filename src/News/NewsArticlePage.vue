@@ -290,7 +290,7 @@ const tagsQuery = computed(() => {
 });
 const viewQuery = computed(() => {
   const raw = route.query.view;
-  return raw === "unread" || raw === "saved" ? raw : "";
+  return raw === "unread" || raw === "saved" || raw === "watched" ? raw : "";
 });
 
 const feedQuery = computed(() => {

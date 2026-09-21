@@ -57,27 +57,27 @@ export const normalizeSavedSearches = (raw: unknown): {
       typeof e.groupId === "string" && groupIds.has(e.groupId)
         ? e.groupId
         : UNGROUPED_SAVED_SEARCH_GROUP_ID;
+    const newsSnap =
+      e.news && typeof e.news === "object"
+        ? {
+            ...(typeof e.news.source === "string" && e.news.source
+              ? { source: e.news.source }
+              : {}),
+            ...(typeof e.news.feed === "string" && e.news.feed
+              ? { feed: e.news.feed }
+              : {}),
+            ...(typeof e.news.view === "string" && e.news.view
+              ? { view: e.news.view }
+              : {}),
+          }
+        : null;
     entries.push({
       id: typeof e.id === "string" && e.id ? e.id : makeId("search"),
       name: e.name.trim() || tags.join(" ") || "Untitled",
       tags,
       groupId,
       order: typeof e.order === "number" ? e.order : i,
-      ...(e.news && typeof e.news === "object"
-        ? {
-            news: {
-              ...(typeof e.news.source === "string" && e.news.source
-                ? { source: e.news.source }
-                : {}),
-              ...(typeof e.news.feed === "string" && e.news.feed
-                ? { feed: e.news.feed }
-                : {}),
-              ...(typeof e.news.view === "string" && e.news.view
-                ? { view: e.news.view }
-                : {}),
-            },
-          }
-        : {}),
+      ...(newsSnap && Object.keys(newsSnap).length ? { news: newsSnap } : {}),
     });
   }
   return { groups, entries };

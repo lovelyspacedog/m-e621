@@ -17,6 +17,7 @@ import {
 
 const READ_CAP = 500;
 const SAVED_CAP = 200;
+const WATCH_AUTHOR_CAP = 50;
 
 function normalizeFontScale(raw: unknown): NewsReaderFontScale {
   return raw === "sm" || raw === "lg" ? raw : "md";
@@ -24,6 +25,10 @@ function normalizeFontScale(raw: unknown): NewsReaderFontScale {
 
 function normalizeWidth(raw: unknown): NewsReaderWidth {
   return raw === "narrow" || raw === "wide" ? raw : "normal";
+}
+
+function normalizeAuthorKey(name: string): string {
+  return name.trim().toLowerCase();
 }
 
 function ensureState(main: ReturnType<typeof useMainStore>): NewsState {
@@ -34,13 +39,21 @@ function ensureState(main: ReturnType<typeof useMainStore>): NewsState {
       layout: "list",
       readerFontScale: "md",
       readerWidth: "normal",
+      watchedAuthors: [],
+      lastSeenPublishedMs: null,
+      notifyNew: false,
     };
   }
   if (!Array.isArray(main.news.readIds)) main.news.readIds = [];
   if (!Array.isArray(main.news.saved)) main.news.saved = [];
+  if (!Array.isArray(main.news.watchedAuthors)) main.news.watchedAuthors = [];
   if (main.news.layout !== "magazine") main.news.layout = "list";
   main.news.readerFontScale = normalizeFontScale(main.news.readerFontScale);
   main.news.readerWidth = normalizeWidth(main.news.readerWidth);
+  if (main.news.notifyNew == null) main.news.notifyNew = false;
+  if (main.news.lastSeenPublishedMs === undefined) {
+    main.news.lastSeenPublishedMs = null;
+  }
   return main.news;
 }
 
@@ -82,6 +95,21 @@ export const useNewsStore = defineStore("news", () => {
     },
   });
 
+  const notifyNew = computed({
+    get: (): boolean => Boolean(ensureState(main).notifyNew),
+    set: (value: boolean) => {
+      ensureState(main).notifyNew = Boolean(value);
+    },
+  });
+
+  const lastSeenPublishedMs = computed(
+    () => ensureState(main).lastSeenPublishedMs ?? null,
+  );
+
+  const watchedAuthors = computed(() => [
+    ...(ensureState(main).watchedAuthors || []),
+  ]);
+
   const saved = computed(() =>
     [...ensureState(main).saved].sort((a, b) => b.savedAt - a.savedAt),
   );
@@ -114,6 +142,76 @@ export const useNewsStore = defineStore("news", () => {
 
   const isSaved = (id: string) =>
     ensureState(main).saved.some((e) => e.id === id);
+
+  const isWatchedAuthor = (author: string) => {
+    const key = normalizeAuthorKey(author);
+    if (!key) return false;
+    return (ensureState(main).watchedAuthors || []).some(
+      (a) => normalizeAuthorKey(a) === key,
+    );
+  };
+
+  const watchAuthor = (author: string) => {
+    const name = author.trim();
+    if (!name) return;
+    const state = ensureState(main);
+    const key = normalizeAuthorKey(name);
+    const rest = (state.watchedAuthors || []).filter(
+      (a) => normalizeAuthorKey(a) !== key,
+    );
+    state.watchedAuthors = [name, ...rest].slice(0, WATCH_AUTHOR_CAP);
+  };
+
+  const unwatchAuthor = (author: string) => {
+    const key = normalizeAuthorKey(author);
+    if (!key) return;
+    const state = ensureState(main);
+    state.watchedAuthors = (state.watchedAuthors || []).filter(
+      (a) => normalizeAuthorKey(a) !== key,
+    );
+  };
+
+  const toggleWatchAuthor = (author: string) => {
+    if (isWatchedAuthor(author)) {
+      unwatchAuthor(author);
+      return false;
+    }
+    watchAuthor(author);
+    return true;
+  };
+
+  /**
+   * First visit with a cursor missing: baseline so the whole feed does not
+   * light up as "new".
+   */
+  const ensureFeedSeenBaseline = (maxPublishedMs: number) => {
+    const state = ensureState(main);
+    if (state.lastSeenPublishedMs != null) return;
+    if (!Number.isFinite(maxPublishedMs) || maxPublishedMs <= 0) return;
+    state.lastSeenPublishedMs = maxPublishedMs;
+  };
+
+  const markFeedSeen = (maxPublishedMs: number) => {
+    if (!Number.isFinite(maxPublishedMs) || maxPublishedMs <= 0) return;
+    const state = ensureState(main);
+    const prev = state.lastSeenPublishedMs;
+    if (prev == null || maxPublishedMs > prev) {
+      state.lastSeenPublishedMs = maxPublishedMs;
+    }
+  };
+
+  const countNewerThanSeen = (publishedMsList: number[]): number => {
+    const seen = ensureState(main).lastSeenPublishedMs;
+    if (seen == null) return 0;
+    return publishedMsList.filter((ms) => ms > seen).length;
+  };
+
+  const isNewerThanSeen = (publishedMs: number): boolean => {
+    if (!ensureState(main).notifyNew) return false;
+    const seen = ensureState(main).lastSeenPublishedMs;
+    if (seen == null || !publishedMs) return false;
+    return publishedMs > seen;
+  };
 
   const saveArticle = (article: {
     id: string;
@@ -150,7 +248,6 @@ export const useNewsStore = defineStore("news", () => {
       ...state.saved.filter((e) => e.id !== article.id),
     ].slice(0, SAVED_CAP);
 
-    // Keep a durable offline copy so Saved opens even after RSS expiry.
     if (article.descriptionHtml) {
       const offline: NewsArticle = {
         id: article.id,
@@ -221,6 +318,9 @@ export const useNewsStore = defineStore("news", () => {
     layout,
     readerFontScale,
     readerWidth,
+    notifyNew,
+    lastSeenPublishedMs,
+    watchedAuthors,
     saved,
     savedCount,
     readCount,
@@ -229,6 +329,14 @@ export const useNewsStore = defineStore("news", () => {
     markUnread,
     markAllRead,
     isSaved,
+    isWatchedAuthor,
+    watchAuthor,
+    unwatchAuthor,
+    toggleWatchAuthor,
+    ensureFeedSeenBaseline,
+    markFeedSeen,
+    countNewerThanSeen,
+    isNewerThanSeen,
     saveArticle,
     unsaveArticle,
     toggleSaved,

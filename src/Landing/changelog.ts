@@ -28,6 +28,7 @@ export const changelogSections: ChangelogSection[] = [
       "Dogpatch category chips (allowlisted feeds) and Load older for WordPress-paged sources; Flayrah’s public RSS is not paged",
       "News feed groups headlines by day; article reader has text size and column width controls plus click-to-enlarge images",
       "News source registry plus InFurNation and Furry Writers’ Guild in the merged feed (Atom parse when a feed is Atom)",
+      "News can cluster the same story across outlets (“also on…”), watch authors locally, and optionally highlight headlines newer than your last visit",
     ],
   },
   {

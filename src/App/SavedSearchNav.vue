@@ -344,7 +344,7 @@ const currentNewsQuery = (): SavedSearchEntry["news"] | undefined => {
   ) {
     news.feed = route.query.feed;
   }
-  if (route.query.view === "unread" || route.query.view === "saved") {
+  if (route.query.view === "unread" || route.query.view === "saved" || route.query.view === "watched") {
     news.view = String(route.query.view);
   }
   return news.source || news.feed || news.view ? news : undefined;
@@ -375,7 +375,9 @@ const toSearch = (entry: SavedSearchEntry | string[]) => {
                 ? route.query.feed
                 : undefined,
             view:
-              route.query.view === "unread" || route.query.view === "saved"
+              route.query.view === "unread" ||
+              route.query.view === "saved" ||
+              route.query.view === "watched"
                 ? String(route.query.view)
                 : undefined,
           };

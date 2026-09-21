@@ -95,6 +95,20 @@
           <template v-if="opt.id === 'unread' && unreadInFeed > 0">
             · {{ unreadInFeed }}
           </template>
+          <template v-else-if="opt.id === 'watched' && newsStore.watchedAuthors.length">
+            · {{ newsStore.watchedAuthors.length }}
+          </template>
+        </v-chip>
+        <v-chip
+          size="small"
+          :variant="newsStore.notifyNew ? 'flat' : 'tonal'"
+          :color="newsStore.notifyNew ? 'primary' : undefined"
+          @click="toggleNotifyNew"
+        >
+          Highlight new
+          <template v-if="newsStore.notifyNew && newSinceVisit > 0">
+            · {{ newSinceVisit }}
+          </template>
         </v-chip>
         <v-btn
           v-if="filtered.length && viewFilter !== 'saved'"
@@ -161,7 +175,8 @@
       <p class="mb-2">
         News merges public RSS from Flayrah, Dogpatch Press, InFurNation, and
         Furry Writers’ Guild. Section chips only appear when a source that has
-        them is selected.
+        them is selected. Star an author to watch them; turn on Highlight new
+        for headlines since your last visit.
       </p>
       <p class="mb-0">
         Dogpatch can include adult or investigative topics. Articles stay
@@ -200,18 +215,56 @@
             loading="lazy"
           />
           <div class="news-card-body">
-            <div class="mb-1">
+            <div class="mb-1 d-flex flex-wrap ga-1">
               <v-chip size="x-small" variant="tonal" label>
                 {{ sourceLabel(article.source) }}
               </v-chip>
+              <v-chip
+                v-if="newsStore.isNewerThanSeen(article.publishedMs)"
+                size="x-small"
+                color="primary"
+                variant="flat"
+                label
+              >
+                New
+              </v-chip>
+              <v-chip
+                v-for="rel in article.related || []"
+                :key="rel.id"
+                size="x-small"
+                variant="outlined"
+                :to="relatedRoute(rel)"
+                @click.stop
+              >
+                also {{ rel.label }}
+              </v-chip>
             </div>
             <div class="news-card-title">{{ article.title }}</div>
-            <div class="text-caption text-medium-emphasis">
+            <div class="text-caption text-medium-emphasis d-flex align-center flex-wrap ga-1">
               <a
                 class="news-author-link"
                 href="#"
                 @click.prevent.stop="filterAuthor(article.author)"
               >{{ article.author }}</a>
+              <v-btn
+                icon
+                size="x-small"
+                variant="text"
+                :aria-label="
+                  newsStore.isWatchedAuthor(article.author)
+                    ? 'Unwatch author'
+                    : 'Watch author'
+                "
+                @click.prevent.stop="toggleWatchAuthor(article.author)"
+              >
+                <v-icon size="x-small">
+                  {{
+                    newsStore.isWatchedAuthor(article.author)
+                      ? "mdi-star"
+                      : "mdi-star-outline"
+                  }}
+                </v-icon>
+              </v-btn>
               <template v-if="formatDate(article)"> · {{ formatDate(article) }}</template>
             </div>
             <p class="text-body-2 mt-1 mb-0">{{ article.excerpt }}</p>
@@ -273,6 +326,16 @@
               <v-chip size="x-small" variant="tonal" class="mr-2" label>
                 {{ sourceLabel(article.source) }}
               </v-chip>
+              <v-chip
+                v-if="newsStore.isNewerThanSeen(article.publishedMs)"
+                size="x-small"
+                color="primary"
+                variant="flat"
+                class="mr-2"
+                label
+              >
+                New
+              </v-chip>
               {{ article.title }}
             </v-list-item-title>
             <v-list-item-subtitle class="text-wrap">
@@ -281,8 +344,43 @@
                 href="#"
                 @click.prevent.stop="filterAuthor(article.author)"
               >{{ article.author }}</a>
+              <v-btn
+                icon
+                size="x-small"
+                variant="text"
+                class="ml-n1"
+                :aria-label="
+                  newsStore.isWatchedAuthor(article.author)
+                    ? 'Unwatch author'
+                    : 'Watch author'
+                "
+                @click.prevent.stop="toggleWatchAuthor(article.author)"
+              >
+                <v-icon size="x-small">
+                  {{
+                    newsStore.isWatchedAuthor(article.author)
+                      ? "mdi-star"
+                      : "mdi-star-outline"
+                  }}
+                </v-icon>
+              </v-btn>
               <template v-if="formatDate(article)"> · {{ formatDate(article) }}</template>
             </v-list-item-subtitle>
+            <div
+              v-if="article.related?.length"
+              class="d-flex flex-wrap ga-1 mt-1"
+            >
+              <v-chip
+                v-for="rel in article.related"
+                :key="rel.id"
+                size="x-small"
+                variant="outlined"
+                :to="relatedRoute(rel)"
+                @click.stop
+              >
+                also {{ rel.label }}
+              </v-chip>
+            </div>
             <v-list-item-subtitle class="text-wrap mt-1">
               {{ article.excerpt }}
             </v-list-item-subtitle>
@@ -400,11 +498,15 @@ import {
 } from "@/worker/news/parseRss";
 import { proxyDownloadUrl } from "@/misc/util/newsHtml";
 import { groupNewsByDay } from "@/misc/util/newsDayGroups";
+import {
+  clusterNewsArticles,
+  type NewsClusterArticle,
+} from "@/misc/util/newsClusters";
 import { prefersReducedMotion } from "@/misc/util/reducedMotion";
 import { useGoToTop } from "@/misc/useGoToTop";
 import { useNewsStore, useShortcutService } from "@/services";
 
-type ViewFilter = "all" | "unread" | "saved";
+type ViewFilter = "all" | "unread" | "saved" | "watched";
 
 const route = useRoute();
 const router = useRouter();
@@ -418,6 +520,7 @@ const noMore = ref(false);
 const error = ref<string | null>(null);
 const fromOffline = ref(false);
 const partialWarning = ref<string | null>(null);
+const newSinceVisit = ref(0);
 const { open: newsOfflineTipOpen, tryOpenOnEdge: tryNewsOfflineTip } =
   useTipOpen(TIP_IDS.newsOffline);
 watch(fromOffline, tryNewsOfflineTip);
@@ -445,6 +548,7 @@ const feedOptions = computed(() => {
 const viewOptions: { id: ViewFilter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "unread", label: "Unread" },
+  { id: "watched", label: "Watched" },
   { id: "saved", label: "Saved" },
 ];
 
@@ -468,7 +572,7 @@ const showTaxonomyChips = computed(
 );
 const viewFilter = computed((): ViewFilter => {
   const raw = route.query.view;
-  if (raw === "unread" || raw === "saved") return raw;
+  if (raw === "unread" || raw === "saved" || raw === "watched") return raw;
   return "all";
 });
 const tagsQuery = computed(() => {
@@ -482,23 +586,31 @@ watch(tagsQuery, (v) => {
   if (searchInput.value !== v) searchInput.value = v;
 });
 
-const filtered = computed(() => {
+const filtered = computed((): NewsClusterArticle[] => {
   const terms = queryTerms.value;
+  let list: NewsArticle[];
   if (viewFilter.value === "saved") {
     const byId = new Map(articles.value.map((a) => [a.id, a]));
-    return newsStore.saved
+    list = newsStore.saved
       .map((s) => {
         const live = byId.get(s.id);
         if (live) return live;
         return newsStore.articleFromSaved(s);
       })
       .filter((a) => articleMatchesQuery(a, terms));
+  } else {
+    list = articles.value.filter((a) => articleMatchesQuery(a, terms));
+    if (viewFilter.value === "unread") {
+      list = list.filter((a) => !newsStore.isRead(a.id));
+    } else if (viewFilter.value === "watched") {
+      list = list.filter((a) => newsStore.isWatchedAuthor(a.author));
+    }
   }
-  let list = articles.value.filter((a) => articleMatchesQuery(a, terms));
-  if (viewFilter.value === "unread") {
-    list = list.filter((a) => !newsStore.isRead(a.id));
+  // Cluster only on the merged All-sources feed (cross-outlet duplicates).
+  if (sourceFilter.value === "all" && viewFilter.value !== "saved") {
+    return clusterNewsArticles(list);
   }
-  return list;
+  return list.map((a) => ({ ...a }));
 });
 
 const unreadInFeed = computed(
@@ -512,6 +624,11 @@ const emptyMessage = computed(() => {
     return newsStore.savedCount
       ? "No saved articles match this filter."
       : "No saved articles yet.";
+  }
+  if (viewFilter.value === "watched") {
+    return newsStore.watchedAuthors.length
+      ? "No articles from watched authors in this feed."
+      : "Watch an author (star next to their name) to filter here.";
   }
   if (!articles.value.length) return "No articles in the RSS feed.";
   if (viewFilter.value === "unread") return "No unread articles.";
@@ -671,6 +788,36 @@ function toggleRead(article: NewsArticle) {
   else newsStore.markRead(article.id);
 }
 
+function toggleWatchAuthor(author: string) {
+  newsStore.toggleWatchAuthor(author);
+}
+
+function toggleNotifyNew() {
+  const next = !newsStore.notifyNew;
+  newsStore.notifyNew = next;
+  if (next) {
+    const maxMs = Math.max(0, ...articles.value.map((a) => a.publishedMs || 0));
+    newsStore.ensureFeedSeenBaseline(maxMs);
+    newSinceVisit.value = newsStore.countNewerThanSeen(
+      articles.value.map((a) => a.publishedMs || 0),
+    );
+  } else {
+    newSinceVisit.value = 0;
+  }
+}
+
+function relatedRoute(rel: { id: string; source: NewsSource }) {
+  const parsed = parseNewsId(rel.id);
+  return {
+    name: "NewsArticle" as const,
+    params: {
+      source: parsed?.source || rel.source,
+      id: String(parsed?.numericId || ""),
+    },
+    query: listQuery(),
+  };
+}
+
 function markFilteredRead() {
   newsStore.markAllRead(filtered.value.map((a) => a.id));
 }
@@ -749,6 +896,15 @@ async function load(force = false) {
     fromOffline.value = getNewsLastFetchSource() === "offline";
     partialWarning.value = getNewsPartialWarning();
     cacheAgeTick.value += 1;
+    const maxMs = Math.max(0, ...articles.value.map((a) => a.publishedMs || 0));
+    if (newsStore.notifyNew) {
+      newsStore.ensureFeedSeenBaseline(maxMs);
+      newSinceVisit.value = newsStore.countNewerThanSeen(
+        articles.value.map((a) => a.publishedMs || 0),
+      );
+    } else {
+      newSinceVisit.value = 0;
+    }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : "Failed to load News RSS.";
   } finally {
@@ -893,6 +1049,8 @@ onUnmounted(() => {
   if (ageTimer) clearInterval(ageTimer);
   window.removeEventListener("keydown", onKeydown);
   shortcutService.emitter.off("focusSearch", focusSearch);
+  const maxMs = Math.max(0, ...articles.value.map((a) => a.publishedMs || 0));
+  if (maxMs > 0) newsStore.markFeedSeen(maxMs);
 });
 </script>
 

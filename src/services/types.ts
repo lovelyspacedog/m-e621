@@ -110,6 +110,15 @@ export interface NewsState {
   layout: NewsFeedLayout;
   readerFontScale?: NewsReaderFontScale;
   readerWidth?: NewsReaderWidth;
+  /** Local author watch list (display names; match is case-insensitive). */
+  watchedAuthors?: string[];
+  /**
+   * Newest article `publishedMs` the user has "seen" on the feed.
+   * Used for optional new-since-last-visit highlighting.
+   */
+  lastSeenPublishedMs?: number | null;
+  /** When true, show New chips / counts for articles newer than lastSeen. */
+  notifyNew?: boolean;
 }
 
 /** @deprecated Use NewsSavedArticle */

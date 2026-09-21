@@ -58,9 +58,9 @@ Ship these first: News looks feature-complete, but Dogpatch reading, saved items
 Every source was hardcoded as `flayrah | dogpatch` in ids, proxy regexes, parsers, sanitizer hosts, TOS, and download allowlists.
 
 - [x] **Source registry** — Shared config: id, label, home URL, RSS allowlist, article URL template, HTML parser, media hosts, TOS entry. (`src/worker/news/registry.ts`; Vite uses `resolveNewsRssUrl` / `newsArticleUpstreamUrl`; `serve.py` NEWS_* tables kept in sync.)
-- [ ] **Optional same-story clustering** — Fuzzy match title + date in the merged feed with “also on Flayrah/Dogpatch”; only after source chips and unread are solid.
-- [ ] **Watch authors (local)** — Local author list → filter chip; not accounts.
-- [ ] **New-since-last-visit** — Optional notifications (off by default); last-seen cursor in `NewsState`.
+- [x] **Optional same-story clustering** — Fuzzy match title + date in the merged feed with “also on Flayrah/Dogpatch”; only after source chips and unread are solid.
+- [x] **Watch authors (local)** — Local author list → filter chip; not accounts.
+- [x] **New-since-last-visit** — Optional notifications (off by default); last-seen cursor in `NewsState`.
 
 ### Candidate sources (after registry)
 
@@ -74,11 +74,11 @@ Optional later: more Flayrah taxonomy terms only if `/taxonomy/term/N/0/feed` st
 ## Tests
 
 - [x] Prefer `content:encoded` when present (Dogpatch fixture).
-- [ ] Saved-filter `source` round-trip.
+- [x] Saved-filter `source` round-trip.
 - [x] Dogpatch category allowlist rejects unknown slugs (400).
 - [x] Embed/iframe placeholder after sanitize.
 - [x] Atom entry parse (`fwg` fixture).
-- [ ] Unread mark / mark-all-read persistence.
+- [x] Unread mark / mark-all-read persistence.
 
 ## Suggested ship order
 
@@ -87,6 +87,7 @@ Optional later: more Flayrah taxonomy terms only if `/taxonomy/term/N/0/feed` st
 3. ~~Reader polish: scroll-into-view, magazine parity, go-to-top, embed placeholders, News intro tip~~ — shipped (day headings, type scale, lightbox included)
 4. ~~Same sources, more feed: Dogpatch categories + paged RSS + media: tags~~ — shipped
 5. ~~Source registry + InFurNation + Furry Writers’ Guild + Atom~~ — shipped
+6. ~~Clustering, watch authors, new-since, remaining tests~~ — shipped
 
 ## Progress
 
@@ -98,4 +99,5 @@ Optional later: more Flayrah taxonomy terms only if `/taxonomy/term/N/0/feed` st
 | Reader polish | Done | day headings, type/width chrome, lightbox |
 | Deeper feed | Done | Dogpatch categories, paged WP RSS, media: thumbs, Atom |
 | Registry / new sources | Done | registry + InFurNation + FWG |
+| Clustering / watch / new-since | Done | also-on chips, watched authors, highlight new |
 | Non-goals | Held | no Federated-as-posts, no scrape |
