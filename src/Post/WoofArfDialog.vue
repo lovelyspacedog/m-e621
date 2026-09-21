@@ -23,16 +23,30 @@
         </v-btn>
       </v-card-title>
       <v-card-text class="pt-0 woof-arf-body">
-        <!-- Mount iframe only while open so closing stops playback. -->
+        <!--
+          PawFeed serves COEP: credentialless (SharedArrayBuffer / ffmpeg.wasm).
+          YouTube embeds need a credentialless iframe (Chromium) or they refuse
+          to connect. Set credentialless before src; tear down on close.
+        -->
         <div v-if="modelValue" class="woof-arf-embed">
           <iframe
+            v-if="supportsCredentialless"
+            :ref="bindCredentiallessFrame"
             class="woof-arf-embed__frame"
-            src="https://www.youtube.com/embed/83m261lAlrs?autoplay=1&playsinline=1"
             title="YouTube video player"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowfullscreen
-            referrerpolicy="strict-origin-when-cross-origin"
           />
+          <div v-else class="woof-arf-fallback">
+            <a
+              class="text-primary text-decoration-underline"
+              :href="WATCH_URL"
+              target="_blank"
+              rel="noopener"
+            >
+              Continue
+            </a>
+          </div>
         </div>
       </v-card-text>
     </v-card>
@@ -43,6 +57,23 @@
 import { computed, defineComponent } from "vue";
 import { useDisplay } from "vuetify";
 
+const VIDEO_ID = "83m261lAlrs";
+const EMBED_URL = `https://www.youtube.com/embed/${VIDEO_ID}?autoplay=1&playsinline=1`;
+const WATCH_URL = `https://www.youtube.com/watch?v=${VIDEO_ID}`;
+
+const supportsCredentialless =
+  typeof HTMLIFrameElement !== "undefined" &&
+  "credentialless" in HTMLIFrameElement.prototype;
+
+/** Must set credentialless before src under COEP, or YouTube refuses to connect. */
+const bindCredentiallessFrame = (el: Element | null) => {
+  if (!(el instanceof HTMLIFrameElement)) return;
+  el.credentialless = true;
+  if (el.getAttribute("src") !== EMBED_URL) {
+    el.src = EMBED_URL;
+  }
+};
+
 export default defineComponent({
   name: "WoofArfDialog",
   props: {
@@ -52,7 +83,12 @@ export default defineComponent({
   setup() {
     const { smAndDown } = useDisplay();
     const mobile = computed(() => smAndDown.value);
-    return { mobile };
+    return {
+      mobile,
+      supportsCredentialless,
+      bindCredentiallessFrame,
+      WATCH_URL,
+    };
   },
 });
 </script>
@@ -120,5 +156,14 @@ export default defineComponent({
   width: 100%;
   height: 100%;
   border: 0;
+}
+
+.woof-arf-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(var(--v-theme-secondary));
 }
 </style>
