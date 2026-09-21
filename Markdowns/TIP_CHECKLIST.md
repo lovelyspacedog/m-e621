@@ -1,6 +1,6 @@
-# Tip dialog checklist
+# Tip toast checklist
 
-Track one-time tip modals (`appearance.dismissedTips` + `TipDialog`). See [TIP_DIALOGS.md](./TIP_DIALOGS.md) for the runtime pattern, conventions, and file checklist.
+Track one-time tip toasts (`appearance.dismissedTips` + `TipDialog`). See [TIP_DIALOGS.md](./TIP_DIALOGS.md) for the runtime pattern, conventions, and file checklist.
 
 Stable tip ids live in `src/misc/tipIds.ts`. Open-state helper: `src/misc/useTipOpen.ts`.
 

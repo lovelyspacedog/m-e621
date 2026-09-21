@@ -2,7 +2,7 @@ import { ref } from "vue";
 import { useAppearanceStore } from "@/services";
 import type { TipId } from "./tipIds";
 
-/** Open-state helper for one TipDialog: false→true edge + dismissal guard. */
+/** Open-state helper for one tip toast: false→true edge + dismissal guard. */
 export function useTipOpen(tipId: TipId) {
   const appearance = useAppearanceStore();
   const open = ref(false);

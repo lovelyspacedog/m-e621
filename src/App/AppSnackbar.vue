@@ -1,5 +1,12 @@
 <template>
-  <v-snackbar color="secondary" v-model="open" location="right bottom" :timeout="action ? 8000 : 4000" timer="primary">
+  <v-snackbar
+    color="secondary"
+    v-model="open"
+    location="right bottom"
+    :timeout="action ? 8000 : 4000"
+    timer="primary"
+    :style="snackbarStyle"
+  >
     {{ message }}
     <template #actions>
       <v-btn v-if="action" variant="text" color="accent" @click="runAction">
@@ -11,10 +18,11 @@
 </template>
 
 <script setup lang="ts">
-import { useSnackbarStore } from "@/services";
+import { useSnackbarStore, useTipQueueStore } from "@/services";
 import { computed } from "vue";
 
 const snackbar = useSnackbarStore();
+const tipQueue = useTipQueueStore();
 
 const close = () => {
   snackbar.clearMessage();
@@ -28,6 +36,13 @@ const runAction = async () => {
 
 const message = computed(() => snackbar.message);
 const action = computed(() => snackbar.action);
+
+const snackbarStyle = computed(() => {
+  const tipH = tipQueue.activeHeight;
+  if (!tipQueue.hasActive || tipH <= 0) return undefined;
+  // Tip toast sits at bottom:16px; stack snackbar above it with an 8px gap.
+  return { marginBottom: `${tipH + 16 + 8}px` };
+});
 
 const open = computed<boolean>({
   get() {

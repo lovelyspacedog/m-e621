@@ -4,6 +4,7 @@ export * from "./HistoryStore";
 export * from "./PostsStore";
 export * from "./PersistanceService";
 export * from "./SnackbarStore";
+export * from "./TipQueueStore";
 export * from "./AccountStore";
 export * from "./ShortcutService";
 export * from "./ShortcutStore";

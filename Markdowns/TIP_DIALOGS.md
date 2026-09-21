@@ -1,8 +1,8 @@
-# Tip dialogs (“Don’t show this again”)
+# Tip toasts (“Don’t show this again”)
 
-PawFeed one-time tip modals share a small persistence scheme so new tips can reuse the same UI and reset path.
+PawFeed one-time tip toasts share a small persistence scheme so new tips can reuse the same UI and reset path.
 
-This is **not** the older Appearance → Prompts switches (`hideGithubInfo`, `hideMigrationInfo`, `hideInstallPrompt`). Those stay independent booleans. Tip dialogs use `appearance.dismissedTips` only.
+This is **not** the older Appearance → Prompts switches (`hideGithubInfo`, `hideMigrationInfo`, `hideInstallPrompt`). Those stay independent booleans. Tip toasts use `appearance.dismissedTips` only.
 
 ## Pieces
 
@@ -10,7 +10,8 @@ This is **not** the older Appearance → Prompts switches (`hideGithubInfo`, `hi
 | --- | --- |
 | `appearance.dismissedTips` | `Record<string, boolean>` in persisted settings (`configVersion` ≥ 45). Key = tip id, `true` = dismissed. |
 | `useAppearanceStore()` | `isTipDismissed(id)`, `dismissTip(id)`, `resetTips()` (clears the whole map). |
-| `src/misc/TipDialog.vue` | Shared Vuetify dialog: title, body slot, **Don’t show this again** checkbox, **Got it**. |
+| `useTipQueueStore()` | Transient FIFO so only one tip toast is visible at a time; exposes height for snackbar offset. Not persisted. |
+| `src/misc/TipDialog.vue` | Shared bottom-right toast: title, body slot, **Don’t show this again** checkbox, **OK**. Non-blocking (no scrim). |
 | Appearance → Prompts → **Reset tooltips** | Calls `resetTips()` so dismissed tips can show again. Searchable via settings index. |
 
 Defaults and migration live in `src/services/defaultSettings.ts` and `src/services/PersistanceService.ts` (v45 + a post-migration guard if `dismissedTips` is missing).
@@ -24,16 +25,27 @@ Trigger condition becomes true
 isTipDismissed(tipId)? ──yes──► do nothing
         │ no
         ▼
-open TipDialog (v-model = true)
+open TipDialog (v-model = true) → enqueue tipId
         │
         ▼
-User closes (Got it / X / scrim)
+Already another tip showing? ──yes──► wait in queue (mounted, hidden)
+        │ no
+        ▼
+Show bottom-right toast (head of queue)
+        │
+        ▼
+User taps OK
         │
         ├─ checkbox checked ──► dismissTip(tipId)  (persisted)
         └─ unchecked ─────────► only close; tip can show next trigger
+        │
+        ▼
+dequeue → next queued tip (if any) becomes visible
+
+Transient AppSnackbar messages stack above the active tip toast (bottom offset).
 ```
 
-`TipDialog` resets the checkbox each time it opens. Dismissal is written only when the checkbox is checked at close time.
+`TipDialog` resets the checkbox each time this tip becomes the visible head. Dismissal is written only when the checkbox is checked at OK time.
 
 ## Current tips
 
@@ -78,9 +90,9 @@ const { open: poolsTipOpen, tryOpenOnEdge } = useTipOpen(TIP_IDS.poolsOriginBadg
 watch(someCondition, tryOpenOnEdge);
 ```
 
-Use a false → true (or first-visit) edge so the dialog does not reopen on every reactive tick while the condition stays true.
+Use a false → true (or first-visit) edge so the toast does not reopen on every reactive tick while the condition stays true. If another tip is already showing, this tip waits in the queue until the head is dismissed with **OK**.
 
-4. **Optional:** call `appearance.dismissTip("pools-origin-badge")` yourself if some other UI should permanently silence the tip without the dialog (rare).
+4. **Optional:** call `appearance.dismissTip("pools-origin-badge")` yourself if some other UI should permanently silence the tip without the toast (rare).
 
 5. **Docs / discoverability (when shipping):**
    - Mention the tip in `src/Landing/changelog.ts` if users will see it.
@@ -90,9 +102,11 @@ Use a false → true (or first-visit) edge so the dialog does not reopen on ever
 
 ## Conventions
 
-- Prefer **one dialog instance per tip id** in the whole app.
+- Prefer **one toast instance per tip id** in the whole app.
 - Keep tip ids in `src/misc/tipIds.ts` (shared const map).
 - Prefer `useTipOpen` for open state + dismissal guard.
+- Concurrent tips **queue** (FIFO); only the head is visible.
+- Transient snackbars stack **above** the active tip toast.
 - Do not fold legacy `hide*` prompt flags into `dismissedTips` unless deliberately migrating them.
 - **Reset tooltips** clears *all* tip ids; it does not flip Hide GitHub / Migration / Install.
 
