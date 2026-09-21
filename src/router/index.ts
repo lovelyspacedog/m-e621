@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import { modeSupportsSavedPosts } from '@/misc/util/postOrigin'
 import { resolvePoolOrigin } from '@/misc/util/poolOrigin'
 import { isE621FamilyMode, modeSupportsFavoriteAnalyzer, modeSupportsPools, modeSupportsSuggester } from '@/misc/util/siteCapabilities'
+import { blockedToolRedirectName } from '@/misc/util/blockedToolRedirect'
 import { shouldSkipViewTransition } from '@/misc/util/viewTransition'
 import { useMainStore } from '@/services/state'
 import {
@@ -341,9 +342,7 @@ router.beforeEach((to, from) => {
       !modeSupportsPools(mode) &&
       (to.name === "Pools" || to.name === "Pool")
     ) {
-      return mode === "flayrah"
-        ? { name: "FlayrahFeed", query: to.query }
-        : { name: "Posts", query: to.query };
+      return { name: blockedToolRedirectName(mode), query: to.query };
     }
     // Federated pool reader needs ?origin=e621|e6ai|inkbunny|furbooru (IDs collide across sites).
     if (
@@ -357,30 +356,22 @@ router.beforeEach((to, from) => {
       !modeSupportsSuggester(mode) &&
       (to.name === "Suggester" || to.name === "SuggesterResult")
     ) {
-      return mode === "flayrah"
-        ? { name: "FlayrahFeed", query: to.query }
-        : { name: "Posts", query: to.query };
+      return { name: blockedToolRedirectName(mode), query: to.query };
     }
     if (
       !modeSupportsFavoriteAnalyzer(mode) &&
       (to.name === "FavoritesAnalyzer" || to.name === "FavoritesAnalyzerResult")
     ) {
-      return mode === "flayrah"
-        ? { name: "FlayrahFeed", query: to.query }
-        : { name: "Posts", query: to.query };
+      return { name: blockedToolRedirectName(mode), query: to.query };
     }
     if (
       !isE621FamilyMode(mode) &&
       ["Dashboard", "DashboardResult"].includes(String(to.name))
     ) {
-      return mode === "flayrah"
-        ? { name: "FlayrahFeed", query: to.query }
-        : { name: "Posts", query: to.query };
+      return { name: blockedToolRedirectName(mode), query: to.query };
     }
     if (to.name === "SavedPosts" && !modeSupportsSavedPosts(mode)) {
-      return mode === "flayrah"
-        ? { name: "FlayrahFeed", query: to.query }
-        : { name: "Posts", query: to.query };
+      return { name: blockedToolRedirectName(mode), query: to.query };
     }
   } catch {
     // Pinia not ready yet

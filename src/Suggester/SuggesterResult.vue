@@ -31,7 +31,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch, toRaw } from "vue";
+import { computed, nextTick, onMounted, ref, watch, toRaw } from "vue";
 import type { FavoriteTagsResult, IProgressEvent } from "@/worker/AnalyzeService";
 import { getAnalyzeService } from "@/worker/services";
 import * as Comlink from "comlink";
@@ -46,6 +46,7 @@ import {
   useBlacklistStore,
   usePostsStore,
   useSiteModeStore,
+  useSnackbarStore,
   useUrlStore,
 } from "@/services";
 import { useMainStore } from "@/services/state";
@@ -59,6 +60,11 @@ import {
 } from "@/misc/util/favoriteQuery";
 import { modeSupportsOtherUserFavorites } from "@/misc/util/siteCapabilities";
 import { buildUnifiedFetchArgs } from "@/misc/util/postOrigin";
+import { publishPartialChildWarnings } from "@/misc/util/favoriteChildWarnings";
+import {
+  canLoadOwnFavorites,
+  probeFaHostCookiesAvailable,
+} from "@/misc/util/favoriteAuthGate";
 import { getLocalPostsPage } from "@/misc/util/localMedia";
 import {
   buildFavoriteTagsResult,
@@ -75,6 +81,7 @@ const { removeRouterQuery, updateRouterQuery } = useRouterQueryHelpers();
 const postsStore = usePostsStore();
 const siteMode = useSiteModeStore();
 const account = useAccountStore();
+const snackbar = useSnackbarStore();
 const main = useMainStore();
 const route = useRoute();
 const urlStore = useUrlStore();
@@ -84,11 +91,31 @@ const listProgress = ref<IProgressEvent | null>(null);
 const errorMessage = ref<string | null>(null);
 const result = ref<FavoriteTagsResult | null>(null);
 const localScoredPool = ref<ScoredPost[] | null>(null);
+const hostFaCookiesAvailable = ref(false);
 
 const username = computed(() => route.query?.name?.toString() || "");
 
 const needsUsername = computed(() =>
   modeSupportsOtherUserFavorites(siteMode.activeMode),
+);
+
+const refreshFaHostCookies = async () => {
+  if (siteMode.activeMode !== "furaffinity") {
+    hostFaCookiesAvailable.value = false;
+    return;
+  }
+  hostFaCookiesAvailable.value = await probeFaHostCookiesAvailable();
+};
+
+onMounted(() => {
+  void refreshFaHostCookies();
+});
+
+watch(
+  () => siteMode.activeMode,
+  () => {
+    void refreshFaHostCookies();
+  },
 );
 
 const weights = computed<SuggesterWeights>(() => {
@@ -135,16 +162,21 @@ const analyze = async () => {
   localScoredPool.value = null;
 
   try {
-    if (needsUsername.value && !username.value.trim()) {
-      errorMessage.value = "Enter a username to load favorites.";
+    const ownOk = canLoadOwnFavorites({
+      mode: siteMode.activeMode,
+      apiKey: account.auth?.api_key,
+      hostFaCookiesAvailable: hostFaCookiesAvailable.value,
+    });
+    if (needsUsername.value && !username.value.trim() && !ownOk) {
+      errorMessage.value =
+        "Enter a username, or sign in to load your favorites.";
       return;
     }
     if (
       !needsUsername.value &&
       siteMode.activeMode !== "local" &&
-      siteMode.activeMode !== "furaffinity" &&
       siteMode.activeMode !== "unified" &&
-      !account.auth?.api_key
+      !ownOk
     ) {
       errorMessage.value = "Sign in for this site to run Post Suggester.";
       return;
@@ -206,6 +238,9 @@ const analyze = async () => {
       );
       if (thisGen !== analyzeGeneration) return;
       result.value = r;
+      publishPartialChildWarnings(r.warnings, (msg) =>
+        snackbar.addMessage(msg),
+      );
     }
 
     await nextTick();

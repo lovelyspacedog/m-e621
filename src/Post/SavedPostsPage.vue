@@ -80,6 +80,7 @@ import {
   buildUnifiedFetchArgs,
   modeSupportsSavedPosts,
 } from "@/misc/util/postOrigin";
+import { blockedToolRedirectName } from "@/misc/util/blockedToolRedirect";
 import {
   useMainStore,
   useSavedPostsStore,
@@ -177,7 +178,7 @@ const reload = async () => {
 
 const ensureSavedPostsMode = () => {
   if (!modeSupportsSavedPosts(siteMode.activeMode)) {
-    router.replace({ name: "Posts" });
+    router.replace({ name: blockedToolRedirectName(siteMode.activeMode) });
     return false;
   }
   return true;

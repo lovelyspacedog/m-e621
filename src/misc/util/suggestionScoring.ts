@@ -7,12 +7,25 @@ export interface ScoredPost extends EnhancedPost {
   __score: number;
 }
 
+export type TagCountMap = {
+  [category: string]: undefined | { [tag: string]: undefined | number };
+};
+
 export type FavoriteTagsResult = {
-  counts: {
-    [category: string]: undefined | { [tag: string]: undefined | number };
-  };
+  counts: TagCountMap;
   /** postFeedKey values from the favorite sample (exclude from suggestions). */
   favoriteKeys: string[];
+  /**
+   * Federated only: per-origin tag counts from the favorite sample.
+   * Used so hybrid seed searches stay on the child that contributed the tag.
+   */
+  countsByOrigin?: Record<string, TagCountMap>;
+  /**
+   * Federated only: per-child fetch failures when at least one child still
+   * contributed favorites. Empty / omitted when none failed or all failed
+   * (all-fail throws instead).
+   */
+  warnings?: string[];
 };
 
 export const getCounts = (posts: Post[]) => {
@@ -32,11 +45,35 @@ export const favoriteKeysFromPosts = (
   posts: Array<{ id: number; __meta?: { originMode?: string } }>,
 ) => posts.map((p) => postFeedKey(p));
 
-export const buildFavoriteTagsResult = (posts: Post[]): FavoriteTagsResult => ({
-  counts: getCounts(posts),
-  favoriteKeys: favoriteKeysFromPosts(posts),
-});
+/** Per-origin counts when posts carry `__meta.originMode` (Federated sample). */
+export const getCountsByOrigin = (
+  posts: Array<Post & { __meta?: { originMode?: string } }>,
+): Record<string, TagCountMap> | undefined => {
+  const byOrigin: Record<string, Post[]> = {};
+  for (const post of posts) {
+    const origin = post.__meta?.originMode;
+    if (!origin) continue;
+    (byOrigin[origin] ||= []).push(post);
+  }
+  const origins = Object.keys(byOrigin);
+  if (!origins.length) return undefined;
+  const countsByOrigin: Record<string, TagCountMap> = {};
+  for (const origin of origins) {
+    countsByOrigin[origin] = getCounts(byOrigin[origin]!);
+  }
+  return countsByOrigin;
+};
 
+export const buildFavoriteTagsResult = (posts: Post[]): FavoriteTagsResult => {
+  const countsByOrigin = getCountsByOrigin(
+    posts as Array<Post & { __meta?: { originMode?: string } }>,
+  );
+  return {
+    counts: getCounts(posts),
+    favoriteKeys: favoriteKeysFromPosts(posts),
+    ...(countsByOrigin ? { countsByOrigin } : {}),
+  };
+};
 const tagIterator = function* (tags: PostTags) {
   for (const [category, arr] of Object.entries(tags)) {
     for (const tag of arr) {

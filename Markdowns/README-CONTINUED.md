@@ -47,10 +47,13 @@ The fork adds dedicated pool routes at `/pools` and `/pools/:id` for **e621**, *
 ## Post Suggester
 
 - Available on every mode except Tailspace and Flayrah
-- Builds a taste profile from favorites (any user on e621 / e6ai / FurAffinity / SoFurry; logged-in favorites elsewhere; Local `type:favorited`)
+- Builds a taste profile from favorites (any user on e621 / e6ai / FurAffinity / SoFurry — leave the username blank when signed in for your own; logged-in favorites elsewhere; Local `type:favorited`)
+- FurAffinity own-favorites need profile cookies or host `FA_COOKIE_*`; looking up another user does not
 - Hybrid candidates: recent posts plus searches seeded from top favorite tags
 - Results ranked by score; already-favorited posts excluded
 - Federated merges per-child favorites from every **enabled** child (even when the Posts feed is on Following) and ranks across origins
+- Federated hybrid seed searches stay on the child that contributed each tag (no cross-origin seed pollution)
+- When some Federated children fail to load favorites but others succeed, a snackbar names the skipped sites (total failure still shows as an error on the page)
 
 ## Favorite Analyzer
 

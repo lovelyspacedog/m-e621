@@ -204,6 +204,7 @@ import {
   useBlacklistStore,
   usePostsStore,
   useSiteModeStore,
+  useSnackbarStore,
   useUrlStore,
 } from "@/services";
 import { useMainStore } from "@/services/state";
@@ -212,6 +213,11 @@ import TagLabel from "@/Tag/TagLabel.vue";
 import TagMenu from "@/Tag/TagMenu.vue";
 import { modeSupportsOtherUserFavorites } from "@/misc/util/siteCapabilities";
 import { buildUnifiedFetchArgs } from "@/misc/util/postOrigin";
+import { publishPartialChildWarnings } from "@/misc/util/favoriteChildWarnings";
+import {
+  canLoadOwnFavorites,
+  probeFaHostCookiesAvailable,
+} from "@/misc/util/favoriteAuthGate";
 import { getLocalPostsPage } from "@/misc/util/localMedia";
 import {
   buildFavoriteTagsResult,
@@ -232,16 +238,34 @@ const progress = ref<IProgressEvent>();
 const errorMessage = ref<string | null>(null);
 const profile = ref<FavoriteTagsResult | null>(null);
 const sampleSize = ref(0);
+const hostFaCookiesAvailable = ref(false);
 const urlStore = useUrlStore();
 const siteMode = useSiteModeStore();
 const account = useAccountStore();
 const blacklist = useBlacklistStore();
 const postsStore = usePostsStore();
+const snackbar = useSnackbarStore();
 const main = useMainStore();
 
 const username = computed(() => route.query?.name?.toString() || "");
 const needsUsername = computed(() =>
   modeSupportsOtherUserFavorites(siteMode.activeMode),
+);
+
+const refreshFaHostCookies = async () => {
+  if (siteMode.activeMode !== "furaffinity") {
+    hostFaCookiesAvailable.value = false;
+    return;
+  }
+  hostFaCookiesAvailable.value = await probeFaHostCookiesAvailable();
+};
+
+watch(
+  () => siteMode.activeMode,
+  () => {
+    void refreshFaHostCookies();
+  },
+  { immediate: true },
 );
 
 const limitChoice = ref<number>(
@@ -459,16 +483,21 @@ const analyze = async () => {
   progress.value = { message: "starting", progress: 0 };
 
   try {
-    if (needsUsername.value && !username.value.trim()) {
-      errorMessage.value = "Enter a username to analyze favorites.";
+    const ownOk = canLoadOwnFavorites({
+      mode: siteMode.activeMode,
+      apiKey: account.auth?.api_key,
+      hostFaCookiesAvailable: hostFaCookiesAvailable.value,
+    });
+    if (needsUsername.value && !username.value.trim() && !ownOk) {
+      errorMessage.value =
+        "Enter a username, or sign in to analyze your favorites.";
       return;
     }
     if (
       !needsUsername.value &&
       siteMode.activeMode !== "local" &&
-      siteMode.activeMode !== "furaffinity" &&
       siteMode.activeMode !== "unified" &&
-      !account.auth?.api_key
+      !ownOk
     ) {
       errorMessage.value = "Sign in for this site to analyze favorites.";
       return;
@@ -521,6 +550,9 @@ const analyze = async () => {
     if (thisGen !== generation) return;
     profile.value = r;
     sampleSize.value = r.favoriteKeys?.length || 0;
+    publishPartialChildWarnings(r.warnings, (msg) =>
+      snackbar.addMessage(msg),
+    );
     progress.value = { message: "done", progress: 1 };
   } catch (err: unknown) {
     if (thisGen !== generation) return;

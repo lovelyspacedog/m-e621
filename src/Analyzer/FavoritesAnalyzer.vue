@@ -16,25 +16,31 @@
                 v-model="username"
                 append-icon="mdi-send"
                 @click:append="submit"
-                label="Username"
-                hint="Public favorites for this user"
+                :label="usernameFieldLabel"
+                :hint="usernameFieldHint"
                 persistent-hint
               />
               <div v-else class="text-body-2 text-medium-emphasis mb-4">
                 {{ ownFavoritesLabel }}
-                <span v-if="!canSubmitOwn" class="text-error d-block mt-1">
-                  Sign in for this site to analyze favorites.
+                <span v-if="!submitGate.ok" class="text-error d-block mt-1">
+                  {{ submitGate.message }}
                 </span>
               </div>
               <v-btn
                 v-if="!showUsername"
                 color="primary"
                 class="mb-2"
-                :disabled="!canSubmitOwn"
+                :disabled="!submitGate.ok"
                 @click="submit"
               >
                 Analyze favorites
               </v-btn>
+              <p
+                v-if="showUsername && !submitGate.ok"
+                class="text-error text-body-2 text-start mt-2 mb-0"
+              >
+                {{ submitGate.message }}
+              </p>
             </v-form>
           </v-card-text>
         </v-card>
@@ -70,8 +76,12 @@ import TipDialog from "@/misc/TipDialog.vue";
 import { TIP_IDS } from "@/misc/tipIds";
 import { useTipOpen } from "@/misc/useTipOpen";
 import { modeSupportsOtherUserFavorites } from "@/misc/util/siteCapabilities";
+import {
+  favoriteToolSubmitGate,
+  probeFaHostCookiesAvailable,
+} from "@/misc/util/favoriteAuthGate";
 import { useHead } from "@unhead/vue";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 
 useHead({ title: "Favorite Analyzer" });
@@ -79,14 +89,53 @@ useHead({ title: "Favorite Analyzer" });
 const account = useAccountStore();
 const siteMode = useSiteModeStore();
 const username = ref(account.username || "");
+const hostFaCookiesAvailable = ref(false);
 const router = useRouter();
 const { open: analyzerTipOpen, tryOpen: tryAnalyzerTip } = useTipOpen(
   TIP_IDS.favoritesAnalyzer,
 );
-onMounted(() => tryAnalyzerTip());
+
+const refreshFaHostCookies = async () => {
+  if (siteMode.activeMode !== "furaffinity") {
+    hostFaCookiesAvailable.value = false;
+    return;
+  }
+  hostFaCookiesAvailable.value = await probeFaHostCookiesAvailable();
+};
+
+onMounted(() => {
+  tryAnalyzerTip();
+  void refreshFaHostCookies();
+});
+
+watch(
+  () => siteMode.activeMode,
+  () => {
+    void refreshFaHostCookies();
+  },
+);
 
 const showUsername = computed(() =>
   modeSupportsOtherUserFavorites(siteMode.activeMode),
+);
+
+const submitGate = computed(() =>
+  favoriteToolSubmitGate({
+    mode: siteMode.activeMode,
+    username: username.value,
+    apiKey: account.auth?.api_key,
+    hostFaCookiesAvailable: hostFaCookiesAvailable.value,
+  }),
+);
+
+const usernameFieldLabel = computed(() =>
+  submitGate.value.ok || username.value.trim()
+    ? "Username (optional if signed in)"
+    : "Username",
+);
+
+const usernameFieldHint = computed(() =>
+  "Public favorites for this user, or leave blank for your own when signed in",
 );
 
 const ownFavoritesLabel = computed(() => {
@@ -97,25 +146,17 @@ const ownFavoritesLabel = computed(() => {
   return "Using logged-in favorites";
 });
 
-const canSubmitOwn = computed(() => {
-  if (siteMode.activeMode === "local") return true;
-  if (siteMode.activeMode === "furaffinity") return true;
-  if (siteMode.activeMode === "unified") return true;
-  return Boolean(account.auth?.api_key);
+const query = computed<RouteLocationRaw>(() => {
+  const trimmed = username.value.trim();
+  return {
+    name: "FavoritesAnalyzerResult",
+    query: showUsername.value && trimmed ? { name: trimmed } : {},
+  };
 });
-
-const query = computed<RouteLocationRaw>(() => ({
-  name: "FavoritesAnalyzerResult",
-  query: showUsername.value ? { name: username.value.trim() } : {},
-}));
 
 const submit = async (event?: SubmitEvent | MouseEvent) => {
   event?.preventDefault?.();
-  if (showUsername.value) {
-    if (!username.value.trim()) return;
-  } else if (!canSubmitOwn.value) {
-    return;
-  }
+  if (!submitGate.value.ok) return;
   router.push(query.value);
 };
 </script>

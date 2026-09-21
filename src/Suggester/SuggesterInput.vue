@@ -17,7 +17,9 @@
                 v-model="username"
                 append-icon="mdi-send"
                 @click:append="submit"
-                label="Username"
+                :label="usernameFieldLabel"
+                :hint="usernameFieldHint"
+                :persistent-hint="!!usernameFieldHint"
               />
               <div v-else class="text-body-2 text-medium-emphasis mb-4">
                 {{
@@ -25,19 +27,25 @@
                     ? "Using favorites from each enabled Federated child"
                     : "Using logged-in favorites"
                 }}
-                <span v-if="!canSubmitOwn" class="text-error d-block mt-1">
-                  Sign in for this site to run Post Suggester.
+                <span v-if="!submitGate.ok" class="text-error d-block mt-1">
+                  {{ submitGate.message }}
                 </span>
               </div>
               <v-btn
                 v-if="!showUsername"
                 color="primary"
                 class="mb-4"
-                :disabled="!canSubmitOwn"
+                :disabled="!submitGate.ok"
                 @click="submit"
               >
                 Suggest posts
               </v-btn>
+              <p
+                v-if="showUsername && !submitGate.ok"
+                class="text-error text-body-2 text-start mt-2 mb-0"
+              >
+                {{ submitGate.message }}
+              </p>
             </v-form>
             <slider-group v-model="sliders" />
           </v-card-text>
@@ -84,29 +92,59 @@ import {
   type SuggesterWeightCategory,
 } from "@/misc/util/favoriteQuery";
 import { modeSupportsOtherUserFavorites } from "@/misc/util/siteCapabilities";
+import {
+  favoriteToolSubmitGate,
+  probeFaHostCookiesAvailable,
+} from "@/misc/util/favoriteAuthGate";
 
 useHead({ title: "Post Suggester" });
 
 const account = useAccountStore();
 const siteMode = useSiteModeStore();
 const username = ref(account.username || "");
+const hostFaCookiesAvailable = ref(false);
 const router = useRouter();
 const { open: suggesterTipOpen, tryOpen: trySuggesterTip } = useTipOpen(
   TIP_IDS.postSuggester,
 );
-onMounted(() => trySuggesterTip());
+
+const refreshFaHostCookies = async () => {
+  if (siteMode.activeMode !== "furaffinity") {
+    hostFaCookiesAvailable.value = false;
+    return;
+  }
+  hostFaCookiesAvailable.value = await probeFaHostCookiesAvailable();
+};
+
+onMounted(() => {
+  trySuggesterTip();
+  void refreshFaHostCookies();
+});
 
 const showUsername = computed(() =>
   modeSupportsOtherUserFavorites(siteMode.activeMode),
 );
 
-const canSubmitOwn = computed(() => {
-  if (siteMode.activeMode === "local") return true;
-  if (siteMode.activeMode === "furaffinity") return true;
-  // Federated uses per-child credentials (same as Favorite Analyzer).
-  if (siteMode.activeMode === "unified") return true;
-  return Boolean(account.auth?.api_key);
-});
+const submitGate = computed(() =>
+  favoriteToolSubmitGate({
+    mode: siteMode.activeMode,
+    username: username.value,
+    apiKey: account.auth?.api_key,
+    hostFaCookiesAvailable: hostFaCookiesAvailable.value,
+  }),
+);
+
+const usernameFieldLabel = computed(() =>
+  submitGate.value.ok || username.value.trim()
+    ? "Username (optional if signed in)"
+    : "Username",
+);
+
+const usernameFieldHint = computed(() =>
+  showUsername.value
+    ? "Leave blank to use your own favorites when signed in"
+    : undefined,
+);
 
 const buildSliders = (mode: typeof siteMode.activeMode) => {
   const defaults = defaultSuggesterWeights(mode);
@@ -122,6 +160,7 @@ watch(
   () => siteMode.activeMode,
   (mode) => {
     sliders.value = buildSliders(mode);
+    void refreshFaHostCookies();
   },
 );
 
@@ -131,10 +170,11 @@ const query = computed<RouteLocationRaw>(() => {
       key as SuggesterWeightCategory,
     ),
   );
+  const trimmed = username.value.trim();
   return {
     name: "SuggesterResult",
     query: {
-      ...(showUsername.value ? { name: username.value } : {}),
+      ...(showUsername.value && trimmed ? { name: trimmed } : {}),
       ...Object.fromEntries(
         weightEntries.map(([key, value]) => [key, `${value}`]),
       ),
@@ -144,11 +184,7 @@ const query = computed<RouteLocationRaw>(() => {
 
 const submit = async (event?: SubmitEvent | MouseEvent) => {
   event?.preventDefault?.();
-  if (showUsername.value) {
-    if (!username.value.trim()) return;
-  } else if (!canSubmitOwn.value) {
-    return;
-  }
+  if (!submitGate.value.ok) return;
   router.push(query.value);
 };
 </script>

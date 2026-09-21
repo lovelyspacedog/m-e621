@@ -2,13 +2,14 @@ import { expose } from "comlink";
 import type { Post } from "./api";
 import type { EnhancedPost } from "./ApiService";
 import { ApiService } from "./ApiService";
+import * as furaffinity from "./furaffinity/api";
 import {
   BlacklistMode,
   SITE_MODE_URLS,
   type SiteMode,
   type UnifiedChildMode,
 } from "@/services/types";
-import type { UnifiedFetchArgs } from "@/misc/util/postOrigin";
+import { unifiedChildLabel, type UnifiedFetchArgs } from "@/misc/util/postOrigin";
 import { debug } from "@/misc/util/debug";
 import {
   pickSeedTags,
@@ -119,6 +120,21 @@ type SuggestAuth =
       api_key: string;
     }
   | undefined;
+
+/** FA own-favs: profile cookies on auth, or host FA_COOKIE_* via /me probe. */
+const faOwnFavoritesAuthorized = async (
+  auth?: SuggestAuth,
+): Promise<boolean> => {
+  if (auth?.api_key) return true;
+  try {
+    const info = await furaffinity.me(null);
+    return (
+      info.cookieSource === "env" || !!(info as { env?: boolean }).env
+    );
+  } catch {
+    return false;
+  }
+};
 
 export class AnalyzeService {
   async getTagOccurrences(posts: Post[]) {
@@ -316,8 +332,16 @@ export class AnalyzeService {
     }
 
     const resolved = resolveFavoriteTagsQuery({ mode: mode || "e621", username });
-    if (resolved.requiresAuth && !auth?.api_key && mode !== "furaffinity") {
-      throw new Error("Sign in to load favorites for this site");
+    if (resolved.requiresAuth && !auth?.api_key) {
+      if (mode === "furaffinity") {
+        if (!(await faOwnFavoritesAuthorized(auth))) {
+          throw new Error(
+            "Sign in to FurAffinity (profile or host FA_COOKIE_*) to load your favorites",
+          );
+        }
+      } else {
+        throw new Error("Sign in to load favorites for this site");
+      }
     }
 
     const posts = await this.fetchPostsCached(
@@ -351,6 +375,7 @@ export class AnalyzeService {
     }
     const service = new ApiService();
     const allPosts: EnhancedPost[] = [];
+    const warnings: string[] = [];
     let done = 0;
     for (const child of children) {
       const childUsername =
@@ -373,13 +398,24 @@ export class AnalyzeService {
         });
         continue;
       }
-      if (resolved.requiresAuth && !child.auth?.api_key && child.mode !== "furaffinity") {
-        done += 1;
-        onProgress({
-          message: `skip ${child.mode} (not signed in)`,
-          progress: done / children.length,
-        });
-        continue;
+      if (resolved.requiresAuth && !child.auth?.api_key) {
+        if (child.mode === "furaffinity") {
+          if (!(await faOwnFavoritesAuthorized(child.auth))) {
+            done += 1;
+            onProgress({
+              message: `skip ${child.mode} (not signed in)`,
+              progress: done / children.length,
+            });
+            continue;
+          }
+        } else {
+          done += 1;
+          onProgress({
+            message: `skip ${child.mode} (not signed in)`,
+            progress: done / children.length,
+          });
+          continue;
+        }
       }
       try {
         const childPosts = await collectPagedFavorites({
@@ -415,6 +451,11 @@ export class AnalyzeService {
         allPosts.push(...childPosts);
       } catch (err) {
         log("unified fav child failed", child.mode, err);
+        warnings.push(
+          `${unifiedChildLabel(child.mode)} skipped: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
       }
       done += 1;
       onProgress({
@@ -427,7 +468,12 @@ export class AnalyzeService {
         "No favorites sampled — sign in to at least one enabled Federated child (or check that favorites exist)",
       );
     }
-    return buildFavoriteTagsResult(allPosts);
+    const result = buildFavoriteTagsResult(allPosts);
+    // Partial failure only — total failure threw above (no per-child snackbars).
+    if (warnings.length) {
+      result.warnings = warnings;
+    }
+    return result;
   }
 
   async suggestPosts(
@@ -453,6 +499,7 @@ export class AnalyzeService {
     const page = Math.max(1, args.page || 1);
     const poolKey = JSON.stringify({
       counts: tags.counts,
+      countsByOrigin: tags.countsByOrigin,
       favoriteKeys: tags.favoriteKeys,
       weights,
       baseUrl,
@@ -586,8 +633,24 @@ export class AnalyzeService {
     const children = unified?.children || [];
     const service = new ApiService();
     const out: EnhancedPost[] = [];
-    const seeds = pickSeedTags(tags.counts, weights, SEED_TAG_LIMIT);
-    const totalSteps = Math.max(1, children.length * (RECENT_PAGES + seeds.length));
+    // Prefer per-origin seeds so an e621-heavy tag is not searched on Inkbunny/etc.
+    const hasOriginBreakdown =
+      !!tags.countsByOrigin && Object.keys(tags.countsByOrigin).length > 0;
+    const seedsForChild = (mode: string) =>
+      pickSeedTags(
+        hasOriginBreakdown
+          ? tags.countsByOrigin?.[mode] || {}
+          : tags.counts,
+        weights,
+        SEED_TAG_LIMIT,
+      );
+    const totalSteps = Math.max(
+      1,
+      children.reduce(
+        (n, child) => n + RECENT_PAGES + seedsForChild(child.mode).length,
+        0,
+      ),
+    );
     let step = 0;
 
     for (const child of children) {
@@ -634,6 +697,7 @@ export class AnalyzeService {
         });
       }
 
+      const seeds = seedsForChild(child.mode);
       for (const seed of seeds) {
         try {
           const { posts } = await service.getPosts({

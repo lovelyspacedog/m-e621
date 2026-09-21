@@ -124,4 +124,17 @@ describe("pickSeedTags / rankSuggestionPool", () => {
     expect(page1.map((p) => p.id)).toEqual([10, 11]);
     expect(page1[0].__meta.pageNumber).toBe(1);
   });
+
+  it("buildFavoriteTagsResult keeps per-origin counts for Federated seeds", () => {
+    const favs = [
+      makePost(1, { artist: ["e621_only"], general: ["wolf"] }, "e621"),
+      makePost(2, { artist: ["ib_only"], general: ["fox"] }, "inkbunny"),
+    ] as Post[];
+    const profile = buildFavoriteTagsResult(favs);
+    expect(profile.countsByOrigin?.e621?.artist?.e621_only).toBe(1);
+    expect(profile.countsByOrigin?.e621?.artist?.ib_only).toBeUndefined();
+    expect(profile.countsByOrigin?.inkbunny?.artist?.ib_only).toBe(1);
+    expect(profile.counts.artist?.e621_only).toBe(1);
+    expect(profile.counts.artist?.ib_only).toBe(1);
+  });
 });

@@ -18,6 +18,11 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-20",
     title: "Clearer Suggester and Analyzer tips",
     items: [
+      "Federated Post Suggester seeds hybrid searches per child from that child's favorite tags (no cross-origin seed pollution)",
+      "Blocked tools under Tailspace (Dashboard, Pools, Saved, Suggester, Analyzer) redirect to Tailspace posts instead of e621-shaped Posts",
+      "On e621, e6ai, FurAffinity, and SoFurry, leave the Suggester/Analyzer username blank when signed in to use your own favorites",
+      "FurAffinity own-favorites in Suggester/Analyzer require profile cookies or host FA_COOKIE_* (looking up another user still works without cookies)",
+      "Federated Post Suggester and Favorite Analyzer snackbar when some sites fail to load favorites and others still succeed",
       "Federated Post Suggester and Favorite Analyzer sample favorites from every enabled child even when the Posts feed is on Following",
       "Post Suggester and Favorite Analyzer page through favorites correctly on sites whose APIs return fewer than 320 posts per page",
       "Post Suggester and Favorite Analyzer first-visit tips explain how each tool works in plain language (Appearance → Reset tooltips to see them again)",
