@@ -1,9 +1,9 @@
 import type { NewsArticle } from "@/worker/news/parseRss";
 
-export interface NewsDayGroup {
+export interface NewsDayGroup<T extends NewsArticle = NewsArticle> {
   key: string;
   label: string;
-  articles: NewsArticle[];
+  articles: T[];
   /** Index of the first article in the flat filtered list (for keyboard focus). */
   startIndex: number;
 }
@@ -40,13 +40,13 @@ export function newsDayLabel(ms: number, nowMs = Date.now()): string {
 }
 
 /** Group a date-sorted feed into calendar-day sections (newest first preserved). */
-export function groupNewsByDay(
-  articles: NewsArticle[],
+export function groupNewsByDay<T extends NewsArticle>(
+  articles: T[],
   nowMs = Date.now(),
-): NewsDayGroup[] {
-  const groups: NewsDayGroup[] = [];
+): NewsDayGroup<T>[] {
+  const groups: NewsDayGroup<T>[] = [];
   for (let i = 0; i < articles.length; i++) {
-    const article = articles[i];
+    const article = articles[i]!;
     const key = calendarKey(article.publishedMs);
     const last = groups[groups.length - 1];
     if (last && last.key === key) {

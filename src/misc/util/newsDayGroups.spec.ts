@@ -42,4 +42,18 @@ describe("groupNewsByDay", () => {
     expect(groups[1].label).toBe("Yesterday");
     expect(groups[1].startIndex).toBe(2);
   });
+
+  it("preserves cluster related extras through grouping", () => {
+    const now = Date.parse("2026-09-21T15:00:00");
+    const clustered = [
+      {
+        ...base({ id: "a", publishedMs: Date.parse("2026-09-21T12:00:00") }),
+        related: [{ id: "b", label: "Dogpatch", source: "dogpatch" as const }],
+      },
+    ];
+    const groups = groupNewsByDay(clustered, now);
+    expect(groups[0]!.articles[0]!.related).toEqual([
+      { id: "b", label: "Dogpatch", source: "dogpatch" },
+    ]);
+  });
 });

@@ -49,10 +49,10 @@ Reuse favorite / query plumbing; Federated-aware; stay out of Tailspace/News.
 
 Track in [NEWS-IMPROVEMENTS.md](./NEWS-IMPROVEMENTS.md); do not duplicate as Suggester/Analyzer siblings:
 
-- [ ] News **source registry** then InFurNation / Furry Writers’ Guild.
-- [ ] News **watch authors** (local author list → filter chip).
-- [ ] News **new-since-last-visit** (optional notifications; last-seen cursor).
-- [ ] News **same-story clustering** (fuzzy title + date across outlets).
+- [x] News **source registry** then InFurNation / Furry Writers’ Guild.
+- [x] News **watch authors** (local author list → filter chip).
+- [x] News **new-since-last-visit** (optional notifications; last-seen cursor).
+- [x] News **same-story clustering** (fuzzy title + date across outlets).
 
 ## Suggested ship order
 
