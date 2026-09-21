@@ -423,20 +423,20 @@ export const tosSummaries: TosSummary[] = [
     id: "dont-woof",
     name: "Don't Woof",
     sourceLabel: "About / Instructions",
-    note: "Not a third-party policy and not legal advice. An in-app community aside only — nothing here is linked from settings, tips, or the About tab.",
+    note: "Not a third-party policy and not legal advice.",
     sections: [
       {
         heading: "About",
         paragraphs: [
-          "Most of this tab summarizes other sites’ rules. This entry does not. It is a quiet footnote for readers who finish every policy page looking for the joke — optional color, not an obligation, and not advertised elsewhere in the app.",
-          "Think of it as a reward reserved for curiosity: if something here sounds like a rule but feels like a wink, that is intentional.",
+          "Most of this tab summarizes other sites’ rules. This entry does not. It addresses a local convention that is optional and binds nobody.",
+          "To the extent any convention is implied by this section, treat resemblance to a rule as color rather than obligation.",
         ],
       },
       {
         heading: "Instructions",
         paragraphs: [
-          "There is no checklist and nothing you must enable. If you insist on ceremony, present exactly two brief tokens — only that pair, matched precisely, in either order, with nothing else mixed in — in the ordinary place where requests are typed.",
-          "Follow those rules only when there are exactly two of them. A correct pair skips the ordinary answer and briefly rewards the curious; anything longer, shorter, or differently spelled is ignored, which is the correct outcome for almost everyone.",
+          "There is no checklist and nothing you must enable. Present a minimal, exact, and specific form of input where requests are normally typed.",
+          "Follow every convention only when it appears in its complete and minimal form. Departures from that form are ignored, which is the correct outcome for almost everyone.",
         ],
       },
     ],
