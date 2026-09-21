@@ -19,6 +19,7 @@ export const changelogSections: ChangelogSection[] = [
     title: "Clearer Suggester and Analyzer tips",
     items: [
       "One-time tips appear as bottom-right toasts (not center dialogs), with Don't show this again and OK; tips queue one at a time and snackbars stack above them",
+      "Tip toasts on phones use a full-width bottom bar with safe-area padding and a full-width OK control",
       "Federated Post Suggester seeds hybrid searches per child from that child's favorite tags (no cross-origin seed pollution)",
       "Blocked tools under Tailspace (Dashboard, Pools, Saved, Suggester, Analyzer) redirect to Tailspace posts instead of e621-shaped Posts",
       "On e621, e6ai, FurAffinity, and SoFurry, leave the Suggester/Analyzer username blank when signed in to use your own favorites",

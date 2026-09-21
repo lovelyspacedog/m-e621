@@ -11,7 +11,7 @@ This is **not** the older Appearance → Prompts switches (`hideGithubInfo`, `hi
 | `appearance.dismissedTips` | `Record<string, boolean>` in persisted settings (`configVersion` ≥ 45). Key = tip id, `true` = dismissed. |
 | `useAppearanceStore()` | `isTipDismissed(id)`, `dismissTip(id)`, `resetTips()` (clears the whole map). |
 | `useTipQueueStore()` | Transient FIFO so only one tip toast is visible at a time; exposes height for snackbar offset. Not persisted. |
-| `src/misc/TipDialog.vue` | Shared bottom-right toast: title, body slot, **Don’t show this again** checkbox, **OK**. Non-blocking (no scrim). |
+| `src/misc/TipDialog.vue` | Shared bottom-right toast: title, body slot, **Don’t show this again** checkbox, **OK**. Non-blocking (no scrim). Pins to the visual viewport (safe-area + soft-keyboard friendly). On narrow viewports spans the bottom with a full-width **OK** and max-height scroll. |
 | Appearance → Prompts → **Reset tooltips** | Calls `resetTips()` so dismissed tips can show again. Searchable via settings index. |
 
 Defaults and migration live in `src/services/defaultSettings.ts` and `src/services/PersistanceService.ts` (v45 + a post-migration guard if `dismissedTips` is missing).

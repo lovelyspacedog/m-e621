@@ -4,7 +4,10 @@ import { computed, ref } from "vue";
 /** FIFO queue for one-at-a-time tip toasts — transient UI, not persisted. */
 export const useTipQueueStore = defineStore("tipQueue", () => {
   const queue = ref<string[]>([]);
-  /** Pixel height of the active tip toast (for snackbar offset). */
+  /**
+   * Bottom clearance for stacking snackbars above the tip:
+   * viewport bottom → tip top + gap (includes safe-area insets).
+   */
   const activeHeight = ref(0);
 
   const activeTipId = computed(() => queue.value[0] ?? null);

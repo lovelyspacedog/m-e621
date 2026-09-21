@@ -38,10 +38,10 @@ const message = computed(() => snackbar.message);
 const action = computed(() => snackbar.action);
 
 const snackbarStyle = computed(() => {
-  const tipH = tipQueue.activeHeight;
-  if (!tipQueue.hasActive || tipH <= 0) return undefined;
-  // Tip toast sits at bottom:16px; stack snackbar above it with an 8px gap.
-  return { marginBottom: `${tipH + 16 + 8}px` };
+  // TipDialog stores viewport-bottom → tip-top clearance (includes safe-area + gap).
+  const clearance = tipQueue.activeHeight;
+  if (!tipQueue.hasActive || clearance <= 0) return undefined;
+  return { marginBottom: `${clearance}px` };
 });
 
 const open = computed<boolean>({
