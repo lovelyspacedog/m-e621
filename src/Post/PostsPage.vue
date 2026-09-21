@@ -248,6 +248,7 @@
         offline. Use Remux on a single card or Remux unplayable in the toolbar.
       </p>
     </TipDialog>
+    <woof-arf-dialog v-model="woofArfOpen" />
   </div>
 </template>
 
@@ -306,6 +307,14 @@ import {
   writeSidebarSectionOpen,
 } from "@/misc/util/sidebarSections";
 import { useDisplay } from "vuetify";
+import WoofArfDialog from "./WoofArfDialog.vue";
+
+/** Federated-only: exact tags woof + arf (any order, case-insensitive). */
+const isWoofArfEasterEgg = (tags: readonly string[]): boolean => {
+  if (tags.length !== 2) return false;
+  const normalized = new Set(tags.map((t) => t.toLowerCase()));
+  return normalized.size === 2 && normalized.has("woof") && normalized.has("arf");
+};
 
 const { mdAndDown } = useDisplay();
 
@@ -354,6 +363,7 @@ const { open: remuxTipOpen, tryOpen: tryRemuxTip } = useTipOpen(
   TIP_IDS.remuxLocal,
 );
 provide("tryRemuxTip", tryRemuxTip);
+const woofArfOpen = ref(false);
 
 watch(
   () => siteMode.unifiedFeedSource === "following",
@@ -685,6 +695,15 @@ const suggestTags = async () => {
 };
 
 const onSearchClick = debounce(async () => {
+  // Federated-only easter egg: exact tags woof + arf → YouTube, no search.
+  if (siteMode.isUnified && isWoofArfEasterEgg(tags.value)) {
+    setTags([]);
+    updateQuery();
+    clearPosts();
+    await removeRouterQuery(["page"]);
+    woofArfOpen.value = true;
+    return;
+  }
   // Clear before awaiting router so an in-flight page load cannot keep
   // appending the previous query's posts across the yield.
   if (siteMode.isLocal) {
