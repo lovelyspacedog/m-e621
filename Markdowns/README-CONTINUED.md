@@ -64,6 +64,18 @@ The fork adds dedicated pool routes at `/pools` and `/pools/:id` for **e621**, *
 - Optional blacklist filter, category chips, copy top tags, JSON export, and a link into Post Suggester
 - Uses mode-native favorite queries — never falls through to the e621 API on other sites
 
+## Discovery tools
+
+Sibling tools to Suggester / Analyzer (same mode surface; Tailspace and News excluded). Sidebar **Tools** expands to avoid crowding:
+
+- **Artist Radar** (`/tools/radar`) — ranks artists from a favorites sample, checks for posts newer than your last “Mark seen,” Federated/Local aware
+- **Taste Diff** (`/tools/taste-diff`) — compare two favorites profiles (you vs another user where public favs exist, or this site vs Local)
+- **History Insights** (`/tools/history`) — tag frequency across browse-history searches
+- **Blacklist Coach** (`/tools/blacklist-coach`) — suggests single-tag blacklist lines from favorites that already match, with collateral preview; optional one-click add
+- **Saved-search Wake-up** (`/tools/saved-wake`) — check gallery saved searches for newer posts since last open from this tool
+
+Backlog / ship notes: [DISCOVERY-TOOLS.md](./DISCOVERY-TOOLS.md).
+
 ## Saved searches, starred tags, and bookmarks
 
 Saved searches and starred tags can be placed into named, collapsible groups. Groups and entries support reordering and drag-and-drop. Favorites, blacklists, and compatible saved searches (e621 ↔ e6ai) can be copied between site profiles using merge or replace.

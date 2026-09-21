@@ -33,6 +33,11 @@ When a tip ships: check the box, keep the tip id stable, mention it in `src/Land
 - [x] `remux-local` — First Remux (toolbar or card). Host: `PostsPage.vue` (+ `PostPreview` inject). FFmpeg remux path.
 - [x] `post-suggester` — First Post Suggester visit. Host: `SuggesterInput.vue`. Layman taste-profile → hybrid candidates → score/rank; weights / mode exclusions.
 - [x] `favorites-analyzer` — First Favorite Analyzer visit. Host: `FavoritesAnalyzer.vue`. Layman sample → tag frequency ranks; own/other/Federated/Local; link to Suggester.
+- [x] `artist-radar` — First Artist Radar visit. Host: `ArtistRadar.vue`. Favorites → artist ranks → new-since Mark seen.
+- [x] `taste-diff` — First Taste Diff visit. Host: `TasteDiff.vue`. Two favorites profiles side-by-side.
+- [x] `history-insights` — First History Insights visit. Host: `HistoryInsights.vue`. Browse-history tag ranks.
+- [x] `blacklist-coach` — First Blacklist Coach visit. Host: `BlacklistCoach.vue`. Suggest single-tag rules from blacklisted favorites.
+- [x] `saved-search-wake` — First Saved-search Wake-up visit. Host: `SavedSearchWake.vue`. Newer posts since last open.
 - [x] `flayrah-offline` — First offline News cache alert (tip id kept). Host: `NewsFeedPage.vue`. Last-good RSS cache.
 - [x] `news-intro` — First News feed visit. Host: `NewsFeedPage.vue`. Sources, Flayrah sections, Dogpatch content note, attribution.
 - [x] `starred-tags` — First Favorites / starred-tag groups page. Host: `FavoritesPage.vue`. Starred groups + cross-site copy.

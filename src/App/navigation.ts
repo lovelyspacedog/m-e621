@@ -5,12 +5,11 @@ import { useSiteLabels } from "@/misc/util/siteLabels";
 import {
   isE621FamilyMode,
   modeSupportsPools,
-  modeSupportsFavoriteAnalyzer,
-  modeSupportsSuggester,
+  modeSupportsDiscoveryTools,
 } from "@/misc/util/siteCapabilities";
 import { peekNewsCachedArticles } from "@/worker/news/api";
 import { computed } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, type RouteLocationRaw } from "vue-router";
 
 const hasFavorites = computed(() => {
   const store = useFavoritesStore();
@@ -22,6 +21,15 @@ const customItems = computed(() => {
   return store.entries;
 });
 
+export type NavLinkItem = {
+  icon: string;
+  name: string;
+  exact: boolean;
+  to: { name: string; query?: Record<string, string> };
+  badge?: number;
+  resolved: string;
+};
+
 const resolveItem = (
   router: ReturnType<typeof useRouter>,
   item: {
@@ -31,9 +39,9 @@ const resolveItem = (
     to: { name: string; query?: Record<string, string> };
     badge?: number;
   },
-) => ({
+): NavLinkItem => ({
   ...item,
-  resolved: router.resolve(item.to).href,
+  resolved: router.resolve(item.to as RouteLocationRaw).href,
 });
 
 export const useHomeNavigationItem = () => {
@@ -55,11 +63,75 @@ export const useHomeNavigationItem = () => {
   );
 };
 
+/** Tools submenu: Suggester, Analyzer, discovery tools, Dashboard. */
+export const useToolNavigationItems = () => {
+  const router = useRouter();
+  const siteMode = useSiteModeStore();
+  const { creatorLabel } = useSiteLabels();
+  return computed(() => {
+    if (!modeSupportsDiscoveryTools(siteMode.activeMode)) return [];
+    const items: NavLinkItem[] = [
+      resolveItem(router, {
+        icon: "mdi-chart-timeline-variant-shimmer",
+        name: "Post Suggester",
+        exact: true,
+        to: { name: "Suggester" },
+      }),
+      resolveItem(router, {
+        icon: "mdi-cloud-tags",
+        name: "Favorite Analyzer",
+        exact: true,
+        to: { name: "FavoritesAnalyzer" },
+      }),
+      resolveItem(router, {
+        icon: "mdi-radar",
+        name: "Artist Radar",
+        exact: true,
+        to: { name: "ArtistRadar" },
+      }),
+      resolveItem(router, {
+        icon: "mdi-set-split",
+        name: "Taste Diff",
+        exact: true,
+        to: { name: "TasteDiff" },
+      }),
+      resolveItem(router, {
+        icon: "mdi-history",
+        name: "History Insights",
+        exact: true,
+        to: { name: "HistoryInsights" },
+      }),
+      resolveItem(router, {
+        icon: "mdi-shield-alert",
+        name: "Blacklist Coach",
+        exact: true,
+        to: { name: "BlacklistCoach" },
+      }),
+      resolveItem(router, {
+        icon: "mdi-bell-ring",
+        name: "Saved-search Wake-up",
+        exact: true,
+        to: { name: "SavedSearchWake" },
+      }),
+    ];
+    if (isE621FamilyMode(siteMode.activeMode)) {
+      items.push(
+        resolveItem(router, {
+          icon: "mdi-view-dashboard-variant",
+          name: `${creatorLabel.value} Dashboard`,
+          exact: true,
+          to: { name: "Dashboard" },
+        }),
+      );
+    }
+    return items;
+  });
+};
+
 export const useTrailingNavigationItems = () => {
   const router = useRouter();
   const siteMode = useSiteModeStore();
   const newsStore = useNewsStore();
-  const { creatorLabel } = useSiteLabels();
   return computed(() => {
     const settings = {
       icon: "mdi-cog",
@@ -72,7 +144,6 @@ export const useTrailingNavigationItems = () => {
 
     // News: feed + settings only
     if (siteMode.isNews) {
-      // Depend on readCount so the badge recomputes when articles are marked.
       void newsStore.readCount;
       const cached = peekNewsCachedArticles();
       const unread = cached.filter((a) => !newsStore.isRead(a.id)).length;
@@ -125,42 +196,7 @@ export const useTrailingNavigationItems = () => {
           },
         ]
       : [];
-    const suggesterItem = modeSupportsSuggester(siteMode.activeMode)
-      ? [
-          {
-            icon: "mdi-chart-timeline-variant-shimmer",
-            name: "Post Suggester",
-            exact: true,
-            to: {
-              name: "Suggester",
-            },
-          },
-        ]
-      : [];
-    const analyzerItem = modeSupportsFavoriteAnalyzer(siteMode.activeMode)
-      ? [
-          {
-            icon: "mdi-cloud-tags",
-            name: "Favorite Analyzer",
-            exact: true,
-            to: {
-              name: "FavoritesAnalyzer",
-            },
-          },
-        ]
-      : [];
-    const e621ToolItems = isE621FamilyMode(siteMode.activeMode)
-      ? [
-          {
-            icon: "mdi-view-dashboard-variant",
-            name: `${creatorLabel.value} Dashboard`,
-            exact: true,
-            to: {
-              name: "Dashboard",
-            },
-          },
-        ]
-      : [];
+    // Tools live in useToolNavigationItems() → sidebar Tools group.
     const starredItem = hasFavorites.value
       ? [
           {
@@ -187,9 +223,6 @@ export const useTrailingNavigationItems = () => {
           ]
         : []),
       ...poolItems,
-      ...suggesterItem,
-      ...analyzerItem,
-      ...e621ToolItems,
       ...starredItem,
       settings,
     ].map((item) => resolveItem(router, item));
@@ -201,6 +234,7 @@ export const useNavigationItems = () => {
   const siteMode = useSiteModeStore();
   const home = useHomeNavigationItem();
   const trailing = useTrailingNavigationItems();
+  const tools = useToolNavigationItems();
   const navigationItems = computed(() => [
     home.value,
     ...customItems.value.map((entry) =>
@@ -225,14 +259,15 @@ export const useNavigationItems = () => {
                   ...(entry.news?.view ? { view: entry.news.view } : {}),
                 },
               }
-          : {
-              name: "Posts",
-              query: {
-                tags: entry.tags.join(" "),
+            : {
+                name: "Posts",
+                query: {
+                  tags: entry.tags.join(" "),
+                },
               },
-            },
       }),
     ),
+    ...tools.value,
     ...trailing.value,
   ]);
   return navigationItems;

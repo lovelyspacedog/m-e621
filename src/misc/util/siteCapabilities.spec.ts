@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isDedicatedChromeMode,
   isE621FamilyMode,
+  modeSupportsDiscoveryTools,
   modeSupportsFavoriteAnalyzer,
   modeSupportsOtherUserFavorites,
   modeSupportsPools,
@@ -52,11 +53,14 @@ describe("modeSupportsSuggester", () => {
     for (const mode of modes) {
       expect(modeSupportsSuggester(mode)).toBe(true);
       expect(modeSupportsFavoriteAnalyzer(mode)).toBe(true);
+      expect(modeSupportsDiscoveryTools(mode)).toBe(true);
     }
     expect(modeSupportsSuggester("tailspace")).toBe(false);
     expect(modeSupportsFavoriteAnalyzer("tailspace")).toBe(false);
+    expect(modeSupportsDiscoveryTools("tailspace")).toBe(false);
     expect(modeSupportsSuggester("news")).toBe(false);
     expect(modeSupportsFavoriteAnalyzer("news")).toBe(false);
+    expect(modeSupportsDiscoveryTools("news")).toBe(false);
     expect(isDedicatedChromeMode("tailspace")).toBe(true);
     expect(isDedicatedChromeMode("news")).toBe(true);
     expect(isDedicatedChromeMode("e621")).toBe(false);

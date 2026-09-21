@@ -1,7 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { modeSupportsSavedPosts } from '@/misc/util/postOrigin'
 import { resolvePoolOrigin } from '@/misc/util/poolOrigin'
-import { isE621FamilyMode, modeSupportsFavoriteAnalyzer, modeSupportsPools, modeSupportsSuggester } from '@/misc/util/siteCapabilities'
+import { isE621FamilyMode, modeSupportsDiscoveryTools, modeSupportsFavoriteAnalyzer, modeSupportsPools, modeSupportsSuggester } from '@/misc/util/siteCapabilities'
 import { blockedToolRedirectName } from '@/misc/util/blockedToolRedirect'
 import { shouldSkipViewTransition } from '@/misc/util/viewTransition'
 import { useMainStore } from '@/services/state'
@@ -212,6 +212,68 @@ const router = createRouter({
         ),
     },
     {
+      path: "/tools/radar",
+      name: "ArtistRadar",
+      component: () =>
+        import(
+          /* webpackChunkName: "discovery" */ "@/Discovery/ArtistRadar.vue"
+        ),
+    },
+    {
+      path: "/tools/radar/result",
+      name: "ArtistRadarResult",
+      component: () =>
+        import(
+          /* webpackChunkName: "discovery" */ "@/Discovery/ArtistRadarResult.vue"
+        ),
+    },
+    {
+      path: "/tools/taste-diff",
+      name: "TasteDiff",
+      component: () =>
+        import(/* webpackChunkName: "discovery" */ "@/Discovery/TasteDiff.vue"),
+    },
+    {
+      path: "/tools/taste-diff/result",
+      name: "TasteDiffResult",
+      component: () =>
+        import(
+          /* webpackChunkName: "discovery" */ "@/Discovery/TasteDiffResult.vue"
+        ),
+    },
+    {
+      path: "/tools/history",
+      name: "HistoryInsights",
+      component: () =>
+        import(
+          /* webpackChunkName: "discovery" */ "@/Discovery/HistoryInsights.vue"
+        ),
+    },
+    {
+      path: "/tools/blacklist-coach",
+      name: "BlacklistCoach",
+      component: () =>
+        import(
+          /* webpackChunkName: "discovery" */ "@/Discovery/BlacklistCoach.vue"
+        ),
+    },
+    {
+      path: "/tools/blacklist-coach/result",
+      name: "BlacklistCoachResult",
+      component: () =>
+        import(
+          /* webpackChunkName: "discovery" */ "@/Discovery/BlacklistCoachResult.vue"
+        ),
+    },
+    {
+      path: "/tools/saved-wake",
+      name: "SavedSearchWake",
+      component: () =>
+        import(
+          /* webpackChunkName: "discovery" */ "@/Discovery/SavedSearchWake.vue"
+        ),
+    },
+    {
       alias: ["/favorites"],
       path: "/starred",
       name: "Starred",
@@ -321,6 +383,16 @@ router.beforeEach((to, from) => {
       "TailspaceFollowing",
     ]);
     const newsRoutes = new Set(["NewsFeed", "NewsArticle"]);
+    const discoveryToolRoutes = new Set([
+      "ArtistRadar",
+      "ArtistRadarResult",
+      "TasteDiff",
+      "TasteDiffResult",
+      "HistoryInsights",
+      "BlacklistCoach",
+      "BlacklistCoachResult",
+      "SavedSearchWake",
+    ]);
     const e621ShapedRoutes = new Set([
       "Posts",
       "Pools",
@@ -331,6 +403,7 @@ router.beforeEach((to, from) => {
       "FavoritesAnalyzerResult",
       "Dashboard",
       "DashboardResult",
+      ...discoveryToolRoutes,
       // e621 DText debug page — not dedicated-chrome browse
       "Parser",
     ]);
@@ -377,6 +450,12 @@ router.beforeEach((to, from) => {
     if (
       !modeSupportsFavoriteAnalyzer(mode) &&
       (to.name === "FavoritesAnalyzer" || to.name === "FavoritesAnalyzerResult")
+    ) {
+      return { name: blockedToolRedirectName(mode), query: to.query };
+    }
+    if (
+      !modeSupportsDiscoveryTools(mode) &&
+      discoveryToolRoutes.has(String(to.name))
     ) {
       return { name: blockedToolRedirectName(mode), query: to.query };
     }

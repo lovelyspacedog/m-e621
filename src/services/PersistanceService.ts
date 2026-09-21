@@ -879,6 +879,13 @@ class PersistanceService {
       }
       newState.configVersion = 49;
     }
+    if (newState.configVersion < 50) {
+      newState.discovery = {
+        artistRadar: { cursors: {} },
+        savedSearchWake: { byId: {} },
+      };
+      newState.configVersion = 50;
+    }
     if (
       newState.previousModeBeforeUnified !== null &&
       newState.previousModeBeforeUnified !== undefined &&

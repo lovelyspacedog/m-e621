@@ -25,6 +25,13 @@ export const modeSupportsFavoriteAnalyzer = (mode: SiteMode): boolean =>
   modeSupportsSuggester(mode);
 
 /**
+ * Discovery tools (Artist Radar, Taste Diff, History Insights, Blacklist Coach,
+ * Saved-search Wake-up) — same mode surface as Post Suggester / Analyzer.
+ */
+export const modeSupportsDiscoveryTools = (mode: SiteMode): boolean =>
+  modeSupportsSuggester(mode);
+
+/**
  * Username field for Post Suggester / Analyzer: other users' public favorites.
  * Own-only sites use the logged-in account (`my:faves` / `favs:me` / …).
  */

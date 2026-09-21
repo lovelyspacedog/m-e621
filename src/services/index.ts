@@ -11,6 +11,7 @@ export * from "./ShortcutStore";
 export * from "./UrlStore";
 export * from "./SavedSearchStore";
 export * from "./ArtistDashboardStore";
+export * from "./DiscoveryStore";
 export * from "./SavedPostsStore";
 export * from "./NewsStore";
 export * from "./WatchedPoolsStore";

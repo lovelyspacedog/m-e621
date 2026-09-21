@@ -16,6 +16,17 @@ export interface ChangelogSection {
 export const changelogSections: ChangelogSection[] = [
   {
     date: "2026-09-21",
+    title: "Discovery tools and Tools sidebar",
+    items: [
+      "Sidebar Tools group holds Post Suggester, Favorite Analyzer, and new discovery tools (plus Artist Dashboard on e621/e6ai) so the nav stays uncrowded",
+      "Artist Radar ranks artists from favorites and shows posts newer than your last Mark seen",
+      "Taste Diff compares two favorites profiles (other users where supported, or this site vs Local)",
+      "History Insights ranks tags from your browse history; Blacklist Coach suggests single-tag rules from blacklisted favorites with a collateral preview",
+      "Saved-search Wake-up checks gallery saved searches for newer posts since you last opened them from the tool",
+    ],
+  },
+  {
+    date: "2026-09-21",
     title: "Go to top, News polish, and more News sources",
     items: [
       "Posts search feed shows a floating Go to top button after you scroll (list and grid), pinned for mobile safe areas and tip toasts",

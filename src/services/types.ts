@@ -312,7 +312,8 @@ export interface ISettingsServiceState {
     | 46
     | 47
     | 48
-    | 49;
+    | 49
+    | 50;
   activeMode: SiteMode;
   /** Mode before entering Federated; restored when leaving or demoting on landing. */
   previousModeBeforeUnified: SiteMode | null;
@@ -427,6 +428,29 @@ export interface ISettingsServiceState {
   /** Recently viewed e621-family artist dashboard tags (MRU). */
   artistDashboard: {
     recentArtists: string[];
+  };
+  /**
+   * Discovery tools (Artist Radar cursors, Saved-search Wake-up).
+   * Not under profiles — mode is encoded in cursor keys.
+   */
+  discovery: {
+    artistRadar: {
+      cursors: Record<
+        string,
+        { newestKey: string; createdMs?: number; checkedAt: number }
+      >;
+    };
+    savedSearchWake: {
+      byId: Record<
+        string,
+        {
+          lastOpenedAt: number;
+          newestKey?: string;
+          createdMs?: number;
+          lastHitCount?: number;
+        }
+      >;
+    };
   };
   favorites: {
     groups: FavoriteTagGroup[];
