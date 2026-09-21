@@ -318,6 +318,18 @@
         </template>
       </v-list-item>
     </v-list>
+    <div
+      v-if="canLoadOlder"
+      class="d-flex justify-center pa-4"
+    >
+      <v-btn
+        variant="tonal"
+        :loading="loadingMore"
+        @click="loadOlder"
+      >
+        {{ sourceFilter === "all" ? "Load older Dogpatch" : "Load older" }}
+      </v-btn>
+    </div>
     <Teleport to="body">
       <v-btn
         v-show="goToTopVisible"
@@ -350,9 +362,11 @@ import {
   type NewsArticle,
 } from "@/worker/news/api";
 import {
+  DOGPATCH_FEED_OPTIONS,
   FLAYRAH_FEED_OPTIONS,
+  NEWS_RSS_PAGE_MAX,
   NEWS_SOURCE_OPTIONS,
-  normalizeFlayrahFeedId,
+  normalizeNewsFeedId,
   normalizeNewsSourceFilter,
   type NewsSourceFilter,
 } from "@/worker/news/feeds";
@@ -380,6 +394,8 @@ const shortcutService = useShortcutService();
 
 const articles = ref<NewsArticle[]>([]);
 const loading = ref(false);
+const loadingMore = ref(false);
+const noMore = ref(false);
 const error = ref<string | null>(null);
 const fromOffline = ref(false);
 const partialWarning = ref<string | null>(null);
@@ -403,7 +419,9 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null;
 let ageTimer: ReturnType<typeof setInterval> | null = null;
 
 const sourceOptions = NEWS_SOURCE_OPTIONS;
-const feedOptions = FLAYRAH_FEED_OPTIONS;
+const feedOptions = computed(() =>
+  sourceFilter.value === "dogpatch" ? DOGPATCH_FEED_OPTIONS : FLAYRAH_FEED_OPTIONS,
+);
 const viewOptions: { id: ViewFilter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "unread", label: "Unread" },
@@ -420,8 +438,15 @@ const layout = computed({
 const sourceFilter = computed(() =>
   normalizeNewsSourceFilter(route.query.source),
 );
-const feedId = computed(() => normalizeFlayrahFeedId(route.query.feed));
-const showTaxonomyChips = computed(() => sourceFilter.value === "flayrah");
+const feedId = computed(() =>
+  normalizeNewsFeedId(
+    sourceFilter.value === "dogpatch" ? "dogpatch" : "flayrah",
+    route.query.feed,
+  ),
+);
+const showTaxonomyChips = computed(
+  () => sourceFilter.value === "flayrah" || sourceFilter.value === "dogpatch",
+);
 const viewFilter = computed((): ViewFilter => {
   const raw = route.query.view;
   if (raw === "unread" || raw === "saved") return raw;
@@ -493,10 +518,12 @@ const popularTags = computed(() => {
 
 const feedBlurb = computed(() => {
   if (sourceFilter.value === "dogpatch") {
-    return "Recent RSS feed from Dogpatch Press.";
+    const opt = DOGPATCH_FEED_OPTIONS.find((f) => f.id === feedId.value);
+    if (!opt || opt.id === "full") return "Recent RSS feed from Dogpatch Press.";
+    return `${opt.label} category feed from Dogpatch Press.`;
   }
   if (sourceFilter.value === "flayrah") {
-    const opt = feedOptions.find((f) => f.id === feedId.value);
+    const opt = FLAYRAH_FEED_OPTIONS.find((f) => f.id === feedId.value);
     if (!opt || opt.id === "full") return "Recent RSS feed from Flayrah.";
     return `${opt.label} taxonomy feed from Flayrah.`;
   }
@@ -530,7 +557,10 @@ function sourceLabel(source: NewsSource) {
 function listQuery(extra?: Record<string, string>) {
   const q: Record<string, string> = { ...extra };
   if (sourceFilter.value !== "all") q.source = sourceFilter.value;
-  if (sourceFilter.value === "flayrah" && feedId.value !== "full") {
+  if (
+    (sourceFilter.value === "flayrah" || sourceFilter.value === "dogpatch") &&
+    feedId.value !== "full"
+  ) {
     q.feed = feedId.value;
   }
   if (tagsQuery.value.trim()) q.tags = tagsQuery.value.trim();
@@ -562,7 +592,11 @@ function replaceListQuery(partial: {
   const tags = partial.tags !== undefined ? partial.tags : tagsQuery.value;
   const view = partial.view ?? viewFilter.value;
   if (source && source !== "all") q.source = source;
-  if (source === "flayrah" && feed && feed !== "full") {
+  if (
+    (source === "flayrah" || source === "dogpatch") &&
+    feed &&
+    feed !== "full"
+  ) {
     q.feed = feed;
   }
   if (tags.trim()) q.tags = tags.trim();
@@ -590,14 +624,19 @@ function filterAuthor(author: string) {
 }
 
 function setFeed(id: string) {
-  void replaceListQuery({ feed: normalizeFlayrahFeedId(id) });
+  void replaceListQuery({
+    feed: normalizeNewsFeedId(
+      sourceFilter.value === "dogpatch" ? "dogpatch" : "flayrah",
+      id,
+    ),
+  });
 }
 
 function setSource(id: NewsSourceFilter) {
+  const next = normalizeNewsSourceFilter(id);
   void replaceListQuery({
-    source: normalizeNewsSourceFilter(id),
-    // Taxonomy feeds are Flayrah-only; clear when leaving Flayrah.
-    feed: id === "flayrah" ? feedId.value : "full",
+    source: next,
+    feed: normalizeNewsFeedId(next === "dogpatch" ? "dogpatch" : "flayrah", feedId.value),
   });
 }
 
@@ -682,6 +721,7 @@ async function load(force = false) {
   error.value = null;
   fromOffline.value = false;
   partialWarning.value = null;
+  noMore.value = false;
   try {
     articles.value = await fetchNewsArticles({
       force,
@@ -700,6 +740,48 @@ async function load(force = false) {
 
 function refresh() {
   void load(true);
+}
+
+const canLoadOlder = computed(
+  () =>
+    !noMore.value &&
+    !loading.value &&
+    viewFilter.value !== "saved" &&
+    (sourceFilter.value === "dogpatch" || sourceFilter.value === "all") &&
+    articles.value.length > 0,
+);
+
+async function loadOlder() {
+  if (!canLoadOlder.value || loadingMore.value) return;
+  loadingMore.value = true;
+  error.value = null;
+  try {
+    const seen = new Set(articles.value.map((a) => a.id));
+    let page = 2;
+    let fresh: NewsArticle[] = [];
+    // Walk pages until something new appears or the window is exhausted.
+    while (page <= NEWS_RSS_PAGE_MAX && !fresh.length) {
+      const more = await fetchNewsArticles({
+        source: "dogpatch",
+        feed: sourceFilter.value === "dogpatch" ? feedId.value : "full",
+        page,
+      });
+      fresh = more.filter((a) => !seen.has(a.id));
+      if (!more.length) break;
+      if (!fresh.length) page += 1;
+    }
+    if (!fresh.length) {
+      noMore.value = true;
+      return;
+    }
+    articles.value = [...articles.value, ...fresh].sort(
+      (a, b) => b.publishedMs - a.publishedMs,
+    );
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : "Failed to load older articles.";
+  } finally {
+    loadingMore.value = false;
+  }
 }
 
 function isTypingTarget(el: EventTarget | null) {

@@ -149,7 +149,7 @@ import {
   resolveNewsArticle,
   type NewsArticle,
 } from "@/worker/news/api";
-import { normalizeFlayrahFeedId, normalizeNewsSourceFilter } from "@/worker/news/feeds";
+import { normalizeNewsFeedId, normalizeNewsSourceFilter } from "@/worker/news/feeds";
 import {
   isNewsSource,
   makeNewsId,
@@ -197,7 +197,12 @@ const parsedRoute = computed(() => parseNewsId(articleId.value));
 const sourceFilter = computed(() =>
   normalizeNewsSourceFilter(route.query.source),
 );
-const feedId = computed(() => normalizeFlayrahFeedId(route.query.feed));
+const feedId = computed(() =>
+  normalizeNewsFeedId(
+    sourceFilter.value === "dogpatch" ? "dogpatch" : "flayrah",
+    route.query.feed,
+  ),
+);
 const tagsQuery = computed(() => {
   const raw = route.query.tags;
   return typeof raw === "string" ? raw : "";
@@ -210,7 +215,10 @@ const viewQuery = computed(() => {
 const feedQuery = computed(() => {
   const q: Record<string, string> = {};
   if (sourceFilter.value !== "all") q.source = sourceFilter.value;
-  if (sourceFilter.value === "flayrah" && feedId.value !== "full") {
+  if (
+    (sourceFilter.value === "flayrah" || sourceFilter.value === "dogpatch") &&
+    feedId.value !== "full"
+  ) {
     q.feed = feedId.value;
   }
   if (tagsQuery.value.trim()) q.tags = tagsQuery.value.trim();

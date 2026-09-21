@@ -7,20 +7,7 @@
  */
 import type { Plugin } from "vite";
 import type { IncomingMessage, ServerResponse } from "node:http";
-
-const FLAYRAH_FEEDS: Record<string, string> = {
-  full: "https://www.flayrah.com/rss-full.xml",
-  reviews: "https://www.flayrah.com/taxonomy/term/37/0/feed",
-  opinion: "https://www.flayrah.com/taxonomy/term/36/0/feed",
-  media: "https://www.flayrah.com/taxonomy/term/41/0/feed",
-  conventions: "https://www.flayrah.com/taxonomy/term/30/0/feed",
-  games: "https://www.flayrah.com/taxonomy/term/60/0/feed",
-  "science-fiction": "https://www.flayrah.com/taxonomy/term/32/0/feed",
-  art: "https://www.flayrah.com/taxonomy/term/49/0/feed",
-  "wikifur-news": "https://www.flayrah.com/taxonomy/term/51/0/feed",
-};
-
-const DOGPATCH_RSS = "https://dogpatch.press/feed/";
+import { resolveNewsRssUrl } from "./src/worker/news/feeds";
 
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) " +
@@ -83,16 +70,9 @@ async function proxyRss(
   const u = new URL(rawUrl, "http://localhost");
   const source = (u.searchParams.get("source") || "flayrah").trim().toLowerCase();
   const feed = (u.searchParams.get("feed") || "full").trim().toLowerCase();
-
-  let target: string | undefined;
-  if (source === "dogpatch") {
-    target = DOGPATCH_RSS;
-  } else if (source === "flayrah") {
-    target = FLAYRAH_FEEDS[feed];
-  } else if (source === "all") {
-    // Client merges; proxy serves Flayrah full if someone asks for all.
-    target = FLAYRAH_FEEDS.full;
-  }
+  const pageRaw = u.searchParams.get("page") || "1";
+  const page = parseInt(pageRaw, 10);
+  const target = resolveNewsRssUrl(source, feed, page);
 
   if (!target) {
     sendJson(res, 400, {

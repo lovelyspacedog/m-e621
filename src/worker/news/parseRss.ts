@@ -135,6 +135,38 @@ export function firstImageUrl(
   return src;
 }
 
+/** media:content (preferred) or media:thumbnail hero image. */
+export function mediaImageUrl(
+  item: Element,
+  baseOrigin = "https://www.flayrah.com",
+): string | null {
+  const ranked: { src: string; rank: number }[] = [];
+  const all = item.getElementsByTagName("*");
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i];
+    const name = el.localName;
+    if (name !== "content" && name !== "thumbnail") continue;
+    const tag = el.tagName.toLowerCase();
+    const ns = (el.namespaceURI || "").toLowerCase();
+    const isMedia =
+      tag.startsWith("media:") || ns.includes("yahoo.com/mrss") || ns.includes("mrss");
+    if (!isMedia) continue;
+    const url = (el.getAttribute("url") || "").trim();
+    if (!url) continue;
+    const medium = (el.getAttribute("medium") || "").toLowerCase();
+    const type = (el.getAttribute("type") || "").toLowerCase();
+    if (medium && medium !== "image") continue;
+    if (type && !type.startsWith("image/")) continue;
+    let src = url;
+    if (src.startsWith("//")) src = `https:${src}`;
+    if (src.startsWith("/")) src = `${baseOrigin}${src}`;
+    if (!/^https?:\/\//i.test(src)) continue;
+    ranked.push({ src, rank: name === "content" ? 2 : 1 });
+  }
+  ranked.sort((a, b) => b.rank - a.rank);
+  return ranked[0]?.src ?? null;
+}
+
 /** Prefer RSS enclosure image over the first inline <img>. */
 export function enclosureImageUrl(
   item: Element,
@@ -213,6 +245,7 @@ function parseRssItems(xml: string, source: NewsSource): NewsArticle[] {
       excerpt: excerptFromDescription(descriptionHtml),
       thumbUrl:
         enclosureImageUrl(item, baseOrigin) ||
+        mediaImageUrl(item, baseOrigin) ||
         firstImageUrl(descriptionHtml, baseOrigin),
     });
   }

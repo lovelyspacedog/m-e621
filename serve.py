@@ -409,6 +409,23 @@ SOFURRY_AUTH_POSTS = {
 
 FLAYRAH_RSS_URL = "https://www.flayrah.com/rss-full.xml"
 DOGPATCH_RSS_URL = "https://dogpatch.press/feed/"
+# Must match src/worker/news/feeds.ts (resolveNewsRssUrl).
+NEWS_RSS_PAGE_MAX = 8
+DOGPATCH_CATEGORY_FEEDS = {
+    "announcements": "https://dogpatch.press/category/announcements/feed/",
+    "business": "https://dogpatch.press/category/business/feed/",
+    "costuming": "https://dogpatch.press/category/costuming/feed/",
+    "current-events": "https://dogpatch.press/category/current-events/feed/",
+    "interviews": "https://dogpatch.press/category/interviews/feed/",
+    "media": "https://dogpatch.press/category/media/feed/",
+    "on-the-scene": "https://dogpatch.press/category/on-the-scene/feed/",
+    "opinion": "https://dogpatch.press/category/opinion/feed/",
+    "personalities": "https://dogpatch.press/category/personalities/feed/",
+    "reviews": "https://dogpatch.press/category/reviews/feed/",
+    "science": "https://dogpatch.press/category/science/feed/",
+    "society-and-culture": "https://dogpatch.press/category/society-and-culture/feed/",
+    "special-feature": "https://dogpatch.press/category/special-feature/feed/",
+}
 NEWS_MEDIA_HOSTS = frozenset({
     "flayrah.com",
     "www.flayrah.com",
@@ -2983,17 +3000,38 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return
         self._json(200, {"ok": True, "cookies": cookie, "username": username})
 
+    def _news_rss_target(self, source: str, feed: str, page: int) -> str | None:
+        """Allowlisted RSS URL. None → 400. Mirrors resolveNewsRssUrl."""
+        if page < 1 or page > NEWS_RSS_PAGE_MAX:
+            return None
+        if source == "dogpatch":
+            if feed == "full":
+                base = DOGPATCH_RSS_URL
+            elif feed in DOGPATCH_CATEGORY_FEEDS:
+                base = DOGPATCH_CATEGORY_FEEDS[feed]
+            else:
+                return None
+            if page <= 1:
+                return base
+            return f"{base}?paged={page}"
+        if source in ("flayrah", "all"):
+            if page > 1:
+                return None
+            key = "full" if source == "all" else feed
+            return FLAYRAH_FEEDS.get(key)
+        return None
+
     def _proxy_news_rss(self) -> None:
         parsed = urlparse(self.path)
         qs = parse_qs(parsed.query)
         source = ((qs.get("source") or ["flayrah"])[0] or "flayrah").strip().lower()
         feed = ((qs.get("feed") or ["full"])[0] or "full").strip().lower()
-        if source == "dogpatch":
-            target = DOGPATCH_RSS_URL
-        elif source in ("flayrah", "all"):
-            target = FLAYRAH_FEEDS.get("full" if source == "all" else feed)
-        else:
-            target = None
+        page_raw = ((qs.get("page") or ["1"])[0] or "1").strip()
+        try:
+            page = int(page_raw)
+        except ValueError:
+            page = 0
+        target = self._news_rss_target(source, feed, page)
         if not target:
             self._json(
                 400,

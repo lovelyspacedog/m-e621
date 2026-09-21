@@ -45,12 +45,12 @@ Ship these first: News looks feature-complete, but Dogpatch reading, saved items
 
 ### History / deeper feed
 
-- [ ] **Load older (paged RSS)** — WP `?paged=2` on `/feed/`; Flayrah taxonomies are also windowed. Allowlisted paged fetch with attribution before chasing a third source.
+- [x] **Load older (paged RSS)** — WP `?paged=2` on `/feed/`; Flayrah taxonomies are also windowed. Allowlisted paged fetch with attribution before chasing a third source. Dogpatch pages ship; Flayrah’s public RSS ignores `page` so Load older is Dogpatch-only.
 
 ## Same sources, more feed
 
-- [ ] **Dogpatch category feeds** — Mirror Flayrah taxonomies via allowlisted `https://dogpatch.press/category/{slug}/feed/` (News, Reviews, Opinion, Interviews, etc.). Keep allowlists in sync across `feeds.ts`, `vite-news-proxy.ts`, and `serve.py`.
-- [ ] **Parse `media:content` / `media:thumbnail`** — WP often puts the hero there; do not rely on `<enclosure>` alone.
+- [x] **Dogpatch category feeds** — Mirror Flayrah taxonomies via allowlisted `https://dogpatch.press/category/{slug}/feed/` (News, Reviews, Opinion, Interviews, etc.). Keep allowlists in sync across `feeds.ts`, `vite-news-proxy.ts`, and `serve.py`.
+- [x] **Parse `media:content` / `media:thumbnail`** — WP often puts the hero there; do not rely on `<enclosure>` alone.
 - [ ] **Atom support** — So the next source is not blocked on RSS 2.0 only.
 
 ## Architecture (before a third outlet)
@@ -77,7 +77,7 @@ When a new source lands: namespaced ids (`source:numericId`), TOS row, `/api/dow
 
 - [x] Prefer `content:encoded` when present (Dogpatch fixture).
 - [ ] Saved-filter `source` round-trip.
-- [ ] Dogpatch category allowlist rejects unknown slugs (400).
+- [x] Dogpatch category allowlist rejects unknown slugs (400).
 - [x] Embed/iframe placeholder after sanitize.
 - [ ] Unread mark / mark-all-read persistence.
 
@@ -86,7 +86,7 @@ When a new source lands: namespaced ids (`source:numericId`), TOS row, `/api/dow
 1. ~~Correctness: `content:encoded`, saved-filter `source`, taxonomy chips honesty, SFW vs Dogpatch~~ — shipped
 2. ~~Durability: saved body snapshots, unread undo + badge, archive-first for saved, last-opened eviction~~ — shipped
 3. ~~Reader polish: scroll-into-view, magazine parity, go-to-top, embed placeholders, News intro tip~~ — shipped (relative dates and `author:`/`tag:`/`source:` included; day headings, type scale, and lightbox still open)
-4. Same sources, more feed: Dogpatch categories + paged RSS + media: tags
+4. ~~Same sources, more feed: Dogpatch categories + paged RSS + media: tags~~ — shipped (Atom still open)
 5. Source registry, then one new magazine (not five)
 
 ## Progress
@@ -97,6 +97,6 @@ When a new source lands: namespaced ids (`source:numericId`), TOS row, `/api/dow
 | Correctness | Done | encoded, source query, chips, SFW |
 | Durability | Done | saved bodies, unread, cache eviction |
 | Reader polish | Done | scroll, magazine, go-to-top, embeds, intro tip; day headings / lightbox / type scale still open |
-| Deeper feed | Pending | Dogpatch categories, paged RSS |
+| Deeper feed | Done | Dogpatch categories, paged Dogpatch RSS, media: thumbs; Atom still open |
 | Registry / new sources | Pending | after slices above |
 | Non-goals | Held | no Federated-as-posts, no scrape |

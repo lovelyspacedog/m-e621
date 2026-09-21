@@ -361,7 +361,7 @@ export const tosSummaries: TosSummary[] = [
       {
         heading: "PawFeed use",
         bullets: [
-          "Read-only merged RSS browsing with Flayrah taxonomy feeds, in-app reading, archive deep-links, local read/saved state (with article body snapshots), and links back to each source",
+          "Read-only merged RSS browsing with Flayrah taxonomy feeds, Dogpatch category feeds, in-app reading, archive deep-links, local read/saved state (with article body snapshots), and links back to each source",
           "No Flayrah or Dogpatch login, comments, or ratings through PawFeed",
           "Dogpatch articles are shown from the public feed with attribution and an open-on-source link",
           "SFW only does not apply in News mode; Dogpatch may include adult or investigative topics",

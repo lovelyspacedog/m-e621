@@ -38,6 +38,7 @@ const DOGPATCH_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"
   xmlns:content="http://purl.org/rss/1.0/modules/content/"
   xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:media="http://search.yahoo.com/mrss/"
   xmlns:wp="http://wordpress.org/export/1.2/">
   <channel>
     <title>Dogpatch Press</title>
@@ -50,6 +51,8 @@ const DOGPATCH_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
       <category>News</category>
       <description><![CDATA[<p>Dogpatch excerpt about conventions.</p>]]></description>
       <content:encoded><![CDATA[<p>Dogpatch excerpt about conventions.</p><p>Full body that only appears in content encoded.</p>]]></content:encoded>
+      <media:content url="https://dogpatch.press/wp-content/uploads/hero.jpg" medium="image" type="image/jpeg" />
+      <media:thumbnail url="https://dogpatch.press/wp-content/uploads/thumb.jpg" />
       <wp:post_id>12345</wp:post_id>
     </item>
   </channel>
@@ -85,6 +88,7 @@ describe("parseDogpatchRss", () => {
     const articles = parseDogpatchRss(DOGPATCH_FIXTURE);
     expect(articles[0].descriptionHtml).toContain("Full body that only appears");
     expect(articles[0].descriptionHtml).toContain("Dogpatch excerpt");
+    expect(articles[0].thumbUrl).toContain("hero.jpg");
   });
 });
 
