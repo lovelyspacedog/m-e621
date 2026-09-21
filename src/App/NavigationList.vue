@@ -11,6 +11,7 @@
     </template>
     <template v-if="section === 'secondary' || section === 'all'">
       <v-list-item
+        v-if="!siteMode.isNews"
         :active="posts.sfwOnly"
         @click="posts.sfwOnly = !posts.sfwOnly"
       >
@@ -42,7 +43,15 @@
         </v-list-item>
         <v-list-item v-else :to="option.to" :exact="option.exact">
           <template #prepend>
-            <v-icon>{{ option.icon }}</v-icon>
+            <v-badge
+              v-if="option.badge"
+              :content="option.badge > 99 ? '99+' : option.badge"
+              color="primary"
+              floating
+            >
+              <v-icon>{{ option.icon }}</v-icon>
+            </v-badge>
+            <v-icon v-else>{{ option.icon }}</v-icon>
           </template>
           <v-list-item-title>{{ option.name }}</v-list-item-title>
         </v-list-item>
@@ -61,9 +70,10 @@ import { useHomeNavigationItem, useTrailingNavigationItems } from "../App/naviga
 import SavedSearchNav from "./SavedSearchNav.vue";
 import SiteModeSwitcher from "./SiteModeSwitcher.vue";
 import { openSettings } from "@/Settings/settingsOverlay";
-import { usePostsStore } from "@/services";
+import { usePostsStore, useSiteModeStore } from "@/services";
 
 const posts = usePostsStore();
+const siteMode = useSiteModeStore();
 
 withDefaults(
   defineProps<{

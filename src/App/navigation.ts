@@ -1,4 +1,4 @@
-import { useSavedSearchStore } from "@/services";
+import { useNewsStore, useSavedSearchStore } from "@/services";
 import { useFavoritesStore } from "@/services/FavoriteStore";
 import { useSiteModeStore } from "@/services/SiteModeStore";
 import { useSiteLabels } from "@/misc/util/siteLabels";
@@ -8,6 +8,7 @@ import {
   modeSupportsFavoriteAnalyzer,
   modeSupportsSuggester,
 } from "@/misc/util/siteCapabilities";
+import { peekNewsCachedArticles } from "@/worker/news/api";
 import { computed } from "vue";
 import { useRouter } from "vue-router";
 
@@ -28,6 +29,7 @@ const resolveItem = (
     name: string;
     exact: boolean;
     to: { name: string; query?: Record<string, string> };
+    badge?: number;
   },
 ) => ({
   ...item,
@@ -56,6 +58,7 @@ export const useHomeNavigationItem = () => {
 export const useTrailingNavigationItems = () => {
   const router = useRouter();
   const siteMode = useSiteModeStore();
+  const newsStore = useNewsStore();
   const { creatorLabel } = useSiteLabels();
   return computed(() => {
     const settings = {
@@ -69,12 +72,17 @@ export const useTrailingNavigationItems = () => {
 
     // News: feed + settings only
     if (siteMode.isNews) {
+      // Depend on readCount so the badge recomputes when articles are marked.
+      void newsStore.readCount;
+      const cached = peekNewsCachedArticles();
+      const unread = cached.filter((a) => !newsStore.isRead(a.id)).length;
       return [
         {
           icon: "mdi-newspaper",
           name: "News",
           exact: false,
           to: { name: "NewsFeed" },
+          ...(unread > 0 ? { badge: unread } : {}),
         },
         settings,
       ].map((item) => resolveItem(router, item));
@@ -212,6 +220,9 @@ export const useNavigationItems = () => {
                 name: "NewsFeed",
                 query: {
                   tags: entry.tags.join(" "),
+                  ...(entry.news?.source ? { source: entry.news.source } : {}),
+                  ...(entry.news?.feed ? { feed: entry.news.feed } : {}),
+                  ...(entry.news?.view ? { view: entry.news.view } : {}),
                 },
               }
           : {

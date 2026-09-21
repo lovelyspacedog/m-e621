@@ -30,6 +30,18 @@
       <v-btn
         v-if="article"
         variant="text"
+        :prepend-icon="
+          newsStore.isRead(article.id)
+            ? 'mdi-email-open-outline'
+            : 'mdi-email-outline'
+        "
+        @click="toggleRead"
+      >
+        {{ newsStore.isRead(article.id) ? "Mark unread" : "Mark read" }}
+      </v-btn>
+      <v-btn
+        v-if="article"
+        variant="text"
         :prepend-icon="saved ? 'mdi-bookmark' : 'mdi-bookmark-outline'"
         @click="toggleSave"
       >
@@ -125,6 +137,7 @@ import {
   newsSourceLabel,
   parseNewsId,
 } from "@/worker/news/ids";
+import { saveNewsArticleOffline } from "@/worker/news/offlineCache";
 import {
   articleMatchesQuery,
   parseNewsQueryTerms,
@@ -171,10 +184,7 @@ const viewQuery = computed(() => {
 const feedQuery = computed(() => {
   const q: Record<string, string> = {};
   if (sourceFilter.value !== "all") q.source = sourceFilter.value;
-  if (
-    (sourceFilter.value === "flayrah" || sourceFilter.value === "all") &&
-    feedId.value !== "full"
-  ) {
+  if (sourceFilter.value === "flayrah" && feedId.value !== "full") {
     q.feed = feedId.value;
   }
   if (tagsQuery.value.trim()) q.tags = tagsQuery.value.trim();
@@ -284,10 +294,22 @@ function toggleSave() {
   snackbar.addMessage(nowSaved ? "Saved article" : "Removed from saved");
 }
 
+function toggleRead() {
+  if (!article.value) return;
+  if (newsStore.isRead(article.value.id)) {
+    newsStore.markUnread(article.value.id);
+    snackbar.addMessage("Marked unread");
+  } else {
+    newsStore.markRead(article.value.id);
+    snackbar.addMessage("Marked read");
+  }
+}
+
 async function copyInAppLink() {
   if (!article.value || !parsedRoute.value) return;
   const origin = `${location.origin}${location.pathname}${location.search}`;
-  const link = `${origin}#/news/${parsedRoute.value.source}/${parsedRoute.value.numericId}`;
+  const qs = new URLSearchParams(feedQuery.value).toString();
+  const link = `${origin}#/news/${parsedRoute.value.source}/${parsedRoute.value.numericId}${qs ? `?${qs}` : ""}`;
   try {
     await navigator.clipboard.writeText(link);
     snackbar.addMessage("Copied in-app link");
@@ -324,6 +346,11 @@ function onKeydown(e: KeyboardEvent) {
   if (e.key === "s") {
     e.preventDefault();
     toggleSave();
+    return;
+  }
+  if (e.key === "u") {
+    e.preventDefault();
+    toggleRead();
   }
 }
 
@@ -356,6 +383,7 @@ async function load() {
     }
     article.value = hit;
     newsStore.markRead(hit.id);
+    if (hit.descriptionHtml) void saveNewsArticleOffline(hit);
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : "Failed to load article.";
   } finally {

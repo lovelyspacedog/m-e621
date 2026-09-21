@@ -162,14 +162,20 @@ export function bodySearchText(html: string): string {
   return stripTags(html).toLowerCase();
 }
 
+/**
+ * Prefer content:encoded (full WP/Drupal body) over description (often a short
+ * excerpt). Fall back to description when encoded is absent.
+ */
 function descriptionHtmlFromItem(item: Element): string {
-  const plain = childText(item, "description");
-  if (plain) return plain;
-  const encoded = item.getElementsByTagName("encoded");
-  for (let j = 0; j < encoded.length; j++) {
-    if (encoded[j].localName === "encoded") return textContent(encoded[j]);
+  const all = item.getElementsByTagName("*");
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i];
+    if (el.localName === "encoded" || el.tagName.toLowerCase() === "content:encoded") {
+      const html = textContent(el);
+      if (html) return html;
+    }
   }
-  return "";
+  return childText(item, "description");
 }
 
 function parseRssItems(xml: string, source: NewsSource): NewsArticle[] {

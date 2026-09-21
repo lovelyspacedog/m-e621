@@ -15,7 +15,13 @@
         >
           <v-icon>mdi-folder-plus-outline</v-icon>
         </v-btn>
-        <v-btn icon size="small" variant="text" aria-label="Add saved search" @click="openAdd()">
+        <v-btn
+          icon
+          size="small"
+          variant="text"
+          :aria-label="siteMode.isNews ? 'Add saved filter' : 'Add saved search'"
+          @click="openAdd()"
+        >
           <v-icon>mdi-plus</v-icon>
         </v-btn>
       </template>
@@ -130,7 +136,7 @@
             >
               <template #item="{ element }">
                 <v-list-item
-                  :to="toSearch(element.tags)"
+                  :to="toSearch(element)"
                   exact
                   density="compact"
                   class="saved-search-entry"
@@ -226,13 +232,23 @@
 
     <v-list-item v-if="savedSearches.entries.length === 0">
       <v-list-item-title class="text-medium-emphasis">
-        No saved searches
+        {{ siteMode.isNews ? "No saved filters" : "No saved searches" }}
       </v-list-item-title>
     </v-list-item>
 
     <v-dialog v-model="dialog" max-width="480">
       <v-card>
-        <v-card-title>{{ editingId == null ? "Add saved search" : "Edit saved search" }}</v-card-title>
+        <v-card-title>
+          {{
+            editingId == null
+              ? siteMode.isNews
+                ? "Add saved filter"
+                : "Add saved search"
+              : siteMode.isNews
+                ? "Edit saved filter"
+                : "Edit saved search"
+          }}
+        </v-card-title>
         <v-card-text>
           <v-text-field
             v-model="formName"
@@ -243,8 +259,12 @@
           />
           <v-text-field
             v-model="formTags"
-            label="Tags"
-            hint="Space-separated, same as the search bar"
+            :label="siteMode.isNews ? 'Filter text' : 'Tags'"
+            :hint="
+              siteMode.isNews
+                ? 'Optional title/author/tag text; current source, section, and view are saved with the filter'
+                : 'Space-separated, same as the search bar'
+            "
             persistent-hint
             class="mb-3"
             @keydown.enter="save"
@@ -310,35 +330,67 @@ const currentQueryTags = () => {
   return parseSavedSearchTags(raw);
 };
 
-const toSearch = (tags: string[]) =>
-  siteMode.isTailspace
-    ? {
-        name: "TailspacePosts",
-        query: {
-          tags: tags.join(" "),
-        },
-      }
-    : siteMode.isNews
-      ? {
-          name: "NewsFeed",
-          query: {
-            tags: tags.join(" "),
-            ...(typeof route.query.feed === "string" &&
-            route.query.feed &&
-            route.query.feed !== "full"
-              ? { feed: route.query.feed }
-              : {}),
-            ...(route.query.view === "unread" || route.query.view === "saved"
-              ? { view: String(route.query.view) }
-              : {}),
-          },
-        }
-    : {
-        name: "Posts",
-        query: {
-          tags: tags.join(" "),
-        },
-      };
+/** Snapshot News feed query so filters reopen with the same source/section/view. */
+const currentNewsQuery = (): SavedSearchEntry["news"] | undefined => {
+  if (!siteMode.isNews) return undefined;
+  const news: NonNullable<SavedSearchEntry["news"]> = {};
+  if (typeof route.query.source === "string" && route.query.source !== "all") {
+    news.source = route.query.source;
+  }
+  if (
+    typeof route.query.feed === "string" &&
+    route.query.feed &&
+    route.query.feed !== "full"
+  ) {
+    news.feed = route.query.feed;
+  }
+  if (route.query.view === "unread" || route.query.view === "saved") {
+    news.view = String(route.query.view);
+  }
+  return news.source || news.feed || news.view ? news : undefined;
+};
+
+const toSearch = (entry: SavedSearchEntry | string[]) => {
+  const tags = Array.isArray(entry) ? entry : entry.tags;
+  if (siteMode.isTailspace) {
+    return {
+      name: "TailspacePosts" as const,
+      query: { tags: tags.join(" ") },
+    };
+  }
+  if (siteMode.isNews) {
+    const snap =
+      !Array.isArray(entry) && entry.news
+        ? entry.news
+        : {
+            source:
+              typeof route.query.source === "string" &&
+              route.query.source !== "all"
+                ? route.query.source
+                : undefined,
+            feed:
+              typeof route.query.feed === "string" &&
+              route.query.feed &&
+              route.query.feed !== "full"
+                ? route.query.feed
+                : undefined,
+            view:
+              route.query.view === "unread" || route.query.view === "saved"
+                ? String(route.query.view)
+                : undefined,
+          };
+    const query: Record<string, string> = {};
+    if (tags.length) query.tags = tags.join(" ");
+    if (snap.source) query.source = snap.source;
+    if (snap.feed) query.feed = snap.feed;
+    if (snap.view) query.view = snap.view;
+    return { name: "NewsFeed" as const, query };
+  }
+  return {
+    name: "Posts" as const,
+    query: { tags: tags.join(" ") },
+  };
+};
 
 const onGroupReorder = (groupId: string, next: SavedSearchEntry[]) => {
   savedSearches.replaceGroupEntries(groupId, next);
@@ -397,10 +449,16 @@ const save = () => {
   const tags = parseSavedSearchTags(formTags.value);
   const name = formName.value.trim();
   const groupId = formGroupId.value || ungroupedId;
+  const news = currentNewsQuery();
   if (editingId.value == null) {
-    savedSearches.addEntry(tags, name, groupId);
+    savedSearches.addEntry(tags, name, groupId, news);
   } else {
-    savedSearches.updateEntryById(editingId.value, { name, tags, groupId });
+    savedSearches.updateEntryById(editingId.value, {
+      name,
+      tags,
+      groupId,
+      news: news ?? null,
+    });
   }
   dialog.value = false;
 };

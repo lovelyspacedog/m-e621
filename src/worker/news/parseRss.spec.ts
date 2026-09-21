@@ -49,6 +49,7 @@ const DOGPATCH_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
       <dc:creator>Patch</dc:creator>
       <category>News</category>
       <description><![CDATA[<p>Dogpatch excerpt about conventions.</p>]]></description>
+      <content:encoded><![CDATA[<p>Dogpatch excerpt about conventions.</p><p>Full body that only appears in content encoded.</p>]]></content:encoded>
       <wp:post_id>12345</wp:post_id>
     </item>
   </channel>
@@ -78,6 +79,12 @@ describe("parseDogpatchRss", () => {
     expect(articles[0].source).toBe("dogpatch");
     expect(articles[0].author).toBe("Patch");
     expect(articles[0].tags).toEqual(["News"]);
+  });
+
+  it("prefers content:encoded over short description", () => {
+    const articles = parseDogpatchRss(DOGPATCH_FIXTURE);
+    expect(articles[0].descriptionHtml).toContain("Full body that only appears");
+    expect(articles[0].descriptionHtml).toContain("Dogpatch excerpt");
   });
 });
 

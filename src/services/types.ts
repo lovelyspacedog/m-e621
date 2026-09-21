@@ -52,6 +52,15 @@ export interface SavedSearchEntry {
   tags: string[];
   groupId: string;
   order: number;
+  /**
+   * News-only snapshot of feed query when the filter was saved
+   * (`source` / `feed` / `view`). Omitted for gallery modes.
+   */
+  news?: {
+    source?: string;
+    feed?: string;
+    view?: string;
+  };
 }
 
 export const UNGROUPED_FAVORITE_GROUP_ID = "ungrouped";
@@ -76,6 +85,12 @@ export interface NewsSavedArticle {
   thumbUrl: string | null;
   savedAt: number;
   source?: "flayrah" | "dogpatch";
+  /** Sanitized-ready HTML snapshot so Saved survives RSS window expiry. */
+  descriptionHtml?: string;
+  excerpt?: string;
+  tags?: string[];
+  publishedAt?: string;
+  publishedMs?: number;
 }
 
 export type NewsFeedLayout = "list" | "magazine";

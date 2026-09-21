@@ -63,6 +63,21 @@ export const normalizeSavedSearches = (raw: unknown): {
       tags,
       groupId,
       order: typeof e.order === "number" ? e.order : i,
+      ...(e.news && typeof e.news === "object"
+        ? {
+            news: {
+              ...(typeof e.news.source === "string" && e.news.source
+                ? { source: e.news.source }
+                : {}),
+              ...(typeof e.news.feed === "string" && e.news.feed
+                ? { feed: e.news.feed }
+                : {}),
+              ...(typeof e.news.view === "string" && e.news.view
+                ? { view: e.news.view }
+                : {}),
+            },
+          }
+        : {}),
     });
   }
   return { groups, entries };

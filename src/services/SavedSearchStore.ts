@@ -77,14 +77,19 @@ export const useSavedSearchStore = defineStore("saved-search", () => {
     if (idx >= 0) main.searches.entries.splice(idx, 1);
   };
 
-  const addEntry = (tags: string[], name: string, groupId?: string) => {
+  const addEntry = (
+    tags: string[],
+    name: string,
+    groupId?: string,
+    news?: SavedSearchEntry["news"],
+  ) => {
     ensureShape();
     const destId =
       groupId && main.searches.groups.some((g) => g.id === groupId)
         ? groupId
         : UNGROUPED_SAVED_SEARCH_GROUP_ID;
     const siblings = main.searches.entries.filter((e) => e.groupId === destId);
-    main.searches.entries.push({
+    const entry: SavedSearchEntry = {
       id: makeId("search"),
       name: name.trim() || tags.join(" ") || "Untitled",
       tags: [...tags],
@@ -92,7 +97,11 @@ export const useSavedSearchStore = defineStore("saved-search", () => {
       order: siblings.length
         ? Math.max(...siblings.map((e) => e.order)) + 1
         : 0,
-    });
+    };
+    if (news && (news.source || news.feed || news.view)) {
+      entry.news = { ...news };
+    }
+    main.searches.entries.push(entry);
   };
 
   const moveEntryToGroup = (entryId: string, groupId: string) => {
@@ -107,7 +116,12 @@ export const useSavedSearchStore = defineStore("saved-search", () => {
 
   const updateEntry = (
     index: number,
-    patch: { name?: string; tags?: string[]; groupId?: string },
+    patch: {
+      name?: string;
+      tags?: string[];
+      groupId?: string;
+      news?: SavedSearchEntry["news"] | null;
+    },
   ) => {
     ensureShape();
     const entry = main.searches.entries[index];
@@ -119,6 +133,13 @@ export const useSavedSearchStore = defineStore("saved-search", () => {
     if (patch.tags !== undefined) {
       entry.tags = [...patch.tags];
     }
+    if (patch.news !== undefined) {
+      if (patch.news && (patch.news.source || patch.news.feed || patch.news.view)) {
+        entry.news = { ...patch.news };
+      } else {
+        delete entry.news;
+      }
+    }
     if (patch.groupId !== undefined && patch.groupId !== entry.groupId) {
       moveEntryToGroup(entry.id, patch.groupId);
     }
@@ -126,7 +147,12 @@ export const useSavedSearchStore = defineStore("saved-search", () => {
 
   const updateEntryById = (
     id: string,
-    patch: { name?: string; tags?: string[]; groupId?: string },
+    patch: {
+      name?: string;
+      tags?: string[];
+      groupId?: string;
+      news?: SavedSearchEntry["news"] | null;
+    },
   ) => {
     ensureShape();
     const index = main.searches.entries.findIndex((e) => e.id === id);

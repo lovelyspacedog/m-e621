@@ -82,7 +82,7 @@
           {{ opt.label }}
         </v-chip>
       </div>
-      <div class="news-view-chips d-flex flex-wrap ga-1 mt-2">
+      <div class="news-view-chips d-flex flex-wrap align-center ga-1 mt-2">
         <v-chip
           v-for="opt in viewOptions"
           :key="opt.id"
@@ -92,7 +92,19 @@
           @click="setView(opt.id)"
         >
           {{ opt.label }}
+          <template v-if="opt.id === 'unread' && unreadInFeed > 0">
+            · {{ unreadInFeed }}
+          </template>
         </v-chip>
+        <v-btn
+          v-if="filtered.length && viewFilter !== 'saved'"
+          size="x-small"
+          variant="text"
+          class="ml-1"
+          @click="markFilteredRead"
+        >
+          Mark filtered read
+        </v-btn>
       </div>
       <div v-if="popularTags.length" class="news-tag-cloud d-flex flex-wrap ga-1 mt-2">
         <span class="text-caption text-medium-emphasis align-self-center mr-1">Tags</span>
@@ -250,6 +262,21 @@
             icon
             size="small"
             variant="text"
+            :aria-label="newsStore.isRead(article.id) ? 'Mark unread' : 'Mark read'"
+            @click.prevent.stop="toggleRead(article)"
+          >
+            <v-icon>
+              {{
+                newsStore.isRead(article.id)
+                  ? "mdi-email-open-outline"
+                  : "mdi-email-outline"
+              }}
+            </v-icon>
+          </v-btn>
+          <v-btn
+            icon
+            size="small"
+            variant="text"
             :aria-label="newsStore.isSaved(article.id) ? 'Unsave' : 'Save'"
             @click.prevent.stop="toggleSave(article)"
           >
@@ -337,9 +364,7 @@ const sourceFilter = computed(() =>
   normalizeNewsSourceFilter(route.query.source),
 );
 const feedId = computed(() => normalizeFlayrahFeedId(route.query.feed));
-const showTaxonomyChips = computed(
-  () => sourceFilter.value === "flayrah" || sourceFilter.value === "all",
-);
+const showTaxonomyChips = computed(() => sourceFilter.value === "flayrah");
 const viewFilter = computed((): ViewFilter => {
   const raw = route.query.view;
   if (raw === "unread" || raw === "saved") return raw;
@@ -362,25 +387,9 @@ const filtered = computed(() => {
     const byId = new Map(articles.value.map((a) => [a.id, a]));
     return newsStore.saved
       .map((s) => {
-        const parsed = parseNewsId(s.id);
-        const source: NewsSource =
-          s.source || parsed?.source || "flayrah";
-        return (
-          byId.get(s.id) ??
-          ({
-            id: s.id,
-            source,
-            title: s.title,
-            link: s.link,
-            author: s.author,
-            publishedAt: "",
-            publishedMs: s.savedAt,
-            tags: [],
-            descriptionHtml: "",
-            excerpt: "Saved article — open to read full text.",
-            thumbUrl: s.thumbUrl,
-          } satisfies NewsArticle)
-        );
+        const live = byId.get(s.id);
+        if (live) return live;
+        return newsStore.articleFromSaved(s);
       })
       .filter((a) => articleMatchesQuery(a, terms));
   }
@@ -390,6 +399,10 @@ const filtered = computed(() => {
   }
   return list;
 });
+
+const unreadInFeed = computed(
+  () => articles.value.filter((a) => !newsStore.isRead(a.id)).length,
+);
 
 const emptyMessage = computed(() => {
   if (viewFilter.value === "saved") {
@@ -460,10 +473,7 @@ function sourceLabel(source: NewsSource) {
 function listQuery(extra?: Record<string, string>) {
   const q: Record<string, string> = { ...extra };
   if (sourceFilter.value !== "all") q.source = sourceFilter.value;
-  if (
-    (sourceFilter.value === "flayrah" || sourceFilter.value === "all") &&
-    feedId.value !== "full"
-  ) {
+  if (sourceFilter.value === "flayrah" && feedId.value !== "full") {
     q.feed = feedId.value;
   }
   if (tagsQuery.value.trim()) q.tags = tagsQuery.value.trim();
@@ -495,11 +505,7 @@ function replaceListQuery(partial: {
   const tags = partial.tags !== undefined ? partial.tags : tagsQuery.value;
   const view = partial.view ?? viewFilter.value;
   if (source && source !== "all") q.source = source;
-  if (
-    (source === "flayrah" || source === "all") &&
-    feed &&
-    feed !== "full"
-  ) {
+  if (source === "flayrah" && feed && feed !== "full") {
     q.feed = feed;
   }
   if (tags.trim()) q.tags = tags.trim();
@@ -533,7 +539,8 @@ function setFeed(id: string) {
 function setSource(id: NewsSourceFilter) {
   void replaceListQuery({
     source: normalizeNewsSourceFilter(id),
-    feed: id === "dogpatch" ? "full" : feedId.value,
+    // Taxonomy feeds are Flayrah-only; clear when leaving Flayrah.
+    feed: id === "flayrah" ? feedId.value : "full",
   });
 }
 
@@ -547,6 +554,15 @@ function toggleLayout() {
 
 function toggleSave(article: NewsArticle) {
   newsStore.toggleSaved(article);
+}
+
+function toggleRead(article: NewsArticle) {
+  if (newsStore.isRead(article.id)) newsStore.markUnread(article.id);
+  else newsStore.markRead(article.id);
+}
+
+function markFilteredRead() {
+  newsStore.markAllRead(filtered.value.map((a) => a.id));
 }
 
 watch(searchInput, (v) => {
@@ -640,6 +656,20 @@ function onKeydown(e: KeyboardEvent) {
     if (!hit) return;
     e.preventDefault();
     void router.push(articleRoute(hit));
+    return;
+  }
+  if (key === "u") {
+    const hit = filtered.value[focusIndex.value];
+    if (!hit) return;
+    e.preventDefault();
+    toggleRead(hit);
+    return;
+  }
+  if (key === "s") {
+    const hit = filtered.value[focusIndex.value];
+    if (!hit) return;
+    e.preventDefault();
+    toggleSave(hit);
   }
 }
 

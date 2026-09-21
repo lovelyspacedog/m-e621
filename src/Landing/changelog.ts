@@ -16,10 +16,14 @@ export interface ChangelogSection {
 export const changelogSections: ChangelogSection[] = [
   {
     date: "2026-09-21",
-    title: "Go to top on Posts",
+    title: "Go to top and News correctness",
     items: [
       "Posts search feed shows a floating Go to top button after you scroll (list and grid), pinned for mobile safe areas and tip toasts",
       "Go to top sits bottom-right of the viewport so it stays clear of the floating sidebar",
+      "News prefers full WordPress content:encoded bodies over short RSS excerpts (Dogpatch articles read complete in-app)",
+      "News saved filters snapshot source, Flayrah section, and view so Dogpatch Unread reopens correctly",
+      "Flayrah taxonomy chips only show when filtering to Flayrah; SFW only is hidden in News (it never applied there)",
+      "Saved News articles keep a body snapshot and offline cache evicts by last opened; mark unread (u), mark filtered read, and a sidebar unread badge",
     ],
   },
   {

@@ -262,6 +262,7 @@ export const mergeSavedSearches = (
       tags,
       groupId,
       order: orderFor(groupId),
+      ...(entry.news ? { news: { ...entry.news } } : {}),
     };
     target.entries.push(next);
     existing.add(key);

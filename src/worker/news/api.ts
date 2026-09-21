@@ -216,6 +216,20 @@ export function clearNewsCache() {
   articleCache.clear();
 }
 
+/** Peek in-memory feed cache for UI badges (no network). */
+export function peekNewsCachedArticles(
+  source: NewsSourceFilter = "all",
+  feed = "full",
+): NewsArticle[] {
+  const hit = cacheByKey.get(cacheKey(source, feed));
+  if (hit?.articles?.length) return hit.articles;
+  // Fall back to any cached feed so the nav badge still works after a taxonomy view.
+  for (const entry of cacheByKey.values()) {
+    if (entry.articles?.length) return entry.articles;
+  }
+  return [];
+}
+
 export function findNewsArticle(
   articles: NewsArticle[],
   id: string,
