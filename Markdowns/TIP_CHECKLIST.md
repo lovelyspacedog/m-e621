@@ -38,6 +38,11 @@ When a tip ships: check the box, keep the tip id stable, mention it in `src/Land
 - [x] `history-insights` — First History Insights visit. Host: `HistoryInsights.vue`. Browse-history tag ranks.
 - [x] `blacklist-coach` — First Blacklist Coach visit. Host: `BlacklistCoach.vue`. Suggest single-tag rules from blacklisted favorites.
 - [x] `saved-search-wake` — First Saved-search Wake-up visit. Host: `SavedSearchWake.vue`. Newer posts since last open.
+- [x] `cross-post-finder` — First Cross-post Finder. Host: `CrossPostFinder.vue`. Fluffle + heuristic tags.
+- [x] `similar-artists` — First Similar Artists. Host: `SimilarArtists.vue`. Co-occurrence from favorites.
+- [x] `pool-series-suggester` — First Pool/Series Suggester. Host: `PoolSeriesSuggester.vue`. Favorite seeds → pools.
+- [x] `taste-pack` — First Taste Pack. Host: `TastePack.vue`. Export/import JSON + star/Suggester.
+- [x] `activity-heatmap` — First Activity heatmap. Host: `ActivityHeatmap.vue`. Favorites by upload day.
 - [x] `flayrah-offline` — First offline News cache alert (tip id kept). Host: `NewsFeedPage.vue`. Last-good RSS cache.
 - [x] `news-intro` — First News feed visit. Host: `NewsFeedPage.vue`. Sources, Flayrah sections, Dogpatch content note, attribution.
 - [x] `starred-tags` — First Favorites / starred-tag groups page. Host: `FavoritesPage.vue`. Starred groups + cross-site copy.

@@ -23,6 +23,9 @@ export const changelogSections: ChangelogSection[] = [
       "Taste Diff compares two favorites profiles (other users where supported, or this site vs Local)",
       "History Insights ranks tags from your browse history; Blacklist Coach suggests single-tag rules from blacklisted favorites with a collateral preview",
       "Saved-search Wake-up checks gallery saved searches for newer posts since you last opened them from the tool",
+      "Cross-post Finder runs Fluffle on stills plus artist/character heuristic searches",
+      "Similar Artists ranks co-occurring creators from a favorites sample; Pool/Series Suggester seeds pool searches from favorite tags",
+      "Taste Pack exports/imports portable tag JSON (star tags or open Suggester weights); Activity heatmap plots favorited posts by upload day",
     ],
   },
   {

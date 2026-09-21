@@ -127,7 +127,7 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { label: "Reset section", keywords: ["partial reset", "reset posts", "reset appearance"], section: "restore", hash: "partial" },
   { label: "Color scheme", keywords: ["system", "dark", "light", "os theme"], section: "appearance", hash: "colors" },
   { label: "Prompts", keywords: ["install", "github", "migration", "hide prompt"], section: "appearance", hash: "prompts" },
-  { label: "Reset tooltips", keywords: ["tooltip", "tips", "reset", "federated", "following", "local", "layout", "pools", "watched comics", "fullscreen", "saved posts", "blacklist", "tailspace", "fluffle", "remux", "suggester", "analyzer", "radar", "taste diff", "history insights", "blacklist coach", "wake-up", "discovery", "news", "flayrah", "dogpatch", "starred", "don't show", "dialog"], section: "appearance", hash: "prompts" },
+  { label: "Reset tooltips", keywords: ["tooltip", "tips", "reset", "federated", "following", "local", "layout", "pools", "watched comics", "fullscreen", "saved posts", "blacklist", "tailspace", "fluffle", "remux", "suggester", "analyzer", "radar", "taste diff", "history insights", "blacklist coach", "wake-up", "cross-post", "similar artists", "taste pack", "heatmap", "discovery", "news", "flayrah", "dogpatch", "starred", "don't show", "dialog"], section: "appearance", hash: "prompts" },
   { label: "Version / Force Update", keywords: ["version", "commit", "update", "storage"], section: "info" },
   { label: "Pull from Git", keywords: ["git", "pull", "sync", "deploy"], section: "info" },
   { label: "Storage persistence", keywords: ["storage", "quota", "persist", "indexeddb"], section: "info" },

@@ -21,6 +21,11 @@ export const TIP_IDS = {
   historyInsights: "history-insights",
   blacklistCoach: "blacklist-coach",
   savedSearchWake: "saved-search-wake",
+  crossPostFinder: "cross-post-finder",
+  similarArtists: "similar-artists",
+  poolSeriesSuggester: "pool-series-suggester",
+  tastePack: "taste-pack",
+  activityHeatmap: "activity-heatmap",
   /** First visit to News: sources, attribution, Dogpatch content note. */
   newsIntro: "news-intro",
   /** Kept id for dismissedTips continuity; copy says News offline cache. */

@@ -73,6 +73,11 @@ Sibling tools to Suggester / Analyzer (same mode surface; Tailspace and News exc
 - **History Insights** (`/tools/history`) — tag frequency across browse-history searches
 - **Blacklist Coach** (`/tools/blacklist-coach`) — suggests single-tag blacklist lines from favorites that already match, with collateral preview; optional one-click add
 - **Saved-search Wake-up** (`/tools/saved-wake`) — check gallery saved searches for newer posts since last open from this tool
+- **Cross-post Finder** (`/tools/cross-post`) — Fluffle exact reverse-image on stills (≤4 MiB) plus artist/character heuristic search chips
+- **Similar Artists** (`/tools/similar-artists`) — co-occurrence from a favorites sample; open Posts or Suggester
+- **Pool / Series Suggester** (`/tools/pools`) — seed e621-family / Furbooru pool searches from favorite artists/characters (Inkbunny list API absent)
+- **Taste Pack** (`/tools/taste-pack`) — export/import JSON of counts + weights; star top tags or open Suggester
+- **Activity heatmap** (`/tools/activity`) — calendar of favorited posts by upload date (Dashboard-style grid)
 
 Backlog / ship notes: [DISCOVERY-TOOLS.md](./DISCOVERY-TOOLS.md).
 

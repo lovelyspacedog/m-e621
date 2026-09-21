@@ -274,6 +274,60 @@ const router = createRouter({
         ),
     },
     {
+      path: "/tools/cross-post",
+      name: "CrossPostFinder",
+      component: () =>
+        import(
+          /* webpackChunkName: "discovery" */ "@/Discovery/CrossPostFinder.vue"
+        ),
+    },
+    {
+      path: "/tools/similar-artists",
+      name: "SimilarArtists",
+      component: () =>
+        import(
+          /* webpackChunkName: "discovery" */ "@/Discovery/SimilarArtists.vue"
+        ),
+    },
+    {
+      path: "/tools/similar-artists/result",
+      name: "SimilarArtistsResult",
+      component: () =>
+        import(
+          /* webpackChunkName: "discovery" */ "@/Discovery/SimilarArtistsResult.vue"
+        ),
+    },
+    {
+      path: "/tools/pools",
+      name: "PoolSeriesSuggester",
+      component: () =>
+        import(
+          /* webpackChunkName: "discovery" */ "@/Discovery/PoolSeriesSuggester.vue"
+        ),
+    },
+    {
+      path: "/tools/pools/result",
+      name: "PoolSeriesSuggesterResult",
+      component: () =>
+        import(
+          /* webpackChunkName: "discovery" */ "@/Discovery/PoolSeriesSuggesterResult.vue"
+        ),
+    },
+    {
+      path: "/tools/taste-pack",
+      name: "TastePack",
+      component: () =>
+        import(/* webpackChunkName: "discovery" */ "@/Discovery/TastePack.vue"),
+    },
+    {
+      path: "/tools/activity",
+      name: "ActivityHeatmap",
+      component: () =>
+        import(
+          /* webpackChunkName: "discovery" */ "@/Discovery/ActivityHeatmap.vue"
+        ),
+    },
+    {
       alias: ["/favorites"],
       path: "/starred",
       name: "Starred",
@@ -392,6 +446,13 @@ router.beforeEach((to, from) => {
       "BlacklistCoach",
       "BlacklistCoachResult",
       "SavedSearchWake",
+      "CrossPostFinder",
+      "SimilarArtists",
+      "SimilarArtistsResult",
+      "PoolSeriesSuggester",
+      "PoolSeriesSuggesterResult",
+      "TastePack",
+      "ActivityHeatmap",
     ]);
     const e621ShapedRoutes = new Set([
       "Posts",

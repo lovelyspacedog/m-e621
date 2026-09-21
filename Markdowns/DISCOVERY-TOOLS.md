@@ -36,14 +36,14 @@ Reuse favorite / query plumbing; Federated-aware; stay out of Tailspace/News.
 
 ## Medium priority (adjacent discovery)
 
-- [ ] **Cross-post Finder** — Given a post (or Local file), find likely copies on other enabled sites via Fluffle + tag/artist heuristics. Stills-only; fail closed like current Fluffle gating; origin-aware results.
-- [ ] **Pool / Series Suggester** — From favorite tags/artists, surface e621-family pools / Furbooru galleries / Inkbunny pools you have not opened. Capability-gated (`modeSupportsPools`); no fake pools on SoFurry/Itaku/Tailspace.
-- [ ] **Similar Artists** — Co-occurrence on tags you favor (“if you like X’s tag mix, try Y”). Feed results into Suggester seed weights without new APIs.
+- [x] **Cross-post Finder** — Given a post (or Local file), find likely copies on other enabled sites via Fluffle + tag/artist heuristics. Stills-only; fail closed like current Fluffle gating; origin-aware results.
+- [x] **Pool / Series Suggester** — From favorite tags/artists, surface e621-family pools / Furbooru galleries / Inkbunny pools you have not opened. Capability-gated (`modeSupportsPools`); no fake pools on SoFurry/Itaku/Tailspace.
+- [x] **Similar Artists** — Co-occurrence on tags you favor (“if you like X’s tag mix, try Y”). Feed results into Suggester seed weights without new APIs.
 
 ## Lower priority (polish / portable taste)
 
-- [ ] **Taste Pack export/import** — Portable JSON of top tags + weights. Analyzer already exports; round-trip into Suggester weights and/or starred tags.
-- [ ] **Activity heatmap** — Personal version of Artist Dashboard: when *you* favorited/viewed, not when an artist posted. e621-family + Local first.
+- [x] **Taste Pack export/import** — Portable JSON of top tags + weights. Analyzer already exports; round-trip into Suggester weights and/or starred tags.
+- [x] **Activity heatmap** — Personal version of Artist Dashboard: when *you* favorited/viewed, not when an artist posted. e621-family + Local first.
 
 ## Nearby but different surface (News)
 
@@ -74,9 +74,9 @@ Track in [NEWS-IMPROVEMENTS.md](./NEWS-IMPROVEMENTS.md); do not duplicate as Sug
 | Blacklist Coach | Done | `/tools/blacklist-coach` |
 | Saved-search Wake-up | Done | `/tools/saved-wake` |
 | Tools sidebar group | Done | `NavigationList` `v-list-group` |
-| Cross-post Finder | Pending | |
-| Pool / Series Suggester | Pending | |
-| Similar Artists | Pending | |
-| Taste Pack | Pending | |
-| Activity heatmap | Pending | |
+| Cross-post Finder | Done | `/tools/cross-post` |
+| Pool / Series Suggester | Done | `/tools/pools` |
+| Similar Artists | Done | `/tools/similar-artists` |
+| Taste Pack | Done | `/tools/taste-pack` |
+| Activity heatmap | Done | `/tools/activity` |
 | Non-goals | Held | Tailspace/News chrome, fav toggles, new sites, extra reverse-image vendors |

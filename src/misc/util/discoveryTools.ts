@@ -301,3 +301,194 @@ export const artistRadarCursorKey = (
   if (origin) return `${mode}:${origin}:${a}`;
   return `${mode}:${a}`;
 };
+
+export type SimilarArtistRow = {
+  artist: string;
+  /** How often this artist co-occurs with the seed artist. */
+  withSeed: number;
+  /** Posts in the sample that include this artist. */
+  sampleCount: number;
+};
+
+/**
+ * Rank other artists that co-occur with `seedArtist` on the same posts.
+ * Pair counting is per-post (unordered).
+ */
+export const rankSimilarArtists = (
+  posts: Post[],
+  seedArtist: string,
+  limit = 30,
+): SimilarArtistRow[] => {
+  const seed = seedArtist.trim().toLowerCase();
+  if (!seed) return [];
+  const withSeed = new Map<string, number>();
+  const sampleCount = new Map<string, number>();
+
+  for (const post of posts) {
+    const artists = (post.tags?.artist || []).map((a) => a.toLowerCase());
+    if (!artists.length) continue;
+    for (const a of artists) {
+      sampleCount.set(a, (sampleCount.get(a) || 0) + 1);
+    }
+    if (!artists.includes(seed)) continue;
+    const seen = new Set<string>();
+    for (const a of artists) {
+      if (a === seed || seen.has(a)) continue;
+      seen.add(a);
+      withSeed.set(a, (withSeed.get(a) || 0) + 1);
+    }
+  }
+
+  return [...withSeed.entries()]
+    .map(([artist, count]) => ({
+      artist,
+      withSeed: count,
+      sampleCount: sampleCount.get(artist) || 0,
+    }))
+    .sort(
+      (a, b) =>
+        b.withSeed - a.withSeed ||
+        b.sampleCount - a.sampleCount ||
+        a.artist.localeCompare(b.artist),
+    )
+    .slice(0, limit);
+};
+
+/** Top seed tags for pool/series search from a favorite profile. */
+export const poolSearchSeeds = (
+  counts: TagCountMap,
+  limit = 8,
+): RankedTag[] => {
+  const artists = rankCategoryTags(counts, "artist", 4);
+  const characters = rankCategoryTags(counts, "character", 3);
+  const copyrights = rankCategoryTags(counts, "copyright", 2);
+  const merged = [...artists, ...characters, ...copyrights];
+  const seen = new Set<string>();
+  const out: RankedTag[] = [];
+  for (const row of merged) {
+    if (seen.has(row.name)) continue;
+    seen.add(row.name);
+    out.push(row);
+    if (out.length >= limit) break;
+  }
+  return out;
+};
+
+export type TastePackV1 = {
+  version: 1;
+  exportedAt: number;
+  mode?: string;
+  username?: string | null;
+  sampleSize?: number;
+  counts: TagCountMap;
+  weights?: Record<string, number>;
+  /** Top tags flattened for starred-tag import. */
+  topTags?: Array<{ name: string; category: string; count: number }>;
+};
+
+export const buildTastePack = (args: {
+  mode: string;
+  username?: string | null;
+  sampleSize: number;
+  counts: TagCountMap;
+  weights?: Record<string, number>;
+  topPerCategory?: number;
+}): TastePackV1 => {
+  const topPer = args.topPerCategory ?? 12;
+  const topTags: TastePackV1["topTags"] = [];
+  for (const [category, bag] of Object.entries(args.counts)) {
+    if (!bag || category === "meta" || category === "invalid") continue;
+    const ranked = Object.entries(bag)
+      .filter(([, c]) => !!c)
+      .map(([name, count]) => ({ name, category, count: count! }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, topPer);
+    topTags.push(...ranked);
+  }
+  topTags.sort((a, b) => b.count - a.count);
+  return {
+    version: 1,
+    exportedAt: Date.now(),
+    mode: args.mode,
+    username: args.username ?? null,
+    sampleSize: args.sampleSize,
+    counts: args.counts,
+    ...(args.weights ? { weights: args.weights } : {}),
+    topTags: topTags.slice(0, 80),
+  };
+};
+
+export const parseTastePack = (raw: unknown): TastePackV1 => {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("Taste Pack must be a JSON object");
+  }
+  const o = raw as Record<string, unknown>;
+  if (o.version !== 1) {
+    throw new Error("Unsupported Taste Pack version (need version: 1)");
+  }
+  if (!o.counts || typeof o.counts !== "object") {
+    throw new Error("Taste Pack missing counts");
+  }
+  return {
+    version: 1,
+    exportedAt:
+      typeof o.exportedAt === "number" && Number.isFinite(o.exportedAt)
+        ? o.exportedAt
+        : Date.now(),
+    mode: typeof o.mode === "string" ? o.mode : undefined,
+    username:
+      typeof o.username === "string" || o.username === null
+        ? (o.username as string | null)
+        : null,
+    sampleSize:
+      typeof o.sampleSize === "number" ? o.sampleSize : undefined,
+    counts: o.counts as TagCountMap,
+    weights:
+      o.weights && typeof o.weights === "object"
+        ? (o.weights as Record<string, number>)
+        : undefined,
+    topTags: Array.isArray(o.topTags)
+      ? (o.topTags as TastePackV1["topTags"])
+      : undefined,
+  };
+};
+
+export type ActivityHeatmap = {
+  days: Record<string, number>;
+  max: number;
+};
+
+/** Bucket posts by `created_at` calendar day (favorite/upload activity proxy). */
+export const buildPostActivityHeatmap = (
+  posts: PostCursorLike[],
+): ActivityHeatmap => {
+  const days: Record<string, number> = {};
+  let max = 0;
+  for (const post of posts) {
+    const ms = postCreatedMs(post);
+    if (ms == null) continue;
+    const key = new Date(ms).toISOString().slice(0, 10);
+    const next = (days[key] || 0) + 1;
+    days[key] = next;
+    if (next > max) max = next;
+  }
+  return { days, max };
+};
+
+/**
+ * Heuristic cross-post seeds from a post: artist + top characters for
+ * same-tag searches on other origins when Fluffle is unavailable.
+ */
+export const crossPostHeuristicTags = (post: Post, limit = 4): string[] => {
+  const artists = post.tags?.artist || [];
+  const characters = post.tags?.character || [];
+  const out: string[] = [];
+  for (const a of artists.slice(0, 2)) {
+    if (a && !out.includes(a)) out.push(a);
+  }
+  for (const c of characters) {
+    if (out.length >= limit) break;
+    if (c && !out.includes(c)) out.push(c);
+  }
+  return out;
+};

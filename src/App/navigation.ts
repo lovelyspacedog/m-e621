@@ -113,6 +113,36 @@ export const useToolNavigationItems = () => {
         exact: true,
         to: { name: "SavedSearchWake" },
       }),
+      resolveItem(router, {
+        icon: "mdi-image-search",
+        name: "Cross-post Finder",
+        exact: true,
+        to: { name: "CrossPostFinder" },
+      }),
+      resolveItem(router, {
+        icon: "mdi-account-multiple",
+        name: "Similar Artists",
+        exact: true,
+        to: { name: "SimilarArtists" },
+      }),
+      resolveItem(router, {
+        icon: "mdi-bookshelf",
+        name: "Pool / Series Suggester",
+        exact: true,
+        to: { name: "PoolSeriesSuggester" },
+      }),
+      resolveItem(router, {
+        icon: "mdi-package-variant",
+        name: "Taste Pack",
+        exact: true,
+        to: { name: "TastePack" },
+      }),
+      resolveItem(router, {
+        icon: "mdi-calendar-month",
+        name: "Activity heatmap",
+        exact: true,
+        to: { name: "ActivityHeatmap" },
+      }),
     ];
     if (isE621FamilyMode(siteMode.activeMode)) {
       items.push(

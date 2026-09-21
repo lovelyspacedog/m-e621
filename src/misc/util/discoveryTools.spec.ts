@@ -3,11 +3,17 @@ import type { Post } from "@/worker/api";
 import type { FavoriteTagsResult } from "@/misc/util/suggestionScoring";
 import {
   artistRadarCursorKey,
+  buildPostActivityHeatmap,
+  buildTastePack,
   countNewerThanCursor,
+  crossPostHeuristicTags,
   diffFavoriteTagCounts,
+  parseTastePack,
+  poolSearchSeeds,
   previewBlacklistHitCount,
   rankFavoriteArtists,
   rankHistoryTags,
+  rankSimilarArtists,
   suggestBlacklistTags,
 } from "./discoveryTools";
 
@@ -139,5 +145,63 @@ describe("artistRadarCursorKey", () => {
     expect(artistRadarCursorKey("unified", "Alice", "furbooru")).toBe(
       "unified:furbooru:alice",
     );
+  });
+});
+
+describe("rankSimilarArtists", () => {
+  it("ranks co-occurring artists", () => {
+    const posts = [
+      post(1, { artist: ["alice", "bob"] }),
+      post(2, { artist: ["alice", "bob", "carol"] }),
+      post(3, { artist: ["alice"] }),
+      post(4, { artist: ["dave"] }),
+    ];
+    const rows = rankSimilarArtists(posts, "alice", 10);
+    expect(rows[0]?.artist).toBe("bob");
+    expect(rows[0]?.withSeed).toBe(2);
+    expect(rows.find((r) => r.artist === "dave")).toBeUndefined();
+  });
+});
+
+describe("poolSearchSeeds / taste pack / heatmap", () => {
+  it("builds pool seeds from counts", () => {
+    const seeds = poolSearchSeeds({
+      artist: { a: 5 },
+      character: { c: 3 },
+      copyright: { series: 2 },
+    });
+    expect(seeds.map((s) => s.name)).toEqual(
+      expect.arrayContaining(["a", "c", "series"]),
+    );
+  });
+
+  it("round-trips taste pack", () => {
+    const pack = buildTastePack({
+      mode: "e621",
+      sampleSize: 10,
+      counts: { artist: { alice: 3 } },
+      weights: { artist: 30 },
+    });
+    const parsed = parseTastePack(JSON.parse(JSON.stringify(pack)));
+    expect(parsed.version).toBe(1);
+    expect(parsed.counts.artist?.alice).toBe(3);
+    expect(parsed.weights?.artist).toBe(30);
+  });
+
+  it("buckets activity heatmap by day", () => {
+    const hm = buildPostActivityHeatmap([
+      post(1, {}, "2026-01-01T12:00:00Z"),
+      post(2, {}, "2026-01-01T18:00:00Z"),
+      post(3, {}, "2026-01-02T00:00:00Z"),
+    ]);
+    expect(hm.days["2026-01-01"]).toBe(2);
+    expect(hm.max).toBe(2);
+  });
+
+  it("extracts cross-post heuristic tags", () => {
+    const tags = crossPostHeuristicTags(
+      post(1, { artist: ["alice"], character: ["fox"] }),
+    );
+    expect(tags).toEqual(["alice", "fox"]);
   });
 });
