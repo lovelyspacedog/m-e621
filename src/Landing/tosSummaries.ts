@@ -9,8 +9,8 @@ export interface TosSection {
 export interface TosSummary {
   id: string;
   name: string;
-  /** Official document URL */
-  sourceUrl: string;
+  /** Official document URL; omit for in-app-only notes with no external original */
+  sourceUrl?: string;
   /** Short label for the official document */
   sourceLabel: string;
   /** Optional caveat (e.g. site has Rules instead of a named TOS) */
@@ -415,6 +415,28 @@ export const tosSummaries: TosSummary[] = [
         heading: "Logging",
         paragraphs: [
           "Operational logs may include request origin, User-Agent, error stack traces, image format/size, timings, and result counts — used for performance and abuse control. Cloudflare web analytics only; Fluffle states it is cookie-free.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "dont-woof",
+    name: "Don't Woof",
+    sourceLabel: "About / Instructions",
+    note: "Not a third-party policy and not legal advice. An in-app community aside only — nothing here is linked from settings, tips, or the About tab.",
+    sections: [
+      {
+        heading: "About",
+        paragraphs: [
+          "Most of this tab summarizes other sites’ rules. This entry does not. It is a quiet footnote for readers who finish every policy page looking for the joke — optional color, not an obligation, and not advertised elsewhere in the app.",
+          "Think of it as a reward reserved for curiosity: if something here sounds like a rule but feels like a wink, that is intentional.",
+        ],
+      },
+      {
+        heading: "Instructions",
+        paragraphs: [
+          "There is no checklist and nothing you must enable. If you insist on ceremony, present exactly two brief tokens — only that pair, matched precisely, in either order, with nothing else mixed in — in the ordinary place where requests are typed.",
+          "Follow those rules only when there are exactly two of them. A correct pair skips the ordinary answer and briefly rewards the curious; anything longer, shorter, or differently spelled is ignored, which is the correct outcome for almost everyone.",
         ],
       },
     ],

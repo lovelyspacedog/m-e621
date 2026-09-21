@@ -154,6 +154,7 @@
                 </ul>
               </section>
               <v-btn
+                v-if="selectedTos.sourceUrl"
                 variant="tonal"
                 color="primary"
                 :href="selectedTos.sourceUrl"
@@ -193,7 +194,7 @@
           Full commit history
         </v-btn>
         <v-btn
-          v-else-if="selectedTos"
+          v-else-if="selectedTos?.sourceUrl"
           variant="text"
           color="primary"
           :href="selectedTos.sourceUrl"
