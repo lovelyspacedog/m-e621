@@ -56,6 +56,10 @@ describe("resolveFavoriteTagsQuery", () => {
       tags: ["favs:me"],
       requiresAuth: true,
     });
+    expect(resolveFavoriteTagsQuery({ mode: "weasyl" })).toEqual({
+      tags: ["favs:me"],
+      requiresAuth: true,
+    });
     expect(resolveFavoriteTagsQuery({ mode: "itaku" })).toEqual({
       tags: ["stars:me"],
       requiresAuth: true,

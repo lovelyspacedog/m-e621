@@ -174,7 +174,15 @@ export const postPageUrl = (
 
 export const buildUnifiedFetchArgs = (
   state: ISettingsServiceState,
-  options?: { includeDisabled?: boolean },
+  options?: {
+    includeDisabled?: boolean;
+    /**
+     * Post Suggester / Favorite Analyzer: include every enabled Federated
+     * child even when the Posts feed is on Following (which otherwise drops
+     * e621 / e6ai / Furbooru / Weasyl). Posts merge must not set this.
+     */
+    forceAllEnabledChildren?: boolean;
+  },
 ): UnifiedFetchArgs => {
   const sites = {
     ...defaultUnifiedSites(),
@@ -187,9 +195,11 @@ export const buildUnifiedFetchArgs = (
   const children: UnifiedChildFetchArgs[] = [];
   for (const mode of UNIFIED_CHILD_MODES) {
     if (!options?.includeDisabled && !sites[mode]) continue;
-    // Following source only queries capable children; bookmark fetches use includeDisabled.
+    // Following source only queries capable children; bookmark fetches use
+    // includeDisabled; Suggester/Analyzer use forceAllEnabledChildren.
     if (
       feedSource === "following" &&
+      !options?.forceAllEnabledChildren &&
       !options?.includeDisabled &&
       !modeSupportsFollowing(mode)
     ) {

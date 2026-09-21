@@ -75,6 +75,44 @@ const RECENT_PAGES = 4;
 const SEED_TAG_LIMIT = 15;
 const PAGE_SIZE = 320;
 
+/**
+ * Cap favorite page walks (1 kept post/page worst case). Prevents unbounded
+ * loops when filters drop every post while the API keeps returning batches.
+ */
+export const favoriteFetchMaxPages = (postLimit: number) =>
+  Math.max(1, postLimit);
+
+/**
+ * Collect posts across pages until `postLimit`, an empty batch, a short final
+ * page (relative to the adapter's observed page size), or `maxPages`.
+ * Do not treat "batch &lt; PAGE_SIZE (320)" as exhaustion — many adapters clamp
+ * well below 320 (Inkbunny/Itaku/Weasyl ~100, FA smaller).
+ */
+export async function collectPagedFavorites<T>(args: {
+  postLimit: number;
+  fetchPage: (page: number) => Promise<T[]>;
+  /** Optional filter (blacklist / SFW); exhaustion still uses raw batch length. */
+  keep?: (batch: T[]) => T[];
+  onProgress?: (got: number) => void;
+}): Promise<T[]> {
+  const posts: T[] = [];
+  let page = 1;
+  let effectivePageSize: number | null = null;
+  const maxPages = favoriteFetchMaxPages(args.postLimit);
+  while (posts.length < args.postLimit) {
+    if (page > maxPages) break;
+    const batch = await args.fetchPage(page);
+    page += 1;
+    if (batch.length === 0) break;
+    if (effectivePageSize == null) effectivePageSize = batch.length;
+    const kept = args.keep ? args.keep(batch) : batch;
+    posts.push(...kept);
+    args.onProgress?.(Math.min(posts.length, args.postLimit));
+    if (batch.length < effectivePageSize) break;
+  }
+  return posts.slice(0, args.postLimit);
+}
+
 type SuggestAuth =
   | {
       login: string;
@@ -150,7 +188,6 @@ export class AnalyzeService {
   ) {
     const service = new ApiService();
     const posts: Post[] = [];
-    let page = 1;
     const key = JSON.stringify({
       tags,
       postLimit,
@@ -166,36 +203,41 @@ export class AnalyzeService {
     if (key && this.cache[key]) {
       posts.push(...this.cache[key]!);
     } else {
-      while (posts.length < postLimit) {
-        const { posts: newPosts } = await service.getPosts({
-          blacklistMode: BlacklistMode.blur,
-          blacklist: blacklist || [],
-          limit: PAGE_SIZE,
-          tags,
-          baseUrl,
-          mode,
-          page,
-          auth,
-          userId: userId ?? null,
-          unified,
-          sfwOnly: !!sfwOnly,
-        });
-        page += 1;
-        let kept = blacklist?.length
-          ? newPosts.filter((p) => !(p as EnhancedPost).__meta?.isBlacklisted)
-          : newPosts;
-        if (sfwOnly) {
-          kept = kept.filter((p) => p.rating === "s");
-        }
-        posts.push(...kept);
-        onProgress({
-          message: `got ${posts.length} of ${postLimit} posts`,
-          progress: Math.min(1, posts.length / postLimit),
-        });
-        if (newPosts.length < PAGE_SIZE) {
-          break;
-        }
-      }
+      const fetched = await collectPagedFavorites({
+        postLimit,
+        fetchPage: async (pageNum) => {
+          const { posts: newPosts } = await service.getPosts({
+            blacklistMode: BlacklistMode.blur,
+            blacklist: blacklist || [],
+            limit: PAGE_SIZE,
+            tags,
+            baseUrl,
+            mode,
+            page: pageNum,
+            auth,
+            userId: userId ?? null,
+            unified,
+            sfwOnly: !!sfwOnly,
+          });
+          return newPosts;
+        },
+        keep: (batch) => {
+          let kept = blacklist?.length
+            ? batch.filter((p) => !(p as EnhancedPost).__meta?.isBlacklisted)
+            : batch;
+          if (sfwOnly) {
+            kept = kept.filter((p) => p.rating === "s");
+          }
+          return kept;
+        },
+        onProgress: (got) => {
+          onProgress({
+            message: `got ${got} of ${postLimit} posts`,
+            progress: Math.min(1, got / postLimit),
+          });
+        },
+      });
+      posts.push(...fetched);
       this.cache[key] = posts.slice(0, postLimit);
     }
     return posts.slice(0, postLimit);
@@ -340,36 +382,37 @@ export class AnalyzeService {
         continue;
       }
       try {
-        const childPosts: EnhancedPost[] = [];
-        let page = 1;
-        while (childPosts.length < postLimit) {
-          const { posts: batch } = await service.getPosts({
-            blacklistMode: BlacklistMode.blur,
-            blacklist: [...(unified?.sharedBlacklist || []), ...child.blacklist],
-            limit: PAGE_SIZE,
-            tags: resolved.tags,
-            baseUrl: child.baseUrl || SITE_MODE_URLS[child.mode],
-            mode: child.mode,
-            page,
-            auth: child.auth,
-            userId: child.userId ?? null,
-            sfwOnly: !!sfwOnly,
-          });
-          const stamped = batch.map((p) => ({
-            ...p,
-            __meta: {
-              ...p.__meta,
-              originMode: child.mode,
-              originBaseUrl: child.baseUrl,
-            },
-          }));
-          childPosts.push(
-            ...(sfwOnly ? stamped.filter((p) => p.rating === "s") : stamped),
-          );
-          page += 1;
-          if (batch.length < PAGE_SIZE) break;
-        }
-        allPosts.push(...childPosts.slice(0, postLimit));
+        const childPosts = await collectPagedFavorites({
+          postLimit,
+          fetchPage: async (pageNum) => {
+            const { posts: batch } = await service.getPosts({
+              blacklistMode: BlacklistMode.blur,
+              blacklist: [
+                ...(unified?.sharedBlacklist || []),
+                ...child.blacklist,
+              ],
+              limit: PAGE_SIZE,
+              tags: resolved.tags,
+              baseUrl: child.baseUrl || SITE_MODE_URLS[child.mode],
+              mode: child.mode,
+              page: pageNum,
+              auth: child.auth,
+              userId: child.userId ?? null,
+              sfwOnly: !!sfwOnly,
+            });
+            return batch.map((p) => ({
+              ...p,
+              __meta: {
+                ...p.__meta,
+                originMode: child.mode,
+                originBaseUrl: child.baseUrl,
+              },
+            }));
+          },
+          keep: (batch) =>
+            sfwOnly ? batch.filter((p) => p.rating === "s") : batch,
+        });
+        allPosts.push(...childPosts);
       } catch (err) {
         log("unified fav child failed", child.mode, err);
       }

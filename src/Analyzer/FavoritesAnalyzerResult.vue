@@ -500,7 +500,9 @@ const analyze = async () => {
     const service = await getAnalyzeService();
     const unified =
       siteMode.activeMode === "unified"
-        ? buildUnifiedFetchArgs(main.$state)
+        ? buildUnifiedFetchArgs(main.$state, {
+            forceAllEnabledChildren: true,
+          })
         : undefined;
     const r = await service.getFavoriteTags(
       username.value,

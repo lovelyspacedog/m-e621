@@ -50,13 +50,13 @@ The fork adds dedicated pool routes at `/pools` and `/pools/:id` for **e621**, *
 - Builds a taste profile from favorites (any user on e621 / e6ai / FurAffinity / SoFurry; logged-in favorites elsewhere; Local `type:favorited`)
 - Hybrid candidates: recent posts plus searches seeded from top favorite tags
 - Results ranked by score; already-favorited posts excluded
-- Federated merges per-child favorites and ranks across origins
+- Federated merges per-child favorites from every **enabled** child (even when the Posts feed is on Following) and ranks across origins
 
 ## Favorite Analyzer
 
 - Same mode surface as Post Suggester (everything except Tailspace and Flayrah)
-- Ranks tags by frequency in a sample of favorites (320 / 960 / 1920)
-- Other users’ public favorites on e621 / e6ai / FurAffinity / SoFurry; own favorites when signed in elsewhere; Local library favorites; Federated per-child merge
+- Ranks tags by frequency in a sample of favorites (320 / 960 / 1920); pages through adapter-sized batches so samples are not stuck on the first page
+- Other users’ public favorites on e621 / e6ai / FurAffinity / SoFurry; own favorites when signed in elsewhere; Local library favorites; Federated per-child merge of every enabled child (Following does not shrink that set)
 - Optional blacklist filter, category chips, copy top tags, JSON export, and a link into Post Suggester
 - Uses mode-native favorite queries — never falls through to the e621 API on other sites
 

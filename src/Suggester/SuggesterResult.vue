@@ -186,7 +186,9 @@ const analyze = async () => {
     } else {
       const unified =
         siteMode.activeMode === "unified"
-          ? buildUnifiedFetchArgs(main.$state)
+          ? buildUnifiedFetchArgs(main.$state, {
+              forceAllEnabledChildren: true,
+            })
           : undefined;
       const r = await service.getFavoriteTags(
         username.value,
@@ -259,7 +261,9 @@ const {
       const service = await getAnalyzeService();
       const unified =
         siteMode.activeMode === "unified"
-          ? buildUnifiedFetchArgs(main.$state)
+          ? buildUnifiedFetchArgs(main.$state, {
+              forceAllEnabledChildren: true,
+            })
           : undefined;
       const posts = await service.suggestPosts(
         toRaw(result.value),
