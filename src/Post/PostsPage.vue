@@ -433,7 +433,7 @@ const {
       !siteMode.isItaku &&
       !siteMode.isSofurry &&
       !siteMode.isTailspace &&
-      !siteMode.isFlayrah &&
+      !siteMode.isNews &&
       !siteMode.isUnified
     ) {
       const built = buildTagQuery(
@@ -725,7 +725,7 @@ const sfwTagMode = (): SfwTagMode => {
     siteMode.isSofurry ||
     siteMode.isLocal ||
     siteMode.isTailspace ||
-    siteMode.isFlayrah
+    siteMode.isNews
   ) {
     return "none";
   }
@@ -801,7 +801,7 @@ watch(
 watch(
   () => siteMode.modeChangeCount,
   async (count) => {
-    if (siteMode.isTailspace || siteMode.isFlayrah) return;
+    if (siteMode.isTailspace || siteMode.isNews) return;
     onSearchClick.cancel();
     if (siteMode.isLocal) {
       invalidateLocalMediaIndex();
@@ -811,7 +811,7 @@ watch(
     }
     clearPosts();
     await removeRouterQuery(["page"]);
-    if (siteMode.isTailspace || siteMode.isFlayrah) return;
+    if (siteMode.isTailspace || siteMode.isNews) return;
     if (count !== siteMode.modeChangeCount) return;
     if (siteMode.isLocal) {
       await loadLocalWithResume();

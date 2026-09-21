@@ -12,7 +12,7 @@ export * from "./UrlStore";
 export * from "./SavedSearchStore";
 export * from "./ArtistDashboardStore";
 export * from "./SavedPostsStore";
-export * from "./FlayrahNewsStore";
+export * from "./NewsStore";
 export * from "./WatchedPoolsStore";
 export * from "./WatchedComicsStore";
 export * from "./SiteModeStore";

@@ -80,7 +80,7 @@
       <p class="mb-3">
         Federated merges posts from several sites into one feed. On the landing
         site chips, tap a site to include or exclude it from the search (at least
-        one must stay on). Local, Tailspace, and Flayrah stay greyed out — they
+        one must stay on). Local, Tailspace, and News stay greyed out — they
         are not part of Federated search.
       </p>
       <p class="mb-0">

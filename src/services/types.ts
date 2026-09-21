@@ -57,7 +57,7 @@ export interface SavedSearchEntry {
 export const UNGROUPED_FAVORITE_GROUP_ID = "ungrouped";
 export const UNGROUPED_SAVED_SEARCH_GROUP_ID = "ungrouped";
 
-export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "flayrah" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "unified";
+export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "news" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "unified";
 
 export type UnifiedChildMode = "e621" | "e6ai" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry";
 
@@ -67,23 +67,32 @@ export interface SavedPostEntry {
   savedAt: number;
 }
 
-export interface FlayrahSavedArticle {
-  id: number;
+export interface NewsSavedArticle {
+  /** Namespaced id: `flayrah:123` / `dogpatch:456`. */
+  id: string;
   title: string;
   link: string;
   author: string;
   thumbUrl: string | null;
   savedAt: number;
+  source?: "flayrah" | "dogpatch";
 }
 
-export type FlayrahFeedLayout = "list" | "magazine";
+export type NewsFeedLayout = "list" | "magazine";
 
-export interface FlayrahNewsState {
-  /** MRU article ids marked read (capped). */
-  readIds: number[];
-  saved: FlayrahSavedArticle[];
-  layout: FlayrahFeedLayout;
+export interface NewsState {
+  /** MRU namespaced article ids marked read (capped). */
+  readIds: string[];
+  saved: NewsSavedArticle[];
+  layout: NewsFeedLayout;
 }
+
+/** @deprecated Use NewsSavedArticle */
+export type FlayrahSavedArticle = NewsSavedArticle;
+/** @deprecated Use NewsFeedLayout */
+export type FlayrahFeedLayout = NewsFeedLayout;
+/** @deprecated Use NewsState */
+export type FlayrahNewsState = NewsState;
 
 /** Origins that can open `/pools/:id?origin=` (reader + watch). */
 export type PoolOriginMode = "e621" | "e6ai" | "inkbunny" | "furbooru";
@@ -142,7 +151,7 @@ export const SITE_MODE_URLS: Record<SiteMode, string> = {
   weasyl: "https://www.weasyl.com/",
   itaku: "https://itaku.ee/",
   sofurry: "https://www.sofurry.com/",
-  flayrah: "https://www.flayrah.com/",
+  news: "",
   unified: "",
 };
 
@@ -267,7 +276,9 @@ export interface ISettingsServiceState {
     | 44
     | 45
     | 46
-    | 47;
+    | 47
+    | 48
+    | 49;
   activeMode: SiteMode;
   /** Mode before entering Federated; restored when leaving or demoting on landing. */
   previousModeBeforeUnified: SiteMode | null;
@@ -369,8 +380,8 @@ export interface ISettingsServiceState {
   savedPosts: {
     entries: SavedPostEntry[];
   };
-  /** Flayrah news read-state, saved articles, and feed layout. Not under profiles. */
-  flayrahNews: FlayrahNewsState;
+  /** News (Flayrah + Dogpatch) read-state, saved articles, and feed layout. Not under profiles. */
+  news: NewsState;
   /** Mode-independent registry; views filter entries by their origin site. */
   watchedPools: {
     entries: WatchedPoolEntry[];

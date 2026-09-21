@@ -31,7 +31,7 @@ const ALL_SITE_MODES: SiteMode[] = [
   "weasyl",
   "itaku",
   "sofurry",
-  "flayrah",
+  "news",
   "local",
   "tailspace",
 ];
@@ -52,9 +52,9 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
   const supportsLocalMode = computed(() => supportsLocalBrowse());
-  /** Remote modes need network; Local and Flayrah (last-good RSS cache) still work offline. */
+  /** Remote modes need network; Local and News (last-good RSS cache) still work offline. */
   const isModeOnlineCapable = (mode: SiteMode) =>
-    mode === "local" || mode === "flayrah" || isOnline.value;
+    mode === "local" || mode === "news" || isOnline.value;
   const siteModes = computed(() =>
     ALL_SITE_MODES.filter((mode) => isModeSupported(mode)),
   );
@@ -63,7 +63,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   );
   const isLocal = computed(() => main.activeMode === "local");
   const isTailspace = computed(() => main.activeMode === "tailspace");
-  const isFlayrah = computed(() => main.activeMode === "flayrah");
+  const isNews = computed(() => main.activeMode === "news");
   const isFurbooru = computed(() => main.activeMode === "furbooru");
   const isInkbunny = computed(() => main.activeMode === "inkbunny");
   const isFurAffinity = computed(() => main.activeMode === "furaffinity");
@@ -76,7 +76,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       case "e6ai": return "e6ai";
       case "local": return "local";
       case "tailspace": return "tailspace";
-      case "flayrah": return "Flayrah";
+      case "news": return "News";
       case "furbooru": return "Furbooru";
       case "inkbunny": return "Inkbunny";
       case "furaffinity": return "FurAffinity";
@@ -241,7 +241,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       return;
     }
     if (!isModeOnlineCapable(mode)) {
-      snackbar.addMessage("Offline — only Local and Flayrah are available");
+      snackbar.addMessage("Offline — only Local and News are available");
       return;
     }
     const previous = main.activeMode;
@@ -281,9 +281,9 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       // Stay on the current remote mode (cached UI may still show), but offer a working mode.
       if (isModeOnlineCapable(main.activeMode)) return;
       const preferLocal = supportsLocalBrowse();
-      snackbar.addMessage("Offline — only Local and Flayrah are available", {
-        label: preferLocal ? "Switch to Local" : "Switch to Flayrah",
-        onClick: () => setMode(preferLocal ? "local" : "flayrah"),
+      snackbar.addMessage("Offline — only Local and News are available", {
+        label: preferLocal ? "Switch to Local" : "Switch to News",
+        onClick: () => setMode(preferLocal ? "local" : "news"),
       });
     });
   }
@@ -317,7 +317,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
 
   /** Modes that cannot join Federated Posts search (greyed on chips). */
   const isFederatedIncompatible = (mode: SiteMode) =>
-    mode === "local" || mode === "tailspace" || mode === "flayrah";
+    mode === "local" || mode === "tailspace" || mode === "news";
 
   /** If restored settings point at an unsupported mode, fall back quietly. */
   const ensureCompatibleActiveMode = () => {
@@ -381,7 +381,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     supportsSavedPosts,
     isLocal,
     isTailspace,
-    isFlayrah,
+    isNews,
     isFurbooru,
     isInkbunny,
     isFurAffinity,

@@ -10,7 +10,7 @@ export const isE621FamilyMode = (mode: SiteMode): boolean =>
  * Tailspace comics + Flayrah news — never fall through to e621-shaped chrome.
  */
 export const isDedicatedChromeMode = (mode: SiteMode): boolean =>
-  mode === "tailspace" || mode === "flayrah";
+  mode === "tailspace" || mode === "news";
 
 /** Post Suggester — all modes except dedicated chrome (no getPosts favs). */
 export const modeSupportsSuggester = (mode: SiteMode): boolean =>
@@ -108,7 +108,7 @@ export const postSupportsComments = (
   fallback: SiteMode,
 ): boolean => {
   const mode = originModeOf(post, fallback);
-  if (mode === "local" || mode === "tailspace" || mode === "flayrah" || mode === "unified")
+  if (mode === "local" || mode === "tailspace" || mode === "news" || mode === "unified")
     return false;
   if (!modeSupportsComments(mode)) return false;
   if (mode === "furaffinity" && post?.__meta?.furaffinity?.kind === "journal") {

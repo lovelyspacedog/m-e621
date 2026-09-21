@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseFlayrahArticleHtml } from "./parseArticleHtml";
+import { parseFlayrahArticleHtml, parseNewsArticleHtml } from "./parseArticleHtml";
 
 const FIXTURE = `<!DOCTYPE html><html><head>
 <meta name="author" content="EberraWolf" />
@@ -25,7 +25,8 @@ describe("parseFlayrahArticleHtml", () => {
   it("extracts meta, tags, and body without forms", () => {
     const article = parseFlayrahArticleHtml(FIXTURE, 9638);
     expect(article).not.toBeNull();
-    expect(article!.id).toBe(9638);
+    expect(article!.id).toBe("flayrah:9638");
+    expect(article!.source).toBe("flayrah");
     expect(article!.title).toBe("NYC furries baited");
     expect(article!.author).toBe("EberraWolf");
     expect(article!.tags).toEqual(["furmeets", "New York"]);
@@ -38,5 +39,23 @@ describe("parseFlayrahArticleHtml", () => {
 
   it("returns null without a node body", () => {
     expect(parseFlayrahArticleHtml("<html><body><p>nope</p></body></html>")).toBeNull();
+  });
+});
+
+describe("parseNewsArticleHtml dogpatch", () => {
+  it("extracts wordpress post body", () => {
+    const html = `<!DOCTYPE html><html><body class="postid-99">
+<meta property="og:title" content="DP story" />
+<meta property="og:url" content="https://dogpatch.press/2026/01/01/dp-story/" />
+<meta name="author" content="Patch" />
+<article id="post-99" class="post">
+<div class="entry-content"><p>Hello from Dogpatch.</p></div>
+</article>
+</body></html>`;
+    const article = parseNewsArticleHtml(html, "dogpatch", 99);
+    expect(article).not.toBeNull();
+    expect(article!.id).toBe("dogpatch:99");
+    expect(article!.title).toBe("DP story");
+    expect(article!.descriptionHtml).toContain("Hello from Dogpatch");
   });
 });

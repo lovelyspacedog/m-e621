@@ -38,8 +38,8 @@ class ShortcutService {
             this.router.push({
               name: siteMode.isTailspace
                 ? "TailspacePosts"
-                : siteMode.isFlayrah
-                  ? "FlayrahFeed"
+                : siteMode.isNews
+                  ? "NewsFeed"
                   : "Posts",
             });
             break;

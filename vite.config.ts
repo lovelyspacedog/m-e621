@@ -15,7 +15,7 @@ import { tailspaceProxy } from './vite-tailspace-proxy'
 import { weasylProxy } from './vite-weasyl-proxy'
 import { itakuProxy } from './vite-itaku-proxy'
 import { sofurryProxy } from './vite-sofurry-proxy'
-import { flayrahProxy } from './vite-flayrah-proxy'
+import { newsProxy } from './vite-news-proxy'
 import { scentMarksProxy } from './vite-scent-marks-proxy'
 
 // Furbooru's Cloudflare IPv6 path 520s from some hosts; prefer IPv4.
@@ -77,7 +77,7 @@ function furbooruUpstream(
 
 const MEDIA_HOST_OK = (host: string) =>
   ['.e621.net', '.e926.net', '.e6ai.net', '.furaffinity.net', '.facdn.net'].some((s) => host.endsWith(s)) ||
-  ['e621.net', 'e926.net', 'e6ai.net', 'inkbunny.net', 'furaffinity.net', 'www.furaffinity.net', 'facdn.net', 'flayrah.com', 'www.flayrah.com'].includes(host) ||
+  ['e621.net', 'e926.net', 'e6ai.net', 'inkbunny.net', 'furaffinity.net', 'www.furaffinity.net', 'facdn.net', 'flayrah.com', 'www.flayrah.com', 'dogpatch.press', 'www.dogpatch.press'].includes(host) ||
   host === 'ib.metapix.net' ||
   host.endsWith('.metapix.net') ||
   isWeasylMediaHost(host) ||
@@ -1069,7 +1069,7 @@ export default defineConfig(({ mode }) => {
       weasylProxy(),
       itakuProxy(),
       sofurryProxy(),
-      flayrahProxy(),
+      newsProxy(),
       scentMarksProxy(),
       fluffleProxy(),
       rufflePlugin(),

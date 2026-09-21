@@ -15,7 +15,7 @@
                 >Material e621</a
               >.
               It browses e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry, and
-              Tailspace, plus Flayrah’s furry news feed{{ localBrowsePhrase }}. Federated
+              Tailspace, plus News (Flayrah and Dogpatch Press){{ localBrowsePhrase }}. Federated
               date-merges enabled gallery children into one Search or Following feed; landing chips
               choose which sites are included.
             </p>

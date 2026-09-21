@@ -73,7 +73,7 @@ const ORIGIN_PREF_MODES: SiteMode[] = [
   "sofurry",
   "local",
   "tailspace",
-  "flayrah",
+  "news",
 ];
 
 const playbackRateItems = [

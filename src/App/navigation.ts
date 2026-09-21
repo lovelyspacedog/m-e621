@@ -45,8 +45,8 @@ export const useHomeNavigationItem = () => {
       to: {
         name: siteMode.isTailspace
           ? "TailspacePosts"
-          : siteMode.isFlayrah
-            ? "FlayrahFeed"
+          : siteMode.isNews
+            ? "NewsFeed"
             : "Posts",
       },
     }),
@@ -67,14 +67,14 @@ export const useTrailingNavigationItems = () => {
       },
     };
 
-    // Flayrah: news feed + settings only
-    if (siteMode.isFlayrah) {
+    // News: feed + settings only
+    if (siteMode.isNews) {
       return [
         {
-          icon: "$flayrah",
+          icon: "mdi-newspaper",
           name: "News",
           exact: false,
-          to: { name: "FlayrahFeed" },
+          to: { name: "NewsFeed" },
         },
         settings,
       ].map((item) => resolveItem(router, item));
@@ -207,9 +207,9 @@ export const useNavigationItems = () => {
                 tags: entry.tags.join(" "),
               },
             }
-          : siteMode.isFlayrah
+          : siteMode.isNews
             ? {
-                name: "FlayrahFeed",
+                name: "NewsFeed",
                 query: {
                   tags: entry.tags.join(" "),
                 },

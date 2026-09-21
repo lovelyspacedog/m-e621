@@ -5,7 +5,7 @@ import type { SiteMode } from "@/services/types";
  * Tailspace/Flayrah must not fall through to e621-shaped `Posts`.
  */
 export const blockedToolRedirectName = (mode: SiteMode): string => {
-  if (mode === "flayrah") return "FlayrahFeed";
+  if (mode === "news") return "NewsFeed";
   if (mode === "tailspace") return "TailspacePosts";
   return "Posts";
 };

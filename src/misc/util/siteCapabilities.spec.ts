@@ -26,7 +26,7 @@ describe("modeSupportsPools", () => {
       "sofurry",
       "local",
       "tailspace",
-      "flayrah",
+      "news",
     ];
     for (const mode of blocked) {
       expect(modeSupportsPools(mode)).toBe(false);
@@ -55,10 +55,10 @@ describe("modeSupportsSuggester", () => {
     }
     expect(modeSupportsSuggester("tailspace")).toBe(false);
     expect(modeSupportsFavoriteAnalyzer("tailspace")).toBe(false);
-    expect(modeSupportsSuggester("flayrah")).toBe(false);
-    expect(modeSupportsFavoriteAnalyzer("flayrah")).toBe(false);
+    expect(modeSupportsSuggester("news")).toBe(false);
+    expect(modeSupportsFavoriteAnalyzer("news")).toBe(false);
     expect(isDedicatedChromeMode("tailspace")).toBe(true);
-    expect(isDedicatedChromeMode("flayrah")).toBe(true);
+    expect(isDedicatedChromeMode("news")).toBe(true);
     expect(isDedicatedChromeMode("e621")).toBe(false);
   });
 });

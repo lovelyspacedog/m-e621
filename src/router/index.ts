@@ -249,16 +249,32 @@ const router = createRouter({
         import(/* webpackChunkName: "tailspace" */ "@/Tailspace/TailspaceComicReader.vue"),
     },
     {
-      path: "/flayrah",
-      name: "FlayrahFeed",
+      path: "/news",
+      name: "NewsFeed",
       component: () =>
-        import(/* webpackChunkName: "flayrah" */ "@/Flayrah/FlayrahFeedPage.vue"),
+        import(/* webpackChunkName: "news" */ "@/News/NewsFeedPage.vue"),
+    },
+    {
+      path: "/news/:source/:id",
+      name: "NewsArticle",
+      component: () =>
+        import(/* webpackChunkName: "news" */ "@/News/NewsArticlePage.vue"),
+    },
+    // Legacy Flayrah routes → News
+    {
+      path: "/flayrah",
+      redirect: { name: "NewsFeed" },
     },
     {
       path: "/flayrah/:id",
-      name: "FlayrahArticle",
-      component: () =>
-        import(/* webpackChunkName: "flayrah" */ "@/Flayrah/FlayrahArticlePage.vue"),
+      redirect: (to) => ({
+        name: "NewsArticle",
+        params: {
+          source: "flayrah",
+          id: String(to.params.id),
+        },
+        query: to.query,
+      }),
     },
     {
       path: "/:pathMatch(.*)",
@@ -304,7 +320,7 @@ router.beforeEach((to, from) => {
       "TailspaceComic",
       "TailspaceFollowing",
     ]);
-    const flayrahRoutes = new Set(["FlayrahFeed", "FlayrahArticle"]);
+    const newsRoutes = new Set(["NewsFeed", "NewsArticle"]);
     const e621ShapedRoutes = new Set([
       "Posts",
       "Pools",
@@ -321,8 +337,8 @@ router.beforeEach((to, from) => {
     if (mode === "tailspace" && e621ShapedRoutes.has(String(to.name))) {
       return { name: "TailspacePosts", query: to.query };
     }
-    if (mode === "flayrah" && e621ShapedRoutes.has(String(to.name))) {
-      return { name: "FlayrahFeed", query: to.query };
+    if (mode === "news" && e621ShapedRoutes.has(String(to.name))) {
+      return { name: "NewsFeed", query: to.query };
     }
     if (mode !== "tailspace" && tailspaceRoutes.has(String(to.name))) {
       // Federated Pools may open Tailspace comics without leaving Federated mode.
@@ -330,11 +346,11 @@ router.beforeEach((to, from) => {
         return { name: "Posts", query: to.query };
       }
     }
-    if (mode !== "flayrah" && flayrahRoutes.has(String(to.name))) {
+    if (mode !== "news" && newsRoutes.has(String(to.name))) {
       return { name: "Posts", query: to.query };
     }
     // Dedicated chrome: never strand on Posts via suggester/analyzer redirects.
-    if (mode === "flayrah" && flayrahRoutes.has(String(to.name))) {
+    if (mode === "news" && newsRoutes.has(String(to.name))) {
       return true;
     }
     // Pools: e621-family + Inkbunny + Federated — never fall through to SoFurry/Itaku chrome.

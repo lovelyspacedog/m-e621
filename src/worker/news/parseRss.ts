@@ -1,10 +1,13 @@
 /**
- * Parse Flayrah RSS 2.0 (rss-full.xml) into article records.
+ * Parse Flayrah / Dogpatch Press RSS 2.0 into namespaced NewsArticle records.
  * Uses DOMParser — browser / jsdom only.
  */
 
-export interface FlayrahArticle {
-  id: number;
+import { makeNewsId, type NewsSource } from "./ids";
+
+export interface NewsArticle {
+  id: string;
+  source: NewsSource;
   title: string;
   link: string;
   author: string;
@@ -40,14 +43,41 @@ function creatorText(item: Element): string {
   return childText(item, "author") || "Unknown";
 }
 
-function nidFromGuidOrLink(guid: string, link: string): number {
+function flayrahNidFromGuidOrLink(guid: string, link: string): number {
   const sources = [guid, link];
   for (const s of sources) {
-    const m = s.match(/flayrah\.com\/(\d+)(?:\/|$|#|\?)/i) || s.match(/\/(\d+)(?:\/|$|#|\?)/);
+    const m =
+      s.match(/flayrah\.com\/(\d+)(?:\/|$|#|\?)/i) ||
+      s.match(/\/(\d+)(?:\/|$|#|\?)/);
     if (m) {
       const n = parseInt(m[1], 10);
       if (Number.isFinite(n) && n > 0) return n;
     }
+  }
+  return 0;
+}
+
+function dogpatchIdFromItem(item: Element, guid: string, link: string): number {
+  const all = item.getElementsByTagName("*");
+  for (let i = 0; i < all.length; i++) {
+    const el = all[i];
+    if (el.localName === "post_id" || el.tagName.toLowerCase() === "wp:post_id") {
+      const n = parseInt(textContent(el), 10);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  for (const s of [guid, link]) {
+    const m = s.match(/[?&]p=(\d+)/i);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  // WP often puts the post id in guid even without ?p=
+  const guidNum = guid.match(/dogpatch\.press\/\?p=(\d+)/i);
+  if (guidNum) {
+    const n = parseInt(guidNum[1], 10);
+    if (Number.isFinite(n) && n > 0) return n;
   }
   return 0;
 }
@@ -92,18 +122,24 @@ export function excerptFromDescription(html: string): string {
   return `${text.slice(0, 277).trim()}…`;
 }
 
-export function firstImageUrl(html: string): string | null {
+export function firstImageUrl(
+  html: string,
+  baseOrigin = "https://www.flayrah.com",
+): string | null {
   const m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
   if (!m) return null;
   let src = m[1].trim();
   if (src.startsWith("//")) src = `https:${src}`;
-  if (src.startsWith("/")) src = `https://www.flayrah.com${src}`;
+  if (src.startsWith("/")) src = `${baseOrigin}${src}`;
   if (!/^https?:\/\//i.test(src)) return null;
   return src;
 }
 
 /** Prefer RSS enclosure image over the first inline <img>. */
-export function enclosureImageUrl(item: Element): string | null {
+export function enclosureImageUrl(
+  item: Element,
+  baseOrigin = "https://www.flayrah.com",
+): string | null {
   const enclosures = item.getElementsByTagName("enclosure");
   for (let i = 0; i < enclosures.length; i++) {
     const el = enclosures[i];
@@ -113,7 +149,7 @@ export function enclosureImageUrl(item: Element): string | null {
     if (type && !type.startsWith("image/")) continue;
     let src = url;
     if (src.startsWith("//")) src = `https:${src}`;
-    if (src.startsWith("/")) src = `https://www.flayrah.com${src}`;
+    if (src.startsWith("/")) src = `${baseOrigin}${src}`;
     if (!/^https?:\/\//i.test(src)) continue;
     if (!type && !/\.(jpe?g|png|gif|webp|avif)(\?|$)/i.test(src)) continue;
     return src;
@@ -126,33 +162,41 @@ export function bodySearchText(html: string): string {
   return stripTags(html).toLowerCase();
 }
 
-export function parseFlayrahRss(xml: string): FlayrahArticle[] {
+function descriptionHtmlFromItem(item: Element): string {
+  const plain = childText(item, "description");
+  if (plain) return plain;
+  const encoded = item.getElementsByTagName("encoded");
+  for (let j = 0; j < encoded.length; j++) {
+    if (encoded[j].localName === "encoded") return textContent(encoded[j]);
+  }
+  return "";
+}
+
+function parseRssItems(xml: string, source: NewsSource): NewsArticle[] {
   const doc = new DOMParser().parseFromString(xml, "application/xml");
   if (doc.querySelector("parsererror")) {
-    throw new Error("Failed to parse Flayrah RSS");
+    throw new Error(`Failed to parse ${source} RSS`);
   }
+  const baseOrigin =
+    source === "dogpatch" ? "https://dogpatch.press" : "https://www.flayrah.com";
   const items = doc.getElementsByTagName("item");
-  const out: FlayrahArticle[] = [];
+  const out: NewsArticle[] = [];
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const title = childText(item, "title");
     const link = childText(item, "link");
     const guid = childText(item, "guid") || link;
-    const id = nidFromGuidOrLink(guid, link);
-    if (!id || !title || !link) continue;
-    const descriptionHtml =
-      childText(item, "description") ||
-      (() => {
-        const encoded = item.getElementsByTagName("encoded");
-        for (let j = 0; j < encoded.length; j++) {
-          if (encoded[j].localName === "encoded") return textContent(encoded[j]);
-        }
-        return "";
-      })();
+    const numericId =
+      source === "dogpatch"
+        ? dogpatchIdFromItem(item, guid, link)
+        : flayrahNidFromGuidOrLink(guid, link);
+    if (!numericId || !title || !link) continue;
+    const descriptionHtml = descriptionHtmlFromItem(item);
     const pubDate = childText(item, "pubDate");
     const publishedMs = pubDate ? Date.parse(pubDate) : NaN;
     out.push({
-      id,
+      id: makeNewsId(source, numericId),
+      source,
       title,
       link,
       author: creatorText(item),
@@ -161,18 +205,36 @@ export function parseFlayrahRss(xml: string): FlayrahArticle[] {
       tags: categories(item),
       descriptionHtml,
       excerpt: excerptFromDescription(descriptionHtml),
-      thumbUrl: enclosureImageUrl(item) || firstImageUrl(descriptionHtml),
+      thumbUrl:
+        enclosureImageUrl(item, baseOrigin) ||
+        firstImageUrl(descriptionHtml, baseOrigin),
     });
   }
   return out;
 }
 
-export function articleMatchesQuery(article: FlayrahArticle, terms: string[]): boolean {
+export function parseFlayrahRss(xml: string): NewsArticle[] {
+  return parseRssItems(xml, "flayrah");
+}
+
+export function parseDogpatchRss(xml: string): NewsArticle[] {
+  return parseRssItems(xml, "dogpatch");
+}
+
+export function parseNewsRss(xml: string, source: NewsSource): NewsArticle[] {
+  return parseRssItems(xml, source);
+}
+
+export function articleMatchesQuery(
+  article: NewsArticle,
+  terms: string[],
+): boolean {
   if (!terms.length) return true;
   const hay = [
     article.title,
     article.author,
     article.excerpt,
+    article.source,
     bodySearchText(article.descriptionHtml),
     ...article.tags,
   ]
@@ -181,10 +243,13 @@ export function articleMatchesQuery(article: FlayrahArticle, terms: string[]): b
   return terms.every((t) => hay.includes(t.toLowerCase()));
 }
 
-export function parseFlayrahQueryTerms(raw: string): string[] {
+export function parseNewsQueryTerms(raw: string): string[] {
   return raw
     .trim()
     .split(/\s+/)
     .map((t) => t.trim())
     .filter(Boolean);
 }
+
+/** @deprecated use parseNewsQueryTerms */
+export const parseFlayrahQueryTerms = parseNewsQueryTerms;

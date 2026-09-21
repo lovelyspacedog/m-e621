@@ -63,15 +63,15 @@
             </v-btn>
           </settings-row>
           <settings-row
-            title="Flayrah news"
-            :description="`${flayrahSavedCount} saved · ${flayrahReadCount} read`"
+            title="News"
+            :description="`${newsSavedCount} saved · ${newsReadCount} read`"
           >
             <v-btn
               variant="text"
               color="error"
               size="small"
-              :disabled="!flayrahSavedCount && !flayrahReadCount"
-              @click="pendingSlice = 'flayrahNews'"
+              :disabled="!newsSavedCount && !newsReadCount"
+              @click="pendingSlice = 'news'"
             >
               Clear
             </v-btn>
@@ -173,7 +173,7 @@
                 <li>History entries: {{ importPreview.historyEntries }}</li>
                 <li>Saved searches: {{ importPreview.savedSearchEntries }}</li>
                 <li>Saved posts: {{ importPreview.savedPosts }}</li>
-                <li>Flayrah saved: {{ importPreview.flayrahSaved }}</li>
+                <li>News saved: {{ importPreview.newsSaved }}</li>
                 <li>Watched pools: {{ importPreview.watchedPools }}</li>
                 <li>Watched comics: {{ importPreview.watchedComics }}</li>
               </ul>
@@ -194,7 +194,7 @@
 
 <script setup lang="ts">
 import {
-  useFlayrahNewsStore,
+  useNewsStore,
   usePersistanceService,
   useSavedPostsStore,
   useSnackbarStore,
@@ -226,7 +226,7 @@ const navChips: SettingsNavChip[] = [
 const snackbar = useSnackbarStore();
 const persistanceService = usePersistanceService();
 const savedPosts = useSavedPostsStore();
-const flayrahNews = useFlayrahNewsStore();
+const newsStore = useNewsStore();
 const watchedPools = useWatchedPoolsStore();
 const watchedComics = useWatchedComicsStore();
 const fileInput = ref<HTMLInputElement>();
@@ -238,8 +238,8 @@ const pendingFile = ref<File | null>(null);
 const pendingSlice = ref<SettingsResetSlice | null>(null);
 
 const savedCount = computed(() => savedPosts.count);
-const flayrahSavedCount = computed(() => flayrahNews.savedCount);
-const flayrahReadCount = computed(() => flayrahNews.readCount);
+const newsSavedCount = computed(() => newsStore.savedCount);
+const newsReadCount = computed(() => newsStore.readCount);
 const watchedCount = computed(() => watchedPools.entries.length);
 const watchedComicsCount = computed(() => watchedComics.entries.length);
 
@@ -257,8 +257,8 @@ const sliceTitle = computed(() => {
   switch (pendingSlice.value) {
     case "savedPosts":
       return "Clear saved posts?";
-    case "flayrahNews":
-      return "Clear Flayrah news state?";
+    case "news":
+      return "Clear News state?";
     case "watchedPools":
       return "Clear watched pools?";
     case "watchedComics":
@@ -286,8 +286,8 @@ const sliceBody = computed(() => {
   switch (pendingSlice.value) {
     case "savedPosts":
       return "Removes all bookmarked posts. Site credentials are kept.";
-    case "flayrahNews":
-      return "Clears Flayrah read marks, saved articles, and resets the feed layout. Site credentials are kept.";
+    case "news":
+      return "Clears News read marks, saved articles, and resets the feed layout. Site credentials are kept.";
     case "watchedPools":
       return "Unwatches every pool. Site credentials are kept.";
     case "watchedComics":

@@ -337,20 +337,21 @@ export const tosSummaries: TosSummary[] = [
     ],
   },
   {
-    id: "flayrah",
-    name: "Flayrah",
+    id: "news",
+    name: "News (Flayrah + Dogpatch Press)",
     sourceUrl: "https://www.flayrah.com/about",
-    sourceLabel: "About",
-    note: "Flayrah does not publish a single formal Terms of Service page. This summary is from their About page (licensing and redistribution). PawFeed uses the public RSS full feed only.",
+    sourceLabel: "Flayrah About",
+    note: "PawFeed’s News mode reads public RSS from Flayrah and Dogpatch Press. Flayrah does not publish a single formal Terms of Service page; this summary combines Flayrah’s About notes with Dogpatch’s public-site expectations. Not legal advice.",
     sections: [
       {
         heading: "What it is",
         paragraphs: [
-          "Community furry news magazine since 2001. Content is intended to be work-safe to read.",
+          "Flayrah is a community furry news magazine since 2001; content is intended to be work-safe to read.",
+          "Dogpatch Press publishes furry community news and investigative reporting. Topics can include adult or disturbing material; PawFeed does not filter that feed.",
         ],
       },
       {
-        heading: "Licensing and reuse",
+        heading: "Licensing and reuse (Flayrah)",
         bullets: [
           "Contributors choose a license; the site default is Creative Commons Attribution-ShareAlike",
           "Attributed redistribution of news summaries is welcome; credit the site and author and link the original",
@@ -360,8 +361,31 @@ export const tosSummaries: TosSummary[] = [
       {
         heading: "PawFeed use",
         bullets: [
-          "Read-only RSS browsing with taxonomy feeds, in-app reading, archive deep-links, local read/saved state, and a link back to flayrah.com",
-          "No Flayrah login, comments, or ratings through PawFeed",
+          "Read-only merged RSS browsing with Flayrah taxonomy feeds, in-app reading, archive deep-links, local read/saved state, and links back to each source",
+          "No Flayrah or Dogpatch login, comments, or ratings through PawFeed",
+          "Dogpatch articles are shown from the public feed with attribution and an open-on-source link",
+        ],
+      },
+    ],
+  },
+  {
+    id: "dogpatch",
+    name: "Dogpatch Press",
+    sourceUrl: "https://dogpatch.press/",
+    sourceLabel: "dogpatch.press",
+    note: "Dogpatch Press does not publish a formal Terms of Service summary here. PawFeed uses their public WordPress RSS only. Visit the site for current policies.",
+    sections: [
+      {
+        heading: "What it is",
+        paragraphs: [
+          "Independent furry news and investigative reporting (“Fluff Pieces Every Week”).",
+        ],
+      },
+      {
+        heading: "PawFeed use",
+        bullets: [
+          "Read-only public RSS and in-app article view with a link back to dogpatch.press",
+          "No Dogpatch login or commenting through PawFeed",
         ],
       },
     ],

@@ -39,14 +39,14 @@
         </div>
         <p v-else class="text-body-2 text-center mb-4 landing-search-hint">
           {{
-            siteMode.isFlayrah
-              ? "Flayrah uses its own news feed — pick a site above or browse headlines."
+            siteMode.isNews
+              ? "News uses its own feed — pick a site above or browse headlines."
               : "Tailspace uses its own browse feed — pick a site above or open posts."
           }}
         </p>
         <div class="d-flex flex-wrap justify-center align-center ga-3">
           <v-btn size="x-large" color="secondary" variant="flat" :to="query">
-            {{ siteMode.isFlayrah ? "Browse news" : "Browse posts" }}
+            {{ siteMode.isNews ? "Browse news" : "Browse posts" }}
           </v-btn>
           <v-btn
             size="large"
@@ -230,8 +230,8 @@ useHead({
 /** Descriptive copy — sits above What it does, not under the logo. */
 const tagline = computed(() =>
   siteMode.supportsLocalMode
-    ? "Browse nine imageboards, Flayrah news, and a local folder from one client."
-    : "Browse nine imageboards and Flayrah news from one client.",
+    ? "Browse nine imageboards, furry news, and a local folder from one client."
+    : "Browse nine imageboards and furry news from one client.",
 );
 
 /** One-shot typewriter: types in, stays on screen (no erase cycle). */
@@ -295,19 +295,19 @@ onUnmounted(clearSplashTimers);
 
 const capabilities = computed(() => [
   siteMode.supportsLocalMode
-    ? "Nine imageboards, Flayrah news, Federated date-merge (Search or Following), and a Local folder library"
-    : "Nine imageboards, Flayrah news, and Federated date-merge (Search or Following)",
+    ? "Nine imageboards, News (Flayrah + Dogpatch Press), Federated date-merge (Search or Following), and a Local folder library"
+    : "Nine imageboards, News (Flayrah + Dogpatch Press), and Federated date-merge (Search or Following)",
   "Federated chips multi-select which sites merge; independent accounts, blacklists, and prefs per site",
   "Saved posts across origins, watched pools with new-page badges, and starred tag groups",
   "Feed Layout: full-width, grid, or compact cards; infinite scroll or page buttons",
   "Pools and Tailspace comics readers; fullscreen stories, PDF, RTF, and DOCX where supported",
-  "Post Suggester and Favorite Analyzer (not on Tailspace or Flayrah); Fluffle reverse-image search",
+  "Post Suggester and Favorite Analyzer (not on Tailspace or News); Fluffle reverse-image search",
   "Comments, votes, favorites, and following where each site allows them",
   "Uploads, forums, and account admin stay on each origin site",
 ]);
 
 const showTagSearch = computed(
-  () => !siteMode.isTailspace && !siteMode.isFlayrah,
+  () => !siteMode.isTailspace && !siteMode.isNews,
 );
 const searchLabel = computed(() => (siteMode.isLocal ? "Fuzzy search …" : "Search tags …"));
 
@@ -315,8 +315,8 @@ const tags = ref<string[]>([]);
 const query = computed<RouteLocationRaw>(() =>
   siteMode.isTailspace
     ? { name: "TailspacePosts" }
-    : siteMode.isFlayrah
-      ? { name: "FlayrahFeed" }
+    : siteMode.isNews
+      ? { name: "NewsFeed" }
       : {
           name: "Posts",
           query: tags.value.length ? { tags: tags.value.join(" ") } : {},

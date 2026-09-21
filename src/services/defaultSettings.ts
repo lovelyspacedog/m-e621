@@ -33,7 +33,7 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 48,
+  configVersion: 49,
   activeMode: "e621",
   previousModeBeforeUnified: null,
   profiles: {
@@ -41,7 +41,7 @@ export const defaultSettings: ISettingsServiceState = {
     e6ai: createEmptySiteProfile("e6ai"),
     local: createEmptySiteProfile("local"),
     tailspace: createEmptySiteProfile("tailspace"),
-    flayrah: createEmptySiteProfile("flayrah"),
+    news: createEmptySiteProfile("news"),
     furbooru: createEmptySiteProfile("furbooru"),
     inkbunny: createEmptySiteProfile("inkbunny"),
     furaffinity: createEmptySiteProfile("furaffinity"),
@@ -142,7 +142,7 @@ export const defaultSettings: ISettingsServiceState = {
   savedPosts: {
     entries: [],
   },
-  flayrahNews: {
+  news: {
     readIds: [],
     saved: [],
     layout: "list",

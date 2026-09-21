@@ -3,10 +3,11 @@ import {
   excerptFromDescription,
   firstImageUrl,
   parseFlayrahRss,
+  parseDogpatchRss,
   articleMatchesQuery,
 } from "./parseRss";
 
-const FIXTURE = `<?xml version="1.0" encoding="utf-8"?>
+const FLAYRAH_FIXTURE = `<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
     <title>flayrah</title>
@@ -33,18 +34,50 @@ const FIXTURE = `<?xml version="1.0" encoding="utf-8"?>
   </channel>
 </rss>`;
 
+const DOGPATCH_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:content="http://purl.org/rss/1.0/modules/content/"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:wp="http://wordpress.org/export/1.2/">
+  <channel>
+    <title>Dogpatch Press</title>
+    <item>
+      <title>Test Dogpatch story</title>
+      <link>https://dogpatch.press/2026/09/20/test-story/</link>
+      <guid isPermaLink="false">https://dogpatch.press/?p=12345</guid>
+      <pubDate>Sat, 20 Sep 2026 12:00:00 +0000</pubDate>
+      <dc:creator>Patch</dc:creator>
+      <category>News</category>
+      <description><![CDATA[<p>Dogpatch excerpt about conventions.</p>]]></description>
+      <wp:post_id>12345</wp:post_id>
+    </item>
+  </channel>
+</rss>`;
+
 describe("parseFlayrahRss", () => {
-  it("parses nid, tags, author, and break excerpt", () => {
-    const articles = parseFlayrahRss(FIXTURE);
+  it("parses namespaced id, tags, author, and break excerpt", () => {
+    const articles = parseFlayrahRss(FLAYRAH_FIXTURE);
     expect(articles).toHaveLength(2);
-    expect(articles[0].id).toBe(9638);
+    expect(articles[0].id).toBe("flayrah:9638");
+    expect(articles[0].source).toBe("flayrah");
     expect(articles[0].author).toBe("EberraWolf");
     expect(articles[0].tags).toEqual(["furmeets", "New York"]);
     expect(articles[0].excerpt).toContain("First para");
     expect(articles[0].excerpt).not.toContain("More body");
     expect(articles[0].thumbUrl).toContain("hero.jpg");
-    expect(articles[1].id).toBe(9637);
+    expect(articles[1].id).toBe("flayrah:9637");
     expect(articles[1].author).toBe("earthfurst");
+  });
+});
+
+describe("parseDogpatchRss", () => {
+  it("parses wp post id into dogpatch:id", () => {
+    const articles = parseDogpatchRss(DOGPATCH_FIXTURE);
+    expect(articles).toHaveLength(1);
+    expect(articles[0].id).toBe("dogpatch:12345");
+    expect(articles[0].source).toBe("dogpatch");
+    expect(articles[0].author).toBe("Patch");
+    expect(articles[0].tags).toEqual(["News"]);
   });
 });
 
@@ -64,7 +97,7 @@ describe("firstImageUrl", () => {
 
 describe("articleMatchesQuery", () => {
   it("matches title author tags and body", () => {
-    const articles = parseFlayrahRss(FIXTURE);
+    const articles = parseFlayrahRss(FLAYRAH_FIXTURE);
     expect(articleMatchesQuery(articles[0], ["nyc"])).toBe(true);
     expect(articleMatchesQuery(articles[0], ["maryland"])).toBe(false);
     expect(articleMatchesQuery(articles[0], ["eberrawolf"])).toBe(true);

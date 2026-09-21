@@ -408,10 +408,20 @@ SOFURRY_AUTH_POSTS = {
 }
 
 FLAYRAH_RSS_URL = "https://www.flayrah.com/rss-full.xml"
-FLAYRAH_MEDIA_HOSTS = frozenset({"flayrah.com", "www.flayrah.com"})
+DOGPATCH_RSS_URL = "https://dogpatch.press/feed/"
+NEWS_MEDIA_HOSTS = frozenset({
+    "flayrah.com",
+    "www.flayrah.com",
+    "dogpatch.press",
+    "www.dogpatch.press",
+})
+# Back-compat alias
+FLAYRAH_MEDIA_HOSTS = NEWS_MEDIA_HOSTS
+NEWS_RSS_PATH = "/api/news/rss"
+NEWS_ARTICLE_PATH = re.compile(r"^/api/news/article/(flayrah|dogpatch)/(\d+)$")
 FLAYRAH_RSS_PATH = "/api/flayrah/rss"
 FLAYRAH_ARTICLE_PATH = re.compile(r"^/api/flayrah/article/(\d+)$")
-# Curated taxonomy feeds (must match src/worker/flayrah/feeds.ts).
+# Curated taxonomy feeds (must match src/worker/news/feeds.ts).
 FLAYRAH_FEEDS = {
     "full": FLAYRAH_RSS_URL,
     "reviews": "https://www.flayrah.com/taxonomy/term/37/0/feed",
@@ -1661,7 +1671,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return parsed.geturl()
         if host in SOFURRY_MEDIA_HOSTS or host.endswith(".sofurryfiles.com"):
             return parsed.geturl()
-        if host in FLAYRAH_MEDIA_HOSTS:
+        if host in NEWS_MEDIA_HOSTS or host.endswith(".wp.com") or host.endswith(".wordpress.com"):
             return parsed.geturl()
         if host in FURRYCDN_HOSTS or host.endswith(FURRYCDN_SUFFIXES):
             return parsed.geturl()
@@ -2973,17 +2983,27 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return
         self._json(200, {"ok": True, "cookies": cookie, "username": username})
 
-    def _proxy_flayrah_rss(self) -> None:
+    def _proxy_news_rss(self) -> None:
         parsed = urlparse(self.path)
-        feed = ((parse_qs(parsed.query).get("feed") or ["full"])[0] or "full").strip().lower()
-        target = FLAYRAH_FEEDS.get(feed)
+        qs = parse_qs(parsed.query)
+        source = ((qs.get("source") or ["flayrah"])[0] or "flayrah").strip().lower()
+        feed = ((qs.get("feed") or ["full"])[0] or "full").strip().lower()
+        if source == "dogpatch":
+            target = DOGPATCH_RSS_URL
+        elif source in ("flayrah", "all"):
+            target = FLAYRAH_FEEDS.get("full" if source == "all" else feed)
+        else:
+            target = None
         if not target:
-            self._json(400, {"ok": False, "message": f"unknown flayrah feed: {feed}"})
+            self._json(
+                400,
+                {"ok": False, "message": f"unknown news source/feed: {source}/{feed}"},
+            )
             return
         req = urllib.request.Request(target, method="GET")
         req.add_header(
             "User-Agent",
-            f"m-e621-flayrah-proxy/1.0 (https://{DOMAIN})",
+            f"m-e621-news-proxy/1.0 (https://{DOMAIN})",
         )
         req.add_header("Accept", "application/rss+xml, application/xml, text/xml, */*")
         try:
@@ -3000,7 +3020,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 else "application/xml"
             )
         except Exception as exc:  # noqa: BLE001
-            self._json(502, {"ok": False, "message": f"flayrah rss failed: {exc}"})
+            self._json(502, {"ok": False, "message": f"news rss failed: {exc}"})
             return
         self.send_response(status)
         self.send_header("Content-Type", content_type)
@@ -3011,18 +3031,21 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if body:
             self.wfile.write(body)
 
-    def _proxy_flayrah_article(self, node_id: str) -> None:
+    def _proxy_news_article(self, source: str, node_id: str) -> None:
         if not node_id.isdigit() or int(node_id) <= 0:
             self._json(400, {"ok": False, "message": "invalid article id"})
             return
-        target = f"https://www.flayrah.com/node/{node_id}"
+        if source == "dogpatch":
+            target = f"https://dogpatch.press/?p={node_id}"
+        else:
+            target = f"https://www.flayrah.com/node/{node_id}"
         req = urllib.request.Request(target, method="GET")
         req.add_header(
             "User-Agent",
             (
                 "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
                 f"(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 "
-                f"m-e621-flayrah-proxy/1.0 (https://{DOMAIN})"
+                f"m-e621-news-proxy/1.0 (https://{DOMAIN})"
             ),
         )
         req.add_header("Accept", "text/html,application/xhtml+xml,*/*")
@@ -3040,7 +3063,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 else "text/html"
             )
         except Exception as exc:  # noqa: BLE001
-            self._json(502, {"ok": False, "message": f"flayrah article failed: {exc}"})
+            self._json(502, {"ok": False, "message": f"news article failed: {exc}"})
             return
         self.send_response(status)
         self.send_header("Content-Type", content_type)
@@ -3050,6 +3073,17 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         if body:
             self.wfile.write(body)
+
+    def _proxy_flayrah_rss(self) -> None:
+        # Legacy path — Flayrah-only RSS with optional ?feed=.
+        parsed = urlparse(self.path)
+        feed_q = parse_qs(parsed.query).get("feed") or []
+        feed = (feed_q[0] if feed_q else "full").strip().lower()
+        self.path = f"/api/news/rss?source=flayrah&feed={feed}"
+        self._proxy_news_rss()
+
+    def _proxy_flayrah_article(self, node_id: str) -> None:
+        self._proxy_news_article("flayrah", node_id)
 
     def _proxy_sofurry(self, path: str, parsed, method: str = "GET", body: bytes = b"") -> None:
         cookie = self._sofurry_cookies()
@@ -3410,8 +3444,15 @@ class SpaHandler(SimpleHTTPRequestHandler):
             raw = (parse_qs(parsed.query).get("url") or [""])[0]
             self._proxy_media(raw)
             return
-        if path == FLAYRAH_RSS_PATH:
-            self._proxy_flayrah_rss()
+        if path == NEWS_RSS_PATH or path == FLAYRAH_RSS_PATH:
+            if path == FLAYRAH_RSS_PATH:
+                self._proxy_flayrah_rss()
+            else:
+                self._proxy_news_rss()
+            return
+        news_article = NEWS_ARTICLE_PATH.match(path)
+        if news_article:
+            self._proxy_news_article(news_article.group(1), news_article.group(2))
             return
         article_match = FLAYRAH_ARTICLE_PATH.match(path)
         if article_match:

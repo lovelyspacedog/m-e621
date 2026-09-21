@@ -16,6 +16,15 @@ export interface ChangelogSection {
 export const changelogSections: ChangelogSection[] = [
   {
     date: "2026-09-20",
+    title: "News mode: Flayrah + Dogpatch Press",
+    items: [
+      "Flayrah site mode is now News: one merged date-sorted feed from Flayrah and Dogpatch Press with source filter chips",
+      "Routes moved to /news (legacy /flayrah redirects); article ids are namespaced (flayrah:123 / dogpatch:456) with saved/read migration",
+      "Dogpatch Press full public RSS is included with attribution and open-on-source links; Flayrah taxonomy chips still apply when filtering to Flayrah",
+    ],
+  },
+  {
+    date: "2026-09-20",
     title: "Clearer Suggester and Analyzer tips",
     items: [
       "SFW only: typing rating:safe or rating:s on e621-family, Furbooru, FurAffinity, or Federated turns SFW on; Federated no longer toasts when that injected safe rating is dropped on sites without rating search (e.g. SoFurry)",

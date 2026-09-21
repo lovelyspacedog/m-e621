@@ -2,7 +2,7 @@
   <div>
     <v-list-item>
       <v-list-item-title class="text-overline">
-        {{ siteMode.isFlayrah ? "Saved filters" : "Saved searches" }}
+        {{ siteMode.isNews ? "Saved filters" : "Saved searches" }}
       </v-list-item-title>
       <template #append>
         <v-btn
@@ -318,9 +318,9 @@ const toSearch = (tags: string[]) =>
           tags: tags.join(" "),
         },
       }
-    : siteMode.isFlayrah
+    : siteMode.isNews
       ? {
-          name: "FlayrahFeed",
+          name: "NewsFeed",
           query: {
             tags: tags.join(" "),
             ...(typeof route.query.feed === "string" &&

@@ -1,29 +1,30 @@
 import { describe, expect, it } from "vitest";
 import {
-  absolutizeFlayrahUrl,
+  absolutizeNewsUrl,
   proxyDownloadUrl,
-  sanitizeFlayrahHtml,
-} from "./flayrahHtml";
+  sanitizeNewsHtml,
+} from "./newsHtml";
 
-describe("absolutizeFlayrahUrl", () => {
+describe("absolutizeNewsUrl", () => {
   it("handles protocol-relative and site-relative", () => {
-    expect(absolutizeFlayrahUrl("//www.flayrah.com/x")).toBe(
+    expect(absolutizeNewsUrl("//www.flayrah.com/x", "flayrah")).toBe(
       "https://www.flayrah.com/x",
     );
-    expect(absolutizeFlayrahUrl("/sites/default/files/a.jpg")).toBe(
+    expect(absolutizeNewsUrl("/sites/default/files/a.jpg", "flayrah")).toBe(
       "https://www.flayrah.com/sites/default/files/a.jpg",
     );
   });
 
   it("rejects javascript urls", () => {
-    expect(absolutizeFlayrahUrl("javascript:alert(1)")).toBeNull();
+    expect(absolutizeNewsUrl("javascript:alert(1)")).toBeNull();
   });
 });
 
-describe("sanitizeFlayrahHtml", () => {
+describe("sanitizeNewsHtml", () => {
   it("strips script and event handlers", () => {
-    const html = sanitizeFlayrahHtml(
+    const html = sanitizeNewsHtml(
       `<p onclick="evil()">Hi</p><script>alert(1)</script><img src="https://www.flayrah.com/a.jpg" onerror="x">`,
+      "flayrah",
     );
     expect(html).not.toContain("script");
     expect(html).not.toContain("onclick");
@@ -32,21 +33,32 @@ describe("sanitizeFlayrahHtml", () => {
   });
 
   it("proxies flayrah images through /api/download", () => {
-    const html = sanitizeFlayrahHtml(
+    const html = sanitizeNewsHtml(
       `<img src="//www.flayrah.com/sites/default/files/u/x.png">`,
+      "flayrah",
     );
     expect(html).toContain("/api/download?url=");
-    expect(html).toContain(encodeURIComponent("https://www.flayrah.com/sites/default/files/u/x.png"));
+    expect(html).toContain(
+      encodeURIComponent("https://www.flayrah.com/sites/default/files/u/x.png"),
+    );
+  });
+
+  it("proxies dogpatch images through /api/download", () => {
+    const html = sanitizeNewsHtml(
+      `<img src="https://dogpatch.press/wp-content/uploads/x.jpg">`,
+      "dogpatch",
+    );
+    expect(html).toContain("/api/download?url=");
   });
 
   it("rejects javascript links", () => {
-    const html = sanitizeFlayrahHtml(`<a href="javascript:alert(1)">x</a>`);
+    const html = sanitizeNewsHtml(`<a href="javascript:alert(1)">x</a>`);
     expect(html).not.toContain("javascript:");
     expect(html).not.toMatch(/href=["']javascript/i);
   });
 
   it("keeps http links with noopener", () => {
-    const html = sanitizeFlayrahHtml(
+    const html = sanitizeNewsHtml(
       `<a href="https://example.com/story">read</a>`,
     );
     expect(html).toContain('href="https://example.com/story"');

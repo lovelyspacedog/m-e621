@@ -414,8 +414,8 @@ const searchTag = (name: string) => {
   router.push({
     name: siteMode.isTailspace
       ? "TailspacePosts"
-      : siteMode.isFlayrah
-        ? "FlayrahFeed"
+      : siteMode.isNews
+        ? "NewsFeed"
         : "Posts",
     query: { tags: name },
   });

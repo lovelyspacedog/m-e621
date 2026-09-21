@@ -1,7 +1,7 @@
 import { useMainStore } from "./state";
 import localforage from "localforage";
 // TODO: remove localforage and implement persistance ourselves
-import type { FavoriteTagEntry, FavoriteTagGroup, ISettingsServiceState, SiteMode } from "./types";
+import type { FavoriteTagEntry, FavoriteTagGroup, ISettingsServiceState, NewsState, SiteMode } from "./types";
 import { DataSaverType, SITE_MODE_URLS, UNGROUPED_FAVORITE_GROUP_ID } from "./types";
 import type { SiteProfile } from "./types";
 import clone from "clone";
@@ -43,7 +43,7 @@ export type SettingsImportPreview = {
   historyEntries: number;
   savedSearchEntries: number;
   savedPosts: number;
-  flayrahSaved: number;
+  newsSaved: number;
   watchedPools: number;
   watchedComics: number;
 };
@@ -57,7 +57,7 @@ export type SettingsResetSlice =
   | "searches"
   | "favorites"
   | "savedPosts"
-  | "flayrahNews"
+  | "news"
   | "watchedPools"
   | "watchedComics";
 
@@ -99,7 +99,7 @@ export const summarizeSettingsImport = (
     historyEntries: settings.history?.entries?.length ?? 0,
     savedSearchEntries: settings.searches?.entries?.length ?? 0,
     savedPosts: settings.savedPosts?.entries?.length ?? 0,
-    flayrahSaved: settings.flayrahNews?.saved?.length ?? 0,
+    newsSaved: settings.news?.saved?.length ?? 0,
     watchedPools: settings.watchedPools?.entries?.length ?? 0,
     watchedComics: settings.watchedComics?.entries?.length ?? 0,
   };
@@ -250,8 +250,8 @@ class PersistanceService {
       case "savedPosts":
         this.main.savedPosts = { entries: [] };
         break;
-      case "flayrahNews":
-        this.main.flayrahNews = { readIds: [], saved: [], layout: "list" };
+      case "news":
+        this.main.news = { readIds: [], saved: [], layout: "list" };
         break;
       case "watchedPools":
         this.main.watchedPools = { entries: [] };
@@ -465,7 +465,7 @@ class PersistanceService {
         e6ai: createEmptySiteProfile("e6ai"),
         local: createEmptySiteProfile("local"),
         tailspace: createEmptySiteProfile("tailspace"),
-        flayrah: createEmptySiteProfile("flayrah"),
+        news: createEmptySiteProfile("news"),
         furbooru: createEmptySiteProfile("furbooru"),
         inkbunny: createEmptySiteProfile("inkbunny"),
         furaffinity: createEmptySiteProfile("furaffinity"),
@@ -496,7 +496,7 @@ class PersistanceService {
           e6ai: createEmptySiteProfile("e6ai"),
           local: createEmptySiteProfile("local"),
           tailspace: createEmptySiteProfile("tailspace"),
-          flayrah: createEmptySiteProfile("flayrah"),
+          news: createEmptySiteProfile("news"),
           furbooru: createEmptySiteProfile("furbooru"),
           inkbunny: createEmptySiteProfile("inkbunny"),
           furaffinity: createEmptySiteProfile("furaffinity"),
@@ -699,7 +699,7 @@ class PersistanceService {
           e6ai: createEmptySiteProfile("e6ai"),
           local: createEmptySiteProfile("local"),
           tailspace: createEmptySiteProfile("tailspace"),
-          flayrah: createEmptySiteProfile("flayrah"),
+          news: createEmptySiteProfile("news"),
           furbooru: createEmptySiteProfile("furbooru"),
           inkbunny: createEmptySiteProfile("inkbunny"),
           furaffinity: createEmptySiteProfile("furaffinity"),
@@ -708,26 +708,26 @@ class PersistanceService {
           sofurry: createEmptySiteProfile("sofurry"),
           unified: createEmptySiteProfile("unified"),
         };
-      } else if (!newState.profiles.flayrah) {
-        newState.profiles.flayrah = createEmptySiteProfile("flayrah");
+      } else if (!newState.profiles.news) {
+        newState.profiles.news = createEmptySiteProfile("news");
       }
       newState.configVersion = 42;
     }
     if (newState.configVersion < 43) {
-      if (!newState.flayrahNews) {
-        newState.flayrahNews = { readIds: [], saved: [], layout: "list" };
+      if (!newState.news) {
+        newState.news = { readIds: [], saved: [], layout: "list" };
       } else {
-        if (!Array.isArray(newState.flayrahNews.readIds)) {
-          newState.flayrahNews.readIds = [];
+        if (!Array.isArray(newState.news.readIds)) {
+          newState.news.readIds = [];
         }
-        if (!Array.isArray(newState.flayrahNews.saved)) {
-          newState.flayrahNews.saved = [];
+        if (!Array.isArray(newState.news.saved)) {
+          newState.news.saved = [];
         }
         if (
-          newState.flayrahNews.layout !== "list" &&
-          newState.flayrahNews.layout !== "magazine"
+          newState.news.layout !== "list" &&
+          newState.news.layout !== "magazine"
         ) {
-          newState.flayrahNews.layout = "list";
+          newState.news.layout = "list";
         }
       }
       newState.configVersion = 43;
@@ -766,6 +766,101 @@ class PersistanceService {
       if (newState.posts) newState.posts.sfwOnly = false;
       newState.configVersion = 48;
     }
+    if (newState.configVersion < 49) {
+      const raw = newState as ISettingsServiceState & {
+        flayrahNews?: {
+          readIds?: unknown[];
+          saved?: Array<Record<string, unknown>>;
+          layout?: string;
+        };
+        profiles?: Record<string, SiteProfile | undefined> & {
+          flayrah?: SiteProfile;
+        };
+      };
+      if (raw.profiles?.flayrah && !raw.profiles.news) {
+        const legacyProfile = raw.profiles.flayrah;
+        raw.profiles.news = {
+          ...createEmptySiteProfile("news"),
+          ...legacyProfile,
+          // Keep empty base — News home is source-specific.
+          baseUrl: "",
+        };
+      }
+      if (raw.profiles && "flayrah" in raw.profiles) {
+        delete (raw.profiles as { flayrah?: SiteProfile }).flayrah;
+      }
+      const legacyNews = raw.flayrahNews || raw.news;
+      const readIds: string[] = [];
+      const seenRead = new Set<string>();
+      for (const id of legacyNews?.readIds || []) {
+        let next: string | null = null;
+        if (typeof id === "string" && /^(flayrah|dogpatch):\d+$/i.test(id)) {
+          const m = id.match(/^(flayrah|dogpatch):(\d+)$/i);
+          if (m) next = `${m[1].toLowerCase()}:${m[2]}`;
+        } else if (typeof id === "number" && Number.isFinite(id) && id > 0) {
+          next = `flayrah:${Math.floor(id)}`;
+        } else if (typeof id === "string") {
+          const n = parseInt(id, 10);
+          if (Number.isFinite(n) && n > 0 && String(n) === id.trim()) {
+            next = `flayrah:${n}`;
+          }
+        }
+        if (next && !seenRead.has(next)) {
+          seenRead.add(next);
+          readIds.push(next);
+        }
+      }
+      const saved: NewsState["saved"] = [];
+      const seenSaved = new Set<string>();
+      for (const entry of legacyNews?.saved || []) {
+        if (!entry || typeof entry !== "object") continue;
+        const rawId = entry.id;
+        let id: string | null = null;
+        if (typeof rawId === "string" && /^(flayrah|dogpatch):\d+$/i.test(rawId)) {
+          const m = rawId.match(/^(flayrah|dogpatch):(\d+)$/i);
+          if (m) id = `${m[1].toLowerCase()}:${m[2]}`;
+        } else if (typeof rawId === "number" && rawId > 0) {
+          id = `flayrah:${Math.floor(rawId)}`;
+        } else if (typeof rawId === "string") {
+          const n = parseInt(rawId, 10);
+          if (Number.isFinite(n) && n > 0 && String(n) === rawId.trim()) {
+            id = `flayrah:${n}`;
+          }
+        }
+        if (!id || seenSaved.has(id)) continue;
+        seenSaved.add(id);
+        const source =
+          id.startsWith("dogpatch:") ? ("dogpatch" as const) : ("flayrah" as const);
+        saved.push({
+          id,
+          title: typeof entry.title === "string" ? entry.title : "",
+          link: typeof entry.link === "string" ? entry.link : "",
+          author: typeof entry.author === "string" ? entry.author : "",
+          thumbUrl:
+            typeof entry.thumbUrl === "string" || entry.thumbUrl === null
+              ? (entry.thumbUrl as string | null)
+              : null,
+          savedAt:
+            typeof entry.savedAt === "number" && Number.isFinite(entry.savedAt)
+              ? entry.savedAt
+              : Date.now(),
+          source,
+        });
+      }
+      raw.news = {
+        readIds,
+        saved,
+        layout: legacyNews?.layout === "magazine" ? "magazine" : "list",
+      };
+      delete raw.flayrahNews;
+      if ((raw.activeMode as string) === "flayrah") {
+        raw.activeMode = "news";
+      }
+      if ((raw.previousModeBeforeUnified as string | null) === "flayrah") {
+        raw.previousModeBeforeUnified = "news";
+      }
+      newState.configVersion = 49;
+    }
     if (
       newState.previousModeBeforeUnified !== null &&
       newState.previousModeBeforeUnified !== undefined &&
@@ -786,20 +881,20 @@ class PersistanceService {
     if (!newState.savedPosts || !Array.isArray(newState.savedPosts.entries)) {
       newState.savedPosts = { entries: [] };
     }
-    if (!newState.flayrahNews) {
-      newState.flayrahNews = { readIds: [], saved: [], layout: "list" };
+    if (!newState.news) {
+      newState.news = { readIds: [], saved: [], layout: "list" };
     } else {
-      if (!Array.isArray(newState.flayrahNews.readIds)) {
-        newState.flayrahNews.readIds = [];
+      if (!Array.isArray(newState.news.readIds)) {
+        newState.news.readIds = [];
       }
-      if (!Array.isArray(newState.flayrahNews.saved)) {
-        newState.flayrahNews.saved = [];
+      if (!Array.isArray(newState.news.saved)) {
+        newState.news.saved = [];
       }
       if (
-        newState.flayrahNews.layout !== "list" &&
-        newState.flayrahNews.layout !== "magazine"
+        newState.news.layout !== "list" &&
+        newState.news.layout !== "magazine"
       ) {
-        newState.flayrahNews.layout = "list";
+        newState.news.layout = "list";
       }
     }
     if (!newState.artistDashboard || !Array.isArray(newState.artistDashboard.recentArtists)) {
@@ -839,7 +934,7 @@ class PersistanceService {
         e6ai: createEmptySiteProfile("e6ai"),
         local: createEmptySiteProfile("local"),
         tailspace: createEmptySiteProfile("tailspace"),
-        flayrah: createEmptySiteProfile("flayrah"),
+        news: createEmptySiteProfile("news"),
         furbooru: createEmptySiteProfile("furbooru"),
         inkbunny: createEmptySiteProfile("inkbunny"),
         furaffinity: createEmptySiteProfile("furaffinity"),
@@ -853,7 +948,7 @@ class PersistanceService {
     newState.profiles.e6ai = newState.profiles.e6ai || createEmptySiteProfile("e6ai");
     newState.profiles.local = newState.profiles.local || createEmptySiteProfile("local");
     newState.profiles.tailspace = newState.profiles.tailspace || createEmptySiteProfile("tailspace");
-    newState.profiles.flayrah = newState.profiles.flayrah || createEmptySiteProfile("flayrah");
+    newState.profiles.news = newState.profiles.news || createEmptySiteProfile("news");
     newState.profiles.furbooru = newState.profiles.furbooru || createEmptySiteProfile("furbooru");
     newState.profiles.inkbunny = newState.profiles.inkbunny || createEmptySiteProfile("inkbunny");
     newState.profiles.furaffinity = newState.profiles.furaffinity || createEmptySiteProfile("furaffinity");
@@ -913,7 +1008,7 @@ class PersistanceService {
       newState.activeMode !== "weasyl" &&
       newState.activeMode !== "itaku" &&
       newState.activeMode !== "sofurry" &&
-      newState.activeMode !== "flayrah" &&
+      newState.activeMode !== "news" &&
       newState.activeMode !== "unified"
     ) {
       newState.activeMode = "e621";
@@ -944,10 +1039,10 @@ class PersistanceService {
       newState.profiles.tailspace = createEmptySiteProfile("tailspace");
     }
     newState.profiles.tailspace.baseUrl = newState.profiles.tailspace.baseUrl || SITE_MODE_URLS.tailspace;
-    if (!newState.profiles.flayrah) {
-      newState.profiles.flayrah = createEmptySiteProfile("flayrah");
+    if (!newState.profiles.news) {
+      newState.profiles.news = createEmptySiteProfile("news");
     }
-    newState.profiles.flayrah.baseUrl = newState.profiles.flayrah.baseUrl || SITE_MODE_URLS.flayrah;
+    newState.profiles.news.baseUrl = newState.profiles.news.baseUrl || SITE_MODE_URLS.news;
 
     if (newState.posts.localDirectoryName === undefined) {
       newState.posts.localDirectoryName = null;

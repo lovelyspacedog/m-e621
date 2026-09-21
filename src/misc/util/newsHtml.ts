@@ -1,7 +1,9 @@
 /**
- * Sanitize Flayrah article HTML for in-app rendering.
- * Rewrites flayrah.com images through /api/download.
+ * Sanitize news article HTML for in-app rendering.
+ * Rewrites Flayrah / Dogpatch images through /api/download.
  */
+
+import type { NewsSource } from "@/worker/news/ids";
 
 const ALLOWED_TAGS = new Set([
   "A",
@@ -44,18 +46,45 @@ const ALLOWED_TAGS = new Set([
   "UL",
 ]);
 
-const DROP_TAGS = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT", "EMBED", "LINK", "META", "FORM", "INPUT", "BUTTON"]);
+const DROP_TAGS = new Set([
+  "SCRIPT",
+  "STYLE",
+  "IFRAME",
+  "OBJECT",
+  "EMBED",
+  "LINK",
+  "META",
+  "FORM",
+  "INPUT",
+  "BUTTON",
+]);
 
-function isFlayrahHost(host: string): boolean {
+function isProxiedMediaHost(host: string): boolean {
   const h = host.toLowerCase();
-  return h === "flayrah.com" || h === "www.flayrah.com";
+  return (
+    h === "flayrah.com" ||
+    h === "www.flayrah.com" ||
+    h === "dogpatch.press" ||
+    h === "www.dogpatch.press" ||
+    h.endsWith(".wp.com") ||
+    h.endsWith(".wordpress.com")
+  );
 }
 
-export function absolutizeFlayrahUrl(raw: string): string | null {
+function baseOriginForSource(source?: NewsSource): string {
+  return source === "dogpatch"
+    ? "https://dogpatch.press"
+    : "https://www.flayrah.com";
+}
+
+export function absolutizeNewsUrl(
+  raw: string,
+  source?: NewsSource,
+): string | null {
   let src = (raw || "").trim();
   if (!src) return null;
   if (src.startsWith("//")) src = `https:${src}`;
-  if (src.startsWith("/")) src = `https://www.flayrah.com${src}`;
+  if (src.startsWith("/")) src = `${baseOriginForSource(source)}${src}`;
   try {
     const u = new URL(src);
     if (u.protocol !== "http:" && u.protocol !== "https:") return null;
@@ -65,25 +94,28 @@ export function absolutizeFlayrahUrl(raw: string): string | null {
   }
 }
 
+/** @deprecated */
+export const absolutizeFlayrahUrl = (raw: string) =>
+  absolutizeNewsUrl(raw, "flayrah");
+
 export function proxyDownloadUrl(absoluteUrl: string): string {
   const origin = typeof location !== "undefined" ? location.origin : "";
   return `${origin}/api/download?url=${encodeURIComponent(absoluteUrl)}`;
 }
 
-function rewriteImgSrc(src: string): string | null {
-  const abs = absolutizeFlayrahUrl(src);
+function rewriteImgSrc(src: string, source?: NewsSource): string | null {
+  const abs = absolutizeNewsUrl(src, source);
   if (!abs) return null;
   try {
     const host = new URL(abs).hostname;
-    if (isFlayrahHost(host)) return proxyDownloadUrl(abs);
-    // Allow other http(s) images as-is (external embeds in articles).
+    if (isProxiedMediaHost(host)) return proxyDownloadUrl(abs);
     return abs;
   } catch {
     return null;
   }
 }
 
-function rewriteSrcset(srcset: string): string {
+function rewriteSrcset(srcset: string, source?: NewsSource): string {
   return srcset
     .split(",")
     .map((part) => {
@@ -91,7 +123,7 @@ function rewriteSrcset(srcset: string): string {
       if (!trimmed) return "";
       const bits = trimmed.split(/\s+/);
       const url = bits[0];
-      const rewritten = rewriteImgSrc(url);
+      const rewritten = rewriteImgSrc(url, source);
       if (!rewritten) return "";
       return [rewritten, ...bits.slice(1)].join(" ");
     })
@@ -99,19 +131,17 @@ function rewriteSrcset(srcset: string): string {
     .join(", ");
 }
 
-function sanitizeElement(el: Element): void {
+function sanitizeElement(el: Element, source?: NewsSource): void {
   const tag = el.tagName.toUpperCase();
   if (DROP_TAGS.has(tag)) {
     el.remove();
     return;
   }
 
-  // Walk children first (copy list — mutations).
   const children = Array.from(el.children);
-  for (const child of children) sanitizeElement(child);
+  for (const child of children) sanitizeElement(child, source);
 
   if (!ALLOWED_TAGS.has(tag) && tag !== "BODY" && tag !== "HTML") {
-    // Unwrap unknown tags: keep (already sanitized) children.
     const parent = el.parentNode;
     if (parent) {
       while (el.firstChild) parent.insertBefore(el.firstChild, el);
@@ -120,7 +150,6 @@ function sanitizeElement(el: Element): void {
     return;
   }
 
-  // Drop event handlers and dangerous attrs.
   const attrs = Array.from(el.attributes);
   for (const attr of attrs) {
     const name = attr.name.toLowerCase();
@@ -129,7 +158,7 @@ function sanitizeElement(el: Element): void {
       continue;
     }
     if (tag === "A" && name === "href") {
-      const abs = absolutizeFlayrahUrl(attr.value);
+      const abs = absolutizeNewsUrl(attr.value, source);
       if (!abs) {
         el.removeAttribute("href");
         continue;
@@ -141,7 +170,7 @@ function sanitizeElement(el: Element): void {
     }
     if (tag === "IMG") {
       if (name === "src") {
-        const next = rewriteImgSrc(attr.value);
+        const next = rewriteImgSrc(attr.value, source);
         if (!next) {
           el.remove();
           return;
@@ -151,7 +180,7 @@ function sanitizeElement(el: Element): void {
         continue;
       }
       if (name === "srcset") {
-        const next = rewriteSrcset(attr.value);
+        const next = rewriteSrcset(attr.value, source);
         if (next) el.setAttribute("srcset", next);
         else el.removeAttribute("srcset");
         continue;
@@ -161,12 +190,16 @@ function sanitizeElement(el: Element): void {
 }
 
 /** Return sanitized HTML safe for v-html. */
-export function sanitizeFlayrahHtml(html: string): string {
+export function sanitizeNewsHtml(html: string, source?: NewsSource): string {
   if (!html) return "";
-  const wrapped = `<div id="flayrah-root">${html}</div>`;
+  const wrapped = `<div id="news-root">${html}</div>`;
   const doc = new DOMParser().parseFromString(wrapped, "text/html");
-  const root = doc.getElementById("flayrah-root");
+  const root = doc.getElementById("news-root");
   if (!root) return "";
-  sanitizeElement(root);
+  sanitizeElement(root, source);
   return root.innerHTML;
 }
+
+/** @deprecated */
+export const sanitizeFlayrahHtml = (html: string) =>
+  sanitizeNewsHtml(html, "flayrah");

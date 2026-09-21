@@ -65,18 +65,20 @@ const isItakuUrl = (baseUrl: string) =>
   /(?:^|\.)itaku\.ee(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
 const isSofurryUrl = (baseUrl: string) =>
   /(?:^|\.)sofurry\.com(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
-const isFlayrahUrl = (baseUrl: string) =>
-  /(?:^|\.)flayrah\.com(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
+const isNewsUrl = (baseUrl: string) =>
+  /(?:^|\.)(?:flayrah\.com|dogpatch\.press)(?:\/|$)/i.test(
+    baseUrl.replace(/^https?:\/\//i, ""),
+  );
 
 /** Prefer explicit mode; fall back to hostname only when mode omitted (M17). */
-type ApiBackend = "e621" | "furbooru" | "inkbunny" | "tailspace" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "flayrah";
+type ApiBackend = "e621" | "furbooru" | "inkbunny" | "tailspace" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "news";
 
 /**
  * Site-mode checklist (do NOT invent a plugin framework; refuse drive-by sites):
  * types + SITE_MODE_URLS + empty profile + SiteModeStore + nav/router guards +
  * worker adapter + Vite/serve.py proxy + siteCapabilities flags.
  * Never fall through to the e621 client (comments/notes/pools/analyzer/…).
- * Post Suggester is multi-mode via AnalyzeService; Tailspace/Flayrah still blocked here.
+ * Post Suggester is multi-mode via AnalyzeService; Tailspace/News still blocked here.
  * UA / `_client`: `PawFeed/<git>`. See Markdowns/AI_CONTEXT.md.
  */
 const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
@@ -84,7 +86,7 @@ const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
   if (mode === "inkbunny") return "inkbunny";
   if (mode === "furaffinity") return "furaffinity";
   if (mode === "tailspace") return "tailspace";
-  if (mode === "flayrah") return "flayrah";
+  if (mode === "news") return "news";
   if (mode === "weasyl") return "weasyl";
   if (mode === "itaku") return "itaku";
   if (mode === "sofurry") return "sofurry";
@@ -93,7 +95,7 @@ const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
   if (isInkbunnyUrl(baseUrl)) return "inkbunny";
   if (isFurAffinityUrl(baseUrl)) return "furaffinity";
   if (isTailspaceUrl(baseUrl)) return "tailspace";
-  if (isFlayrahUrl(baseUrl)) return "flayrah";
+  if (isNewsUrl(baseUrl)) return "news";
   if (isWeasylUrl(baseUrl)) return "weasyl";
   if (isItakuUrl(baseUrl)) return "itaku";
   if (isSofurryUrl(baseUrl)) return "sofurry";
@@ -112,14 +114,14 @@ const assertNotTailspace = (
   }
 };
 
-const assertNotFlayrah = (
+const assertNotNews = (
   baseUrl: string,
   method: string,
   mode?: SiteMode,
 ) => {
-  if (resolveApiBackend(baseUrl, mode) === "flayrah") {
+  if (resolveApiBackend(baseUrl, mode) === "news") {
     throw new Error(
-      `${method} is not available for Flayrah; use the Flayrah pages instead`,
+      `${method} is not available for News; use the News pages instead`,
     );
   }
 };
@@ -130,7 +132,7 @@ const assertNotDedicatedChrome = (
   mode?: SiteMode,
 ) => {
   assertNotTailspace(baseUrl, method, mode);
-  assertNotFlayrah(baseUrl, method, mode);
+  assertNotNews(baseUrl, method, mode);
 };
 
 const originModeStamp = (mode?: SiteMode): UnifiedChildMode | undefined => {

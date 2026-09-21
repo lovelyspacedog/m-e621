@@ -63,7 +63,7 @@ const blankState = (active: SiteMode = "e621"): ISettingsServiceState => {
       hideBlacklisted: false,
     },
     savedPosts: { entries: [] },
-    flayrahNews: { readIds: [], saved: [], layout: "list" },
+    news: { readIds: [], saved: [], layout: "list" },
   } as unknown as ISettingsServiceState;
 };
 
