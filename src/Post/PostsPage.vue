@@ -249,6 +249,21 @@
       </p>
     </TipDialog>
     <woof-arf-dialog v-model="woofArfOpen" />
+    <Teleport to="body">
+      <v-btn
+        v-show="goToTopVisible"
+        class="posts-go-to-top"
+        color="primary"
+        elevation="6"
+        :icon="goToTopNarrow"
+        aria-label="Go to top"
+        :style="goToTopStyle"
+        @click="scrollPostsToTop"
+      >
+        <v-icon>mdi-arrow-up</v-icon>
+        <span v-if="!goToTopNarrow" class="ml-1">Go to top</span>
+      </v-btn>
+    </Teleport>
   </div>
 </template>
 
@@ -263,10 +278,11 @@ import { useRouterTagManager } from "@/Post/routerTagManager";
 import TipDialog from "@/misc/TipDialog.vue";
 import { TIP_IDS } from "@/misc/tipIds";
 import { useTipOpen } from "@/misc/useTipOpen";
-import { useAccountStore, useBlacklistStore, useMainStore, usePostsStore, useShortcutService, useSiteModeStore, useSnackbarStore, useUrlStore } from "@/services";
+import { useAccountStore, useBlacklistStore, useMainStore, usePostsStore, useShortcutService, useSiteModeStore, useSnackbarStore, useTipQueueStore, useUrlStore } from "@/services";
 import type { ITag } from "@/Tag/ITag";
 import { debounce, isEqual } from "lodash";
 import { computed, onBeforeUnmount, onMounted, provide, ref, toRaw, watch } from "vue";
+import { prefersReducedMotion } from "@/misc/util/reducedMotion";
 import { useRouterQueryHelpers } from "../misc/util/utilities";
 import {
   buildTagQuery,
@@ -326,6 +342,7 @@ const compactToolbarActions = computed(
 );
 const siteMode = useSiteModeStore();
 const snackbar = useSnackbarStore();
+const tipQueue = useTipQueueStore();
 const main = useMainStore();
 const unifiedSidebarChildren = computed(() =>
   siteMode.unifiedFeedSource === "following"
@@ -640,7 +657,75 @@ const loadLocalWithResume = async () => {
   }
 };
 
+const GO_TO_TOP_SHOW_PX = 200;
+const GO_TO_TOP_PAD = 12;
+const goToTopVisible = ref(false);
+const goToTopNarrow = ref(false);
+const goToTopInsets = ref({ bottom: 0, left: 0 });
+
+const documentScrollTop = () =>
+  document.scrollingElement?.scrollTop ?? window.scrollY ?? 0;
+
+const updateGoToTopVisibility = () => {
+  const overlayOpen = !!fullscreenPost.value || !!detailsPost.value;
+  goToTopVisible.value =
+    !overlayOpen && documentScrollTop() > GO_TO_TOP_SHOW_PX;
+};
+
+const syncGoToTopViewport = () => {
+  const vv = window.visualViewport;
+  if (!vv) {
+    goToTopInsets.value = { bottom: 0, left: 0 };
+    goToTopNarrow.value = window.innerWidth < 600;
+    return;
+  }
+  goToTopInsets.value = {
+    bottom: Math.max(0, window.innerHeight - vv.offsetTop - vv.height),
+    left: Math.max(0, vv.offsetLeft),
+  };
+  goToTopNarrow.value = vv.width < 600;
+};
+
+const goToTopStyle = computed(() => {
+  const tipClear = tipQueue.hasActive ? tipQueue.activeHeight : 0;
+  return {
+    bottom: `calc(${goToTopInsets.value.bottom}px + max(${GO_TO_TOP_PAD}px, env(safe-area-inset-bottom, 0px)) + ${tipClear}px)`,
+    left: `calc(${goToTopInsets.value.left}px + max(${GO_TO_TOP_PAD}px, env(safe-area-inset-left, 0px)))`,
+  };
+});
+
+const scrollPostsToTop = () => {
+  const behavior = prefersReducedMotion() ? "auto" : "smooth";
+  const el = document.scrollingElement;
+  if (el && typeof el.scrollTo === "function") {
+    el.scrollTo({ top: 0, behavior });
+  } else {
+    window.scrollTo({ top: 0, behavior });
+  }
+};
+
+const attachGoToTopListeners = () => {
+  window.addEventListener("scroll", updateGoToTopVisibility, { passive: true });
+  window.addEventListener("resize", syncGoToTopViewport);
+  window.addEventListener("orientationchange", syncGoToTopViewport);
+  window.visualViewport?.addEventListener("resize", syncGoToTopViewport);
+  window.visualViewport?.addEventListener("scroll", syncGoToTopViewport);
+  syncGoToTopViewport();
+  updateGoToTopVisibility();
+};
+
+const detachGoToTopListeners = () => {
+  window.removeEventListener("scroll", updateGoToTopVisibility);
+  window.removeEventListener("resize", syncGoToTopViewport);
+  window.removeEventListener("orientationchange", syncGoToTopViewport);
+  window.visualViewport?.removeEventListener("resize", syncGoToTopViewport);
+  window.visualViewport?.removeEventListener("scroll", syncGoToTopViewport);
+};
+
+watch([fullscreenPost, detailsPost], updateGoToTopVisibility);
+
 onMounted(() => {
+  attachGoToTopListeners();
   if (siteMode.isLocal) {
     void loadLocalWithResume();
   } else {
@@ -718,6 +803,7 @@ const onSearchClick = debounce(async () => {
 }, 50);
 
 onBeforeUnmount(() => {
+  detachGoToTopListeners();
   onSearchClick.cancel();
   searchSaveAbort?.abort();
   remuxAbort?.abort();
@@ -1069,5 +1155,11 @@ watch(
 }
 .unified-sidebar__presets :deep(.v-list-item__content) {
   overflow: visible;
+}
+.posts-go-to-top {
+  position: fixed;
+  z-index: 2300;
+  min-width: 44px;
+  min-height: 44px;
 }
 </style>

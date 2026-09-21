@@ -15,6 +15,13 @@ export interface ChangelogSection {
  */
 export const changelogSections: ChangelogSection[] = [
   {
+    date: "2026-09-21",
+    title: "Go to top on Posts",
+    items: [
+      "Posts search feed shows a floating Go to top button after you scroll (list and grid), pinned for mobile safe areas and tip toasts",
+    ],
+  },
+  {
     date: "2026-09-20",
     title: "News mode: Flayrah + Dogpatch Press",
     items: [
