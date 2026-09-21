@@ -68,6 +68,18 @@ export const isRatingTag = (tag: string): boolean => {
   );
 };
 
+/**
+ * e621-style safe markers SFW injects into Federated/e621 queries.
+ * Used to trip SFW from manual entry and to quiet Federated drop toasts.
+ */
+export const isSfwSafeRatingTag = (tag: string): boolean => {
+  const bare = tag.trim().toLowerCase().replace(/^-/, "");
+  return bare === "rating:safe" || bare === "rating:s";
+};
+
+export const tagsIncludeSfwSafeRating = (tags: string[]): boolean =>
+  tags.some(isSfwSafeRatingTag);
+
 /** Drop all rating includes/excludes so SFW can override. */
 export const stripConflictingRatingTags = (tags: string[]): string[] =>
   tags.filter((t) => !isRatingTag(t));

@@ -18,6 +18,7 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-20",
     title: "Clearer Suggester and Analyzer tips",
     items: [
+      "SFW only: typing rating:safe or rating:s on e621-family, Furbooru, FurAffinity, or Federated turns SFW on; Federated no longer toasts when that injected safe rating is dropped on sites without rating search (e.g. SoFurry)",
       "One-time tips appear as bottom-right toasts (not center dialogs), with Don't show this again and OK; tips queue one at a time and snackbars stack above them",
       "Tip toasts on phones use a full-width bottom bar with safe-area padding and a full-width OK control",
       "Federated Post Suggester seeds hybrid searches per child from that child's favorite tags (no cross-origin seed pollution)",

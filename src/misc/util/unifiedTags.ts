@@ -274,6 +274,25 @@ export const prepareUnifiedChildTags = (
   return finish(out, remapped, dropped);
 };
 
+/**
+ * Drop SFW-injected safe rating tokens from warning lists only.
+ * Tags for the child fetch stay as prepared (still stripped/remapped).
+ */
+export const omitSfwInjectedRatingNoise = (
+  prepared: PreparedChildTags,
+  isSafeMarker: (tag: string) => boolean,
+): PreparedChildTags => {
+  const dropped = prepared.dropped.filter((t) => !isSafeMarker(t));
+  const remapped = prepared.remapped.filter((t) => !isSafeMarker(t));
+  if (
+    dropped.length === prepared.dropped.length &&
+    remapped.length === prepared.remapped.length
+  ) {
+    return prepared;
+  }
+  return finish(prepared.tags, remapped, dropped);
+};
+
 /** Human-readable Unified tag-prep warning for one child. */
 export const formatUnifiedTagWarning = (
   childLabel: string,

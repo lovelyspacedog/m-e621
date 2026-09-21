@@ -4,7 +4,9 @@ import {
   isIdOnlyQuery,
   isRatingTag,
   isSafeRating,
+  isSfwSafeRatingTag,
   stripConflictingRatingTags,
+  tagsIncludeSfwSafeRating,
 } from "./sfwMode";
 
 describe("sfwMode", () => {
@@ -31,6 +33,17 @@ describe("sfwMode", () => {
     expect(isRatingTag("-suggestive")).toBe(true);
     expect(isRatingTag("wolf")).toBe(false);
     expect(isRatingTag("order:score")).toBe(false);
+  });
+
+  it("isSfwSafeRatingTag / tagsIncludeSfwSafeRating", () => {
+    expect(isSfwSafeRatingTag("rating:safe")).toBe(true);
+    expect(isSfwSafeRatingTag("rating:s")).toBe(true);
+    expect(isSfwSafeRatingTag("Rating:Safe")).toBe(true);
+    expect(isSfwSafeRatingTag("-rating:safe")).toBe(true);
+    expect(isSfwSafeRatingTag("rating:explicit")).toBe(false);
+    expect(isSfwSafeRatingTag("safe")).toBe(false);
+    expect(tagsIncludeSfwSafeRating(["fox", "rating:s"])).toBe(true);
+    expect(tagsIncludeSfwSafeRating(["fox"])).toBe(false);
   });
 
   it("stripConflictingRatingTags", () => {

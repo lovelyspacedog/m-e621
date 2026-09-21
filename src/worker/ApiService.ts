@@ -30,6 +30,7 @@ import { createTagQuery } from "@/misc/util/createTagQuery";
 import {
   applySfwTagOverride,
   isIdOnlyQuery,
+  isSfwSafeRatingTag,
 } from "@/misc/util/sfwMode";
 import { debug } from "@/misc/util/debug";
 import { shuffled } from "@/misc/util/shuffle";
@@ -46,7 +47,11 @@ import {
   takeMergedFromBuffers,
   type UnifiedMergeState,
 } from "@/misc/util/unifiedMerge";
-import { formatUnifiedTagWarning, prepareUnifiedChildTags } from "@/misc/util/unifiedTags";
+import {
+  formatUnifiedTagWarning,
+  omitSfwInjectedRatingNoise,
+  prepareUnifiedChildTags,
+} from "@/misc/util/unifiedTags";
 
 const isFurbooruUrl = (baseUrl: string) => baseUrl.includes("furbooru.org");
 const isInkbunnyUrl = (baseUrl: string) => baseUrl.includes("inkbunny.net");
@@ -260,15 +265,19 @@ export class ApiService {
   private prepareUnifiedTagsByChild(
     children: UnifiedChildFetchArgs[],
     tags: string[],
+    sfwOnly?: boolean,
   ): { tagsByMode: Map<UnifiedChildMode, string[]>; warnings: string[] } {
     const warnings: string[] = [];
     const tagsByMode = new Map<UnifiedChildMode, string[]>();
     for (const child of children) {
       const prepared = prepareUnifiedChildTags(child.mode, tags);
       tagsByMode.set(child.mode, prepared.tags);
+      const forWarning = sfwOnly
+        ? omitSfwInjectedRatingNoise(prepared, isSfwSafeRatingTag)
+        : prepared;
       const warning = formatUnifiedTagWarning(
         unifiedChildLabel(child.mode),
-        prepared,
+        forWarning,
       );
       if (warning) warnings.push(warning);
     }
@@ -290,6 +299,7 @@ export class ApiService {
     const { tagsByMode, warnings: tagWarnings } = this.prepareUnifiedTagsByChild(
       children,
       args.tags,
+      args.sfwOnly,
     );
     const warnings = [...tagWarnings];
     const groups = await Promise.all(
@@ -427,6 +437,7 @@ export class ApiService {
     const { tagsByMode, warnings: tagWarnings } = this.prepareUnifiedTagsByChild(
       children,
       effectiveTags,
+      args.sfwOnly,
     );
     const warnings = args.page <= 1 ? [...tagWarnings] : [];
     if (feedSource === "following" && args.page <= 1) {

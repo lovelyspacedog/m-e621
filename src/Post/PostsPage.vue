@@ -274,6 +274,7 @@ import {
 import {
   applySfwTagOverride,
   stripConflictingRatingTags,
+  tagsIncludeSfwSafeRating,
   type SfwTagMode,
 } from "../misc/util/sfwMode";
 import { orderSupport, type UnifiedOrderKind } from "../misc/util/orderSupport";
@@ -751,6 +752,21 @@ watch(
       onSearchClick();
     }
   },
+);
+
+// Manual rating:safe / rating:s trips SFW (e621 / e6ai / Furbooru / FA / Federated).
+// Removing the tag does not turn SFW off. Turning SFW off with the tag still present
+// does not re-trip until the safe marker is newly introduced again.
+watch(
+  tags,
+  (next, prev) => {
+    if (postsStore.sfwOnly) return;
+    if (sfwTagMode() === "none") return;
+    if (!tagsIncludeSfwSafeRating(next)) return;
+    if (prev && tagsIncludeSfwSafeRating(prev)) return;
+    postsStore.sfwOnly = true;
+  },
+  { immediate: true },
 );
 
 // Browser back/forward (or typed ?page=) must reload — tags-only watch misses this.

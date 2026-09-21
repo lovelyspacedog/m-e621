@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { isSfwSafeRatingTag } from "./sfwMode";
 import {
   formatUnifiedTagWarning,
+  omitSfwInjectedRatingNoise,
   prepareUnifiedChildTags,
 } from "./unifiedTags";
 
@@ -93,5 +95,30 @@ describe("prepareUnifiedChildTags", () => {
     expect(formatUnifiedTagWarning("Furbooru", prepared)).toMatch(
       /Furbooru: dropped order:comment_bumped; remapped favs:me/,
     );
+  });
+
+  it("omitSfwInjectedRatingNoise quiets safe rating drop/remap only", () => {
+    const soft = prepareUnifiedChildTags("sofurry", [
+      "fox",
+      "rating:safe",
+      "order:comment_bumped",
+    ]);
+    expect(soft.dropped).toEqual(
+      expect.arrayContaining(["rating:safe", "order:comment_bumped"]),
+    );
+    const quiet = omitSfwInjectedRatingNoise(soft, isSfwSafeRatingTag);
+    expect(quiet.tags).toEqual(soft.tags);
+    expect(quiet.dropped).toEqual(["order:comment_bumped"]);
+    expect(formatUnifiedTagWarning("SoFurry", quiet)).toBe(
+      "SoFurry: dropped order:comment_bumped",
+    );
+
+    const furbooru = prepareUnifiedChildTags("furbooru", [
+      "rating:safe",
+      "favs:me",
+    ]);
+    const quietF = omitSfwInjectedRatingNoise(furbooru, isSfwSafeRatingTag);
+    expect(quietF.remapped).toEqual(["favs:me"]);
+    expect(quietF.tags).toEqual(["safe", "my:faves"]);
   });
 });
