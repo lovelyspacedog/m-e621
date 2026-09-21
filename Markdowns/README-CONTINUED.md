@@ -26,7 +26,7 @@ Tailspace posts, News, and Local are not included in the Federated Posts feed. T
 - Full-width list and thumbnail-grid feeds
 - Optional compact cards with controls revealed on hover
 - Infinite scroll toggle in Layout (off = previous/next page buttons only)
-- Floating **Go to top** on the Posts search feed after you scroll (list and grid); respects reduced motion and mobile safe areas
+- Floating **Go to top** on the Posts search feed after you scroll (list and grid); bottom-right so it clears the floating sidebar; respects reduced motion and mobile safe areas
 - Inline video and audio with remembered mute, volume, and playback speed (optional separate audio prefs)
 - Feed GIF animate and video autoplay settings; off-screen feed videos unload their buffers
 - Fullscreen slideshow and timed card auto-next (`prefers-reduced-motion` pauses both)

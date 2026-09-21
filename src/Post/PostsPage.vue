@@ -661,7 +661,8 @@ const GO_TO_TOP_SHOW_PX = 200;
 const GO_TO_TOP_PAD = 12;
 const goToTopVisible = ref(false);
 const goToTopNarrow = ref(false);
-const goToTopInsets = ref({ bottom: 0, left: 0 });
+/** Visual-viewport insets (layout CSS px) so the FAB stays in the visible area. */
+const goToTopInsets = ref({ bottom: 0, right: 0 });
 
 const documentScrollTop = () =>
   document.scrollingElement?.scrollTop ?? window.scrollY ?? 0;
@@ -675,13 +676,13 @@ const updateGoToTopVisibility = () => {
 const syncGoToTopViewport = () => {
   const vv = window.visualViewport;
   if (!vv) {
-    goToTopInsets.value = { bottom: 0, left: 0 };
+    goToTopInsets.value = { bottom: 0, right: 0 };
     goToTopNarrow.value = window.innerWidth < 600;
     return;
   }
   goToTopInsets.value = {
     bottom: Math.max(0, window.innerHeight - vv.offsetTop - vv.height),
-    left: Math.max(0, vv.offsetLeft),
+    right: Math.max(0, window.innerWidth - vv.offsetLeft - vv.width),
   };
   goToTopNarrow.value = vv.width < 600;
 };
@@ -690,7 +691,9 @@ const goToTopStyle = computed(() => {
   const tipClear = tipQueue.hasActive ? tipQueue.activeHeight : 0;
   return {
     bottom: `calc(${goToTopInsets.value.bottom}px + max(${GO_TO_TOP_PAD}px, env(safe-area-inset-bottom, 0px)) + ${tipClear}px)`,
-    left: `calc(${goToTopInsets.value.left}px + max(${GO_TO_TOP_PAD}px, env(safe-area-inset-left, 0px)))`,
+    // Bottom-right: floating sidebar overlays the left edge, so left anchoring
+    // put the control on top of Sites in this search.
+    right: `calc(${goToTopInsets.value.right}px + max(${GO_TO_TOP_PAD}px, env(safe-area-inset-right, 0px)))`,
   };
 });
 

@@ -19,6 +19,7 @@ export const changelogSections: ChangelogSection[] = [
     title: "Go to top on Posts",
     items: [
       "Posts search feed shows a floating Go to top button after you scroll (list and grid), pinned for mobile safe areas and tip toasts",
+      "Go to top sits bottom-right of the viewport so it stays clear of the floating sidebar",
     ],
   },
   {
