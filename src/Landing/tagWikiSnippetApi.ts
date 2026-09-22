@@ -12,6 +12,8 @@ const CLIENT = "PawDeck/landing-tag-wiki";
 const BATCH = 48;
 const MAX_FETCH_TRIES = 4;
 const MIN_PARAGRAPH = 40;
+/** e621 tag category_id for artists — skipped for landing snippets. */
+export const WIKI_CATEGORY_ARTIST = 1;
 
 export function wikiHomeUrl(): string {
   return `${WIKI_ORIGIN}${WIKI_HOME_PATH}`;
@@ -80,7 +82,7 @@ export function firstWikiParagraph(body: string): string {
   return text.length >= MIN_PARAGRAPH ? text : "";
 }
 
-function isTagWikiCandidate(page: {
+export function isTagWikiCandidate(page: {
   is_deleted?: boolean;
   category_id?: number | null;
   title?: string;
@@ -88,6 +90,7 @@ function isTagWikiCandidate(page: {
 }): boolean {
   if (page.is_deleted) return false;
   if (page.category_id == null) return false;
+  if (page.category_id === WIKI_CATEGORY_ARTIST) return false;
   const title = typeof page.title === "string" ? page.title : "";
   if (!title || title.includes(":")) return false;
   return Boolean((page.body || "").trim());

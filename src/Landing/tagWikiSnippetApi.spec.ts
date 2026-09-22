@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   displayWikiTitle,
   firstWikiParagraph,
+  isTagWikiCandidate,
   stripDtext,
+  WIKI_CATEGORY_ARTIST,
   wikiHomeUrl,
   wikiPageUrl,
 } from "./tagWikiSnippetApi";
@@ -12,6 +14,19 @@ describe("tagWikiSnippetApi", () => {
     expect(wikiHomeUrl()).toBe("https://e621.net/wiki_pages/204");
     expect(wikiPageUrl("hi_res")).toBe("https://e621.net/wiki_pages/hi_res");
     expect(wikiPageUrl("2d_eyes")).toBe("https://e621.net/wiki_pages/2d_eyes");
+  });
+
+  it("rejects artist-category wiki pages", () => {
+    const base = {
+      title: "some_artist",
+      body: "A portfolio page with enough prose to pass the paragraph filter.",
+      is_deleted: false,
+    };
+    expect(
+      isTagWikiCandidate({ ...base, category_id: WIKI_CATEGORY_ARTIST }),
+    ).toBe(false);
+    expect(isTagWikiCandidate({ ...base, category_id: 0 })).toBe(true);
+    expect(isTagWikiCandidate({ ...base, category_id: 5 })).toBe(true);
   });
 
   it("displays underscores as spaces", () => {
