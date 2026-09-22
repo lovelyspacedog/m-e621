@@ -15,6 +15,13 @@ export interface ChangelogSection {
  */
 export const changelogSections: ChangelogSection[] = [
   {
+    date: "2026-09-22",
+    title: "Landing tagline restored",
+    items: [
+      "Landing hero again shows the static “Browse nine imageboards…” line under PawDeck; random splash text and the duplicate tagline panel below the hero are removed",
+    ],
+  },
+  {
     date: "2026-09-21",
     title: "Docs cleanup, discovery tools, and News polish",
     items: [
