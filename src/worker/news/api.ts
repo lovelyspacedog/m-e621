@@ -1,21 +1,31 @@
 /**
- * News RSS + archive article client (multi-source via registry).
+ * News RSS + archive article client (multi-source via registry + custom feeds).
  * Fetches via local proxy (/api/news/…) — no CORS on source hosts.
  */
 import {
+  customFeedIdFromFilter,
+  isCustomSourceFilter,
   normalizeNewsFeedId,
   normalizeNewsPage,
   normalizeNewsSourceFilter,
   type NewsSourceFilter,
 } from "./feeds";
 import { isNewsSource, parseNewsId, type NewsSource } from "./ids";
+import { parseCustomNewsId } from "./customIds";
 import {
   loadNewsArticleOffline,
   loadNewsFeedOffline,
   saveNewsArticleOffline,
   saveNewsFeedOffline,
 } from "./offlineCache";
-import { parseNewsArticleHtml } from "./parseArticleHtml";
+import {
+  parseGenericArticleHtml,
+  parseNewsArticleHtml,
+} from "./parseArticleHtml";
+import {
+  customFeedTitleFromXml,
+  parseCustomNewsRss,
+} from "./parseCustomRss";
 import { parseNewsRss, type NewsArticle } from "./parseRss";
 import {
   newsSourceLabel,
@@ -23,9 +33,19 @@ import {
   newsSourcesInAll,
 } from "./registry";
 import { newsRssAbortSignal } from "./timeouts";
+import {
+  CUSTOM_NEWS_ARTICLE_TIMEOUT_MS,
+  validatePublicHttpsUrl,
+} from "./customUrl";
 
 export type { NewsArticle };
 export type { NewsSource, NewsSourceFilter };
+
+export interface CustomFeedRef {
+  id: string;
+  url: string;
+  label: string;
+}
 
 /** Align with ~900s and proxy max-age=300. */
 const CACHE_MS = 10 * 60 * 1000;
@@ -42,7 +62,9 @@ function proxyBase(): string {
 
 function cacheKey(source: NewsSourceFilter, feed: string, page = 1): string {
   const section =
-    source === "all" ? "full" : normalizeNewsFeedId(source, feed);
+    source === "all" || isCustomSourceFilter(source)
+      ? "full"
+      : normalizeNewsFeedId(source as NewsSource, feed);
   const p = normalizeNewsPage(page);
   return `${source}:${section}:p${p}`;
 }
@@ -115,7 +137,64 @@ async function fetchOneSource(
   return parseNewsRss(xml, source);
 }
 
-/** Page>1 for "all": merge every source that supports paging. */
+async function fetchCustomFeed(ref: CustomFeedRef): Promise<NewsArticle[]> {
+  const checked = validatePublicHttpsUrl(ref.url);
+  if (!checked.ok) throw new Error(`${ref.label}: ${checked.error}`);
+  const qs = new URLSearchParams();
+  qs.set("url", checked.href);
+  let response: Response;
+  try {
+    response = await fetch(`${proxyBase()}/custom/rss?${qs.toString()}`, {
+      headers: {
+        Accept:
+          "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+      },
+      signal: newsRssAbortSignal(),
+    });
+  } catch (err) {
+    if (
+      (err instanceof DOMException && err.name === "TimeoutError") ||
+      (err instanceof Error && err.name === "AbortError")
+    ) {
+      throw new Error(`${ref.label} RSS timed out`);
+    }
+    throw err;
+  }
+  if (!response.ok) {
+    throw new Error(`${ref.label} RSS failed (${response.status})`);
+  }
+  const xml = await response.text();
+  return parseCustomNewsRss(xml, ref.id, checked.href);
+}
+
+/** Probe a URL before saving — returns title + item count. */
+export async function probeCustomNewsFeed(url: string): Promise<{
+  title: string;
+  itemCount: number;
+  href: string;
+}> {
+  const checked = validatePublicHttpsUrl(url);
+  if (!checked.ok) throw new Error(checked.error);
+  const qs = new URLSearchParams();
+  qs.set("url", checked.href);
+  const response = await fetch(`${proxyBase()}/custom/rss?${qs.toString()}`, {
+    headers: {
+      Accept:
+        "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+    },
+    signal: newsRssAbortSignal(),
+  });
+  if (!response.ok) {
+    throw new Error(`Feed fetch failed (${response.status})`);
+  }
+  const xml = await response.text();
+  const title = customFeedTitleFromXml(xml) || checked.hostname;
+  const items = parseCustomNewsRss(xml, "c_probe", checked.href);
+  if (!items.length) throw new Error("Feed has no items");
+  return { title, itemCount: items.length, href: checked.href };
+}
+
+/** Page>1 for "all": merge every source that supports paging (no custom). */
 async function fetchAllOlder(page: number): Promise<NewsArticle[]> {
   const pageable = newsSourcesInAll().filter(newsSourceSupportsPaging);
   const results = await Promise.allSettled(
@@ -140,23 +219,34 @@ async function fetchAllOlder(page: number): Promise<NewsArticle[]> {
   return sortByPublished(parts);
 }
 
-async function fetchAllPageOne(feed: string): Promise<NewsArticle[]> {
+async function fetchAllPageOne(
+  feed: string,
+  customFeeds: CustomFeedRef[],
+): Promise<NewsArticle[]> {
   const sources = newsSourcesInAll();
-  const results = await Promise.allSettled(
+  const builtIn = Promise.allSettled(
     sources.map((s) =>
       fetchOneSource(s, s === "flayrah" ? feed : "full", 1),
     ),
   );
+  const customs = Promise.allSettled(
+    customFeeds.map((f) => fetchCustomFeed(f)),
+  );
+  const [builtResults, customResults] = await Promise.all([builtIn, customs]);
   const parts: NewsArticle[] = [];
   const failed: string[] = [];
-  results.forEach((r, i) => {
+  builtResults.forEach((r, i) => {
     if (r.status === "fulfilled") parts.push(...r.value);
     else failed.push(newsSourceLabel(sources[i]));
   });
+  customResults.forEach((r, i) => {
+    if (r.status === "fulfilled") parts.push(...r.value);
+    else failed.push(customFeeds[i]?.label || "Custom feed");
+  });
   if (!parts.length) {
-    const firstReject = results.find((r) => r.status === "rejected") as
-      | PromiseRejectedResult
-      | undefined;
+    const firstReject = [...builtResults, ...customResults].find(
+      (r) => r.status === "rejected",
+    ) as PromiseRejectedResult | undefined;
     throw firstReject?.reason || new Error("News RSS failed");
   }
   if (failed.length) {
@@ -173,10 +263,14 @@ export async function fetchNewsArticles(opts?: {
   source?: NewsSourceFilter | string;
   feed?: string;
   page?: number;
+  customFeeds?: CustomFeedRef[];
 }): Promise<NewsArticle[]> {
   const source = normalizeNewsSourceFilter(opts?.source);
+  const customFeeds = opts?.customFeeds || [];
   const feed =
-    source === "all" ? "full" : normalizeNewsFeedId(source, opts?.feed);
+    source === "all" || isCustomSourceFilter(source)
+      ? "full"
+      : normalizeNewsFeedId(source as NewsSource, opts?.feed);
   const page = normalizeNewsPage(opts?.page ?? 1);
   const key = cacheKey(source, feed, page);
   const now = Date.now();
@@ -195,9 +289,16 @@ export async function fetchNewsArticles(opts?: {
       articles =
         page > 1
           ? await fetchAllOlder(page)
-          : await fetchAllPageOne(opts?.feed || "full");
+          : await fetchAllPageOne(opts?.feed || "full", customFeeds);
+    } else if (isCustomSourceFilter(source)) {
+      const feedId = customFeedIdFromFilter(source);
+      const ref = customFeeds.find((f) => f.id === feedId);
+      if (!ref) throw new Error("Custom feed not found");
+      articles = sortByPublished(await fetchCustomFeed(ref));
     } else {
-      articles = sortByPublished(await fetchOneSource(source, feed, page));
+      articles = sortByPublished(
+        await fetchOneSource(source as NewsSource, feed, page),
+      );
     }
     rememberArticles(key, articles, now, true);
     lastFetchSource = "network";
@@ -213,11 +314,43 @@ export async function fetchNewsArticles(opts?: {
   }
 }
 
-/** Resolve an article from RSS caches, then HTML archive fallback. */
+async function fetchCustomArticlePage(
+  articleUrl: string,
+): Promise<string | null> {
+  const checked = validatePublicHttpsUrl(articleUrl);
+  if (!checked.ok) return null;
+  const qs = new URLSearchParams();
+  qs.set("url", checked.href);
+  try {
+    const response = await fetch(
+      `${proxyBase()}/custom/article?${qs.toString()}`,
+      {
+        headers: { Accept: "text/html,application/xhtml+xml,*/*" },
+        signal: AbortSignal.timeout(CUSTOM_NEWS_ARTICLE_TIMEOUT_MS),
+      },
+    );
+    if (!response.ok) return null;
+    return await response.text();
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve built-in or custom article from caches, then HTML / RSS fallback. */
 export async function resolveNewsArticle(
   id: string,
-  opts?: { source?: NewsSourceFilter | string; feed?: string; force?: boolean },
+  opts?: {
+    source?: NewsSourceFilter | string;
+    feed?: string;
+    force?: boolean;
+    customFeeds?: CustomFeedRef[];
+  },
 ): Promise<NewsArticle | null> {
+  const customParsed = parseCustomNewsId(id);
+  if (customParsed) {
+    return resolveCustomNewsArticle(id, customParsed, opts);
+  }
+
   const parsed = parseNewsId(id);
   if (!parsed) return null;
   if (!opts?.force) {
@@ -233,6 +366,7 @@ export async function resolveNewsArticle(
       source: sourceFilter === "all" ? parsed.source : sourceFilter,
       feed:
         sourceFilter === "all" || sourceFilter === parsed.source ? feed : "full",
+      customFeeds: opts?.customFeeds,
     });
     const hit = findNewsArticle(list, id);
     if (hit) return hit;
@@ -252,6 +386,77 @@ export async function resolveNewsArticle(
     return offlineArticle;
   }
   return fetchNewsArticleArchive(parsed.source, parsed.numericId);
+}
+
+async function resolveCustomNewsArticle(
+  id: string,
+  parsed: { feedId: string; itemKey: string },
+  opts?: {
+    force?: boolean;
+    customFeeds?: CustomFeedRef[];
+  },
+): Promise<NewsArticle | null> {
+  if (!opts?.force) {
+    const mem = articleCache.get(id);
+    if (mem) {
+      return enrichCustomArticleBody(mem, parsed);
+    }
+  }
+
+  let base: NewsArticle | null = null;
+  const filter = `custom:${parsed.feedId}` as NewsSourceFilter;
+  try {
+    const list = await fetchNewsArticles({
+      force: opts?.force,
+      source: filter,
+      customFeeds: opts?.customFeeds,
+    });
+    base = findNewsArticle(list, id) || null;
+  } catch {
+    /* continue */
+  }
+  if (!base) {
+    for (const { articles } of cacheByKey.values()) {
+      const hit = findNewsArticle(articles, id);
+      if (hit) {
+        base = hit;
+        break;
+      }
+    }
+  }
+  if (!base) {
+    const offlineArticle = await loadNewsArticleOffline(id);
+    if (offlineArticle) base = offlineArticle;
+  }
+  if (!base) return null;
+  return enrichCustomArticleBody(base, parsed);
+}
+
+async function enrichCustomArticleBody(
+  base: NewsArticle,
+  parsed: { feedId: string; itemKey: string },
+): Promise<NewsArticle> {
+  const html = await fetchCustomArticlePage(base.link);
+  const enriched = parseGenericArticleHtml(html || "", {
+    feedId: parsed.feedId,
+    itemKey: parsed.itemKey,
+    linkHint: base.link,
+    titleHint: base.title,
+    authorHint: base.author,
+    rssHtmlFallback: base.descriptionHtml,
+  });
+  const article = enriched
+    ? {
+        ...enriched,
+        publishedAt: enriched.publishedAt || base.publishedAt,
+        publishedMs: enriched.publishedMs || base.publishedMs,
+        tags: enriched.tags.length ? enriched.tags : base.tags,
+        thumbUrl: enriched.thumbUrl || base.thumbUrl,
+      }
+    : base;
+  articleCache.set(article.id, article);
+  void saveNewsArticleOffline(article);
+  return article;
 }
 
 export async function fetchNewsArticleArchive(

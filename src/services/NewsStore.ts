@@ -2,13 +2,22 @@ import { defineStore } from "pinia";
 import { computed } from "vue";
 import { useMainStore } from "./state";
 import type {
+  NewsCustomFeed,
   NewsFeedLayout,
   NewsReaderFontScale,
   NewsReaderWidth,
   NewsSavedArticle,
   NewsState,
 } from "./types";
-import { migrateLegacyNewsId, parseNewsId, isNewsSource, type NewsSource } from "@/worker/news/ids";
+import { migrateLegacyNewsId, parseNewsId, isNewsSource } from "@/worker/news/ids";
+import {
+  isCustomNewsId,
+  makeCustomFeedId,
+  parseCustomNewsId,
+  parseCustomNewsSourceKey,
+  customNewsSourceKey,
+} from "@/worker/news/customIds";
+import { CUSTOM_NEWS_FEED_CAP, validatePublicHttpsUrl } from "@/worker/news/customUrl";
 import { saveNewsArticleOffline } from "@/worker/news/offlineCache";
 import {
   excerptFromDescription,
@@ -42,11 +51,13 @@ function ensureState(main: ReturnType<typeof useMainStore>): NewsState {
       watchedAuthors: [],
       lastSeenPublishedMs: null,
       notifyNew: false,
+      customFeeds: [],
     };
   }
   if (!Array.isArray(main.news.readIds)) main.news.readIds = [];
   if (!Array.isArray(main.news.saved)) main.news.saved = [];
   if (!Array.isArray(main.news.watchedAuthors)) main.news.watchedAuthors = [];
+  if (!Array.isArray(main.news.customFeeds)) main.news.customFeeds = [];
   if (main.news.layout !== "magazine") main.news.layout = "list";
   main.news.readerFontScale = normalizeFontScale(main.news.readerFontScale);
   main.news.readerWidth = normalizeWidth(main.news.readerWidth);
@@ -57,15 +68,26 @@ function ensureState(main: ReturnType<typeof useMainStore>): NewsState {
   return main.news;
 }
 
+/** Resolve article source string (built-in or custom:…). Never invent flayrah for custom ids. */
 function resolveSource(
   id: string,
   source?: string,
-): NewsSource {
+): string {
+  if (source && parseCustomNewsSourceKey(source)) return source;
   if (isNewsSource(source)) return source;
+  const custom = parseCustomNewsId(id);
+  if (custom) return customNewsSourceKey(custom.feedId);
+  if (source && typeof source === "string" && source.startsWith("custom:")) {
+    return source;
+  }
   const migrated = migrateLegacyNewsId(id);
   if (migrated) {
     const parsed = parseNewsId(migrated);
     if (parsed) return parsed.source;
+  }
+  if (isCustomNewsId(id)) {
+    const p = parseCustomNewsId(id);
+    return p ? customNewsSourceKey(p.feedId) : id;
   }
   return "flayrah";
 }
@@ -109,6 +131,59 @@ export const useNewsStore = defineStore("news", () => {
   const watchedAuthors = computed(() => [
     ...(ensureState(main).watchedAuthors || []),
   ]);
+
+  const customFeeds = computed(() => [
+    ...(ensureState(main).customFeeds || []),
+  ]);
+
+  const getCustomFeed = (feedId: string): NewsCustomFeed | undefined =>
+    (ensureState(main).customFeeds || []).find((f) => f.id === feedId);
+
+  const addCustomFeed = (opts: {
+    url: string;
+    label: string;
+  }): NewsCustomFeed => {
+    const checked = validatePublicHttpsUrl(opts.url);
+    if (!checked.ok) throw new Error(checked.error);
+    const state = ensureState(main);
+    const feeds = state.customFeeds || [];
+    if (feeds.length >= CUSTOM_NEWS_FEED_CAP) {
+      throw new Error(`At most ${CUSTOM_NEWS_FEED_CAP} custom feeds`);
+    }
+    if (feeds.some((f) => f.url === checked.href)) {
+      throw new Error("Feed already added");
+    }
+    const label = (opts.label || checked.hostname).trim().slice(0, 80) || checked.hostname;
+    const entry: NewsCustomFeed = {
+      id: makeCustomFeedId(),
+      url: checked.href,
+      label,
+      addedAt: Date.now(),
+    };
+    state.customFeeds = [...feeds, entry];
+    return entry;
+  };
+
+  const updateCustomFeedLabel = (feedId: string, label: string) => {
+    const state = ensureState(main);
+    const feeds = state.customFeeds || [];
+    const idx = feeds.findIndex((f) => f.id === feedId);
+    if (idx < 0) return;
+    const next = { ...feeds[idx], label: label.trim().slice(0, 80) || feeds[idx].label };
+    state.customFeeds = [
+      ...feeds.slice(0, idx),
+      next,
+      ...feeds.slice(idx + 1),
+    ];
+  };
+
+  const removeCustomFeed = (feedId: string) => {
+    const state = ensureState(main);
+    state.customFeeds = (state.customFeeds || []).filter((f) => f.id !== feedId);
+  };
+
+  const customFeedLabel = (feedId: string): string =>
+    getCustomFeed(feedId)?.label || feedId;
 
   const saved = computed(() =>
     [...ensureState(main).saved].sort((a, b) => b.savedAt - a.savedAt),
@@ -225,10 +300,16 @@ export const useNewsStore = defineStore("news", () => {
     tags?: string[];
     publishedAt?: string;
     publishedMs?: number;
+    customFeedId?: string;
   }) => {
     if (!article.id) return;
     const state = ensureState(main);
     const source = resolveSource(article.id, article.source);
+    const customFeedId =
+      article.customFeedId ||
+      parseCustomNewsId(article.id)?.feedId ||
+      parseCustomNewsSourceKey(source) ||
+      undefined;
     const entry: NewsSavedArticle = {
       id: article.id,
       title: article.title,
@@ -242,6 +323,7 @@ export const useNewsStore = defineStore("news", () => {
       tags: article.tags?.length ? [...article.tags] : undefined,
       publishedAt: article.publishedAt || undefined,
       publishedMs: article.publishedMs || undefined,
+      customFeedId,
     };
     state.saved = [
       entry,
@@ -261,6 +343,7 @@ export const useNewsStore = defineStore("news", () => {
         descriptionHtml: article.descriptionHtml,
         excerpt: article.excerpt || "",
         thumbUrl: article.thumbUrl,
+        customFeedId,
       };
       void saveNewsArticleOffline(offline);
     }
@@ -283,6 +366,7 @@ export const useNewsStore = defineStore("news", () => {
     tags?: string[];
     publishedAt?: string;
     publishedMs?: number;
+    customFeedId?: string;
   }) => {
     if (isSaved(article.id)) {
       unsaveArticle(article.id);
@@ -295,6 +379,11 @@ export const useNewsStore = defineStore("news", () => {
   /** Rebuild a NewsArticle from a saved snapshot (may lack body if legacy). */
   const articleFromSaved = (s: NewsSavedArticle): NewsArticle => {
     const source = resolveSource(s.id, s.source);
+    const customFeedId =
+      s.customFeedId ||
+      parseCustomNewsId(s.id)?.feedId ||
+      parseCustomNewsSourceKey(source) ||
+      undefined;
     return {
       id: s.id,
       source,
@@ -311,6 +400,7 @@ export const useNewsStore = defineStore("news", () => {
           ? excerptFromDescription(s.descriptionHtml)
           : "Saved article — open to read full text."),
       thumbUrl: s.thumbUrl,
+      customFeedId,
     };
   };
 
@@ -321,6 +411,12 @@ export const useNewsStore = defineStore("news", () => {
     notifyNew,
     lastSeenPublishedMs,
     watchedAuthors,
+    customFeeds,
+    getCustomFeed,
+    addCustomFeed,
+    updateCustomFeedLabel,
+    removeCustomFeed,
+    customFeedLabel,
     saved,
     savedCount,
     readCount,

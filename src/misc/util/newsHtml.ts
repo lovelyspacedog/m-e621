@@ -1,14 +1,16 @@
 /**
  * Sanitize news article HTML for in-app rendering.
- * Rewrites allowlisted source images through /api/download.
+ * Built-in outlets: rewrite allowlisted images through /api/download.
+ * Custom feeds: rewrite feed/article-host images through /api/news/custom/media.
  */
 
 import type { NewsSource } from "@/worker/news/ids";
+import { isNewsSource, newsSourceLabel } from "@/worker/news/ids";
 import {
   newsExactMediaHostSet,
   newsSourceBaseOrigin,
-  newsSourceLabel,
 } from "@/worker/news/registry";
+import { parseCustomNewsSourceKey } from "@/worker/news/customIds";
 
 const ALLOWED_TAGS = new Set([
   "A",
@@ -66,6 +68,17 @@ const DROP_TAGS = new Set([
 
 const EXACT_MEDIA_HOSTS = newsExactMediaHostSet();
 
+export interface SanitizeNewsHtmlOpts {
+  /** Built-in outlet or custom:feedId source key. */
+  source?: string;
+  /** Absolute article page URL (custom feeds). */
+  articleUrl?: string;
+  /** Custom feed RSS URL — media host allowlist. */
+  feedUrl?: string;
+  /** Display label for embed placeholders. */
+  sourceLabel?: string;
+}
+
 function isProxiedMediaHost(host: string): boolean {
   const h = host.toLowerCase();
   return (
@@ -75,19 +88,48 @@ function isProxiedMediaHost(host: string): boolean {
   );
 }
 
-function baseOriginForSource(source?: NewsSource): string {
-  if (!source) return "https://www.flayrah.com";
-  return newsSourceBaseOrigin(source);
+function baseOriginForSource(source?: string, articleUrl?: string): string {
+  if (articleUrl) {
+    try {
+      return new URL(articleUrl).origin;
+    } catch {
+      /* fall through */
+    }
+  }
+  if (source && isNewsSource(source)) return newsSourceBaseOrigin(source);
+  if (source && parseCustomNewsSourceKey(source)) {
+    return "https://example.invalid";
+  }
+  return "https://www.flayrah.com";
+}
+
+function allowedCustomMediaHosts(
+  articleUrl?: string,
+  feedUrl?: string,
+): string[] {
+  const hosts: string[] = [];
+  for (const raw of [articleUrl, feedUrl]) {
+    if (!raw) continue;
+    try {
+      hosts.push(new URL(raw).hostname.toLowerCase());
+    } catch {
+      /* skip */
+    }
+  }
+  return [...new Set(hosts)];
 }
 
 export function absolutizeNewsUrl(
   raw: string,
-  source?: NewsSource,
+  source?: string,
+  articleUrl?: string,
 ): string | null {
   let src = (raw || "").trim();
   if (!src) return null;
   if (src.startsWith("//")) src = `https:${src}`;
-  if (src.startsWith("/")) src = `${baseOriginForSource(source)}${src}`;
+  if (src.startsWith("/")) {
+    src = `${baseOriginForSource(source, articleUrl)}${src}`;
+  }
   try {
     const u = new URL(src);
     if (u.protocol !== "http:" && u.protocol !== "https:") return null;
@@ -106,11 +148,29 @@ export function proxyDownloadUrl(absoluteUrl: string): string {
   return `${origin}/api/download?url=${encodeURIComponent(absoluteUrl)}`;
 }
 
-function rewriteImgSrc(src: string, source?: NewsSource): string | null {
-  const abs = absolutizeNewsUrl(src, source);
+export function proxyCustomMediaUrl(
+  absoluteUrl: string,
+  allowedHosts: string[],
+): string {
+  const origin = typeof location !== "undefined" ? location.origin : "";
+  const qs = new URLSearchParams();
+  qs.set("url", absoluteUrl);
+  for (const h of allowedHosts) qs.append("allow", h);
+  return `${origin}/api/news/custom/media?${qs.toString()}`;
+}
+
+function rewriteImgSrc(
+  src: string,
+  opts: SanitizeNewsHtmlOpts,
+): string | null {
+  const abs = absolutizeNewsUrl(src, opts.source, opts.articleUrl);
   if (!abs) return null;
   try {
     const host = new URL(abs).hostname;
+    const customHosts = allowedCustomMediaHosts(opts.articleUrl, opts.feedUrl);
+    if (customHosts.length && customHosts.includes(host.toLowerCase())) {
+      return proxyCustomMediaUrl(abs, customHosts);
+    }
     if (isProxiedMediaHost(host)) return proxyDownloadUrl(abs);
     return abs;
   } catch {
@@ -118,7 +178,7 @@ function rewriteImgSrc(src: string, source?: NewsSource): string | null {
   }
 }
 
-function rewriteSrcset(srcset: string, source?: NewsSource): string {
+function rewriteSrcset(srcset: string, opts: SanitizeNewsHtmlOpts): string {
   return srcset
     .split(",")
     .map((part) => {
@@ -126,7 +186,7 @@ function rewriteSrcset(srcset: string, source?: NewsSource): string {
       if (!trimmed) return "";
       const bits = trimmed.split(/\s+/);
       const url = bits[0];
-      const rewritten = rewriteImgSrc(url, source);
+      const rewritten = rewriteImgSrc(url, opts);
       if (!rewritten) return "";
       return [rewritten, ...bits.slice(1)].join(" ");
     })
@@ -134,19 +194,24 @@ function rewriteSrcset(srcset: string, source?: NewsSource): string {
     .join(", ");
 }
 
-function sourceEmbedLabel(source?: NewsSource): string {
-  if (!source) return "the original site";
-  return newsSourceLabel(source);
+function sourceEmbedLabel(opts: SanitizeNewsHtmlOpts): string {
+  if (opts.sourceLabel) return opts.sourceLabel;
+  if (opts.source && isNewsSource(opts.source)) {
+    return newsSourceLabel(opts.source as NewsSource);
+  }
+  return "the original site";
 }
 
 /** Replace dropped media embeds with an attributed outbound link. */
-function embedPlaceholder(el: Element, source?: NewsSource): HTMLElement {
+function embedPlaceholder(el: Element, opts: SanitizeNewsHtmlOpts): HTMLElement {
   const raw =
     el.getAttribute("src") ||
     el.querySelector("source")?.getAttribute("src") ||
     "";
-  const abs = raw ? absolutizeNewsUrl(raw, source) : null;
-  const label = sourceEmbedLabel(source);
+  const abs = raw
+    ? absolutizeNewsUrl(raw, opts.source, opts.articleUrl)
+    : null;
+  const label = sourceEmbedLabel(opts);
   const p = el.ownerDocument.createElement("p");
   p.setAttribute("class", "news-embed-placeholder");
   if (abs) {
@@ -162,7 +227,7 @@ function embedPlaceholder(el: Element, source?: NewsSource): HTMLElement {
   return p;
 }
 
-function sanitizeElement(el: Element, source?: NewsSource): void {
+function sanitizeElement(el: Element, opts: SanitizeNewsHtmlOpts): void {
   const tag = el.tagName.toUpperCase();
   if (
     tag === "IFRAME" ||
@@ -170,7 +235,7 @@ function sanitizeElement(el: Element, source?: NewsSource): void {
     tag === "EMBED" ||
     tag === "OBJECT"
   ) {
-    el.replaceWith(embedPlaceholder(el, source));
+    el.replaceWith(embedPlaceholder(el, opts));
     return;
   }
   if (DROP_TAGS.has(tag)) {
@@ -179,7 +244,7 @@ function sanitizeElement(el: Element, source?: NewsSource): void {
   }
 
   const children = Array.from(el.children);
-  for (const child of children) sanitizeElement(child, source);
+  for (const child of children) sanitizeElement(child, opts);
 
   if (!ALLOWED_TAGS.has(tag) && tag !== "BODY" && tag !== "HTML") {
     const parent = el.parentNode;
@@ -198,7 +263,7 @@ function sanitizeElement(el: Element, source?: NewsSource): void {
       continue;
     }
     if (tag === "A" && name === "href") {
-      const abs = absolutizeNewsUrl(attr.value, source);
+      const abs = absolutizeNewsUrl(attr.value, opts.source, opts.articleUrl);
       if (!abs) {
         el.removeAttribute("href");
         continue;
@@ -210,7 +275,7 @@ function sanitizeElement(el: Element, source?: NewsSource): void {
     }
     if (tag === "IMG") {
       if (name === "src") {
-        const next = rewriteImgSrc(attr.value, source);
+        const next = rewriteImgSrc(attr.value, opts);
         if (!next) {
           el.remove();
           return;
@@ -220,7 +285,7 @@ function sanitizeElement(el: Element, source?: NewsSource): void {
         continue;
       }
       if (name === "srcset") {
-        const next = rewriteSrcset(attr.value, source);
+        const next = rewriteSrcset(attr.value, opts);
         if (next) el.setAttribute("srcset", next);
         else el.removeAttribute("srcset");
         continue;
@@ -230,13 +295,20 @@ function sanitizeElement(el: Element, source?: NewsSource): void {
 }
 
 /** Return sanitized HTML safe for v-html. */
-export function sanitizeNewsHtml(html: string, source?: NewsSource): string {
+export function sanitizeNewsHtml(
+  html: string,
+  sourceOrOpts?: string | SanitizeNewsHtmlOpts,
+): string {
   if (!html) return "";
+  const opts: SanitizeNewsHtmlOpts =
+    typeof sourceOrOpts === "string" || sourceOrOpts == null
+      ? { source: sourceOrOpts }
+      : sourceOrOpts;
   const wrapped = `<div id="news-root">${html}</div>`;
   const doc = new DOMParser().parseFromString(wrapped, "text/html");
   const root = doc.getElementById("news-root");
   if (!root) return "";
-  sanitizeElement(root, source);
+  sanitizeElement(root, opts);
   return root.innerHTML;
 }
 

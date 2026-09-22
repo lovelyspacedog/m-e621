@@ -351,7 +351,7 @@ export const tosSummaries: TosSummary[] = [
     name: "News (multi-source)",
     sourceUrl: "https://www.flayrah.com/about",
     sourceLabel: "Flayrah About",
-    note: "PawDeck’s News mode reads public RSS from Flayrah, Dogpatch Press, InFurNation, and Furry Writers’ Guild. Flayrah does not publish a single formal Terms of Service page; this summary combines each outlet’s public-site expectations. Not legal advice.",
+    note: "PawDeck’s News mode reads public RSS from Flayrah, Dogpatch Press, InFurNation, and Furry Writers’ Guild, and can also fetch custom https feeds you add locally. Flayrah does not publish a single formal Terms of Service page; this summary combines each outlet’s public-site expectations. Not legal advice.",
     sections: [
       {
         heading: "What it is",
@@ -359,6 +359,7 @@ export const tosSummaries: TosSummary[] = [
           "Flayrah is a community furry news magazine since 2001; content is intended to be work-safe to read.",
           "Dogpatch Press publishes furry community news and investigative reporting. Topics can include adult or disturbing material; PawDeck does not filter that feed.",
           "InFurNation covers furry fandom news and guides. Furry Writers’ Guild posts guild and anthro-fiction community updates.",
+          "Custom feeds are URLs you paste; PawDeck’s server fetches those public https URLs (and linked article pages) on your behalf under size and network limits.",
         ],
       },
       {
@@ -372,9 +373,10 @@ export const tosSummaries: TosSummary[] = [
       {
         heading: "PawDeck use",
         bullets: [
-          "Read-only merged RSS browsing with Flayrah taxonomy feeds, Dogpatch category feeds, in-app reading, archive deep-links, local read/saved state (with article body snapshots), and links back to each source",
+          "Read-only merged RSS browsing with Flayrah taxonomy feeds, Dogpatch category feeds, optional custom feeds, in-app reading, archive deep-links, local read/saved state (with article body snapshots), and links back to each source",
           "No login, comments, or ratings through PawDeck for any News outlet",
           "WordPress outlets are shown from their public feeds with attribution and an open-on-source link",
+          "Custom feed URLs stay in your browser settings; only public https hosts are fetched",
           "SFW only does not apply in News mode; Dogpatch may include adult or investigative topics",
         ],
       },

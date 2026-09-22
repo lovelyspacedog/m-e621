@@ -79,20 +79,21 @@ export interface SavedPostEntry {
 }
 
 export interface NewsSavedArticle {
-  /** Namespaced id: `flayrah:123` / `dogpatch:456` / `infurnation:…` / `fwg:…`. */
+  /** Namespaced id: `flayrah:123` / `dogpatch:456` / `custom:c_…:hex`. */
   id: string;
   title: string;
   link: string;
   author: string;
   thumbUrl: string | null;
   savedAt: number;
-  source?: NewsSource;
+  source?: string;
   /** Sanitized-ready HTML snapshot so Saved survives RSS window expiry. */
   descriptionHtml?: string;
   excerpt?: string;
   tags?: string[];
   publishedAt?: string;
   publishedMs?: number;
+  customFeedId?: string;
 }
 
 export type NewsFeedLayout = "list" | "magazine";
@@ -102,6 +103,15 @@ export type NewsReaderFontScale = "sm" | "md" | "lg";
 
 /** Article column max-width. */
 export type NewsReaderWidth = "narrow" | "normal" | "wide";
+
+/** User-added RSS/Atom feed (browser-local). */
+export interface NewsCustomFeed {
+  id: string;
+  url: string;
+  label: string;
+  /** When the feed was added (ms). */
+  addedAt: number;
+}
 
 export interface NewsState {
   /** MRU namespaced article ids marked read (capped). */
@@ -119,6 +129,8 @@ export interface NewsState {
   lastSeenPublishedMs?: number | null;
   /** When true, show New chips / counts for articles newer than lastSeen. */
   notifyNew?: boolean;
+  /** User-pasted RSS/Atom feeds (max 8). */
+  customFeeds?: NewsCustomFeed[];
 }
 
 /** @deprecated Use NewsSavedArticle */

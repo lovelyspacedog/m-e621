@@ -371,6 +371,12 @@ const router = createRouter({
         import(/* webpackChunkName: "news" */ "@/News/NewsFeedPage.vue"),
     },
     {
+      path: "/news/custom/:feedId/:itemKey",
+      name: "NewsCustomArticle",
+      component: () =>
+        import(/* webpackChunkName: "news" */ "@/News/NewsArticlePage.vue"),
+    },
+    {
       path: "/news/:source/:id",
       name: "NewsArticle",
       component: () =>

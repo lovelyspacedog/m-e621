@@ -76,6 +76,33 @@ describe("sanitizeNewsHtml", () => {
     expect(html).toContain('href="https://www.youtube.com/embed/abc"');
     expect(html).toContain("noopener");
   });
+
+  it("proxies custom feed host images through /api/news/custom/media", () => {
+    const html = sanitizeNewsHtml(
+      `<img src="https://blog.example.com/pic.jpg">`,
+      {
+        source: "custom:c_test01",
+        articleUrl: "https://blog.example.com/post/1",
+        feedUrl: "https://blog.example.com/feed/",
+      },
+    );
+    expect(html).toContain("/api/news/custom/media?");
+    expect(html).toContain(encodeURIComponent("https://blog.example.com/pic.jpg"));
+    expect(html).toContain("allow=blog.example.com");
+  });
+
+  it("leaves off-host https images as direct urls for custom feeds", () => {
+    const html = sanitizeNewsHtml(
+      `<img src="https://cdn.other.com/x.png">`,
+      {
+        source: "custom:c_test01",
+        articleUrl: "https://blog.example.com/post/1",
+        feedUrl: "https://blog.example.com/feed/",
+      },
+    );
+    expect(html).not.toContain("/api/news/custom/media");
+    expect(html).toContain('src="https://cdn.other.com/x.png"');
+  });
 });
 
 describe("proxyDownloadUrl", () => {

@@ -3,16 +3,22 @@
  * Uses DOMParser — browser / jsdom only.
  */
 
-import { makeNewsId, type NewsSource } from "./ids";
+import { makeNewsId, isNewsSource, type NewsSource } from "./ids";
 import {
   getNewsSourceDef,
   newsSourceBaseOrigin,
   newsSourceLabel,
 } from "./registry";
 
+/**
+ * Built-in outlet id, or `custom:<feedId>` for user-added feeds.
+ * Prefer `isNewsSource` / `parseCustomNewsSourceKey` over casting.
+ */
+export type NewsArticleSource = NewsSource | string;
+
 export interface NewsArticle {
   id: string;
-  source: NewsSource;
+  source: NewsArticleSource;
   title: string;
   link: string;
   author: string;
@@ -24,6 +30,8 @@ export interface NewsArticle {
   thumbUrl: string | null;
   /** True when loaded via HTML archive fallback (not current RSS). */
   fromArchive?: boolean;
+  /** Present when `source` is `custom:<feedId>`. */
+  customFeedId?: string;
 }
 
 function textContent(el: Element | null): string {
@@ -394,13 +402,18 @@ export function parseNewsRss(xml: string, source: NewsSource): NewsArticle[] {
   return parseRssItems(xml, source, doc);
 }
 
+function articleSourceLabel(source: NewsArticleSource): string {
+  if (isNewsSource(source)) return newsSourceLabel(source);
+  return source;
+}
+
 function plainHaystack(article: NewsArticle): string {
   return [
     article.title,
     article.author,
     article.excerpt,
     article.source,
-    newsSourceLabel(article.source),
+    articleSourceLabel(article.source),
     bodySearchText(article.descriptionHtml),
     ...article.tags,
   ]
@@ -418,7 +431,7 @@ function termMatches(article: NewsArticle, term: string): boolean {
     if (kind === "tag") {
       return article.tags.some((t) => t.toLowerCase().includes(val));
     }
-    const sourceLabel = newsSourceLabel(article.source).toLowerCase();
+    const sourceLabel = articleSourceLabel(article.source).toLowerCase();
     return (
       article.source.toLowerCase().includes(val) || sourceLabel.includes(val)
     );

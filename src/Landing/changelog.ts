@@ -16,8 +16,9 @@ export interface ChangelogSection {
 export const changelogSections: ChangelogSection[] = [
   {
     date: "2026-09-22",
-    title: "Landing tagline restored",
+    title: "Custom News feeds and landing polish",
     items: [
+      "News can add up to eight custom https RSS/Atom feeds (browser-local chips; server fetches public URLs and article pages for the in-app reader)",
       "Landing hero again shows the static “Browse nine imageboards…” line under PawDeck; random splash text and the duplicate tagline panel below the hero are removed",
       "Landing Tag Wiki snippets skip artist-tag wiki pages so definitions stay about tags, not creators",
     ],

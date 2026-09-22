@@ -149,6 +149,7 @@ export const defaultSettings: ISettingsServiceState = {
     watchedAuthors: [],
     lastSeenPublishedMs: null,
     notifyNew: false,
+    customFeeds: [],
   },
   watchedPools: {
     entries: [],

@@ -2,17 +2,37 @@
  * Vite-dev News proxy matching serve.py:
  *   GET /api/news/rss?source=all|flayrah|dogpatch|infurnation|fwg&feed=…
  *   GET /api/news/article/:source/:id
+ *   GET /api/news/custom/rss?url=
+ *   GET /api/news/custom/article?url=
+ *   GET /api/news/custom/media?url=&allow=
  *
  * Also accepts legacy /api/flayrah/* for old clients.
  */
 import type { Plugin } from "vite";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import dns from "node:dns/promises";
+import { isIP } from "node:net";
 import { resolveNewsRssUrl } from "./src/worker/news/feeds";
 import {
   isNewsSource,
   newsArticleUpstreamUrl,
 } from "./src/worker/news/registry";
 import { NEWS_RSS_TIMEOUT_MS } from "./src/worker/news/timeouts";
+import {
+  CUSTOM_NEWS_ARTICLE_TIMEOUT_MS,
+  CUSTOM_NEWS_HTML_MAX_BYTES,
+  CUSTOM_NEWS_MAX_REDIRECTS,
+  CUSTOM_NEWS_MEDIA_MAX_BYTES,
+  CUSTOM_NEWS_MEDIA_TIMEOUT_MS,
+  CUSTOM_NEWS_RSS_MAX_BYTES,
+  contentTypeLooksLikeHtml,
+  contentTypeLooksLikeImage,
+  contentTypeLooksLikeXml,
+  isBlockedHostname,
+  isBlockedIpLiteral,
+  mediaHostAllowed,
+  validatePublicHttpsUrl,
+} from "./src/worker/news/customUrl";
 
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) " +
@@ -48,6 +68,28 @@ function corsOptions(res: ServerResponse): void {
   res.end();
 }
 
+async function assertPublicHostname(hostname: string): Promise<void> {
+  if (isBlockedHostname(hostname)) throw new Error("host not allowed");
+  if (isIP(hostname)) {
+    if (isBlockedIpLiteral(hostname)) throw new Error("host not allowed");
+    return;
+  }
+  let records: string[] = [];
+  try {
+    records = await dns.resolve4(hostname);
+  } catch {
+    try {
+      records = await dns.resolve6(hostname);
+    } catch {
+      throw new Error("dns lookup failed");
+    }
+  }
+  if (!records.length) throw new Error("dns lookup failed");
+  for (const ip of records) {
+    if (isBlockedIpLiteral(ip)) throw new Error("host not allowed");
+  }
+}
+
 async function fetchUpstream(
   target: string,
   accept: string,
@@ -69,6 +111,72 @@ async function fetchUpstream(
       ? "text/html; charset=utf-8"
       : "application/rss+xml");
   return { status: resp.status, body, contentType };
+}
+
+/**
+ * Manual-redirect fetch with per-hop URL + DNS checks and a byte cap.
+ */
+async function fetchPublicHttps(opts: {
+  url: string;
+  accept: string;
+  timeoutMs: number;
+  maxBytes: number;
+}): Promise<{ status: number; body: Buffer; contentType: string; finalUrl: string }> {
+  let current = opts.url;
+  for (let hop = 0; hop <= CUSTOM_NEWS_MAX_REDIRECTS; hop++) {
+    const checked = validatePublicHttpsUrl(current);
+    if (!checked.ok) throw new Error(checked.error);
+    await assertPublicHostname(checked.hostname);
+
+    const resp = await fetch(checked.href, {
+      headers: {
+        Accept: opts.accept,
+        "User-Agent": UA,
+      },
+      redirect: "manual",
+      signal: AbortSignal.timeout(opts.timeoutMs),
+    });
+
+    if (resp.status >= 300 && resp.status < 400) {
+      const loc = resp.headers.get("location");
+      if (!loc) throw new Error("redirect without location");
+      current = new URL(loc, checked.href).href;
+      continue;
+    }
+
+    const reader = resp.body?.getReader();
+    if (!reader) {
+      const empty = Buffer.alloc(0);
+      return {
+        status: resp.status,
+        body: empty,
+        contentType: resp.headers.get("content-type") || "application/octet-stream",
+        finalUrl: checked.href,
+      };
+    }
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > opts.maxBytes) {
+        reader.cancel().catch(() => undefined);
+        throw new Error("response too large");
+      }
+      chunks.push(value);
+    }
+    const body = Buffer.concat(chunks.map((c) => Buffer.from(c)));
+    return {
+      status: resp.status,
+      body,
+      contentType:
+        resp.headers.get("content-type") || "application/octet-stream",
+      finalUrl: checked.href,
+    };
+  }
+  throw new Error("too many redirects");
 }
 
 async function proxyRss(
@@ -138,6 +246,115 @@ async function proxyArticle(
   }
 }
 
+async function proxyCustomRss(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const u = new URL(req.url || "/", "http://localhost");
+  const checked = validatePublicHttpsUrl(u.searchParams.get("url"));
+  if (!checked.ok) {
+    sendJson(res, 400, { ok: false, message: checked.error });
+    return;
+  }
+  try {
+    const resp = await fetchPublicHttps({
+      url: checked.href,
+      accept:
+        "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+      timeoutMs: NEWS_RSS_TIMEOUT_MS,
+      maxBytes: CUSTOM_NEWS_RSS_MAX_BYTES,
+    });
+    if (!contentTypeLooksLikeXml(resp.contentType) && resp.status === 200) {
+      // Some hosts serve RSS as octet-stream; still allow if body looks like XML.
+      const head = resp.body.subarray(0, 200).toString("utf8");
+      if (!/<(\?xml|rss|feed)\b/i.test(head)) {
+        sendJson(res, 415, { ok: false, message: "not an RSS/Atom feed" });
+        return;
+      }
+    }
+    send(res, resp.status, resp.body, resp.contentType, 300);
+  } catch (err) {
+    sendJson(res, 502, {
+      ok: false,
+      message: `custom news rss failed: ${err instanceof Error ? err.message : err}`,
+    });
+  }
+}
+
+async function proxyCustomArticle(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const u = new URL(req.url || "/", "http://localhost");
+  const checked = validatePublicHttpsUrl(u.searchParams.get("url"));
+  if (!checked.ok) {
+    sendJson(res, 400, { ok: false, message: checked.error });
+    return;
+  }
+  try {
+    const resp = await fetchPublicHttps({
+      url: checked.href,
+      accept: "text/html,application/xhtml+xml,*/*",
+      timeoutMs: CUSTOM_NEWS_ARTICLE_TIMEOUT_MS,
+      maxBytes: CUSTOM_NEWS_HTML_MAX_BYTES,
+    });
+    if (
+      resp.status === 200 &&
+      !contentTypeLooksLikeHtml(resp.contentType)
+    ) {
+      sendJson(res, 415, { ok: false, message: "not an HTML page" });
+      return;
+    }
+    send(res, resp.status, resp.body, resp.contentType, 600);
+  } catch (err) {
+    sendJson(res, 502, {
+      ok: false,
+      message: `custom news article failed: ${err instanceof Error ? err.message : err}`,
+    });
+  }
+}
+
+async function proxyCustomMedia(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const u = new URL(req.url || "/", "http://localhost");
+  const checked = validatePublicHttpsUrl(u.searchParams.get("url"));
+  if (!checked.ok) {
+    sendJson(res, 400, { ok: false, message: checked.error });
+    return;
+  }
+  const allowed = u.searchParams
+    .getAll("allow")
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+  if (!allowed.length || !mediaHostAllowed(checked.hostname, allowed)) {
+    sendJson(res, 400, { ok: false, message: "media host not allowed" });
+    return;
+  }
+  try {
+    const resp = await fetchPublicHttps({
+      url: checked.href,
+      accept: "image/*,*/*;q=0.8",
+      timeoutMs: CUSTOM_NEWS_MEDIA_TIMEOUT_MS,
+      maxBytes: CUSTOM_NEWS_MEDIA_MAX_BYTES,
+    });
+    if (
+      resp.status === 200 &&
+      !contentTypeLooksLikeImage(resp.contentType)
+    ) {
+      sendJson(res, 415, { ok: false, message: "not an image" });
+      return;
+    }
+    send(res, resp.status, resp.body, resp.contentType, 3600);
+  } catch (err) {
+    sendJson(res, 502, {
+      ok: false,
+      message: `custom news media failed: ${err instanceof Error ? err.message : err}`,
+    });
+  }
+}
+
 export function newsProxy(): Plugin {
   return {
     name: "news-proxy",
@@ -148,7 +365,18 @@ export function newsProxy(): Plugin {
         const legacyArticle = LEGACY_ARTICLE_RE.exec(urlPath || "");
         const isNewsRss = urlPath === "/api/news/rss";
         const isLegacyRss = urlPath === "/api/flayrah/rss";
-        if (!isNewsRss && !isLegacyRss && !newsArticle && !legacyArticle) {
+        const isCustomRss = urlPath === "/api/news/custom/rss";
+        const isCustomArticle = urlPath === "/api/news/custom/article";
+        const isCustomMedia = urlPath === "/api/news/custom/media";
+        if (
+          !isNewsRss &&
+          !isLegacyRss &&
+          !newsArticle &&
+          !legacyArticle &&
+          !isCustomRss &&
+          !isCustomArticle &&
+          !isCustomMedia
+        ) {
           next();
           return;
         }
@@ -158,6 +386,18 @@ export function newsProxy(): Plugin {
         }
         if (req.method !== "GET") {
           sendJson(res, 405, { ok: false, message: "method not allowed" });
+          return;
+        }
+        if (isCustomRss) {
+          await proxyCustomRss(req, res);
+          return;
+        }
+        if (isCustomArticle) {
+          await proxyCustomArticle(req, res);
+          return;
+        }
+        if (isCustomMedia) {
+          await proxyCustomMedia(req, res);
           return;
         }
         if (isNewsRss || isLegacyRss) {

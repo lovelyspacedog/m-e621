@@ -153,7 +153,7 @@ export function resolveNewsRssUrl(
   return `${base}${sep}paged=${n}`;
 }
 
-export type NewsSourceFilter = "all" | NewsSource;
+export type NewsSourceFilter = "all" | NewsSource | string;
 
 export const NEWS_SOURCE_OPTIONS: { id: NewsSourceFilter; label: string }[] = [
   { id: "all", label: "All sources" },
@@ -170,6 +170,19 @@ export function normalizeNewsSourceFilter(raw: unknown): NewsSourceFilter {
     const t = raw.trim().toLowerCase();
     if (t === "all") return "all";
     if (isNewsSource(t)) return t;
+    // custom:<feedId> or bare feed id c_…
+    const customKey = t.match(/^custom:(c_[a-z0-9]+)$/);
+    if (customKey) return `custom:${customKey[1]}`;
+    if (/^c_[a-z0-9]+$/.test(t)) return `custom:${t}`;
   }
   return "all";
+}
+
+export function isCustomSourceFilter(raw: NewsSourceFilter): boolean {
+  return typeof raw === "string" && /^custom:c_[a-z0-9]+$/i.test(raw);
+}
+
+export function customFeedIdFromFilter(raw: NewsSourceFilter): string | null {
+  if (!isCustomSourceFilter(raw)) return null;
+  return String(raw).slice("custom:".length).toLowerCase();
 }

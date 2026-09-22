@@ -58,3 +58,47 @@ describe("NewsStore watched authors and new-since", () => {
     expect(news.countNewerThanSeen([50, 150, 200, 250])).toBe(0);
   });
 });
+
+describe("NewsStore custom feeds", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  it("adds and removes custom feeds", () => {
+    const news = useNewsStore();
+    expect(news.customFeeds).toEqual([]);
+    const a = news.addCustomFeed({
+      url: "https://example.com/feed/",
+      label: "Example",
+    });
+    expect(a.id).toMatch(/^c_[a-z0-9]+$/);
+    expect(news.customFeeds).toHaveLength(1);
+    expect(() =>
+      news.addCustomFeed({
+        url: "https://example.com/feed/",
+        label: "Dup",
+      }),
+    ).toThrow(/already/i);
+    news.removeCustomFeed(a.id);
+    expect(news.customFeeds).toHaveLength(0);
+  });
+
+  it("preserves custom article source on save", () => {
+    const news = useNewsStore();
+    news.saveArticle({
+      id: "custom:c_aabbcc:0123456789abcdef",
+      title: "T",
+      link: "https://example.com/p",
+      author: "A",
+      thumbUrl: null,
+      source: "custom:c_aabbcc",
+      customFeedId: "c_aabbcc",
+      descriptionHtml: "<p>x</p>",
+    });
+    const saved = news.saved[0];
+    expect(saved.source).toBe("custom:c_aabbcc");
+    expect(saved.customFeedId).toBe("c_aabbcc");
+    const rebuilt = news.articleFromSaved(saved);
+    expect(rebuilt.source).toBe("custom:c_aabbcc");
+  });
+});

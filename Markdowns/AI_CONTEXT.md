@@ -12,7 +12,8 @@ Supported **site modes** (`SiteMode` in `src/services/types.ts`): `e621`, `e6ai`
 - **Tailspace, News, and Local are not Federated Posts children.** Greyed on landing chips (`isFederatedIncompatible`).
 - Tailspace comics can join **Federated Pools** name browse when `unifiedIncludeTailspaceComics` is on (Pools sidebar **Sites in Pools**; default true; independent of Defaults / Auth-only).
 - **News** (SiteMode `"news"`, UI label News) uses dedicated routes (`/#/news`, legacy `/#/flayrah` redirects) backed by merged public RSS — never `getPosts` / e621 fall-through (same dedicated-chrome pattern as Tailspace).
-- News proxies: Flayrah `GET /api/flayrah/rss?feed=` / `GET /api/flayrah/article/:id`, plus WordPress RSS allowlists for Dogpatch / InFurNation / Furry Writers’ Guild (`/api/news/*`). Offline last-good RSS is cached in IndexedDB; News stays selectable when offline.
+- News proxies: Flayrah `GET /api/flayrah/rss?feed=` / `GET /api/flayrah/article/:id`, plus WordPress RSS allowlists for Dogpatch / InFurNation / Furry Writers’ Guild (`/api/news/*`). Custom user feeds: `GET /api/news/custom/rss|article|media?url=` (public https only; SSRF checks + size/rate limits). Offline last-good RSS is cached in IndexedDB; News stays selectable when offline.
+- Custom feeds live on `NewsState.customFeeds` (max 8); article ids are `custom:<feedId>:<16hex>` with routes `/#/news/custom/:feedId/:itemKey`.
 - Each mode has an independent **site profile** (auth, blacklist, starred tags, saved searches, history).
 - License: **AGPL-3.0**. Network use of a modified version must offer corresponding source.
 - Not affiliated with the sites or upstream. Follow each site’s rules and API terms.
@@ -233,7 +234,7 @@ PWA: `registerType: 'prompt'`, `display: "standalone"`, update poll every 10 min
 - **FA search** scrapes HTML and **deliberately delays** between requests (`fa_proxy.py`).
 - **Weasyl guests are SFW-only.** Inkbunny and Weasyl have **no public fav-toggle API** — keep the favorite button hidden (`modeSupportsFavoriteToggle`).
 - **SoFurry / News / other non-e621 modes must not fall through to e621 comments, notes, pools, or dashboard.** Post Suggester and Favorite Analyzer are allowed outside Tailspace and News via `modeSupportsSuggester` / `modeSupportsFavoriteAnalyzer` (`isDedicatedChromeMode`), using mode-native favorite queries — never the e621 client.
-- **News** is read-only multi-source RSS chrome (`/#/news`; legacy `/#/flayrah` redirects). Flayrah proxy remains `GET /api/flayrah/rss?feed=` plus `GET /api/flayrah/article/:id`; other outlets use allowlisted WordPress RSS via `/api/news/*`.
+- **News** is read-only multi-source RSS chrome (`/#/news`; legacy `/#/flayrah` redirects). Flayrah proxy remains `GET /api/flayrah/rss?feed=` plus `GET /api/flayrah/article/:id`; other outlets use allowlisted WordPress RSS via `/api/news/*`; custom feeds use `/api/news/custom/*`.
 - **Federated merge** keeps sticky per-child leftovers (`unifiedMerge.ts`). Sequential pages reuse discarded posts; tag/children changes must reset state. Page jumps use legacy merge then reseed.
 - **Federated tag translation** (`unifiedTags.ts`) strips/remaps metatags per child (`order:`, `favs:me` → `my:faves` / `stars:me`, etc.) and may snackbar ignored tokens.
 - **Landing does not restore Federated** as the selected mode (`demoteUnifiedOnLanding` unless navigating back from Browse posts). Close/label exits via `previousModeBeforeUnified` (fallback e621). Inclusion chips persist when leaving and re-entering Federated.

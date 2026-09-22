@@ -9,11 +9,13 @@ from __future__ import annotations
 import base64
 import fcntl
 import hashlib
+import ipaddress
 import json
 import os
 import re
 import secrets
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -448,6 +450,19 @@ NEWS_RSS_PATH = "/api/news/rss"
 NEWS_ARTICLE_PATH = re.compile(
     r"^/api/news/article/(flayrah|dogpatch|infurnation|fwg)/(\d+)$"
 )
+NEWS_CUSTOM_RSS_PATH = "/api/news/custom/rss"
+NEWS_CUSTOM_ARTICLE_PATH = "/api/news/custom/article"
+NEWS_CUSTOM_MEDIA_PATH = "/api/news/custom/media"
+# Custom News fetch limits (keep in sync with src/worker/news/customUrl.ts).
+CUSTOM_NEWS_RSS_MAX_BYTES = 2 * 1024 * 1024
+CUSTOM_NEWS_HTML_MAX_BYTES = int(1.5 * 1024 * 1024)
+CUSTOM_NEWS_MEDIA_MAX_BYTES = 4 * 1024 * 1024
+CUSTOM_NEWS_ARTICLE_TIMEOUT_SEC = 15
+CUSTOM_NEWS_MEDIA_TIMEOUT_SEC = 10
+CUSTOM_NEWS_MAX_REDIRECTS = 3
+CUSTOM_NEWS_RATE_BURST = 30  # sliding window count per IP
+_custom_news_rate_lock = threading.Lock()
+_custom_news_rate_by_ip: dict[str, list[float]] = {}
 FLAYRAH_RSS_PATH = "/api/flayrah/rss"
 FLAYRAH_ARTICLE_PATH = re.compile(r"^/api/flayrah/article/(\d+)$")
 # Curated taxonomy feeds (must match src/worker/news/registry.ts).
@@ -474,6 +489,95 @@ NEWS_FULL_RSS = {
     "infurnation": INFURNATION_RSS_URL,
     "fwg": FWG_RSS_URL,
 }
+
+
+def _custom_news_blocked_hostname(hostname: str) -> bool:
+    h = (hostname or "").strip().lower().rstrip(".")
+    if not h:
+        return True
+    if h in {"localhost", "metadata", "metadata.google.internal"}:
+        return True
+    if h.endswith(".localhost") or h.endswith(".local") or h.endswith(".internal"):
+        return True
+    try:
+        ip = ipaddress.ip_address(h)
+        return (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or ip.is_unspecified
+        )
+    except ValueError:
+        return False
+
+
+def _custom_news_validate_https_url(raw: str) -> tuple[str | None, str | None]:
+    """Return (href, error). Rejects non-https, credentials, private hosts."""
+    if not raw or not str(raw).strip():
+        return None, "url required"
+    try:
+        parsed = urlparse(str(raw).strip())
+    except Exception:  # noqa: BLE001
+        return None, "invalid url"
+    if parsed.scheme != "https":
+        return None, "https only"
+    if parsed.username or parsed.password:
+        return None, "credentials not allowed"
+    if parsed.port not in (None, 443):
+        return None, "port not allowed"
+    host = (parsed.hostname or "").lower()
+    if _custom_news_blocked_hostname(host):
+        return None, "host not allowed"
+    # Rebuild without fragment
+    href = parsed._replace(fragment="").geturl()
+    return href, None
+
+
+def _custom_news_assert_public_host(hostname: str) -> None:
+    if _custom_news_blocked_hostname(hostname):
+        raise ValueError("host not allowed")
+    try:
+        ipaddress.ip_address(hostname)
+        return  # literal already checked
+    except ValueError:
+        pass
+    try:
+        infos = socket.getaddrinfo(hostname, 443, type=socket.SOCK_STREAM)
+    except OSError as exc:
+        raise ValueError("dns lookup failed") from exc
+    if not infos:
+        raise ValueError("dns lookup failed")
+    for info in infos:
+        addr = info[4][0]
+        try:
+            ip = ipaddress.ip_address(addr)
+        except ValueError as exc:
+            raise ValueError("host not allowed") from exc
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or ip.is_unspecified
+        ):
+            raise ValueError("host not allowed")
+
+
+def _custom_news_content_ok(kind: str, content_type: str, body: bytes) -> bool:
+    ct = (content_type or "").lower()
+    if kind == "rss":
+        if "xml" in ct or "rss" in ct or "atom" in ct or "text/plain" in ct:
+            return True
+        head = body[:200].decode("utf-8", errors="ignore")
+        return bool(re.search(r"<(\?xml|rss|feed)\b", head, re.I))
+    if kind == "html":
+        return "html" in ct or "xhtml" in ct or "text/plain" in ct
+    if kind == "image":
+        return ct.startswith("image/")
+    return False
 
 
 FLUFFLE_API = "https://api.fluffle.xyz/exact-search-by-file"
@@ -3152,6 +3256,188 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if body:
             self.wfile.write(body)
 
+    def _custom_news_client_ip(self) -> str:
+        return (self.client_address[0] if self.client_address else "unknown") or "unknown"
+
+    def _custom_news_rate_ok(self) -> bool:
+        ip = self._custom_news_client_ip()
+        now = time.time()
+        window = 60.0
+        with _custom_news_rate_lock:
+            stamps = [t for t in _custom_news_rate_by_ip.get(ip, []) if now - t < window]
+            if len(stamps) >= CUSTOM_NEWS_RATE_BURST:
+                _custom_news_rate_by_ip[ip] = stamps
+                return False
+            stamps.append(now)
+            _custom_news_rate_by_ip[ip] = stamps
+            return True
+
+    def _fetch_public_https(
+        self,
+        url: str,
+        *,
+        accept: str,
+        timeout: float,
+        max_bytes: int,
+    ) -> tuple[int, bytes, str]:
+        current = url
+        for _hop in range(CUSTOM_NEWS_MAX_REDIRECTS + 1):
+            href, err = _custom_news_validate_https_url(current)
+            if err or not href:
+                raise ValueError(err or "invalid url")
+            host = urlparse(href).hostname or ""
+            _custom_news_assert_public_host(host)
+            req = urllib.request.Request(href, method="GET")
+            req.add_header(
+                "User-Agent",
+                (
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                    f"(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 "
+                    f"m-e621-news-proxy/1.0 (https://{DOMAIN})"
+                ),
+            )
+            req.add_header("Accept", accept)
+            try:
+                with _urlopen_no_redirect(req, timeout=timeout) as resp:
+                    status = getattr(resp, "status", 200)
+                    content_type = resp.headers.get(
+                        "Content-Type", "application/octet-stream"
+                    )
+                    chunks: list[bytes] = []
+                    total = 0
+                    while True:
+                        piece = resp.read(64 * 1024)
+                        if not piece:
+                            break
+                        total += len(piece)
+                        if total > max_bytes:
+                            raise ValueError("response too large")
+                        chunks.append(piece)
+                    return status, b"".join(chunks), content_type
+            except urllib.error.HTTPError as exc:
+                if 300 <= exc.code < 400:
+                    loc = exc.headers.get("Location") if exc.headers else None
+                    if not loc:
+                        raise ValueError("redirect without location") from exc
+                    current = urljoin(href, loc)
+                    continue
+                body = exc.read() if exc.fp else b""
+                if len(body) > max_bytes:
+                    raise ValueError("response too large") from exc
+                ct = (
+                    exc.headers.get("Content-Type", "application/octet-stream")
+                    if exc.headers
+                    else "application/octet-stream"
+                )
+                return exc.code, body, ct
+        raise ValueError("too many redirects")
+
+    def _proxy_custom_news_rss(self) -> None:
+        if not self._custom_news_rate_ok():
+            self._json(429, {"ok": False, "message": "rate limited"})
+            return
+        parsed = urlparse(self.path)
+        qs = parse_qs(parsed.query)
+        raw = (qs.get("url") or [""])[0]
+        href, err = _custom_news_validate_https_url(raw)
+        if err or not href:
+            self._json(400, {"ok": False, "message": err or "url required"})
+            return
+        try:
+            status, body, content_type = self._fetch_public_https(
+                href,
+                accept="application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+                timeout=NEWS_RSS_TIMEOUT_SEC,
+                max_bytes=CUSTOM_NEWS_RSS_MAX_BYTES,
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "message": f"custom news rss failed: {exc}"})
+            return
+        if status == 200 and not _custom_news_content_ok("rss", content_type, body):
+            self._json(415, {"ok": False, "message": "not an RSS/Atom feed"})
+            return
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "private, max-age=300")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
+
+    def _proxy_custom_news_article(self) -> None:
+        if not self._custom_news_rate_ok():
+            self._json(429, {"ok": False, "message": "rate limited"})
+            return
+        parsed = urlparse(self.path)
+        qs = parse_qs(parsed.query)
+        raw = (qs.get("url") or [""])[0]
+        href, err = _custom_news_validate_https_url(raw)
+        if err or not href:
+            self._json(400, {"ok": False, "message": err or "url required"})
+            return
+        try:
+            status, body, content_type = self._fetch_public_https(
+                href,
+                accept="text/html,application/xhtml+xml,*/*",
+                timeout=CUSTOM_NEWS_ARTICLE_TIMEOUT_SEC,
+                max_bytes=CUSTOM_NEWS_HTML_MAX_BYTES,
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._json(
+                502, {"ok": False, "message": f"custom news article failed: {exc}"}
+            )
+            return
+        if status == 200 and not _custom_news_content_ok("html", content_type, body):
+            self._json(415, {"ok": False, "message": "not an HTML page"})
+            return
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "private, max-age=600")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
+
+    def _proxy_custom_news_media(self) -> None:
+        if not self._custom_news_rate_ok():
+            self._json(429, {"ok": False, "message": "rate limited"})
+            return
+        parsed = urlparse(self.path)
+        qs = parse_qs(parsed.query)
+        raw = (qs.get("url") or [""])[0]
+        href, err = _custom_news_validate_https_url(raw)
+        if err or not href:
+            self._json(400, {"ok": False, "message": err or "url required"})
+            return
+        allowed = [h.strip().lower() for h in (qs.get("allow") or []) if h.strip()]
+        media_host = (urlparse(href).hostname or "").lower()
+        if not allowed or media_host not in allowed:
+            self._json(400, {"ok": False, "message": "media host not allowed"})
+            return
+        try:
+            status, body, content_type = self._fetch_public_https(
+                href,
+                accept="image/*,*/*;q=0.8",
+                timeout=CUSTOM_NEWS_MEDIA_TIMEOUT_SEC,
+                max_bytes=CUSTOM_NEWS_MEDIA_MAX_BYTES,
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "message": f"custom news media failed: {exc}"})
+            return
+        if status == 200 and not _custom_news_content_ok("image", content_type, body):
+            self._json(415, {"ok": False, "message": "not an image"})
+            return
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "private, max-age=3600")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
+
     def _proxy_flayrah_rss(self) -> None:
         # Legacy path — Flayrah-only RSS with optional ?feed=.
         parsed = urlparse(self.path)
@@ -3527,6 +3813,15 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 self._proxy_flayrah_rss()
             else:
                 self._proxy_news_rss()
+            return
+        if path == NEWS_CUSTOM_RSS_PATH:
+            self._proxy_custom_news_rss()
+            return
+        if path == NEWS_CUSTOM_ARTICLE_PATH:
+            self._proxy_custom_news_article()
+            return
+        if path == NEWS_CUSTOM_MEDIA_PATH:
+            self._proxy_custom_news_media()
             return
         news_article = NEWS_ARTICLE_PATH.match(path)
         if news_article:

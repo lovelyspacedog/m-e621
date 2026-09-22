@@ -55,7 +55,7 @@
           </v-btn>
         </div>
       </div>
-      <div class="news-source-chips d-flex flex-wrap ga-1 mt-3">
+      <div class="news-source-chips d-flex flex-wrap ga-1 mt-3 align-center">
         <v-chip
           v-for="opt in sourceOptions"
           :key="opt.id"
@@ -66,7 +66,70 @@
         >
           {{ opt.label }}
         </v-chip>
+        <v-chip
+          v-for="feed in newsStore.customFeeds"
+          :key="feed.id"
+          size="small"
+          :variant="sourceFilter === `custom:${feed.id}` ? 'flat' : 'tonal'"
+          :color="sourceFilter === `custom:${feed.id}` ? 'primary' : undefined"
+          closable
+          @click="setSource(`custom:${feed.id}`)"
+          @click:close.stop="confirmRemoveFeed(feed.id)"
+        >
+          {{ feed.label }}
+        </v-chip>
+        <v-btn
+          size="x-small"
+          variant="tonal"
+          prepend-icon="mdi-plus"
+          :disabled="newsStore.customFeeds.length >= customFeedCap"
+          @click="addFeedOpen = true"
+        >
+          Add feed
+        </v-btn>
       </div>
+      <v-dialog v-model="addFeedOpen" max-width="480" scrim>
+        <v-card>
+          <v-card-title>Add RSS / Atom feed</v-card-title>
+          <v-card-text>
+            <p class="text-body-2 text-medium-emphasis mb-3">
+              Paste a public https feed URL. PawDeck’s server fetches it for you
+              (up to {{ customFeedCap }} feeds). Items open in the in-app reader.
+            </p>
+            <v-text-field
+              v-model="addFeedUrl"
+              label="Feed URL"
+              placeholder="https://example.com/feed/"
+              variant="outlined"
+              density="compact"
+              hide-details="auto"
+              :error-messages="addFeedError ? [addFeedError] : []"
+              class="mb-3"
+            />
+            <v-text-field
+              v-model="addFeedLabel"
+              label="Label (optional)"
+              variant="outlined"
+              density="compact"
+              hide-details
+              hint="Defaults to the feed title"
+              persistent-hint
+            />
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn variant="text" @click="addFeedOpen = false">Cancel</v-btn>
+            <v-btn
+              color="primary"
+              :loading="addFeedLoading"
+              :disabled="!addFeedUrl.trim()"
+              @click="submitAddFeed"
+            >
+              Add
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
       <div
         v-if="showTaxonomyChips"
         class="news-feed-chips d-flex flex-wrap ga-1 mt-2"
@@ -472,11 +535,16 @@ import {
   getNewsCacheAgeMs,
   getNewsLastFetchSource,
   getNewsPartialWarning,
+  probeCustomNewsFeed,
   type NewsArticle,
 } from "@/worker/news/api";
 import {
+  CUSTOM_NEWS_FEED_CAP,
+} from "@/worker/news/customUrl";
+import {
   NEWS_RSS_PAGE_MAX,
   NEWS_SOURCE_OPTIONS,
+  isCustomSourceFilter,
   normalizeNewsFeedId,
   normalizeNewsSourceFilter,
   sectionFeedOptions,
@@ -486,17 +554,22 @@ import {
   newsSourceHomeUrl,
   newsSourceLabel,
   parseNewsId,
-  type NewsSource,
 } from "@/worker/news/ids";
 import {
   isNewsSource,
   newsSourceSupportsPaging,
 } from "@/worker/news/registry";
 import {
+  parseCustomNewsId,
+} from "@/worker/news/customIds";
+import {
   articleMatchesQuery,
   parseNewsQueryTerms,
 } from "@/worker/news/parseRss";
-import { proxyDownloadUrl } from "@/misc/util/newsHtml";
+import {
+  proxyCustomMediaUrl,
+  proxyDownloadUrl,
+} from "@/misc/util/newsHtml";
 import { groupNewsByDay } from "@/misc/util/newsDayGroups";
 import {
   clusterNewsArticles,
@@ -521,6 +594,12 @@ const error = ref<string | null>(null);
 const fromOffline = ref(false);
 const partialWarning = ref<string | null>(null);
 const newSinceVisit = ref(0);
+const addFeedOpen = ref(false);
+const addFeedUrl = ref("");
+const addFeedLabel = ref("");
+const addFeedError = ref("");
+const addFeedLoading = ref(false);
+const customFeedCap = CUSTOM_NEWS_FEED_CAP;
 const { open: newsOfflineTipOpen, tryOpenOnEdge: tryNewsOfflineTip } =
   useTipOpen(TIP_IDS.newsOffline);
 watch(fromOffline, tryNewsOfflineTip);
@@ -656,7 +735,18 @@ const popularTags = computed(() => {
 
 const feedBlurb = computed(() => {
   if (sourceFilter.value === "all") {
-    return "Merged RSS from Flayrah, Dogpatch Press, InFurNation, and Furry Writers’ Guild.";
+    const n = newsStore.customFeeds.length;
+    const customBit = n
+      ? ` plus ${n} custom feed${n === 1 ? "" : "s"}`
+      : "";
+    return `Merged RSS from Flayrah, Dogpatch Press, InFurNation, and Furry Writers’ Guild${customBit}.`;
+  }
+  if (isCustomSourceFilter(sourceFilter.value)) {
+    const id = String(sourceFilter.value).slice("custom:".length);
+    const feed = newsStore.getCustomFeed(id);
+    return feed
+      ? `Custom feed: ${feed.label}.`
+      : "Custom RSS feed.";
   }
   if (!isNewsSource(sourceFilter.value)) return "Recent news RSS.";
   const label = newsSourceLabel(sourceFilter.value);
@@ -668,6 +758,19 @@ const feedBlurb = computed(() => {
 });
 
 const externalHome = computed(() => {
+  if (isCustomSourceFilter(sourceFilter.value)) {
+    const id = String(sourceFilter.value).slice("custom:".length);
+    const feed = newsStore.getCustomFeed(id);
+    if (!feed) return null;
+    try {
+      return {
+        href: new URL(feed.url).origin + "/",
+        label: `Open ${feed.label}`,
+      };
+    } catch {
+      return { href: feed.url, label: `Open ${feed.label}` };
+    }
+  }
   if (!isNewsSource(sourceFilter.value)) return null;
   const src = sourceFilter.value;
   return {
@@ -676,18 +779,21 @@ const externalHome = computed(() => {
   };
 });
 
-const updatedLabel = computed(() => {
-  void cacheAgeTick.value;
-  const age = getNewsCacheAgeMs(sourceFilter.value, feedId.value);
-  if (age == null) return "";
-  const mins = Math.floor(age / 60000);
-  if (mins < 1) return "Updated just now";
-  if (mins === 1) return "Updated 1 min ago";
-  return `Updated ${mins} min ago`;
-});
+function customFeedRefs() {
+  return newsStore.customFeeds.map((f) => ({
+    id: f.id,
+    url: f.url,
+    label: f.label,
+  }));
+}
 
-function sourceLabel(source: NewsSource) {
-  return newsSourceLabel(source);
+function sourceLabel(source: string) {
+  if (isNewsSource(source)) return newsSourceLabel(source);
+  if (source.startsWith("custom:")) {
+    const id = source.slice("custom:".length);
+    return newsStore.customFeedLabel(id);
+  }
+  return source;
 }
 
 function listQuery(extra?: Record<string, string>) {
@@ -702,6 +808,17 @@ function listQuery(extra?: Record<string, string>) {
 }
 
 function articleRoute(article: NewsArticle) {
+  const custom = parseCustomNewsId(article.id);
+  if (custom) {
+    return {
+      name: "NewsCustomArticle" as const,
+      params: {
+        feedId: custom.feedId,
+        itemKey: custom.itemKey,
+      },
+      query: listQuery(),
+    };
+  }
   const parsed = parseNewsId(article.id);
   return {
     name: "NewsArticle" as const,
@@ -712,6 +829,16 @@ function articleRoute(article: NewsArticle) {
     query: listQuery(),
   };
 }
+
+const updatedLabel = computed(() => {
+  void cacheAgeTick.value;
+  const age = getNewsCacheAgeMs(sourceFilter.value, feedId.value);
+  if (age == null) return "";
+  const mins = Math.floor(age / 60000);
+  if (mins < 1) return "Updated just now";
+  if (mins === 1) return "Updated 1 min ago";
+  return `Updated ${mins} min ago`;
+});
 
 function replaceListQuery(partial: {
   tags?: string;
@@ -806,7 +933,18 @@ function toggleNotifyNew() {
   }
 }
 
-function relatedRoute(rel: { id: string; source: NewsSource }) {
+function relatedRoute(rel: { id: string; source: string }) {
+  const custom = parseCustomNewsId(rel.id);
+  if (custom) {
+    return {
+      name: "NewsCustomArticle" as const,
+      params: {
+        feedId: custom.feedId,
+        itemKey: custom.itemKey,
+      },
+      query: listQuery(),
+    };
+  }
   const parsed = parseNewsId(rel.id);
   return {
     name: "NewsArticle" as const,
@@ -816,6 +954,45 @@ function relatedRoute(rel: { id: string; source: NewsSource }) {
     },
     query: listQuery(),
   };
+}
+
+async function submitAddFeed() {
+  addFeedError.value = "";
+  addFeedLoading.value = true;
+  try {
+    const probed = await probeCustomNewsFeed(addFeedUrl.value);
+    const label = addFeedLabel.value.trim() || probed.title;
+    newsStore.addCustomFeed({ url: probed.href, label });
+    addFeedOpen.value = false;
+    addFeedUrl.value = "";
+    addFeedLabel.value = "";
+    const created = newsStore.customFeeds[newsStore.customFeeds.length - 1];
+    if (created) {
+      void replaceListQuery({ source: `custom:${created.id}`, feed: "full" });
+    }
+    void load(true);
+  } catch (e: unknown) {
+    addFeedError.value =
+      e instanceof Error ? e.message : "Could not add feed.";
+  } finally {
+    addFeedLoading.value = false;
+  }
+}
+
+function confirmRemoveFeed(feedId: string) {
+  const feed = newsStore.getCustomFeed(feedId);
+  if (!feed) return;
+  if (
+    typeof window !== "undefined" &&
+    !window.confirm(`Remove “${feed.label}” from News?`)
+  ) {
+    return;
+  }
+  newsStore.removeCustomFeed(feedId);
+  if (sourceFilter.value === `custom:${feedId}`) {
+    void replaceListQuery({ source: "all", feed: "full" });
+  }
+  void load(true);
 }
 
 function markFilteredRead() {
@@ -871,12 +1048,31 @@ function formatDate(article: NewsArticle): string {
 
 function thumbSrc(article: NewsArticle): string {
   const url = article.thumbUrl || "";
+  if (!url) return "";
   if (
     /flayrah\.com|dogpatch\.press|infurnation\.com|furrywritersguild\.com|\.wp\.com/i.test(
       url,
     )
   ) {
     return proxyDownloadUrl(url);
+  }
+  if (article.customFeedId) {
+    const feed = newsStore.getCustomFeed(article.customFeedId);
+    const hosts: string[] = [];
+    for (const raw of [article.link, feed?.url]) {
+      if (!raw) continue;
+      try {
+        hosts.push(new URL(raw).hostname.toLowerCase());
+      } catch {
+        /* skip */
+      }
+    }
+    try {
+      const h = new URL(url).hostname.toLowerCase();
+      if (hosts.includes(h)) return proxyCustomMediaUrl(url, hosts);
+    } catch {
+      /* fall through */
+    }
   }
   return url;
 }
@@ -892,6 +1088,7 @@ async function load(force = false) {
       force,
       source: sourceFilter.value,
       feed: feedId.value,
+      customFeeds: customFeedRefs(),
     });
     fromOffline.value = getNewsLastFetchSource() === "offline";
     partialWarning.value = getNewsPartialWarning();
@@ -926,6 +1123,7 @@ const canLoadOlder = computed(() => {
     return false;
   }
   if (sourceFilter.value === "all") return true;
+  if (isCustomSourceFilter(sourceFilter.value)) return false;
   return (
     isNewsSource(sourceFilter.value) &&
     newsSourceSupportsPaging(sourceFilter.value)
@@ -948,6 +1146,7 @@ async function loadOlder() {
         source: olderSource,
         feed: sourceFilter.value === "all" ? "full" : feedId.value,
         page,
+        customFeeds: customFeedRefs(),
       });
       fresh = more.filter((a) => !seen.has(a.id));
       if (!more.length) break;

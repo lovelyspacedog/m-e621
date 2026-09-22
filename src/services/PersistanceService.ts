@@ -921,6 +921,9 @@ class PersistanceService {
       if (!Array.isArray(newState.news.saved)) {
         newState.news.saved = [];
       }
+      if (!Array.isArray(newState.news.customFeeds)) {
+        newState.news.customFeeds = [];
+      }
       if (
         newState.news.layout !== "list" &&
         newState.news.layout !== "magazine"

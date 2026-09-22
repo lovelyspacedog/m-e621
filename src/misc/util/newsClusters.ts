@@ -4,12 +4,13 @@
  */
 
 import type { NewsArticle } from "@/worker/news/parseRss";
-import { newsSourceLabel, type NewsSource } from "@/worker/news/ids";
+import { isNewsSource, newsSourceLabel } from "@/worker/news/ids";
+import { parseCustomNewsSourceKey } from "@/worker/news/customIds";
 
 /** Related outlet for a clustered headline. */
 export interface NewsRelatedSource {
   id: string;
-  source: NewsSource;
+  source: string;
   title: string;
   label: string;
 }
@@ -20,6 +21,12 @@ export interface NewsClusterArticle extends NewsArticle {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+function clusterSourceLabel(source: string, fallbackLabel?: string): string {
+  if (isNewsSource(source)) return newsSourceLabel(source);
+  if (parseCustomNewsSourceKey(source)) return fallbackLabel || "Custom";
+  return source;
+}
 
 /** Lowercase, strip punctuation, collapse whitespace. */
 export function normalizeNewsTitle(title: string): string {
@@ -82,7 +89,7 @@ export function clusterNewsArticles(
         id: other.id,
         source: other.source,
         title: other.title,
-        label: newsSourceLabel(other.source),
+        label: clusterSourceLabel(String(other.source)),
       });
     }
     out.push(related.length ? { ...primary, related } : { ...primary });

@@ -202,13 +202,21 @@ import {
   resolveNewsArticle,
   type NewsArticle,
 } from "@/worker/news/api";
-import { normalizeNewsFeedId, normalizeNewsSourceFilter } from "@/worker/news/feeds";
+import {
+  normalizeNewsFeedId,
+  normalizeNewsSourceFilter,
+} from "@/worker/news/feeds";
 import {
   isNewsSource,
   makeNewsId,
   newsSourceLabel,
   parseNewsId,
 } from "@/worker/news/ids";
+import {
+  isCustomFeedId,
+  makeCustomNewsId,
+  parseCustomNewsId,
+} from "@/worker/news/customIds";
 import { getNewsSourceDef } from "@/worker/news/registry";
 import { saveNewsArticleOffline } from "@/worker/news/offlineCache";
 import {
@@ -266,6 +274,20 @@ function onBodyClick(e: MouseEvent) {
 }
 
 const articleId = computed(() => {
+  if (route.name === "NewsCustomArticle") {
+    const feedId = String(
+      Array.isArray(route.params.feedId)
+        ? route.params.feedId[0]
+        : route.params.feedId || "",
+    ).toLowerCase();
+    const itemKey = String(
+      Array.isArray(route.params.itemKey)
+        ? route.params.itemKey[0]
+        : route.params.itemKey || "",
+    ).toLowerCase();
+    if (!isCustomFeedId(feedId) || !/^[a-f0-9]{16}$/.test(itemKey)) return "";
+    return makeCustomNewsId(feedId, itemKey);
+  }
   const rawSource = route.params.source;
   const rawId = route.params.id;
   const sourceStr = String(Array.isArray(rawSource) ? rawSource[0] : rawSource);
@@ -329,6 +351,17 @@ function tagFilterRoute(tag: string) {
 }
 
 function articleRoute(id: string) {
+  const custom = parseCustomNewsId(id);
+  if (custom) {
+    return {
+      name: "NewsCustomArticle" as const,
+      params: {
+        feedId: custom.feedId,
+        itemKey: custom.itemKey,
+      },
+      query: feedQuery.value,
+    };
+  }
   const parsed = parseNewsId(id);
   return {
     name: "NewsArticle" as const,
@@ -338,6 +371,14 @@ function articleRoute(id: string) {
     },
     query: feedQuery.value,
   };
+}
+
+function customFeedRefs() {
+  return newsStore.customFeeds.map((f) => ({
+    id: f.id,
+    url: f.url,
+    label: f.label,
+  }));
 }
 
 const filteredSiblings = computed(() => {
@@ -371,23 +412,44 @@ const saved = computed(() =>
   article.value ? newsStore.isSaved(article.value.id) : false,
 );
 
-const sourceLabel = computed(() =>
-  article.value ? newsSourceLabel(article.value.source) : "News",
-);
+const sourceLabel = computed(() => {
+  if (!article.value) return "News";
+  if (isNewsSource(article.value.source)) {
+    return newsSourceLabel(article.value.source);
+  }
+  if (article.value.customFeedId) {
+    return newsStore.customFeedLabel(article.value.customFeedId);
+  }
+  return String(article.value.source);
+});
 
 const attributionSite = computed(() => {
   if (!article.value) return "";
-  return (
-    getNewsSourceDef(article.value.source)?.attributionName ||
-    article.value.source
-  );
+  if (isNewsSource(article.value.source)) {
+    return (
+      getNewsSourceDef(article.value.source)?.attributionName ||
+      article.value.source
+    );
+  }
+  try {
+    return new URL(article.value.link).hostname;
+  } catch {
+    return sourceLabel.value;
+  }
 });
 
-const bodyHtml = computed(() =>
-  article.value
-    ? sanitizeNewsHtml(article.value.descriptionHtml, article.value.source)
-    : "",
-);
+const bodyHtml = computed(() => {
+  if (!article.value) return "";
+  const feed = article.value.customFeedId
+    ? newsStore.getCustomFeed(article.value.customFeedId)
+    : undefined;
+  return sanitizeNewsHtml(article.value.descriptionHtml, {
+    source: String(article.value.source),
+    articleUrl: article.value.link,
+    feedUrl: feed?.url,
+    sourceLabel: sourceLabel.value,
+  });
+});
 
 const dateLabel = computed(() => {
   if (!article.value?.publishedMs) return "";
@@ -430,10 +492,17 @@ function toggleRead() {
 }
 
 async function copyInAppLink() {
-  if (!article.value || !parsedRoute.value) return;
+  if (!article.value) return;
   const origin = `${location.origin}${location.pathname}${location.search}`;
   const qs = new URLSearchParams(feedQuery.value).toString();
-  const link = `${origin}#/news/${parsedRoute.value.source}/${parsedRoute.value.numericId}${qs ? `?${qs}` : ""}`;
+  const custom = parseCustomNewsId(article.value.id);
+  const path = custom
+    ? `news/custom/${custom.feedId}/${custom.itemKey}`
+    : parsedRoute.value
+      ? `news/${parsedRoute.value.source}/${parsedRoute.value.numericId}`
+      : "";
+  if (!path) return;
+  const link = `${origin}#/${path}${qs ? `?${qs}` : ""}`;
   try {
     await navigator.clipboard.writeText(link);
     snackbar.addMessage("Copied in-app link");
@@ -493,10 +562,12 @@ async function load() {
       resolveNewsArticle(id, {
         source: sourceFilter.value,
         feed: feedId.value,
+        customFeeds: customFeedRefs(),
       }),
       fetchNewsArticles({
         source: sourceFilter.value,
         feed: feedId.value,
+        customFeeds: customFeedRefs(),
       }).catch(() => [] as NewsArticle[]),
     ]);
     siblings.value = list;
