@@ -237,8 +237,21 @@ fn write_local_file(root: String, relative_path: String, bytes: Vec<u8>) -> Resu
     .ok_or_else(|| "Invalid relative path".to_string())?
     .canonicalize()
     .map_err(|e| format!("Invalid parent path: {}", e))?;
-  if !parent_canon.starts_with(&root_path) {
+  if (!parent_canon.starts_with(&root_path) {
     return Err("Path escapes Local browse root".into());
+  }
+  // Do not follow symlinks: fs::write would overwrite an off-root target.
+  if path.exists() {
+    let meta = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+    if meta.file_type().is_symlink() {
+      return Err("Refusing to write through a symlink".into());
+    }
+    let canon = path
+      .canonicalize()
+      .map_err(|e| format!("Invalid path: {}", e))?;
+    if !canon.starts_with(&root_path) {
+      return Err("Path escapes Local browse root".into());
+    }
   }
   fs::write(&path, bytes).map_err(|e| e.to_string())
 }

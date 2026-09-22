@@ -5,7 +5,7 @@
 import * as Comlink from "comlink";
 import { toRaw } from "vue";
 import type { SiteMode, ISettingsServiceState } from "@/services/types";
-import { BlacklistMode } from "@/services/types";
+import { BlacklistMode, SITE_MODE_URLS } from "@/services/types";
 import type { EnhancedPost } from "@/worker/ApiService";
 import type { FavoriteTagsResult } from "@/misc/util/suggestionScoring";
 import { buildFavoriteTagsResult } from "@/misc/util/suggestionScoring";
@@ -199,7 +199,7 @@ export async function sampleFavoriteProfile(
           blacklist: bl || [],
           limit: Math.min(320, limit),
           tags: resolved.tags,
-          baseUrl: args.baseUrl,
+          baseUrl: child.baseUrl || SITE_MODE_URLS[child.mode],
           mode: child.mode,
           page: 1,
           auth: child.auth,

@@ -57,6 +57,14 @@ describe("sanitizeNewsHtml", () => {
     expect(html).not.toMatch(/href=["']javascript/i);
   });
 
+  it("strips javascript xlink:href on anchors", () => {
+    const html = sanitizeNewsHtml(
+      `<a xlink:href="javascript:alert(1)">x</a>`,
+    );
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toMatch(/xlink:href/i);
+  });
+
   it("keeps http links with noopener", () => {
     const html = sanitizeNewsHtml(
       `<a href="https://example.com/story">read</a>`,

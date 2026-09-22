@@ -1164,6 +1164,16 @@ class PersistanceService {
     if (newState.posts.saveLocal && newState.posts.saveLocal.openInLocalAfterSave === undefined) {
       newState.posts.saveLocal.openInLocalAfterSave = false;
     }
+    if (
+      !newState.discovery ||
+      !newState.discovery.artistRadar ||
+      !newState.discovery.savedSearchWake
+    ) {
+      newState.discovery = {
+        artistRadar: { cursors: {} },
+        savedSearchWake: { byId: {} },
+      };
+    }
     applyActiveProfileToMirrors(newState);
     if (!newState.misc) {
       newState.misc = {

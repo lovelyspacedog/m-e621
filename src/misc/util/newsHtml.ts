@@ -262,12 +262,10 @@ function sanitizeElement(el: Element, opts: SanitizeNewsHtmlOpts): void {
       el.removeAttribute(attr.name);
       continue;
     }
-    if (tag === "A" && name === "href") {
+    if (tag === "A" && (name === "href" || name === "xlink:href")) {
       const abs = absolutizeNewsUrl(attr.value, opts.source, opts.articleUrl);
-      if (!abs) {
-        el.removeAttribute("href");
-        continue;
-      }
+      el.removeAttribute(attr.name);
+      if (!abs) continue;
       el.setAttribute("href", abs);
       el.setAttribute("target", "_blank");
       el.setAttribute("rel", "noopener noreferrer");

@@ -24,6 +24,7 @@ export const changelogSections: ChangelogSection[] = [
       "Federated search page jumps and reloads keep the correct merge; a temporary child failure no longer drops that site for the rest of the scroll",
       "Pool / Series Suggester searches each origin with that site’s URL and account; custom News article links stay in News mode",
       "Proxy hardening: custom News blocks shared/CGNAT addresses, SoFurry follows redirects with per-hop host checks, and Scent Marks rate limits use the TCP peer",
+      "Federated discovery samples and Local Tauri writes refuse wrong-origin URLs and symlink escapes; News HTML strips javascript: on xlink:href",
       "Landing hero again shows the static “Browse nine imageboards…” line under PawDeck; random splash text and the duplicate tagline panel below the hero are removed",
       "Landing Tag Wiki snippets skip artist-tag wiki pages so definitions stay about tags, not creators",
       "Sidebar Site block includes the SFW only switch; light dividers separate saved searches, nav links, and on-page tags",
