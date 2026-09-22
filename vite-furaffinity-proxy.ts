@@ -97,12 +97,26 @@ const readBody = async (req: IncomingMessage): Promise<Buffer> => {
   return Buffer.concat(chunks);
 };
 
+const faRequestUrl = (pathOrUrl: string): string => {
+  const raw = (pathOrUrl || "").trim();
+  if (!raw) throw new Error("empty FA request path");
+  if (raw.startsWith("http://") || raw.startsWith("https://")) {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.toLowerCase();
+    if (host !== "furaffinity.net" && host !== "www.furaffinity.net") {
+      throw new Error("FurAffinity request target not allowed");
+    }
+    return `${FA_ROOT}${parsed.pathname}${parsed.search}`;
+  }
+  return `${FA_ROOT}/${raw.replace(/^\//, "")}`;
+};
+
 const faFetch = async (
   path: string,
   cookies: Cookie[],
   init: RequestInit = {},
 ): Promise<Response> => {
-  const url = path.startsWith("http") ? path : `${FA_ROOT}/${path.replace(/^\//, "")}`;
+  const url = faRequestUrl(path);
   const headers = new Headers(init.headers);
   headers.set("User-Agent", UA);
   if (cookies.length) headers.set("Cookie", cookieHeader(cookies));

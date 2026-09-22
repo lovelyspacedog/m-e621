@@ -1172,6 +1172,10 @@ export class ApiService {
   }
 
   async getPool(args: IGetPoolArgs) {
+    // Federated / Local must not fall through to e621 pool fetch.
+    if (args.mode === "unified" || args.mode === "local") {
+      throw new Error("Pools are not available in this mode");
+    }
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotDedicatedChrome(args.baseUrl, "getPool", args.mode);
     if (backend === "inkbunny") {

@@ -443,15 +443,32 @@ def _figures_from_html(text: str) -> tuple[list[dict[str, Any]], bool]:
     return out, has_next
 
 
+def _fa_request_url(path_or_url: str) -> str:
+    """Resolve a path or URL to an https FA_ROOT URL; reject off-host targets."""
+    raw = (path_or_url or "").strip()
+    if not raw:
+        raise FaProxyError("empty FA request path", 400)
+    if raw.startswith("http://") or raw.startswith("https://"):
+        parsed = urlparse(raw)
+        host = (parsed.hostname or "").lower()
+        if host not in ("furaffinity.net", "www.furaffinity.net"):
+            raise FaProxyError("FurAffinity request target not allowed", 400)
+        path = parsed.path or "/"
+        if parsed.query:
+            path = f"{path}?{parsed.query}"
+        return f"{FA_ROOT.rstrip('/')}{path}"
+    return f"{FA_ROOT.rstrip('/')}/{raw.lstrip('/')}"
+
+
 def _session_get(api: faapi.FAAPI, path: str, **params: Any):
     api.handle_delay()
-    url = path if path.startswith("http") else f"{FA_ROOT}/{path.lstrip('/')}"
+    url = _fa_request_url(path)
     return api.session.get(url, params=params or None, timeout=api.timeout)
 
 
 def _session_post(api: faapi.FAAPI, path: str, data: dict[str, Any]):
     api.handle_delay()
-    url = path if path.startswith("http") else f"{FA_ROOT}/{path.lstrip('/')}"
+    url = _fa_request_url(path)
     return api.session.post(url, data=data, timeout=api.timeout)
 
 
@@ -640,6 +657,7 @@ def _comment(api: faapi.FAAPI, payload: dict[str, Any]) -> dict[str, Any]:
         if name:
             data[str(name)] = str(inp.get("value") or "")
     data["reply"] = body
+    # Form action may be absolute; _fa_request_url pins host to FA_ROOT.
     action = str(form.get("action") or f"/view/{sid}/")
     resp = _session_post(api, action, data)
     if resp.status_code >= 400:
