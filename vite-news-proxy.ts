@@ -10,6 +10,7 @@
  */
 import type { Plugin } from "vite";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import https from "node:https";
 import dns from "node:dns/promises";
 import { isIP } from "node:net";
 import { resolveNewsRssUrl } from "./src/worker/news/feeds";
@@ -92,11 +93,11 @@ function corsOptions(res: ServerResponse): void {
   res.end();
 }
 
-async function assertPublicHostname(hostname: string): Promise<void> {
+async function resolvePublicIps(hostname: string): Promise<string[]> {
   if (isBlockedHostname(hostname)) throw new Error("host not allowed");
   if (isIP(hostname)) {
     if (isBlockedIpLiteral(hostname)) throw new Error("host not allowed");
-    return;
+    return [hostname];
   }
   let records: string[] = [];
   try {
@@ -112,6 +113,78 @@ async function assertPublicHostname(hostname: string): Promise<void> {
   for (const ip of records) {
     if (isBlockedIpLiteral(ip)) throw new Error("host not allowed");
   }
+  return records;
+}
+
+function httpsGetPinned(opts: {
+  href: string;
+  pinnedIp: string;
+  accept: string;
+  timeoutMs: number;
+  maxBytes: number;
+}): Promise<{
+  status: number;
+  body: Buffer;
+  contentType: string;
+  location: string | null;
+}> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(opts.href);
+    const family = opts.pinnedIp.includes(":") ? 6 : 4;
+    const req = https.request(
+      {
+        protocol: "https:",
+        hostname: u.hostname,
+        servername: u.hostname,
+        port: 443,
+        path: `${u.pathname}${u.search}`,
+        method: "GET",
+        headers: {
+          Accept: opts.accept,
+          "User-Agent": UA,
+          Host: u.hostname,
+        },
+        lookup: (_hostname, _options, callback) => {
+          callback(null, opts.pinnedIp, family);
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        let total = 0;
+        let oversize = false;
+        res.on("data", (chunk: Buffer) => {
+          total += chunk.length;
+          if (total > opts.maxBytes) {
+            oversize = true;
+            req.destroy();
+            reject(new Error("response too large"));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        res.on("end", () => {
+          if (oversize) return;
+          resolve({
+            status: res.statusCode || 0,
+            body: Buffer.concat(chunks),
+            contentType:
+              res.headers["content-type"] || "application/octet-stream",
+            location:
+              typeof res.headers.location === "string"
+                ? res.headers.location
+                : null,
+          });
+        });
+        res.on("error", reject);
+      },
+    );
+    req.setTimeout(opts.timeoutMs, () => {
+      req.destroy();
+      reject(new Error("timeout"));
+    });
+    req.on("error", reject);
+    req.end();
+  });
 }
 
 async function fetchUpstream(
@@ -138,7 +211,8 @@ async function fetchUpstream(
 }
 
 /**
- * Manual-redirect fetch with per-hop URL + DNS checks and a byte cap.
+ * Manual-redirect fetch with per-hop URL + DNS checks, IP-pinned connect,
+ * and a byte cap (closes DNS-rebinding TOCTOU).
  */
 async function fetchPublicHttps(opts: {
   url: string;
@@ -150,53 +224,25 @@ async function fetchPublicHttps(opts: {
   for (let hop = 0; hop <= CUSTOM_NEWS_MAX_REDIRECTS; hop++) {
     const checked = validatePublicHttpsUrl(current);
     if (!checked.ok) throw new Error(checked.error);
-    await assertPublicHostname(checked.hostname);
-
-    const resp = await fetch(checked.href, {
-      headers: {
-        Accept: opts.accept,
-        "User-Agent": UA,
-      },
-      redirect: "manual",
-      signal: AbortSignal.timeout(opts.timeoutMs),
+    const ips = await resolvePublicIps(checked.hostname);
+    const resp = await httpsGetPinned({
+      href: checked.href,
+      pinnedIp: ips[0]!,
+      accept: opts.accept,
+      timeoutMs: opts.timeoutMs,
+      maxBytes: opts.maxBytes,
     });
 
     if (resp.status >= 300 && resp.status < 400) {
-      const loc = resp.headers.get("location");
-      if (!loc) throw new Error("redirect without location");
-      current = new URL(loc, checked.href).href;
+      if (!resp.location) throw new Error("redirect without location");
+      current = new URL(resp.location, checked.href).href;
       continue;
     }
 
-    const reader = resp.body?.getReader();
-    if (!reader) {
-      const empty = Buffer.alloc(0);
-      return {
-        status: resp.status,
-        body: empty,
-        contentType: resp.headers.get("content-type") || "application/octet-stream",
-        finalUrl: checked.href,
-      };
-    }
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value) continue;
-      total += value.byteLength;
-      if (total > opts.maxBytes) {
-        reader.cancel().catch(() => undefined);
-        throw new Error("response too large");
-      }
-      chunks.push(value);
-    }
-    const body = Buffer.concat(chunks.map((c) => Buffer.from(c)));
     return {
       status: resp.status,
-      body,
-      contentType:
-        resp.headers.get("content-type") || "application/octet-stream",
+      body: resp.body,
+      contentType: resp.contentType,
       finalUrl: checked.href,
     };
   }

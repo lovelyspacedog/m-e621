@@ -65,6 +65,16 @@ describe("sanitizeNewsHtml", () => {
     expect(html).not.toMatch(/xlink:href/i);
   });
 
+  it("strips style and unknown attributes", () => {
+    const html = sanitizeNewsHtml(
+      `<p style="color:red" data-x="1" onclick="alert(1)">hi</p>`,
+    );
+    expect(html).not.toContain("style=");
+    expect(html).not.toContain("data-x");
+    expect(html).not.toContain("onclick");
+    expect(html).toContain("hi");
+  });
+
   it("keeps http links with noopener", () => {
     const html = sanitizeNewsHtml(
       `<a href="https://example.com/story">read</a>`,

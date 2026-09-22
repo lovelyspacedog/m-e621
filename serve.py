@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import fcntl
 import hashlib
+import http.client
 import ipaddress
 import json
 import os
@@ -16,6 +17,7 @@ import re
 import secrets
 import shutil
 import socket
+import ssl
 import subprocess
 import sys
 import threading
@@ -525,6 +527,66 @@ def _custom_news_blocked_hostname(hostname: str) -> bool:
         return False
 
 
+def _custom_news_resolve_public_ips(hostname: str) -> list[str]:
+    """Resolve hostname and return only public IPs (empty → error).
+
+    Callers must connect to one of these addresses (not re-resolve by name)
+    to close the DNS-rebinding TOCTOU between check and TCP connect.
+    """
+    if _custom_news_blocked_hostname(hostname):
+        raise ValueError("host not allowed")
+    try:
+        ipaddress.ip_address(hostname)
+        return [hostname.strip().lower().rstrip(".")]
+    except ValueError:
+        pass
+    try:
+        infos = socket.getaddrinfo(hostname, 443, type=socket.SOCK_STREAM)
+    except OSError as exc:
+        raise ValueError("dns lookup failed") from exc
+    if not infos:
+        raise ValueError("dns lookup failed")
+    seen: list[str] = []
+    for info in infos:
+        addr = info[4][0]
+        try:
+            ip = ipaddress.ip_address(addr)
+        except ValueError as exc:
+            raise ValueError("host not allowed") from exc
+        if _custom_news_ip_blocked(ip):
+            raise ValueError("host not allowed")
+        if addr not in seen:
+            seen.append(addr)
+    if not seen:
+        raise ValueError("dns lookup failed")
+    return seen
+
+
+def _custom_news_assert_public_host(hostname: str) -> None:
+    _custom_news_resolve_public_ips(hostname)
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPSConnection that dials a pre-checked IP while keeping SNI/Host."""
+
+    def __init__(self, host: str, *, pinned_ip: str, **kwargs):  # noqa: ANN003
+        super().__init__(host, **kwargs)
+        self._pinned_ip = pinned_ip
+
+    def connect(self) -> None:  # noqa: ANN201
+        timeout = socket.getdefaulttimeout() if self.timeout is None else self.timeout
+        sock = socket.create_connection((self._pinned_ip, self.port), timeout)
+        if self._tunnel_host:
+            self.sock = sock
+            self._tunnel()
+        context = (
+            self._context
+            if self._context is not None
+            else ssl.create_default_context()
+        )
+        self.sock = context.wrap_socket(sock, server_hostname=self.host)
+
+
 def _custom_news_validate_https_url(raw: str) -> tuple[str | None, str | None]:
     """Return (href, error). Rejects non-https, credentials, private hosts."""
     if not raw or not str(raw).strip():
@@ -545,30 +607,6 @@ def _custom_news_validate_https_url(raw: str) -> tuple[str | None, str | None]:
     # Rebuild without fragment
     href = parsed._replace(fragment="").geturl()
     return href, None
-
-
-def _custom_news_assert_public_host(hostname: str) -> None:
-    if _custom_news_blocked_hostname(hostname):
-        raise ValueError("host not allowed")
-    try:
-        ipaddress.ip_address(hostname)
-        return  # literal already checked
-    except ValueError:
-        pass
-    try:
-        infos = socket.getaddrinfo(hostname, 443, type=socket.SOCK_STREAM)
-    except OSError as exc:
-        raise ValueError("dns lookup failed") from exc
-    if not infos:
-        raise ValueError("dns lookup failed")
-    for info in infos:
-        addr = info[4][0]
-        try:
-            ip = ipaddress.ip_address(addr)
-        except ValueError as exc:
-            raise ValueError("host not allowed") from exc
-        if _custom_news_ip_blocked(ip):
-            raise ValueError("host not allowed")
 
 
 def _custom_news_content_ok(kind: str, content_type: str, body: bytes) -> bool:
@@ -3326,51 +3364,58 @@ class SpaHandler(SimpleHTTPRequestHandler):
             href, err = _custom_news_validate_https_url(current)
             if err or not href:
                 raise ValueError(err or "invalid url")
-            host = urlparse(href).hostname or ""
-            _custom_news_assert_public_host(host)
-            req = urllib.request.Request(href, method="GET")
-            req.add_header(
-                "User-Agent",
-                (
+            parsed = urlparse(href)
+            host = (parsed.hostname or "").lower()
+            ips = _custom_news_resolve_public_ips(host)
+            path = parsed.path or "/"
+            if parsed.query:
+                path = f"{path}?{parsed.query}"
+            headers = {
+                "Accept": accept,
+                "User-Agent": (
                     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
                     f"(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 "
                     f"m-e621-news-proxy/1.0 (https://{DOMAIN})"
                 ),
+                "Host": host,
+            }
+            conn = _PinnedHTTPSConnection(
+                host,
+                pinned_ip=ips[0],
+                timeout=timeout,
+                context=ssl.create_default_context(),
             )
-            req.add_header("Accept", accept)
             try:
-                with _urlopen_no_redirect(req, timeout=timeout) as resp:
-                    status = getattr(resp, "status", 200)
-                    content_type = resp.headers.get(
-                        "Content-Type", "application/octet-stream"
-                    )
-                    chunks: list[bytes] = []
-                    total = 0
-                    while True:
-                        piece = resp.read(64 * 1024)
-                        if not piece:
-                            break
-                        total += len(piece)
-                        if total > max_bytes:
-                            raise ValueError("response too large")
-                        chunks.append(piece)
-                    return status, b"".join(chunks), content_type
-            except urllib.error.HTTPError as exc:
-                if 300 <= exc.code < 400:
-                    loc = exc.headers.get("Location") if exc.headers else None
+                conn.request("GET", path, headers=headers)
+                resp = conn.getresponse()
+                status = resp.status
+                content_type = resp.getheader(
+                    "Content-Type", "application/octet-stream"
+                )
+                if 300 <= status < 400:
+                    loc = resp.getheader("Location")
+                    # Drain body so the connection can close cleanly.
+                    resp.read()
                     if not loc:
-                        raise ValueError("redirect without location") from exc
+                        raise ValueError("redirect without location")
                     current = urljoin(href, loc)
                     continue
-                body = exc.read() if exc.fp else b""
-                if len(body) > max_bytes:
-                    raise ValueError("response too large") from exc
-                ct = (
-                    exc.headers.get("Content-Type", "application/octet-stream")
-                    if exc.headers
-                    else "application/octet-stream"
-                )
-                return exc.code, body, ct
+                chunks: list[bytes] = []
+                total = 0
+                while True:
+                    piece = resp.read(64 * 1024)
+                    if not piece:
+                        break
+                    total += len(piece)
+                    if total > max_bytes:
+                        raise ValueError("response too large")
+                    chunks.append(piece)
+                return status, b"".join(chunks), content_type
+            finally:
+                try:
+                    conn.close()
+                except Exception:  # noqa: BLE001
+                    pass
         raise ValueError("too many redirects")
 
     def _proxy_custom_news_rss(self) -> None:

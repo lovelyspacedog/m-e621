@@ -53,6 +53,24 @@ const ALLOWED_TAGS = new Set([
   "UL",
 ]);
 
+/** Per-tag attribute allowlist (defense in depth; style/data-* stripped). */
+const DEFAULT_ATTR_ALLOW = new Set(["title", "class", "lang", "dir"]);
+const ATTR_ALLOW_BY_TAG: Record<string, ReadonlySet<string>> = {
+  A: new Set(["href", "target", "rel", "title", "class"]),
+  IMG: new Set([
+    "src",
+    "srcset",
+    "alt",
+    "title",
+    "width",
+    "height",
+    "loading",
+    "class",
+  ]),
+  TD: new Set(["colspan", "rowspan", "title", "class"]),
+  TH: new Set(["colspan", "rowspan", "title", "class"]),
+};
+
 const DROP_TAGS = new Set([
   "SCRIPT",
   "STYLE",
@@ -258,7 +276,7 @@ function sanitizeElement(el: Element, opts: SanitizeNewsHtmlOpts): void {
   const attrs = Array.from(el.attributes);
   for (const attr of attrs) {
     const name = attr.name.toLowerCase();
-    if (name.startsWith("on") || name === "srcdoc") {
+    if (name.startsWith("on") || name === "srcdoc" || name === "style") {
       el.removeAttribute(attr.name);
       continue;
     }
@@ -288,6 +306,13 @@ function sanitizeElement(el: Element, opts: SanitizeNewsHtmlOpts): void {
         else el.removeAttribute("srcset");
         continue;
       }
+    }
+  }
+  // Drop anything not on the per-tag allowlist (style/data-*/unknown).
+  const allow = ATTR_ALLOW_BY_TAG[tag] || DEFAULT_ATTR_ALLOW;
+  for (const attr of Array.from(el.attributes)) {
+    if (!allow.has(attr.name.toLowerCase())) {
+      el.removeAttribute(attr.name);
     }
   }
 }
