@@ -220,7 +220,11 @@ export const usePostListManager = ({
       if (!localPath) return;
       try {
         post.__meta.isFavoriteLoading = true;
-        await setLocalFavorite(localPath, args.favorited);
+        await setLocalFavorite(
+          localPath,
+          args.favorited,
+          post.__meta?.localFolderKey,
+        );
         post.is_favorited = args.favorited;
         post.fav_count = args.favorited ? 1 : 0;
         const meta = post.tags.meta || [];

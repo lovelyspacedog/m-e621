@@ -147,6 +147,9 @@ export default defineComponent({
     const localPath = computed(
       () => enhanced.value.__meta?.localPath || props.post.sources?.[0] || "",
     );
+    const localFolderKey = computed(
+      () => enhanced.value.__meta?.localFolderKey,
+    );
     const localExtraTags = computed(
       () => enhanced.value.__meta?.localExtraTags || [],
     );
@@ -164,13 +167,21 @@ export default defineComponent({
     };
     const onAddLocalTags = async () => {
       if (!localPath.value || !tagDraft.value.trim()) return;
-      const extras = await addLocalTags(localPath.value, tagDraft.value);
+      const extras = await addLocalTags(
+        localPath.value,
+        tagDraft.value,
+        localFolderKey.value,
+      );
       applyExtrasToPost(extras);
       tagDraft.value = "";
     };
     const onRemoveLocalTag = async (name: string) => {
       if (!localPath.value) return;
-      const extras = await removeLocalTag(localPath.value, name);
+      const extras = await removeLocalTag(
+        localPath.value,
+        name,
+        localFolderKey.value,
+      );
       applyExtrasToPost(extras);
     };
     const filename = computed(() => {

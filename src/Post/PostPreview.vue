@@ -230,6 +230,10 @@ export default defineComponent({
       type: String,
       default: "",
     },
+    localFolderKey: {
+      type: String,
+      default: "",
+    },
     originMode: {
       type: String as PropType<SiteMode | "">,
       default: "",
@@ -579,7 +583,9 @@ export default defineComponent({
       remuxing.value = true;
       remuxError.value = "";
       try {
-        const result = await remuxLocalPath(props.localPath, () => undefined);
+        const result = await remuxLocalPath(props.localPath, () => undefined, {
+          folderKey: props.localFolderKey || undefined,
+        });
         snackbar.addMessage(`Remuxed to ${result.newPath.split("/").pop()}`);
         context.emit("remuxed", result.newPath);
       } catch (err) {

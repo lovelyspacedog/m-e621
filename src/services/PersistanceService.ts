@@ -517,7 +517,8 @@ class PersistanceService {
       newState.configVersion = 17;
     }
     if (newState.configVersion < 18) {
-      newState.posts.localDirectoryName = null;
+      (newState.posts as { localDirectoryName?: string | null }).localDirectoryName =
+        null;
       newState.configVersion = 18;
     }
     if (newState.configVersion < 19) {
@@ -886,6 +887,21 @@ class PersistanceService {
       };
       newState.configVersion = 50;
     }
+    if (newState.configVersion < 51) {
+      const posts = newState.posts as {
+        localDirectoryName?: string | null;
+        localDirectoryNames?: string[];
+      };
+      if (Array.isArray(posts.localDirectoryNames)) {
+        // already migrated
+      } else if (typeof posts.localDirectoryName === "string" && posts.localDirectoryName) {
+        posts.localDirectoryNames = [posts.localDirectoryName];
+      } else {
+        posts.localDirectoryNames = [];
+      }
+      delete posts.localDirectoryName;
+      newState.configVersion = 51;
+    }
     if (
       newState.previousModeBeforeUnified !== null &&
       newState.previousModeBeforeUnified !== undefined &&
@@ -1092,8 +1108,8 @@ class PersistanceService {
     }
     newState.profiles.news.baseUrl = newState.profiles.news.baseUrl || SITE_MODE_URLS.news;
 
-    if (newState.posts.localDirectoryName === undefined) {
-      newState.posts.localDirectoryName = null;
+    if (!Array.isArray(newState.posts.localDirectoryNames)) {
+      newState.posts.localDirectoryNames = [];
     }
     if (newState.posts.cardAutoNext === undefined) {
       newState.posts.cardAutoNext = false;

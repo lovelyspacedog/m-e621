@@ -27,7 +27,7 @@
             <v-expand-transition>
               <p v-if="showSitesMore" class="text-left text-caption text-medium-emphasis mt-1 mb-0">
                 <template v-if="siteMode.supportsLocalMode">
-                  Local browse folder is under Posts → Save &amp; Local (separate from Save Locally).
+                  Local browse folders are under Posts → Save &amp; Local (separate from Save Locally).
                 </template>
                 Tailspace login uses a password or a pasted <code>tailspace_session</code> cookie
                 (password is not stored).

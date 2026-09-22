@@ -82,6 +82,7 @@
       @set-post-vote="setPostVote($event)"
       :resume-enabled="siteMode.isLocal"
       :restore-path="restorePath || undefined"
+      :restore-folder-key="restoreFolderKey || undefined"
       :restore-video-time="restoreVideoTime"
       @restored="onRestored"
       @remuxed="reloadLocal" />
@@ -228,8 +229,9 @@
       v-model="localTipOpen"
     >
       <p class="mb-3">
-        Local browses a folder on this device. Pick a folder to index images and
-        videos; search uses fuzzy matching on filenames and sidecar tags.
+        Local browses one or more folders on this device. Add folders to index
+        images and videos; search uses fuzzy matching on filenames and sidecar
+        tags. Use a <code>folder:Name</code> tag to limit the grid to one folder.
       </p>
       <p class="mb-0">
         Needs Chromium’s File System Access API (or the Tauri desktop build).
@@ -306,6 +308,7 @@ import {
   findLocalPathTarget,
   findLocalResumeTarget,
   getLocalPostsPage,
+  getLastScanDeniedLabels,
   invalidateLocalMediaIndex,
   localStatusMessage,
   remuxUnplayableLocal,
@@ -389,6 +392,7 @@ watch(
 watch(() => siteMode.isLocal, tryLocalTip);
 const localEmptyMessage = ref(localStatusMessage("no-folder"));
 const restorePath = ref<string | null>(null);
+const restoreFolderKey = ref<string | null>(null);
 const restoreVideoTime = ref<number | undefined>(undefined);
 const bulkSaving = ref(false);
 const searchSaving = ref(false);
@@ -446,6 +450,14 @@ const {
       );
       localEmptyMessage.value =
         localStatusMessage(result.status) || "No matching local files.";
+      if (page <= 1) {
+        const denied = getLastScanDeniedLabels();
+        if (denied.length && result.status !== "denied") {
+          snackbar.addMessage(
+            `Skipped Local folder${denied.length > 1 ? "s" : ""} without access: ${denied.join(", ")}`,
+          );
+        }
+      }
       return result.posts;
     }
     // e621/e6ai only — hide-mode blacklist is folded into the 40-tag API cap (M9).
@@ -514,6 +526,7 @@ const reloadLocal = () => {
   invalidateLocalMediaIndex();
   revokeLocalBlobUrls();
   restorePath.value = null;
+  restoreFolderKey.value = null;
   restoreVideoTime.value = undefined;
   clearPosts();
   loadNextPage();
@@ -521,6 +534,7 @@ const reloadLocal = () => {
 
 const onRestored = () => {
   restorePath.value = null;
+  restoreFolderKey.value = null;
   restoreVideoTime.value = undefined;
 };
 
@@ -635,21 +649,23 @@ const loadLocalWithResume = async () => {
         toRaw(tags.value),
         toRaw(postsStore.postListFetchLimit),
       );
+  const matchesTarget = (post: { __meta?: { localPath?: string; localFolderKey?: string } }) =>
+    !!target &&
+    post.__meta?.localPath === target.path &&
+    (!("folderKey" in target) ||
+      !target.folderKey ||
+      post.__meta?.localFolderKey === target.folderKey);
   const pagesToLoad = target ? Math.max(target.page, 1) : 1;
   for (let i = 0; i < pagesToLoad; i++) {
     await loadNextPage();
-    if (
-      target &&
-      posts.value.some((post) => post.__meta?.localPath === target.path)
-    ) {
+    if (target && posts.value.some(matchesTarget)) {
       break;
     }
   }
-  if (
-    target &&
-    posts.value.some((post) => post.__meta?.localPath === target.path)
-  ) {
+  if (target && posts.value.some(matchesTarget)) {
     restorePath.value = target.path;
+    restoreFolderKey.value =
+      "folderKey" in target ? target.folderKey || null : null;
     restoreVideoTime.value =
       pendingFocus || !("videoTime" in target)
         ? undefined
@@ -798,6 +814,7 @@ const onSearchClick = debounce(async () => {
     invalidateLocalMediaIndex();
     revokeLocalBlobUrls();
     restorePath.value = null;
+    restoreFolderKey.value = null;
     restoreVideoTime.value = undefined;
   }
   clearPosts();
@@ -893,6 +910,7 @@ watch(
       invalidateLocalMediaIndex();
       revokeLocalBlobUrls();
       restorePath.value = null;
+      restoreFolderKey.value = null;
       restoreVideoTime.value = undefined;
     }
     clearPosts();
@@ -915,6 +933,7 @@ watch(
       invalidateLocalMediaIndex();
       revokeLocalBlobUrls();
       restorePath.value = null;
+      restoreFolderKey.value = null;
       restoreVideoTime.value = undefined;
     }
     clearPosts();

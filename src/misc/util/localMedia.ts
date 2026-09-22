@@ -20,8 +20,13 @@ import type { EnhancedPost } from "@/worker/ApiService";
 import type { PostTags } from "@/worker/api";
 import localforage from "localforage";
 
+/** Legacy single-folder keys (migrated on first read). */
 const LOCAL_DIR_HANDLE_KEY = "local_mode_dir_handle";
 const LOCAL_TAURI_ROOT_KEY = "local_mode_tauri_root";
+/** Multi-folder Chromium handles. */
+const LOCAL_DIR_HANDLES_KEY = "local_mode_dir_handles";
+/** Multi-folder Tauri roots. */
+const LOCAL_TAURI_ROOTS_KEY = "local_mode_tauri_roots";
 
 type DirectoryPickerWindow = Window & {
   showDirectoryPicker?: (options?: {
@@ -30,62 +35,300 @@ type DirectoryPickerWindow = Window & {
   }) => Promise<FileSystemDirectoryHandle>;
 };
 
-let tauriRootPath: string | null = null;
-
-export const getTauriLocalRoot = async (): Promise<string | null> => {
-  if (tauriRootPath) return tauriRootPath;
-  try {
-    const stored = await localforage.getItem<string>(LOCAL_TAURI_ROOT_KEY);
-    tauriRootPath = stored || null;
-    return tauriRootPath;
-  } catch {
-    return null;
-  }
+type StoredHandleEntry = {
+  label: string;
+  handle: FileSystemDirectoryHandle;
 };
 
-const setTauriLocalRoot = async (root: string | null) => {
-  tauriRootPath = root;
-  if (root) {
-    await localforage.setItem(LOCAL_TAURI_ROOT_KEY, root);
+type StoredTauriRoot = {
+  label: string;
+  path: string;
+};
+
+export type BrowseRoot = {
+  folderKey: string;
+  label: string;
+  handle?: FileSystemDirectoryHandle;
+  tauriPath?: string;
+};
+
+const browseRootsByKey = new Map<string, BrowseRoot>();
+let extraTagsByFolder: Record<string, Record<string, string[]>> = {};
+let favoritedByFolder: Record<string, Set<string>> = {};
+let posterMetaByFolder: Record<string, Record<string, PosterMeta>> = {};
+
+const normalizeFsPath = (path: string) =>
+  path.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+
+const syncLabelsToStore = () => {
+  usePostsStore().localDirectoryNames = [...browseRootsByKey.values()].map(
+    (root) => root.label,
+  );
+};
+
+export const listLocalDirectoryNames = (): string[] =>
+  [...browseRootsByKey.values()].map((root) => root.label);
+
+const uniqueLabel = (base: string, existing: Iterable<string>) => {
+  const taken = new Set(
+    [...existing].map((label) => label.toLowerCase()),
+  );
+  if (!taken.has(base.toLowerCase())) return base;
+  let n = 2;
+  while (taken.has(`${base} (${n})`.toLowerCase())) n += 1;
+  return `${base} (${n})`;
+};
+
+const persistHandleList = async (entries: StoredHandleEntry[]) => {
+  if (entries.length) {
+    await localforage.setItem(LOCAL_DIR_HANDLES_KEY, entries);
   } else {
-    await localforage.removeItem(LOCAL_TAURI_ROOT_KEY);
+    await localforage.removeItem(LOCAL_DIR_HANDLES_KEY);
   }
-};
-
-/** Reuse a Tauri path as the Local browse root (e.g. after Save Locally). */
-export const setLocalDirectoryFromTauriRoot = async (root: string) => {
   await localforage.removeItem(LOCAL_DIR_HANDLE_KEY);
-  await setTauriLocalRoot(root);
-  browseRoot = null;
-  usePostsStore().localDirectoryName = tauriRootDisplayName(root);
-  invalidateLocalMediaIndex();
 };
 
-export const getLocalDirectoryHandle = async (): Promise<FileSystemDirectoryHandle | null> => {
+const persistTauriRoots = async (entries: StoredTauriRoot[]) => {
+  if (entries.length) {
+    await localforage.setItem(LOCAL_TAURI_ROOTS_KEY, entries);
+  } else {
+    await localforage.removeItem(LOCAL_TAURI_ROOTS_KEY);
+  }
+  await localforage.removeItem(LOCAL_TAURI_ROOT_KEY);
+};
+
+const persistBrowseRoots = async () => {
+  const handles: StoredHandleEntry[] = [];
+  const tauri: StoredTauriRoot[] = [];
+  for (const root of browseRootsByKey.values()) {
+    if (root.handle) {
+      handles.push({ label: root.label, handle: root.handle });
+    } else if (root.tauriPath) {
+      tauri.push({ label: root.label, path: root.tauriPath });
+    }
+  }
+  await persistHandleList(handles);
+  await persistTauriRoots(tauri);
+  syncLabelsToStore();
+};
+
+/** Load persisted roots into browseRootsByKey (resolves folder keys). */
+const ensureBrowseRootsLoaded = async (): Promise<void> => {
+  if (browseRootsByKey.size) return;
+
   try {
-    const handle = await localforage.getItem<FileSystemDirectoryHandle>(
-      LOCAL_DIR_HANDLE_KEY,
-    );
-    return handle || null;
+    let handles =
+      (await localforage.getItem<StoredHandleEntry[]>(LOCAL_DIR_HANDLES_KEY)) ||
+      [];
+    if (!handles.length) {
+      const legacy = await localforage.getItem<FileSystemDirectoryHandle>(
+        LOCAL_DIR_HANDLE_KEY,
+      );
+      if (legacy) {
+        handles = [{ label: legacy.name, handle: legacy }];
+        await persistHandleList(handles);
+      }
+    }
+    for (const entry of handles) {
+      if (!entry?.handle) continue;
+      const folderKey = await resolveFolderKey(entry.handle);
+      browseRootsByKey.set(folderKey, {
+        folderKey,
+        label: entry.label || entry.handle.name,
+        handle: entry.handle,
+      });
+    }
   } catch {
+    // ignore handle load errors
+  }
+
+  try {
+    let roots =
+      (await localforage.getItem<StoredTauriRoot[]>(LOCAL_TAURI_ROOTS_KEY)) ||
+      [];
+    if (!roots.length) {
+      const legacy = await localforage.getItem<string>(LOCAL_TAURI_ROOT_KEY);
+      if (legacy) {
+        roots = [{ label: tauriRootDisplayName(legacy), path: legacy }];
+        await persistTauriRoots(roots);
+      }
+    }
+    for (const entry of roots) {
+      if (!entry?.path) continue;
+      const folderKey = `path:${hashLocalPath(entry.path)}`;
+      browseRootsByKey.set(folderKey, {
+        folderKey,
+        label: entry.label || tauriRootDisplayName(entry.path),
+        tauriPath: entry.path,
+      });
+    }
+  } catch {
+    // ignore tauri load errors
+  }
+
+  syncLabelsToStore();
+};
+
+export const getTauriLocalRoots = async (): Promise<StoredTauriRoot[]> => {
+  await ensureBrowseRootsLoaded();
+  return [...browseRootsByKey.values()]
+    .filter((root) => root.tauriPath)
+    .map((root) => ({ label: root.label, path: root.tauriPath! }));
+};
+
+/** First Tauri browse root path (Save Locally target). */
+export const getTauriLocalRoot = async (): Promise<string | null> => {
+  const roots = await getTauriLocalRoots();
+  return roots[0]?.path || null;
+};
+
+export const getLocalDirectoryHandles = async (): Promise<
+  StoredHandleEntry[]
+> => {
+  await ensureBrowseRootsLoaded();
+  return [...browseRootsByKey.values()]
+    .filter((root) => root.handle)
+    .map((root) => ({ label: root.label, handle: root.handle! }));
+};
+
+/** First Chromium handle (compat). */
+export const getLocalDirectoryHandle = async (): Promise<
+  FileSystemDirectoryHandle | null
+> => {
+  const handles = await getLocalDirectoryHandles();
+  return handles[0]?.handle || null;
+};
+
+const isDuplicateHandle = async (
+  handle: FileSystemDirectoryHandle,
+): Promise<boolean> => {
+  for (const root of browseRootsByKey.values()) {
+    if (!root.handle) continue;
+    try {
+      if (await root.handle.isSameEntry(handle)) return true;
+    } catch {
+      // ignore
+    }
+  }
+  return false;
+};
+
+const isDuplicateTauriPath = (path: string): boolean => {
+  const needle = normalizeFsPath(path);
+  for (const root of browseRootsByKey.values()) {
+    if (root.tauriPath && normalizeFsPath(root.tauriPath) === needle) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const addHandleRoot = async (
+  handle: FileSystemDirectoryHandle,
+  opts?: { replaceAll?: boolean },
+): Promise<BrowseRoot | null> => {
+  await ensureBrowseRootsLoaded();
+  if (opts?.replaceAll) {
+    browseRootsByKey.clear();
+  } else if (await isDuplicateHandle(handle)) {
     return null;
   }
+  // Open in Local / replace drops Tauri roots too.
+  if (opts?.replaceAll) {
+    // already cleared
+  } else {
+    // Adding a Chromium handle while Tauri roots exist is allowed (rare).
+  }
+  const folderKey = await resolveFolderKey(handle);
+  const label = uniqueLabel(
+    handle.name,
+    [...browseRootsByKey.values()].map((r) => r.label),
+  );
+  const root: BrowseRoot = { folderKey, label, handle };
+  browseRootsByKey.set(folderKey, root);
+  await persistBrowseRoots();
+  invalidateLocalMediaIndex();
+  return root;
+};
+
+const addTauriRoot = async (
+  path: string,
+  opts?: { replaceAll?: boolean },
+): Promise<BrowseRoot | null> => {
+  await ensureBrowseRootsLoaded();
+  if (opts?.replaceAll) {
+    browseRootsByKey.clear();
+  } else if (isDuplicateTauriPath(path)) {
+    return null;
+  }
+  const folderKey = `path:${hashLocalPath(path)}`;
+  const base = tauriRootDisplayName(path);
+  const label = uniqueLabel(
+    base,
+    [...browseRootsByKey.values()].map((r) => r.label),
+  );
+  const root: BrowseRoot = { folderKey, label, tauriPath: path };
+  browseRootsByKey.set(folderKey, root);
+  await persistBrowseRoots();
+  invalidateLocalMediaIndex();
+  return root;
+};
+
+/** Reuse a Tauri path as the sole Local browse root (e.g. after Save Locally). */
+export const setLocalDirectoryFromTauriRoot = async (root: string) => {
+  await addTauriRoot(root, { replaceAll: true });
+};
+
+/** Reuse an existing directory handle as the sole Local browse root. */
+export const setLocalDirectoryFromHandle = async (
+  handle: FileSystemDirectoryHandle,
+) => {
+  await addHandleRoot(handle, { replaceAll: true });
 };
 
 export const clearLocalDirectoryHandle = async () => {
-  const previous = usePostsStore().localDirectoryName;
-  await localforage.removeItem(LOCAL_DIR_HANDLE_KEY);
-  await setTauriLocalRoot(null);
-  browseRoot = null;
-  usePostsStore().localDirectoryName = null;
-  if (previous) {
-    await clearLocalResume(previous);
+  await ensureBrowseRootsLoaded();
+  const previousKeys = [...browseRootsByKey.keys()];
+  const previousLabels = [...browseRootsByKey.values()].map((r) => r.label);
+  browseRootsByKey.clear();
+  extraTagsByFolder = {};
+  favoritedByFolder = {};
+  posterMetaByFolder = {};
+  await persistBrowseRoots();
+  for (const key of previousKeys) {
+    await clearLocalResume(key);
   }
-  favoritedPaths = new Set();
-  posterMetaByPath = {};
+  for (const label of previousLabels) {
+    await clearLocalResume(label);
+  }
   invalidateLocalMediaIndex();
 };
 
+export const removeLocalDirectory = async (labelOrKey: string) => {
+  await ensureBrowseRootsLoaded();
+  const needle = labelOrKey.toLowerCase();
+  let removed: BrowseRoot | null = null;
+  for (const [key, root] of browseRootsByKey) {
+    if (
+      key === labelOrKey ||
+      root.label.toLowerCase() === needle ||
+      root.folderKey.toLowerCase() === needle
+    ) {
+      removed = root;
+      browseRootsByKey.delete(key);
+      delete extraTagsByFolder[key];
+      delete favoritedByFolder[key];
+      delete posterMetaByFolder[key];
+      break;
+    }
+  }
+  if (!removed) return;
+  await persistBrowseRoots();
+  await clearLocalResume(removed.folderKey);
+  invalidateLocalMediaIndex();
+};
+
+/** Add a folder to the browse list (does not replace). */
 export const pickLocalDirectory = async () => {
   if (supportsDirectoryPicker()) {
     const picker = (window as DirectoryPickerWindow).showDirectoryPicker;
@@ -93,33 +336,25 @@ export const pickLocalDirectory = async () => {
       throw new Error("Folder picker is not supported in this browser");
     }
     const handle = await picker({ id: "me621-local-browse", mode: "readwrite" });
-    await localforage.setItem(LOCAL_DIR_HANDLE_KEY, handle);
-    await setTauriLocalRoot(null);
-    usePostsStore().localDirectoryName = handle.name;
-    invalidateLocalMediaIndex();
+    const added = await addHandleRoot(handle);
+    if (!added) {
+      throw new Error("That folder is already in the Local browse list");
+    }
     return handle;
   }
   if (isTauriShell()) {
     const root = await tauriPickLocalFolder();
     if (!root) throw new Error("No folder selected");
-    await localforage.removeItem(LOCAL_DIR_HANDLE_KEY);
-    await setTauriLocalRoot(root);
-    usePostsStore().localDirectoryName = tauriRootDisplayName(root);
-    invalidateLocalMediaIndex();
+    const added = await addTauriRoot(root);
+    if (!added) {
+      throw new Error("That folder is already in the Local browse list");
+    }
     return null;
   }
   throw new Error("Folder picker is not supported in this browser");
 };
 
-/** Reuse an existing directory handle as the Local browse root (e.g. Save Locally folder). */
-export const setLocalDirectoryFromHandle = async (
-  handle: FileSystemDirectoryHandle,
-) => {
-  await localforage.setItem(LOCAL_DIR_HANDLE_KEY, handle);
-  await setTauriLocalRoot(null);
-  usePostsStore().localDirectoryName = handle.name;
-  invalidateLocalMediaIndex();
-};
+export const addLocalDirectory = pickLocalDirectory;
 
 /** One-shot path focus after switching into Local (not persisted). */
 let pendingLocalFocusPath: string | null = null;
@@ -139,7 +374,7 @@ export const findLocalPathTarget = async (
   relativePath: string,
   tags: string[],
   limit: number,
-): Promise<{ path: string; page: number } | null> => {
+): Promise<{ path: string; page: number; folderKey?: string } | null> => {
   const path = relativePath.replace(/^\/+/, "");
   if (!path) return null;
   const scanned = await scanLocalMedia(false);
@@ -148,9 +383,11 @@ export const findLocalPathTarget = async (
   const ordered = orderLocalMedia(filtered, tags, false);
   const index = ordered.findIndex((entry) => entry.relativePath === path);
   if (index < 0) return null;
+  const entry = ordered[index]!;
   return {
     path,
     page: Math.floor(index / Math.max(1, limit)) + 1,
+    folderKey: entry.folderKey,
   };
 };
 
@@ -173,8 +410,12 @@ export interface LocalMediaEntry {
   artistTags: string[];
   generalTags: string[];
   extraTags: string[];
+  folderKey: string;
+  folderLabel: string;
   /** Chromium File System Access handle; absent in Tauri path mode. */
   handle?: FileSystemFileHandle;
+  /** Absolute Tauri root path when browsing via desktop shell. */
+  tauriRoot?: string;
 }
 
 export type LocalMediaStatus =
@@ -185,18 +426,16 @@ export type LocalMediaStatus =
   | "empty";
 
 let cachedIndex: LocalMediaEntry[] | null = null;
-let cachedRootName: string | null = null;
-/** Stable per-folder id (sidecar UUID); not just display name (H19). */
-let cachedFolderKey: string | null = null;
+let cachedRootsKey: string | null = null;
+/** Labels skipped on the last full scan due to permission errors. */
+let lastScanDeniedLabels: string[] = [];
+
+export const getLastScanDeniedLabels = (): string[] => [...lastScanDeniedLabels];
 let cachedOrdered: LocalMediaEntry[] | null = null;
 let cachedOrderKey = "";
-let browseRoot: FileSystemDirectoryHandle | null = null;
-let extraTagsByPath: Record<string, string[]> = {};
-let posterMetaByPath: Record<string, PosterMeta> = {};
-let favoritedPaths = new Set<string>();
 const blobUrls = new Map<number, string>();
 const posterUrls = new Map<number, string>();
-/** path → numeric id; avoids hash collisions sharing blob/poster slots (M29). */
+/** pathKey → numeric id; avoids hash collisions sharing blob/poster slots (M29). */
 const pathToId = new Map<string, number>();
 const idToPath = new Map<number, string>();
 const EXTRA_TAGS_KEY = "local_mode_extra_tags";
@@ -231,8 +470,8 @@ type LibrarySidecar = {
   resume?: LocalResumeState | null;
 };
 
-const folderName = () => cachedRootName || browseRoot?.name || null;
-const folderKey = () => cachedFolderKey || folderName();
+const rootsCacheKey = () =>
+  [...browseRootsByKey.keys()].sort().join("\0");
 
 const newFolderId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -290,17 +529,21 @@ export const hashLocalPath = (path: string, salt = 0) => {
   return (hash >>> 0) % 0x7fffffff || 1;
 };
 
-const idForPath = (path: string) => {
-  const existing = pathToId.get(path);
+const pathIdKey = (folderKey: string, relativePath: string) =>
+  `${folderKey}\0${relativePath}`;
+
+const idForPath = (folderKey: string, path: string) => {
+  const key = pathIdKey(folderKey, path);
+  const existing = pathToId.get(key);
   if (existing != null) return existing;
   let salt = 0;
-  let id = hashLocalPath(path, salt);
-  while (idToPath.has(id) && idToPath.get(id) !== path) {
+  let id = hashLocalPath(key, salt);
+  while (idToPath.has(id) && idToPath.get(id) !== key) {
     salt += 1;
-    id = hashLocalPath(path, salt);
+    id = hashLocalPath(key, salt);
   }
-  pathToId.set(path, id);
-  idToPath.set(id, path);
+  pathToId.set(key, id);
+  idToPath.set(id, key);
   return id;
 };
 
@@ -382,19 +625,32 @@ const kindTagFor = (kind: LocalMediaKind) => {
 const kindTagsFor = (kind: LocalMediaKind, playable: boolean) =>
   uniqueTags([kindTagFor(kind), playable ? "" : "type:unplayable"]);
 
+const folderMetaTag = (label: string) => `folder:${label}`;
+
+const isFavorited = (folderKey: string, relativePath: string) =>
+  favoritedByFolder[folderKey]?.has(relativePath) ?? false;
+
 const tagsForEntry = (entry: LocalMediaEntry) =>
   uniqueTags([
     ...entry.artistTags,
     ...entry.generalTags,
     ...kindTagsFor(entry.kind, entry.playable),
-    ...(favoritedPaths.has(entry.relativePath) ? ["type:favorited"] : []),
+    folderMetaTag(entry.folderLabel),
+    ...(isFavorited(entry.folderKey, entry.relativePath)
+      ? ["type:favorited"]
+      : []),
   ]);
+
+const fuzzyableTags = (tags: string[]) =>
+  tags.filter((tag) => !tag.toLowerCase().startsWith("folder:"));
 
 const walkDirectory = async (
   dir: FileSystemDirectoryHandle,
   prefix: string,
   out: LocalMediaEntry[],
+  root: BrowseRoot,
 ) => {
+  const extrasForFolder = extraTagsByFolder[root.folderKey] || {};
   for await (const [name, handle] of (dir as DirectoryWalker).entries()) {
     if (handle.kind === "directory") {
       if (name.startsWith(".")) continue;
@@ -402,6 +658,7 @@ const walkDirectory = async (
         handle as FileSystemDirectoryHandle,
         prefix ? `${prefix}/${name}` : name,
         out,
+        root,
       );
       continue;
     }
@@ -419,10 +676,10 @@ const walkDirectory = async (
         : "video";
     const playable = await resolvePlayable(file, ext);
     const parsed = parseLocalTags(relativePath);
-    const extraTags = extraTagsByPath[relativePath] || [];
+    const extraTags = extrasForFolder[relativePath] || [];
     const generalTags = uniqueTags([...parsed.generalTags, ...extraTags]);
     const typeTags = kindTagsFor(kind, playable);
-    out.push({
+    const entry: LocalMediaEntry = {
       relativePath,
       name,
       ext,
@@ -430,24 +687,28 @@ const walkDirectory = async (
       lastModified: file.lastModified,
       kind,
       playable,
-      tags: uniqueTags([
-        ...parsed.artistTags,
-        ...generalTags,
-        ...typeTags,
-        ...(favoritedPaths.has(relativePath) ? ["type:favorited"] : []),
-      ]),
       artistTags: parsed.artistTags,
       generalTags,
       extraTags,
+      folderKey: root.folderKey,
+      folderLabel: root.label,
       handle: fileHandle,
-    });
+      tags: [],
+    };
+    entry.tags = uniqueTags([
+      ...parsed.artistTags,
+      ...generalTags,
+      ...typeTags,
+      folderMetaTag(root.label),
+      ...(isFavorited(root.folderKey, relativePath) ? ["type:favorited"] : []),
+    ]);
+    out.push(entry);
   }
 };
 
 export const invalidateLocalMediaIndex = () => {
   cachedIndex = null;
-  cachedRootName = null;
-  cachedFolderKey = null;
+  cachedRootsKey = null;
   cachedOrdered = null;
   cachedOrderKey = "";
   pathToId.clear();
@@ -502,34 +763,6 @@ const readSidecar = async (
   }
 };
 
-const writeSidecar = async () => {
-  const tauriRoot = await getTauriLocalRoot();
-  if (tauriRoot && isTauriShell()) {
-    try {
-      const body = `${JSON.stringify(extraTagsByPath, null, 2)}\n`;
-      await tauriWriteLocalFile(
-        tauriRoot,
-        SIDECAR_NAME,
-        new TextEncoder().encode(body),
-      );
-    } catch {
-      // Folder may be read-only; localforage still has the tags.
-    }
-    return;
-  }
-  if (!browseRoot) return;
-  try {
-    const writableHandle = await browseRoot.getFileHandle(SIDECAR_NAME, {
-      create: true,
-    });
-    const writable = await writableHandle.createWritable();
-    await writable.write(`${JSON.stringify(extraTagsByPath, null, 2)}\n`);
-    await writable.close();
-  } catch {
-    // Folder may be read-only; localforage still has the tags.
-  }
-};
-
 const writeSidecarToRoot = async (
   root: FileSystemDirectoryHandle,
   tagsByPath: Record<string, string[]>,
@@ -543,6 +776,26 @@ const writeSidecarToRoot = async (
     await writable.close();
   } catch {
     // Folder may be read-only; localforage still has the tags.
+  }
+};
+
+const writeSidecarForBrowseRoot = async (browse: BrowseRoot) => {
+  const tagsByPath = extraTagsByFolder[browse.folderKey] || {};
+  if (browse.tauriPath && isTauriShell()) {
+    try {
+      const body = `${JSON.stringify(tagsByPath, null, 2)}\n`;
+      await tauriWriteLocalFile(
+        browse.tauriPath,
+        SIDECAR_NAME,
+        new TextEncoder().encode(body),
+      );
+    } catch {
+      // Folder may be read-only; localforage still has the tags.
+    }
+    return;
+  }
+  if (browse.handle) {
+    await writeSidecarToRoot(browse.handle, tagsByPath);
   }
 };
 
@@ -606,23 +859,15 @@ export const mergeSidecarTagsForPath = async (
     await localforage.setItem(EXTRA_TAGS_KEY, all);
     await writeSidecarToRoot(root, bucket);
 
-    // Keep in-memory Local index in sync when this is the browse folder.
-    let sameAsBrowse = cachedFolderKey === key;
-    if (!sameAsBrowse && browseRoot) {
-      try {
-        sameAsBrowse = await browseRoot.isSameEntry(root);
-      } catch {
-        sameAsBrowse = false;
+    extraTagsByFolder[key] = bucket;
+    for (const entry of cachedIndex || []) {
+      if (entry.folderKey === key && entry.relativePath === relativePath) {
+        mergeExtraIntoEntry(entry);
       }
     }
-    if (sameAsBrowse) {
-      extraTagsByPath = bucket;
-      cachedFolderKey = key;
-      for (const entry of cachedIndex || []) {
-        if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
-      }
-      for (const entry of cachedOrdered || []) {
-        if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+    for (const entry of cachedOrdered || []) {
+      if (entry.folderKey === key && entry.relativePath === relativePath) {
+        mergeExtraIntoEntry(entry);
       }
     }
     return bucket[relativePath] || [];
@@ -682,15 +927,15 @@ export const mergeSidecarTagsForTauriRoot = async (
     } catch {
       /* localforage still has tags */
     }
-    const active = await getTauriLocalRoot();
-    if (active === root) {
-      extraTagsByPath = bucket;
-      cachedFolderKey = key;
-      for (const entry of cachedIndex || []) {
-        if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+    extraTagsByFolder[key] = bucket;
+    for (const entry of cachedIndex || []) {
+      if (entry.folderKey === key && entry.relativePath === relativePath) {
+        mergeExtraIntoEntry(entry);
       }
-      for (const entry of cachedOrdered || []) {
-        if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+    }
+    for (const entry of cachedOrdered || []) {
+      if (entry.folderKey === key && entry.relativePath === relativePath) {
+        mergeExtraIntoEntry(entry);
       }
     }
     return bucket[relativePath] || [];
@@ -713,78 +958,65 @@ export const flattenPostTagsForSidecar = (
 };
 
 /** Write in-memory extra tags to localforage + sidecar (caller must hold merge lock). */
-const persistExtraTagsUnlocked = async () => {
-  const key = folderKey();
-  if (!key) return;
+const persistExtraTagsUnlocked = async (folderKey: string) => {
+  if (!folderKey) return;
   const all =
     (await localforage.getItem<ExtraTagsStore>(EXTRA_TAGS_KEY)) || {};
-  all[key] = extraTagsByPath;
+  all[folderKey] = extraTagsByFolder[folderKey] || {};
   await localforage.setItem(EXTRA_TAGS_KEY, all);
-  await writeSidecar();
+  const browse = browseRootsByKey.get(folderKey);
+  if (browse) await writeSidecarForBrowseRoot(browse);
 };
 
 /** Serialize sidecar persist when called outside an existing merge lock. */
-const persistExtraTags = async () => withSidecarMergeLock(persistExtraTagsUnlocked);
+const persistExtraTags = async (folderKey: string) =>
+  withSidecarMergeLock(() => persistExtraTagsUnlocked(folderKey));
 
-const loadExtraTags = async (
-  root: FileSystemDirectoryHandle,
-  key: string,
-  legacyName: string,
-) => {
-  browseRoot = root;
-  extraTagsByPath = {};
+const loadExtraTagsForRoot = async (root: BrowseRoot) => {
+  const key = root.folderKey;
+  const legacyName = root.label;
   try {
     const all =
       (await localforage.getItem<ExtraTagsStore>(EXTRA_TAGS_KEY)) || {};
-    extraTagsByPath = { ...storeBucket(all, key, legacyName) };
+    extraTagsByFolder[key] = { ...storeBucket(all, key, legacyName) };
   } catch {
-    extraTagsByPath = {};
+    extraTagsByFolder[key] = {};
   }
-  const sidecar = await readSidecar(root);
-  if (sidecar) {
-    for (const [path, tags] of Object.entries(sidecar)) {
-      extraTagsByPath[path] = uniqueTags([
-        ...(extraTagsByPath[path] || []),
-        ...tags,
-      ]);
+  if (root.handle) {
+    const sidecar = await readSidecar(root.handle);
+    if (sidecar) {
+      for (const [path, tags] of Object.entries(sidecar)) {
+        extraTagsByFolder[key]![path] = uniqueTags([
+          ...(extraTagsByFolder[key]![path] || []),
+          ...tags,
+        ]);
+      }
+    }
+    return;
+  }
+  if (root.tauriPath && isTauriShell()) {
+    try {
+      const text = await tauriReadLocalText(root.tauriPath, SIDECAR_NAME);
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+      for (const [path, tags] of Object.entries(parsed)) {
+        if (!Array.isArray(tags)) continue;
+        extraTagsByFolder[key]![path] = uniqueTags([
+          ...(extraTagsByFolder[key]![path] || []),
+          ...tags.filter((tag): tag is string => typeof tag === "string"),
+        ]);
+      }
+    } catch {
+      // No sidecar yet or unreadable.
     }
   }
 };
 
-/** localforage + optional disk sidecar (Tauri path mode). */
-const loadExtraTagsForKey = async (key: string, legacyName: string) => {
-  browseRoot = null;
-  try {
-    const all =
-      (await localforage.getItem<ExtraTagsStore>(EXTRA_TAGS_KEY)) || {};
-    extraTagsByPath = { ...storeBucket(all, key, legacyName) };
-  } catch {
-    extraTagsByPath = {};
-  }
-  const tauriRoot = await getTauriLocalRoot();
-  if (!tauriRoot || !isTauriShell()) return;
-  try {
-    const text = await tauriReadLocalText(tauriRoot, SIDECAR_NAME);
-    const parsed = JSON.parse(text);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
-    for (const [path, tags] of Object.entries(parsed)) {
-      if (!Array.isArray(tags)) continue;
-      extraTagsByPath[path] = uniqueTags([
-        ...(extraTagsByPath[path] || []),
-        ...tags.filter((tag): tag is string => typeof tag === "string"),
-      ]);
-    }
-  } catch {
-    // No sidecar yet or unreadable.
-  }
-};
-
-const persistPosterMeta = async () => {
-  const key = folderKey();
-  if (!key) return;
+const persistPosterMeta = async (folderKey: string) => {
+  if (!folderKey) return;
   const all =
     (await localforage.getItem<PosterMetaStore>(POSTER_META_KEY)) || {};
-  all[key] = posterMetaByPath;
+  all[folderKey] = posterMetaByFolder[folderKey] || {};
   await localforage.setItem(POSTER_META_KEY, all);
 };
 
@@ -792,16 +1024,16 @@ const loadPosterMeta = async (key: string, legacyName: string) => {
   try {
     const all =
       (await localforage.getItem<PosterMetaStore>(POSTER_META_KEY)) || {};
-    posterMetaByPath = { ...storeBucket(all, key, legacyName) };
+    posterMetaByFolder[key] = { ...storeBucket(all, key, legacyName) };
   } catch {
-    posterMetaByPath = {};
+    posterMetaByFolder[key] = {};
   }
 };
 
-const getPosterDir = async (create: boolean) => {
-  if (!browseRoot) return null;
+const getPosterDir = async (browse: BrowseRoot, create: boolean) => {
+  if (!browse.handle) return null;
   try {
-    return await browseRoot.getDirectoryHandle(POSTER_DIR, { create });
+    return await browse.handle.getDirectoryHandle(POSTER_DIR, { create });
   } catch {
     return null;
   }
@@ -818,7 +1050,7 @@ const readCachedPoster = async (
   height: number;
   duration?: number;
 } | null> => {
-  const meta = posterMetaByPath[entry.relativePath];
+  const meta = posterMetaByFolder[entry.folderKey]?.[entry.relativePath];
   if (
     !meta ||
     meta.lastModified !== entry.lastModified ||
@@ -826,7 +1058,9 @@ const readCachedPoster = async (
   ) {
     return null;
   }
-  const dir = await getPosterDir(false);
+  const browse = browseRootsByKey.get(entry.folderKey);
+  if (!browse) return null;
+  const dir = await getPosterDir(browse, false);
   if (!dir) return null;
   try {
     const fileHandle = await dir.getFileHandle(posterFileName(id));
@@ -854,7 +1088,9 @@ const writeCachedPoster = async (
   try {
     const response = await fetch(posterUrl);
     const blob = await response.blob();
-    const dir = await getPosterDir(true);
+    const browse = browseRootsByKey.get(entry.folderKey);
+    if (!browse) return;
+    const dir = await getPosterDir(browse, true);
     if (!dir) return;
     const fileHandle = await dir.getFileHandle(posterFileName(id), {
       create: true,
@@ -862,14 +1098,17 @@ const writeCachedPoster = async (
     const writable = await fileHandle.createWritable();
     await writable.write(blob);
     await writable.close();
-    posterMetaByPath[entry.relativePath] = {
+    if (!posterMetaByFolder[entry.folderKey]) {
+      posterMetaByFolder[entry.folderKey] = {};
+    }
+    posterMetaByFolder[entry.folderKey]![entry.relativePath] = {
       lastModified: entry.lastModified,
       size: entry.size,
       width,
       height,
       duration: duration && duration > 0 ? duration : undefined,
     };
-    await persistPosterMeta();
+    await persistPosterMeta(entry.folderKey);
   } catch {
     // Folder may be read-only; session still has the in-memory poster.
   }
@@ -903,13 +1142,13 @@ const readFavoritesSidecarText = (text: string): string[] | null => {
   }
 };
 
-const writeFavoritesSidecar = async () => {
-  const body = `${JSON.stringify([...favoritedPaths].sort(), null, 2)}\n`;
-  const tauriRoot = await getTauriLocalRoot();
-  if (tauriRoot && isTauriShell()) {
+const writeFavoritesSidecarForRoot = async (browse: BrowseRoot) => {
+  const favs = favoritedByFolder[browse.folderKey] || new Set();
+  const body = `${JSON.stringify([...favs].sort(), null, 2)}\n`;
+  if (browse.tauriPath && isTauriShell()) {
     try {
       await tauriWriteLocalFile(
-        tauriRoot,
+        browse.tauriPath,
         FAVORITES_SIDECAR,
         new TextEncoder().encode(body),
       );
@@ -918,9 +1157,9 @@ const writeFavoritesSidecar = async () => {
     }
     return;
   }
-  if (!browseRoot) return;
+  if (!browse.handle) return;
   try {
-    const writableHandle = await browseRoot.getFileHandle(FAVORITES_SIDECAR, {
+    const writableHandle = await browse.handle.getFileHandle(FAVORITES_SIDECAR, {
       create: true,
     });
     const writable = await writableHandle.createWritable();
@@ -958,19 +1197,20 @@ const parseLibrarySidecar = (raw: unknown): LibrarySidecar | null => {
   return { version: 1, resume };
 };
 
-const readLibrarySidecar = async (): Promise<LibrarySidecar | null> => {
-  const tauriRoot = await getTauriLocalRoot();
-  if (tauriRoot && isTauriShell()) {
+const readLibrarySidecarForRoot = async (
+  browse: BrowseRoot,
+): Promise<LibrarySidecar | null> => {
+  if (browse.tauriPath && isTauriShell()) {
     try {
-      const text = await tauriReadLocalText(tauriRoot, LIBRARY_SIDECAR);
+      const text = await tauriReadLocalText(browse.tauriPath, LIBRARY_SIDECAR);
       return parseLibrarySidecar(JSON.parse(text));
     } catch {
       return null;
     }
   }
-  if (!browseRoot) return null;
+  if (!browse.handle) return null;
   try {
-    const fileHandle = await browseRoot.getFileHandle(LIBRARY_SIDECAR);
+    const fileHandle = await browse.handle.getFileHandle(LIBRARY_SIDECAR);
     const file = await fileHandle.getFile();
     return parseLibrarySidecar(JSON.parse(await file.text()));
   } catch {
@@ -978,14 +1218,16 @@ const readLibrarySidecar = async (): Promise<LibrarySidecar | null> => {
   }
 };
 
-const writeLibrarySidecar = async (resume: LocalResumeState | null) => {
+const writeLibrarySidecarForRoot = async (
+  browse: BrowseRoot,
+  resume: LocalResumeState | null,
+) => {
   const payload: LibrarySidecar = { version: 1, resume };
   const body = `${JSON.stringify(payload, null, 2)}\n`;
-  const tauriRoot = await getTauriLocalRoot();
-  if (tauriRoot && isTauriShell()) {
+  if (browse.tauriPath && isTauriShell()) {
     try {
       await tauriWriteLocalFile(
-        tauriRoot,
+        browse.tauriPath,
         LIBRARY_SIDECAR,
         new TextEncoder().encode(body),
       );
@@ -994,9 +1236,9 @@ const writeLibrarySidecar = async (resume: LocalResumeState | null) => {
     }
     return;
   }
-  if (!browseRoot) return;
+  if (!browse.handle) return;
   try {
-    const writableHandle = await browseRoot.getFileHandle(LIBRARY_SIDECAR, {
+    const writableHandle = await browse.handle.getFileHandle(LIBRARY_SIDECAR, {
       create: true,
     });
     const writable = await writableHandle.createWritable();
@@ -1007,52 +1249,40 @@ const writeLibrarySidecar = async (resume: LocalResumeState | null) => {
   }
 };
 
-const persistFavorites = async () => {
-  const key = folderKey();
-  if (!key) return;
+const persistFavorites = async (folderKey: string) => {
+  if (!folderKey) return;
   const all = (await localforage.getItem<FavoritesStore>(FAVORITES_KEY)) || {};
-  all[key] = [...favoritedPaths];
+  all[folderKey] = [...(favoritedByFolder[folderKey] || new Set())];
   await localforage.setItem(FAVORITES_KEY, all);
-  await writeFavoritesSidecar();
+  const browse = browseRootsByKey.get(folderKey);
+  if (browse) await writeFavoritesSidecarForRoot(browse);
 };
 
-const loadFavorites = async (
-  root: FileSystemDirectoryHandle,
-  key: string,
-  legacyName: string,
-) => {
-  favoritedPaths = new Set();
+const loadFavoritesForRoot = async (root: BrowseRoot) => {
+  const key = root.folderKey;
+  const legacyName = root.label;
+  favoritedByFolder[key] = new Set();
   try {
     const all = (await localforage.getItem<FavoritesStore>(FAVORITES_KEY)) || {};
     for (const path of storeBucket(all, key, legacyName) || []) {
-      favoritedPaths.add(path);
+      favoritedByFolder[key]!.add(path);
     }
   } catch {
-    favoritedPaths = new Set();
+    favoritedByFolder[key] = new Set();
   }
-  const sidecar = await readFavoritesSidecar(root);
-  if (sidecar) {
-    for (const path of sidecar) favoritedPaths.add(path);
-  }
-};
-
-const loadFavoritesForKey = async (key: string, legacyName: string) => {
-  favoritedPaths = new Set();
-  try {
-    const all = (await localforage.getItem<FavoritesStore>(FAVORITES_KEY)) || {};
-    for (const path of storeBucket(all, key, legacyName) || []) {
-      favoritedPaths.add(path);
+  if (root.handle) {
+    const sidecar = await readFavoritesSidecar(root.handle);
+    if (sidecar) {
+      for (const path of sidecar) favoritedByFolder[key]!.add(path);
     }
-  } catch {
-    favoritedPaths = new Set();
+    return;
   }
-  const tauriRoot = await getTauriLocalRoot();
-  if (tauriRoot && isTauriShell()) {
+  if (root.tauriPath && isTauriShell()) {
     try {
-      const text = await tauriReadLocalText(tauriRoot, FAVORITES_SIDECAR);
+      const text = await tauriReadLocalText(root.tauriPath, FAVORITES_SIDECAR);
       const sidecar = readFavoritesSidecarText(text);
       if (sidecar) {
-        for (const path of sidecar) favoritedPaths.add(path);
+        for (const path of sidecar) favoritedByFolder[key]!.add(path);
       }
     } catch {
       // no favorites sidecar yet
@@ -1061,15 +1291,17 @@ const loadFavoritesForKey = async (key: string, legacyName: string) => {
 };
 
 /** Prefer newer of IDB resume vs `.me621-library.json`; write winner back to IDB. */
-const mergeResumeFromLibrarySidecar = async (key: string) => {
-  const library = await readLibrarySidecar();
+const mergeResumeFromLibrarySidecar = async (
+  browse: BrowseRoot,
+) => {
+  const library = await readLibrarySidecarForRoot(browse);
   const disk = library?.resume ?? null;
   if (!disk?.path) return;
   try {
     const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
-    const existing = all[key];
+    const existing = all[browse.folderKey];
     if (!existing || (disk.savedAt || 0) >= (existing.savedAt || 0)) {
-      all[key] = disk;
+      all[browse.folderKey] = disk;
       await localforage.setItem(RESUME_KEY, all);
     }
   } catch {
@@ -1077,42 +1309,94 @@ const mergeResumeFromLibrarySidecar = async (key: string) => {
   }
 };
 
+const resolveFolderKeyArg = (
+  folderKey?: string | null,
+  relativePath?: string,
+): string | null => {
+  if (folderKey && browseRootsByKey.has(folderKey)) return folderKey;
+  if (folderKey) {
+    const byLabel = [...browseRootsByKey.values()].find(
+      (r) => r.label.toLowerCase() === folderKey.toLowerCase(),
+    );
+    if (byLabel) return byLabel.folderKey;
+    if (
+      folderKey.startsWith("id:") ||
+      folderKey.startsWith("name:") ||
+      folderKey.startsWith("path:")
+    ) {
+      return folderKey;
+    }
+  }
+  if (relativePath && cachedIndex) {
+    const matches = cachedIndex.filter((e) => e.relativePath === relativePath);
+    if (matches.length === 1) return matches[0]!.folderKey;
+  }
+  return null;
+};
+
 export const setLocalFavorite = async (
   relativePath: string,
   favorited: boolean,
+  folderKey?: string,
 ) => {
   if (!relativePath) return;
+  const key = resolveFolderKeyArg(folderKey, relativePath);
+  if (!key) {
+    throw new Error("folderKey is required when the path is ambiguous");
+  }
+  if (!favoritedByFolder[key]) favoritedByFolder[key] = new Set();
   if (favorited) {
-    favoritedPaths.add(relativePath);
+    favoritedByFolder[key]!.add(relativePath);
   } else {
-    favoritedPaths.delete(relativePath);
+    favoritedByFolder[key]!.delete(relativePath);
   }
   for (const entry of cachedIndex || []) {
-    if (entry.relativePath === relativePath) {
+    if (entry.folderKey === key && entry.relativePath === relativePath) {
       entry.tags = tagsForEntry(entry);
     }
   }
   for (const entry of cachedOrdered || []) {
-    if (entry.relativePath === relativePath) {
+    if (entry.folderKey === key && entry.relativePath === relativePath) {
       entry.tags = tagsForEntry(entry);
     }
   }
-  await persistFavorites();
+  await persistFavorites(key);
 };
 
-export const isLocalFavorited = (relativePath: string) =>
-  favoritedPaths.has(relativePath);
+export const isLocalFavorited = (relativePath: string, folderKey?: string) => {
+  const key = resolveFolderKeyArg(folderKey, relativePath);
+  if (!key) return false;
+  return favoritedByFolder[key]?.has(relativePath) ?? false;
+};
+
+const normalizeResumeKey = (folderOverride?: string | null): string | null => {
+  if (!folderOverride) return null;
+  if (
+    folderOverride.startsWith("id:") ||
+    folderOverride.startsWith("name:") ||
+    folderOverride.startsWith("path:")
+  ) {
+    return folderOverride;
+  }
+  const byKey = browseRootsByKey.get(folderOverride);
+  if (byKey) return byKey.folderKey;
+  const byLabel = [...browseRootsByKey.values()].find(
+    (r) => r.label.toLowerCase() === folderOverride.toLowerCase(),
+  );
+  if (byLabel) return byLabel.folderKey;
+  return `name:${folderOverride}`;
+};
 
 export const saveLocalResume = async (
   path: string,
   videoTime?: number,
   folderOverride?: string | null,
 ) => {
-  const key = folderOverride
-    ? folderOverride.startsWith("id:") || folderOverride.startsWith("name:")
-      ? folderOverride
-      : `name:${folderOverride}`
-    : folderKey();
+  await ensureBrowseRootsLoaded();
+  const key =
+    normalizeResumeKey(folderOverride) ||
+    [...browseRootsByKey.keys()][0] ||
+    null;
   if (!key || !path) return;
   const state: LocalResumeState = {
     path,
@@ -1125,37 +1409,62 @@ export const saveLocalResume = async (
   const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
   all[key] = state;
   await localforage.setItem(RESUME_KEY, all);
-  await writeLibrarySidecar(state);
+  const browse = browseRootsByKey.get(key);
+  if (browse) await writeLibrarySidecarForRoot(browse, state);
 };
 
-export const getLocalResume = async (
-  folderOverride?: string | null,
+const resumeForKey = async (
+  key: string,
+  legacyName: string,
 ): Promise<LocalResumeState | null> => {
-  const displayName = usePostsStore().localDirectoryName;
-  const key = folderOverride
-    ? folderOverride.startsWith("id:") || folderOverride.startsWith("name:")
-      ? folderOverride
-      : `name:${folderOverride}`
-    : folderKey() || (displayName ? `name:${displayName}` : null);
-  if (!key) return null;
-  const legacyName =
-    key.startsWith("name:") ? key.slice(5) : folderName() || displayName || "";
-  await mergeResumeFromLibrarySidecar(key);
+  const browse = browseRootsByKey.get(key);
+  if (browse) await mergeResumeFromLibrarySidecar(browse);
   try {
     const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
-    return storeBucket(all, key, legacyName) || (legacyName ? all[legacyName] : null) || null;
+    return (
+      storeBucket(all, key, legacyName) ||
+      (legacyName ? all[legacyName] : null) ||
+      null
+    );
   } catch {
     return null;
   }
 };
 
+export const getLocalResume = async (
+  folderOverride?: string | null,
+): Promise<LocalResumeState | null> => {
+  await ensureBrowseRootsLoaded();
+  const overrideKey = normalizeResumeKey(folderOverride);
+  if (overrideKey) {
+    const browse = browseRootsByKey.get(overrideKey);
+    const legacy =
+      browse?.label ||
+      (overrideKey.startsWith("name:") ? overrideKey.slice(5) : "");
+    return resumeForKey(overrideKey, legacy);
+  }
+  let best: LocalResumeState | null = null;
+  for (const root of browseRootsByKey.values()) {
+    const state = await resumeForKey(root.folderKey, root.label);
+    if (!state?.path) continue;
+    if (!best || (state.savedAt || 0) > (best.savedAt || 0)) {
+      best = state;
+    }
+  }
+  return best;
+};
+
 export const clearLocalResume = async (folderOverride?: string | null) => {
-  const raw = folderOverride || folderKey() || folderName();
+  await ensureBrowseRootsLoaded();
+  const raw =
+    normalizeResumeKey(folderOverride) ||
+    [...browseRootsByKey.keys()][0] ||
+    null;
   if (!raw) return;
   try {
     const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
     const keys = new Set<string>([raw]);
-    if (!raw.startsWith("id:") && !raw.startsWith("name:")) {
+    if (!raw.startsWith("id:") && !raw.startsWith("name:") && !raw.startsWith("path:")) {
       keys.add(`name:${raw}`);
     }
     let changed = false;
@@ -1169,7 +1478,21 @@ export const clearLocalResume = async (folderOverride?: string | null) => {
   } catch {
     // ignore
   }
-  await writeLibrarySidecar(null);
+  const browse = browseRootsByKey.get(raw);
+  if (browse) await writeLibrarySidecarForRoot(browse, null);
+};
+
+const extractPositiveFolderLabels = (tags: string[]): string[] => {
+  const labels: string[] = [];
+  for (const raw of tags) {
+    const term = raw.trim().toLowerCase();
+    if (!term || term.startsWith("-") || term.startsWith("order:")) continue;
+    if (term.startsWith("folder:")) {
+      const label = term.slice("folder:".length).trim();
+      if (label) labels.push(label);
+    }
+  }
+  return labels;
 };
 
 export const findLocalResumeTarget = async (
@@ -1177,26 +1500,60 @@ export const findLocalResumeTarget = async (
   limit: number,
 ): Promise<{
   path: string;
+  folderKey?: string;
   videoTime?: number;
   page: number;
 } | null> => {
-  const resume = await getLocalResume();
+  await ensureBrowseRootsLoaded();
+  const folderLabels = extractPositiveFolderLabels(tags);
+  let resume: LocalResumeState | null = null;
+  let resumeFolderKey: string | undefined;
+  if (folderLabels.length === 1) {
+    const label = folderLabels[0]!;
+    const root = [...browseRootsByKey.values()].find(
+      (r) => r.label.toLowerCase() === label,
+    );
+    if (root) {
+      resume = await getLocalResume(root.folderKey);
+      resumeFolderKey = root.folderKey;
+    } else {
+      resume = await getLocalResume(`name:${label}`);
+    }
+  } else {
+    // Newest among current folders; track which folder owned it.
+    let bestSavedAt = -1;
+    for (const root of browseRootsByKey.values()) {
+      const state = await getLocalResume(root.folderKey);
+      if (!state?.path) continue;
+      if ((state.savedAt || 0) > bestSavedAt) {
+        bestSavedAt = state.savedAt || 0;
+        resume = state;
+        resumeFolderKey = root.folderKey;
+      }
+    }
+  }
   if (!resume?.path) return null;
   const scanned = await scanLocalMedia(false);
   if (scanned.status !== "ok" && scanned.status !== "empty") return null;
   const filtered = filterLocalMedia(scanned.entries, tags);
   const ordered = orderLocalMedia(filtered, tags, false);
-  const index = ordered.findIndex((entry) => entry.relativePath === resume.path);
+  const index = ordered.findIndex(
+    (entry) =>
+      entry.relativePath === resume!.path &&
+      (!resumeFolderKey || entry.folderKey === resumeFolderKey),
+  );
   if (index < 0) return null;
+  const hit = ordered[index]!;
   return {
     path: resume.path,
+    folderKey: hit.folderKey,
     videoTime: resume.videoTime,
     page: Math.floor(index / Math.max(1, limit)) + 1,
   };
 };
 
 const mergeExtraIntoEntry = (entry: LocalMediaEntry) => {
-  const extras = extraTagsByPath[entry.relativePath] || [];
+  const extras = extraTagsByFolder[entry.folderKey]?.[entry.relativePath] || [];
   const parsed = parseLocalTags(entry.relativePath);
   entry.extraTags = extras;
   entry.artistTags = parsed.artistTags;
@@ -1204,7 +1561,13 @@ const mergeExtraIntoEntry = (entry: LocalMediaEntry) => {
   entry.tags = tagsForEntry(entry);
 };
 
-export const addLocalTags = async (relativePath: string, raw: string) => {
+export const addLocalTags = async (
+  relativePath: string,
+  raw: string,
+  folderKey?: string,
+) => {
+  const key = resolveFolderKeyArg(folderKey, relativePath);
+  if (!key) throw new Error("folderKey is required when the path is ambiguous");
   const added = uniqueTags(
     raw
       .split(/\s+/)
@@ -1213,37 +1576,133 @@ export const addLocalTags = async (relativePath: string, raw: string) => {
   );
   if (!added.length) return [] as string[];
   return withSidecarMergeLock(async () => {
-    extraTagsByPath[relativePath] = uniqueTags([
-      ...(extraTagsByPath[relativePath] || []),
+    if (!extraTagsByFolder[key]) extraTagsByFolder[key] = {};
+    extraTagsByFolder[key]![relativePath] = uniqueTags([
+      ...(extraTagsByFolder[key]![relativePath] || []),
       ...added,
     ]);
     for (const entry of cachedIndex || []) {
-      if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+      if (entry.folderKey === key && entry.relativePath === relativePath) {
+        mergeExtraIntoEntry(entry);
+      }
     }
     for (const entry of cachedOrdered || []) {
-      if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+      if (entry.folderKey === key && entry.relativePath === relativePath) {
+        mergeExtraIntoEntry(entry);
+      }
     }
-    await persistExtraTagsUnlocked();
-    return extraTagsByPath[relativePath] || [];
+    await persistExtraTagsUnlocked(key);
+    return extraTagsByFolder[key]![relativePath] || [];
   });
 };
 
-export const removeLocalTag = async (relativePath: string, tag: string) => {
+export const removeLocalTag = async (
+  relativePath: string,
+  tag: string,
+  folderKey?: string,
+) => {
+  const key = resolveFolderKeyArg(folderKey, relativePath);
+  if (!key) throw new Error("folderKey is required when the path is ambiguous");
   return withSidecarMergeLock(async () => {
-    const current = extraTagsByPath[relativePath] || [];
-    extraTagsByPath[relativePath] = current.filter((name) => name !== tag);
-    if (!extraTagsByPath[relativePath].length) {
-      delete extraTagsByPath[relativePath];
+    if (!extraTagsByFolder[key]) extraTagsByFolder[key] = {};
+    const current = extraTagsByFolder[key]![relativePath] || [];
+    extraTagsByFolder[key]![relativePath] = current.filter((name) => name !== tag);
+    if (!extraTagsByFolder[key]![relativePath]!.length) {
+      delete extraTagsByFolder[key]![relativePath];
     }
     for (const entry of cachedIndex || []) {
-      if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+      if (entry.folderKey === key && entry.relativePath === relativePath) {
+        mergeExtraIntoEntry(entry);
+      }
     }
     for (const entry of cachedOrdered || []) {
-      if (entry.relativePath === relativePath) mergeExtraIntoEntry(entry);
+      if (entry.folderKey === key && entry.relativePath === relativePath) {
+        mergeExtraIntoEntry(entry);
+      }
     }
-    await persistExtraTagsUnlocked();
-    return extraTagsByPath[relativePath] || [];
+    await persistExtraTagsUnlocked(key);
+    return extraTagsByFolder[key]![relativePath] || [];
   });
+};
+
+const scanOneRoot = async (
+  root: BrowseRoot,
+): Promise<{ entries: LocalMediaEntry[]; denied: boolean }> => {
+  await loadExtraTagsForRoot(root);
+  await loadPosterMeta(root.folderKey, root.label);
+  await loadFavoritesForRoot(root);
+  await mergeResumeFromLibrarySidecar(root);
+
+  if (root.tauriPath && isTauriShell()) {
+    const listed = await tauriListLocalMedia(root.tauriPath);
+    const extras = extraTagsByFolder[root.folderKey] || {};
+    const entries: LocalMediaEntry[] = listed.map((row) => {
+      const playable =
+        typeof row.playable === "boolean"
+          ? row.playable
+          : resolvePlayableExt(row.ext);
+      const parsed = parseLocalTags(row.relativePath);
+      const extraTags = extras[row.relativePath] || [];
+      const generalTags = uniqueTags([...parsed.generalTags, ...extraTags]);
+      const kind = row.kind;
+      const entry: LocalMediaEntry = {
+        relativePath: row.relativePath,
+        name: row.name,
+        ext: row.ext,
+        size: row.size,
+        lastModified: row.lastModified,
+        kind,
+        playable,
+        artistTags: parsed.artistTags,
+        generalTags,
+        extraTags,
+        folderKey: root.folderKey,
+        folderLabel: root.label,
+        tauriRoot: root.tauriPath,
+        tags: [],
+      };
+      entry.tags = uniqueTags([
+        ...parsed.artistTags,
+        ...generalTags,
+        ...kindTagsFor(kind, playable),
+        folderMetaTag(root.label),
+        ...(isFavorited(root.folderKey, row.relativePath)
+          ? ["type:favorited"]
+          : []),
+      ]);
+      return entry;
+    });
+    const posters = posterMetaByFolder[root.folderKey] || {};
+    for (const entry of entries) {
+      const meta = posters[entry.relativePath];
+      if (
+        meta?.duration &&
+        meta.lastModified === entry.lastModified &&
+        meta.size === entry.size
+      ) {
+        entry.duration = meta.duration;
+      }
+    }
+    return { entries, denied: false };
+  }
+
+  if (!root.handle) return { entries: [], denied: false };
+  const allowed = await ensurePermission(root.handle, "read");
+  if (!allowed) return { entries: [], denied: true };
+  const entries: LocalMediaEntry[] = [];
+  await walkDirectory(root.handle, "", entries, root);
+  const posters = posterMetaByFolder[root.folderKey] || {};
+  for (const entry of entries) {
+    const meta = posters[entry.relativePath];
+    if (
+      meta?.duration &&
+      meta.lastModified === entry.lastModified &&
+      meta.size === entry.size
+    ) {
+      entry.duration = meta.duration;
+    }
+  }
+  return { entries, denied: false };
 };
 
 export const scanLocalMedia = async (
@@ -1253,111 +1712,48 @@ export const scanLocalMedia = async (
     return { entries: [], status: "no-picker" };
   }
 
-  const tauriRoot = await getTauriLocalRoot();
-  if (tauriRoot && isTauriShell()) {
-    const displayName = tauriRootDisplayName(tauriRoot);
-    const key = `path:${hashLocalPath(tauriRoot)}`;
-    cachedFolderKey = key;
-    browseRoot = null;
-    await loadExtraTagsForKey(key, displayName);
-    await loadPosterMeta(key, displayName);
-    await loadFavoritesForKey(key, displayName);
-    await mergeResumeFromLibrarySidecar(key);
-    if (
-      cachedIndex &&
-      cachedRootName === displayName &&
-      cachedFolderKey === key &&
-      !force
-    ) {
-      return {
-        entries: cachedIndex,
-        status: cachedIndex.length ? "ok" : "empty",
-      };
-    }
-    const listed = await tauriListLocalMedia(tauriRoot);
-    const entries: LocalMediaEntry[] = listed.map((row) => {
-      const playable =
-        typeof row.playable === "boolean"
-          ? row.playable
-          : resolvePlayableExt(row.ext);
-      const parsed = parseLocalTags(row.relativePath);
-      const extras = extraTagsByPath[row.relativePath] || [];
-      const generalTags = uniqueTags([...parsed.generalTags, ...extras]);
-      const kind = row.kind;
-      return {
-        relativePath: row.relativePath,
-        name: row.name,
-        ext: row.ext,
-        size: row.size,
-        lastModified: row.lastModified,
-        kind,
-        playable,
-        tags: uniqueTags([
-          ...parsed.artistTags,
-          ...generalTags,
-          ...kindTagsFor(kind, playable),
-          ...(favoritedPaths.has(row.relativePath) ? ["type:favorited"] : []),
-        ]),
-        artistTags: parsed.artistTags,
-        generalTags,
-        extraTags: extras,
-      };
-    });
-    for (const entry of entries) {
-      const meta = posterMetaByPath[entry.relativePath];
-      if (
-        meta?.duration &&
-        meta.lastModified === entry.lastModified &&
-        meta.size === entry.size
-      ) {
-        entry.duration = meta.duration;
-      }
-    }
-    cachedIndex = entries;
-    cachedRootName = displayName;
-    return { entries, status: entries.length ? "ok" : "empty" };
-  }
-
-  if (!supportsDirectoryPicker()) {
-    return { entries: [], status: "no-picker" };
-  }
-  const handle = await getLocalDirectoryHandle();
-  if (!handle) {
+  await ensureBrowseRootsLoaded();
+  if (!browseRootsByKey.size) {
     return { entries: [], status: "no-folder" };
   }
-  const allowed = await ensurePermission(handle, "read");
-  if (!allowed) {
-    return { entries: [], status: "denied" };
-  }
-  browseRoot = handle;
-  const key = await resolveFolderKey(handle);
-  cachedFolderKey = key;
-  await loadExtraTags(handle, key, handle.name);
-  await loadPosterMeta(key, handle.name);
-  await loadFavorites(handle, key, handle.name);
-  await mergeResumeFromLibrarySidecar(key);
-  if (cachedIndex && cachedRootName === handle.name && cachedFolderKey === key && !force) {
+
+  const cacheKey = rootsCacheKey();
+  if (cachedIndex && cachedRootsKey === cacheKey && !force) {
     return {
       entries: cachedIndex,
       status: cachedIndex.length ? "ok" : "empty",
     };
   }
-  const entries: LocalMediaEntry[] = [];
-  await walkDirectory(handle, "", entries);
-  for (const entry of entries) {
-    const meta = posterMetaByPath[entry.relativePath];
-    if (
-      meta?.duration &&
-      meta.lastModified === entry.lastModified &&
-      meta.size === entry.size
-    ) {
-      entry.duration = meta.duration;
+
+  const allEntries: LocalMediaEntry[] = [];
+  let deniedCount = 0;
+  let reachableCount = 0;
+  const deniedLabels: string[] = [];
+  for (const root of browseRootsByKey.values()) {
+    try {
+      const { entries, denied } = await scanOneRoot(root);
+      if (denied) {
+        deniedCount += 1;
+        deniedLabels.push(root.label);
+        continue;
+      }
+      reachableCount += 1;
+      allEntries.push(...entries);
+    } catch {
+      deniedCount += 1;
+      deniedLabels.push(root.label);
     }
   }
-  entries.sort((a, b) => b.lastModified - a.lastModified);
-  cachedIndex = entries;
-  cachedRootName = handle.name;
-  return { entries, status: entries.length ? "ok" : "empty" };
+  lastScanDeniedLabels = deniedLabels;
+
+  if (reachableCount === 0 && deniedCount > 0) {
+    return { entries: [], status: "denied" };
+  }
+
+  allEntries.sort((a, b) => b.lastModified - a.lastModified);
+  cachedIndex = allEntries;
+  cachedRootsKey = cacheKey;
+  return { entries: allEntries, status: allEntries.length ? "ok" : "empty" };
 };
 
 const normalizeLoose = (value: string) =>
@@ -1421,10 +1817,26 @@ export const fuzzyFilenameMatch = (relativePath: string, term: string) => {
 export const fuzzyTagsMatch = (tags: string[], term: string) => {
   const needle = term.trim().toLowerCase();
   if (!needle) return true;
-  return tags.some(
+  return fuzzyableTags(tags).some(
     (tag) => tag.toLowerCase() === needle || fuzzyFilenameMatch(tag, needle),
   );
 };
+
+const parseFolderTerm = (
+  term: string,
+): { exclude: boolean; label: string } | null => {
+  const raw = term.trim().toLowerCase();
+  if (!raw) return null;
+  const exclude = raw.startsWith("-");
+  const body = exclude ? raw.slice(1) : raw;
+  if (!body.startsWith("folder:")) return null;
+  const label = body.slice("folder:".length).trim();
+  if (!label) return null;
+  return { exclude, label };
+};
+
+const entryMatchesFolderLabel = (entry: LocalMediaEntry, label: string) =>
+  entry.folderLabel.toLowerCase() === label.toLowerCase();
 
 export const filterLocalMedia = (
   index: LocalMediaEntry[],
@@ -1436,6 +1848,11 @@ export const filterLocalMedia = (
   if (!terms.length) return index;
   return index.filter((entry) =>
     terms.every((term) => {
+      const folderTerm = parseFolderTerm(term);
+      if (folderTerm) {
+        const hit = entryMatchesFolderLabel(entry, folderTerm.label);
+        return folderTerm.exclude ? !hit : hit;
+      }
       if (term.startsWith("-")) {
         const positive = term.slice(1);
         if (!positive) return true;
@@ -1465,7 +1882,7 @@ const orderLocalMedia = (
   const order =
     tags.find((tag) => tag.toLowerCase().startsWith("order:"))?.toLowerCase() ||
     "order:newest";
-  const key = `${cachedRootName}|${entries.length}|${order}|${tags
+  const key = `${cachedRootsKey}|${entries.length}|${order}|${tags
     .filter((tag) => !tag.toLowerCase().startsWith("order:"))
     .join("\0")}`;
   if (!reshuffle && cachedOrdered && cachedOrderKey === key) {
@@ -1650,12 +2067,15 @@ const toPostTags = (entry: LocalMediaEntry): PostTags => ({
   lore: [],
   meta: uniqueTags([
     ...kindTagsFor(entry.kind, entry.playable),
-    ...(favoritedPaths.has(entry.relativePath) ? ["type:favorited"] : []),
+    folderMetaTag(entry.folderLabel),
+    ...(isFavorited(entry.folderKey, entry.relativePath)
+      ? ["type:favorited"]
+      : []),
   ]),
 });
 
 const blobUrlFor = async (entry: LocalMediaEntry) => {
-  const id = idForPath(entry.relativePath);
+  const id = idForPath(entry.folderKey, entry.relativePath);
   const existing = blobUrls.get(id);
   if (existing) return { id, url: existing };
   if (entry.handle) {
@@ -1664,7 +2084,7 @@ const blobUrlFor = async (entry: LocalMediaEntry) => {
     blobUrls.set(id, url);
     return { id, url };
   }
-  const root = await getTauriLocalRoot();
+  const root = entry.tauriRoot || (await getTauriLocalRoot());
   if (!root) throw new Error("No Local browse folder");
   const bytes = await tauriReadLocalFile(root, entry.relativePath);
   const mime =
@@ -1756,7 +2176,7 @@ export const localEntriesToPosts = async (
         height = size.height;
       }
       const created = new Date(entry.lastModified).toISOString();
-      const favorited = favoritedPaths.has(entry.relativePath);
+      const favorited = isFavorited(entry.folderKey, entry.relativePath);
       return {
         id,
         created_at: created,
@@ -1795,6 +2215,8 @@ export const localEntriesToPosts = async (
           pageNumber: page,
           originMode: "local",
           localPath: entry.relativePath,
+          localFolderKey: entry.folderKey,
+          localFolderLabel: entry.folderLabel,
           localExtraTags: [...entry.extraTags],
           localPlayable: entry.playable,
           localKind: entry.kind,
@@ -1855,36 +2277,53 @@ const resolveParentAndName = async (
   return { dir, name: parts[parts.length - 1]! };
 };
 
-const migratePathKeys = async (fromPath: string, toPath: string) => {
+const migratePathKeys = async (
+  folderKey: string,
+  fromPath: string,
+  toPath: string,
+) => {
   if (fromPath === toPath) return;
-  if (extraTagsByPath[fromPath]) {
-    extraTagsByPath[toPath] = uniqueTags([
-      ...(extraTagsByPath[toPath] || []),
-      ...extraTagsByPath[fromPath],
+  const extras = extraTagsByFolder[folderKey] || {};
+  if (extras[fromPath]) {
+    extras[toPath] = uniqueTags([
+      ...(extras[toPath] || []),
+      ...extras[fromPath],
     ]);
-    delete extraTagsByPath[fromPath];
-    await persistExtraTags();
+    delete extras[fromPath];
+    extraTagsByFolder[folderKey] = extras;
+    await persistExtraTags(folderKey);
   }
-  if (favoritedPaths.has(fromPath)) {
-    favoritedPaths.delete(fromPath);
-    favoritedPaths.add(toPath);
-    await persistFavorites();
+  const favs = favoritedByFolder[folderKey];
+  if (favs?.has(fromPath)) {
+    favs.delete(fromPath);
+    favs.add(toPath);
+    await persistFavorites(folderKey);
   }
-  if (posterMetaByPath[fromPath]) {
-    posterMetaByPath[toPath] = posterMetaByPath[fromPath]!;
-    delete posterMetaByPath[fromPath];
-    await persistPosterMeta();
+  const posters = posterMetaByFolder[folderKey];
+  if (posters?.[fromPath]) {
+    posters[toPath] = posters[fromPath]!;
+    delete posters[fromPath];
+    await persistPosterMeta(folderKey);
   }
 };
 
 export const remuxLocalPath = async (
   relativePath: string,
   onProgress?: (ratio: number) => void,
-  opts?: { skipInvalidate?: boolean },
+  opts?: { folderKey?: string; skipInvalidate?: boolean },
 ): Promise<{ newPath: string }> => {
   const { remuxBlobToMp4 } = await import("@/misc/util/localRemux");
-  const tauriRoot = await getTauriLocalRoot();
-  if (tauriRoot && isTauriShell()) {
+  await ensureBrowseRootsLoaded();
+  const folderKey =
+    resolveFolderKeyArg(opts?.folderKey, relativePath) ||
+    [...browseRootsByKey.keys()][0] ||
+    null;
+  if (!folderKey) throw new Error("No Local browse folder");
+  const browse = browseRootsByKey.get(folderKey);
+  if (!browse) throw new Error("No Local browse folder");
+
+  if (browse.tauriPath && isTauriShell()) {
+    const tauriRoot = browse.tauriPath;
     const bytes = await tauriReadLocalFile(tauriRoot, relativePath);
     const name = relativePath.split("/").pop() || relativePath;
     const remuxed = await remuxBlobToMp4(
@@ -1909,10 +2348,12 @@ export const remuxLocalPath = async (
       } catch {
         // keep original if delete fails
       }
-      await migratePathKeys(relativePath, newPath);
+      await migratePathKeys(folderKey, relativePath, newPath);
     } else {
-      delete posterMetaByPath[relativePath];
-      await persistPosterMeta();
+      if (posterMetaByFolder[folderKey]) {
+        delete posterMetaByFolder[folderKey]![relativePath];
+        await persistPosterMeta(folderKey);
+      }
     }
     if (!opts?.skipInvalidate) {
       invalidateLocalMediaIndex();
@@ -1921,11 +2362,10 @@ export const remuxLocalPath = async (
     return { newPath };
   }
 
-  const root = browseRoot || (await getLocalDirectoryHandle());
+  const root = browse.handle;
   if (!root) throw new Error("No Local browse folder");
   const allowed = await ensurePermission(root, "readwrite");
   if (!allowed) throw new Error("Write access to the browse folder was denied");
-  browseRoot = root;
 
   const { dir, name } = await resolveParentAndName(root, relativePath, false);
   const fileHandle = await dir.getFileHandle(name);
@@ -1953,11 +2393,13 @@ export const remuxLocalPath = async (
     } catch {
       // keep original if delete fails
     }
-    await migratePathKeys(relativePath, newPath);
+    await migratePathKeys(folderKey, relativePath, newPath);
   } else {
     // Drop stale poster meta so the next load re-probes the real MP4.
-    delete posterMetaByPath[relativePath];
-    await persistPosterMeta();
+    if (posterMetaByFolder[folderKey]) {
+      delete posterMetaByFolder[folderKey]![relativePath];
+      await persistPosterMeta(folderKey);
+    }
   }
 
   if (!opts?.skipInvalidate) {
@@ -2037,7 +2479,7 @@ export const remuxUnplayableLocal = async (opts?: {
             failed: result.failed,
           });
         },
-        { skipInvalidate: true },
+        { folderKey: entry.folderKey, skipInvalidate: true },
       );
       result.done += 1;
     } catch (err) {
@@ -2061,42 +2503,63 @@ export type LocalSidecarExport = {
   favorites: string[];
 };
 
-export const exportLocalSidecars = async (): Promise<LocalSidecarExport> => {
-  const folder = folderName();
-  if (!folder) throw new Error("No Local browse folder");
-  // Ensure maps are loaded
+const resolveExportRoot = (folderKey?: string): BrowseRoot => {
+  if (folderKey) {
+    const key = resolveFolderKeyArg(folderKey);
+    const root = key ? browseRootsByKey.get(key) : undefined;
+    if (root) return root;
+    throw new Error("Local browse folder not found");
+  }
+  const first = [...browseRootsByKey.values()][0];
+  if (!first) throw new Error("No Local browse folder");
+  return first;
+};
+
+export const exportLocalSidecars = async (
+  folderKey?: string,
+): Promise<LocalSidecarExport> => {
+  await ensureBrowseRootsLoaded();
+  const browse = resolveExportRoot(folderKey);
   await scanLocalMedia(false);
   return {
     version: 1,
-    folder,
-    tags: { ...extraTagsByPath },
-    favorites: [...favoritedPaths].sort(),
+    folder: browse.label,
+    tags: { ...(extraTagsByFolder[browse.folderKey] || {}) },
+    favorites: [...(favoritedByFolder[browse.folderKey] || new Set())].sort(),
   };
 };
 
-export const importLocalSidecars = async (payload: LocalSidecarExport) => {
+export const importLocalSidecars = async (
+  payload: LocalSidecarExport,
+  folderKey?: string,
+) => {
   if (!payload || payload.version !== 1) {
     throw new Error("Unsupported Local sidecar file");
   }
+  await ensureBrowseRootsLoaded();
+  const browse = resolveExportRoot(folderKey);
   await scanLocalMedia(false);
+  const key = browse.folderKey;
+  if (!extraTagsByFolder[key]) extraTagsByFolder[key] = {};
+  if (!favoritedByFolder[key]) favoritedByFolder[key] = new Set();
   for (const [path, tags] of Object.entries(payload.tags || {})) {
     if (!Array.isArray(tags)) continue;
-    extraTagsByPath[path] = uniqueTags([
-      ...(extraTagsByPath[path] || []),
+    extraTagsByFolder[key]![path] = uniqueTags([
+      ...(extraTagsByFolder[key]![path] || []),
       ...tags.filter((tag): tag is string => typeof tag === "string"),
     ]);
   }
   for (const path of payload.favorites || []) {
-    if (typeof path === "string" && path) favoritedPaths.add(path);
+    if (typeof path === "string" && path) favoritedByFolder[key]!.add(path);
   }
   for (const entry of cachedIndex || []) {
-    mergeExtraIntoEntry(entry);
+    if (entry.folderKey === key) mergeExtraIntoEntry(entry);
   }
   for (const entry of cachedOrdered || []) {
-    mergeExtraIntoEntry(entry);
+    if (entry.folderKey === key) mergeExtraIntoEntry(entry);
   }
-  await persistExtraTags();
-  await persistFavorites();
+  await persistExtraTags(key);
+  await persistFavorites(key);
   invalidateLocalMediaIndex();
 };
 
@@ -2107,9 +2570,9 @@ export const localStatusMessage = (status: LocalMediaStatus) => {
     case "no-folder":
       return "Choose a Local browse folder in Account or Post settings.";
     case "denied":
-      return "Allow access to the save folder to browse Local files.";
+      return "Allow access to the Local browse folder(s) to browse files.";
     case "empty":
-      return "No images, videos, or audio in the browse folder.";
+      return "No images, videos, or audio in the browse folder(s).";
     default:
       return "";
   }

@@ -29,6 +29,7 @@
         :unplayable="isUnplayable"
         :unavailable="isUnavailable"
         :local-path="post.__meta?.localPath || ''"
+        :local-folder-key="post.__meta?.localFolderKey || ''"
         :origin-mode="post.__meta?.originMode || ''"
         :compact-touch-expand="compactTouchExpand"
         @open-post="setClicked"

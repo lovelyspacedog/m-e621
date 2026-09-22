@@ -33,7 +33,7 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 50,
+  configVersion: 51,
   activeMode: "e621",
   previousModeBeforeUnified: null,
   profiles: {
@@ -189,7 +189,7 @@ export const defaultSettings: ISettingsServiceState = {
       directoryName: null,
       openInLocalAfterSave: false,
     },
-    localDirectoryName: null,
+    localDirectoryNames: [],
   },
   artistDashboard: {
     recentArtists: [],

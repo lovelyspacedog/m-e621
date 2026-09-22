@@ -10,6 +10,7 @@
       :auto-next-paused="!!fullscreenPost || !!detailsPost"
       :resume-enabled="resumeEnabled"
       :restore-path="restorePath || undefined"
+      :restore-folder-key="restoreFolderKey || undefined"
       :restore-video-time="restoreVideoTime"
       @load-next-page="loadNext" @load-previous-page="loadPrevious"
       @restored="$emit('restored')">
@@ -126,6 +127,7 @@ const props = defineProps({
   hasPrevious: { type: Boolean, required: true },
   resumeEnabled: { type: Boolean, default: false },
   restorePath: { type: String, default: undefined },
+  restoreFolderKey: { type: String, default: undefined },
   restoreVideoTime: { type: Number, default: undefined },
   showPagination: { type: Boolean, default: true },
   pageTitle: { type: String, default: "Posts" },

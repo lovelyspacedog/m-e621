@@ -325,7 +325,8 @@ export interface ISettingsServiceState {
     | 47
     | 48
     | 49
-    | 50;
+    | 50
+    | 51;
   activeMode: SiteMode;
   /** Mode before entering Federated; restored when leaving or demoting on landing. */
   previousModeBeforeUnified: SiteMode | null;
@@ -421,7 +422,8 @@ export interface ISettingsServiceState {
       /** After a folder save, jump to Local mode on that file. */
       openInLocalAfterSave: boolean;
     };
-    localDirectoryName: string | null;
+    /** Display labels for Local browse folders (order matches picker list). */
+    localDirectoryNames: string[];
   };
   /** Mode-independent local bookmarks (federated child modes + Unified). Not under profiles. */
   savedPosts: {

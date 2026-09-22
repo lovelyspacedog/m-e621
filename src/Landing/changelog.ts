@@ -18,6 +18,7 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-22",
     title: "Custom News feeds and landing polish",
     items: [
+      "Local mode can add multiple browse folders into one library; use folder:Name to limit the grid, and Open in Local after a save still replaces the list with that save folder",
       "News can add up to eight custom https RSS/Atom feeds (browser-local chips; server fetches public URLs and article pages for the in-app reader)",
       "Landing hero again shows the static “Browse nine imageboards…” line under PawDeck; random splash text and the duplicate tagline panel below the hero are removed",
       "Landing Tag Wiki snippets skip artist-tag wiki pages so definitions stay about tags, not creators",

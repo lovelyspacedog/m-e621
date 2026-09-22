@@ -237,12 +237,21 @@ export const usePostsStore = defineStore("posts", () => {
       main.posts.saveLocal.openInLocalAfterSave = value;
     },
   });
-  const localDirectoryName = computed({
+  const localDirectoryNames = computed({
     get() {
-      return main.posts.localDirectoryName;
+      return main.posts.localDirectoryNames;
     },
     set(value) {
-      main.posts.localDirectoryName = value;
+      main.posts.localDirectoryNames = value;
+    },
+  });
+  /** First browse folder name; prefer localDirectoryNames for multi-folder UI. */
+  const localDirectoryName = computed({
+    get() {
+      return main.posts.localDirectoryNames[0] ?? null;
+    },
+    set(value) {
+      main.posts.localDirectoryNames = value ? [value] : [];
     },
   });
   const allButtonTypes = computed<ButtonType[]>(() => [
@@ -285,6 +294,7 @@ export const usePostsStore = defineStore("posts", () => {
     saveLocalPathTemplate,
     saveLocalDirectoryName,
     openInLocalAfterSave,
+    localDirectoryNames,
     localDirectoryName,
     allButtonTypes,
   };

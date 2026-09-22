@@ -89,6 +89,10 @@ export default defineComponent({
       type: String,
       default: undefined,
     },
+    restoreFolderKey: {
+      type: String,
+      default: undefined,
+    },
     restoreVideoTime: {
       type: Number,
       default: undefined,
@@ -343,19 +347,20 @@ export default defineComponent({
       const post = props.visiblePosts[index];
       const path = post?.__meta?.localPath;
       if (!path) return null;
+      const folderKey = post?.__meta?.localFolderKey;
       const video = cardEl(index)?.querySelector("video");
       const videoTime =
         video && Number.isFinite(video.currentTime) && video.currentTime > 0.5
           ? video.currentTime
           : undefined;
-      return { path, videoTime, index, video };
+      return { path, folderKey, videoTime, index, video };
     };
 
     const persistResumeNow = () => {
       if (!props.resumeEnabled) return;
       const snap = currentResumeSnapshot();
       if (!snap) return;
-      void saveLocalResume(snap.path, snap.videoTime);
+      void saveLocalResume(snap.path, snap.videoTime, snap.folderKey);
     };
 
     const scheduleResumeSave = () => {
@@ -375,12 +380,13 @@ export default defineComponent({
       if (!snap?.video) return;
       const video = snap.video;
       const path = snap.path;
+      const folderKey = snap.folderKey;
       let lastSaved = 0;
       const onTimeUpdate = () => {
         const now = performance.now();
         if (now - lastSaved < 1000) return;
         lastSaved = now;
-        void saveLocalResume(path, video.currentTime);
+        void saveLocalResume(path, video.currentTime, folderKey);
       };
       video.addEventListener("timeupdate", onTimeUpdate);
       videoTimeListener = { video, onTimeUpdate };
@@ -406,7 +412,10 @@ export default defineComponent({
     const tryRestore = async () => {
       if (restoreAttempted || !props.restorePath || props.loading) return;
       const index = props.visiblePosts.findIndex(
-        (post) => post.__meta?.localPath === props.restorePath,
+        (post) =>
+          post.__meta?.localPath === props.restorePath &&
+          (!props.restoreFolderKey ||
+            post.__meta?.localFolderKey === props.restoreFolderKey),
       );
       if (index < 0) return;
       restoreAttempted = true;
@@ -641,7 +650,13 @@ export default defineComponent({
     );
 
     watch(
-      () => [props.loading, props.restorePath, props.visiblePosts.length] as const,
+      () =>
+        [
+          props.loading,
+          props.restorePath,
+          props.restoreFolderKey,
+          props.visiblePosts.length,
+        ] as const,
       () => {
         void tryRestore();
       },

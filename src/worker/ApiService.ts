@@ -164,6 +164,8 @@ export interface EnhancedPost extends Post {
     isVoteLoading?: boolean;
     pageNumber: number;
     localPath?: string;
+    localFolderKey?: string;
+    localFolderLabel?: string;
     localExtraTags?: string[];
     localPlayable?: boolean;
     localKind?: "image" | "video" | "audio";

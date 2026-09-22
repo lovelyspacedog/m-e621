@@ -342,8 +342,8 @@
           </settings-row>
           <settings-row
             v-if="supportsLocalMode"
-            title="Local browse folder"
-            description="Folder Local mode reads for images and videos. Separate from Save Locally."
+            title="Local browse folders"
+            description="Folders Local mode indexes for images, videos, and audio. Combined into one library; use folder:Name to limit the grid. Separate from Save Locally."
             stack
           >
             <local-folder-picker purpose="local" />

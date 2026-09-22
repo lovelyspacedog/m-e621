@@ -92,7 +92,7 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { label: "Sidebar suggestion limit", keywords: ["suggestions", "sidebar", "tags", "limit"], section: "posts", hash: "loading" },
   { label: "Save locally", keywords: ["save", "download", "folder", "path template"], section: "posts", hash: "local" },
   { label: "Open in Local after save", keywords: ["open in local", "after save"], section: "posts", hash: "local" },
-  { label: "Local browse folder", keywords: ["local", "browse", "folder"], section: "posts", hash: "local" },
+  { label: "Local browse folders", keywords: ["local", "browse", "folder", "folders"], section: "posts", hash: "local" },
 
   // Appearance
   { label: "Themes", keywords: ["theme", "color", "browse themes"], section: "appearance", hash: "colors" },
