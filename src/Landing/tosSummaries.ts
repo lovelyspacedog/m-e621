@@ -19,7 +19,7 @@ export interface TosSummary {
 }
 
 export const tosIntro =
-  "These are unofficial plain-language summaries for quick reference while browsing with PawFeed. They are not legal advice and may omit details. Always read the official document before uploading, scraping, or relying on a site’s rules.";
+  "These are unofficial plain-language summaries for quick reference while browsing with PawDeck. They are not legal advice and may omit details. Always read the official document before uploading, scraping, or relying on a site’s rules.";
 
 /**
  * Supported remote sites with a public terms-like document, plus Fluffle.
@@ -31,7 +31,7 @@ export const tosSummaries: TosSummary[] = [
     name: "e621",
     sourceUrl: "https://e621.net/wiki_pages/e621:terms_of_service",
     sourceLabel: "Terms of Service",
-    note: "Official wiki page last revised October 2, 2025. PawFeed summary checked against that revision; the live wiki always controls.",
+    note: "Official wiki page last revised October 2, 2025. PawDeck summary checked against that revision; the live wiki always controls.",
     sections: [
       {
         heading: "Who it binds",
@@ -73,7 +73,7 @@ export const tosSummaries: TosSummary[] = [
     name: "e6AI",
     sourceUrl: "https://e6ai.net/wiki_pages/2",
     sourceLabel: "Terms of Service",
-    note: "Official wiki page last revised October 2, 2025. Structure matches e621; PawFeed summary checked against that revision.",
+    note: "Official wiki page last revised October 2, 2025. Structure matches e621; PawDeck summary checked against that revision.",
     sections: [
       {
         heading: "Who it binds",
@@ -351,13 +351,13 @@ export const tosSummaries: TosSummary[] = [
     name: "News (multi-source)",
     sourceUrl: "https://www.flayrah.com/about",
     sourceLabel: "Flayrah About",
-    note: "PawFeed’s News mode reads public RSS from Flayrah, Dogpatch Press, InFurNation, and Furry Writers’ Guild. Flayrah does not publish a single formal Terms of Service page; this summary combines each outlet’s public-site expectations. Not legal advice.",
+    note: "PawDeck’s News mode reads public RSS from Flayrah, Dogpatch Press, InFurNation, and Furry Writers’ Guild. Flayrah does not publish a single formal Terms of Service page; this summary combines each outlet’s public-site expectations. Not legal advice.",
     sections: [
       {
         heading: "What it is",
         paragraphs: [
           "Flayrah is a community furry news magazine since 2001; content is intended to be work-safe to read.",
-          "Dogpatch Press publishes furry community news and investigative reporting. Topics can include adult or disturbing material; PawFeed does not filter that feed.",
+          "Dogpatch Press publishes furry community news and investigative reporting. Topics can include adult or disturbing material; PawDeck does not filter that feed.",
           "InFurNation covers furry fandom news and guides. Furry Writers’ Guild posts guild and anthro-fiction community updates.",
         ],
       },
@@ -370,10 +370,10 @@ export const tosSummaries: TosSummary[] = [
         ],
       },
       {
-        heading: "PawFeed use",
+        heading: "PawDeck use",
         bullets: [
           "Read-only merged RSS browsing with Flayrah taxonomy feeds, Dogpatch category feeds, in-app reading, archive deep-links, local read/saved state (with article body snapshots), and links back to each source",
-          "No login, comments, or ratings through PawFeed for any News outlet",
+          "No login, comments, or ratings through PawDeck for any News outlet",
           "WordPress outlets are shown from their public feeds with attribution and an open-on-source link",
           "SFW only does not apply in News mode; Dogpatch may include adult or investigative topics",
         ],
@@ -385,7 +385,7 @@ export const tosSummaries: TosSummary[] = [
     name: "Dogpatch Press",
     sourceUrl: "https://dogpatch.press/",
     sourceLabel: "dogpatch.press",
-    note: "Dogpatch Press does not publish a formal Terms of Service summary here. PawFeed uses their public WordPress RSS only. Visit the site for current policies.",
+    note: "Dogpatch Press does not publish a formal Terms of Service summary here. PawDeck uses their public WordPress RSS only. Visit the site for current policies.",
     sections: [
       {
         heading: "What it is",
@@ -394,10 +394,10 @@ export const tosSummaries: TosSummary[] = [
         ],
       },
       {
-        heading: "PawFeed use",
+        heading: "PawDeck use",
         bullets: [
           "Read-only public RSS and in-app article view with a link back to dogpatch.press",
-          "No Dogpatch login or commenting through PawFeed",
+          "No Dogpatch login or commenting through PawDeck",
         ],
       },
     ],
@@ -407,7 +407,7 @@ export const tosSummaries: TosSummary[] = [
     name: "InFurNation",
     sourceUrl: "https://www.infurnation.com/",
     sourceLabel: "infurnation.com",
-    note: "InFurNation does not publish a formal Terms of Service summary here. PawFeed uses their public WordPress RSS only. Visit the site for current policies.",
+    note: "InFurNation does not publish a formal Terms of Service summary here. PawDeck uses their public WordPress RSS only. Visit the site for current policies.",
     sections: [
       {
         heading: "What it is",
@@ -416,10 +416,10 @@ export const tosSummaries: TosSummary[] = [
         ],
       },
       {
-        heading: "PawFeed use",
+        heading: "PawDeck use",
         bullets: [
           "Read-only public RSS and in-app article view with a link back to infurnation.com",
-          "No InFurNation login or commenting through PawFeed",
+          "No InFurNation login or commenting through PawDeck",
         ],
       },
     ],
@@ -429,7 +429,7 @@ export const tosSummaries: TosSummary[] = [
     name: "Furry Writers’ Guild",
     sourceUrl: "https://furrywritersguild.com/",
     sourceLabel: "furrywritersguild.com",
-    note: "Furry Writers’ Guild does not publish a formal Terms of Service summary here. PawFeed uses their public WordPress RSS only. Visit the site for current policies.",
+    note: "Furry Writers’ Guild does not publish a formal Terms of Service summary here. PawDeck uses their public WordPress RSS only. Visit the site for current policies.",
     sections: [
       {
         heading: "What it is",
@@ -438,10 +438,10 @@ export const tosSummaries: TosSummary[] = [
         ],
       },
       {
-        heading: "PawFeed use",
+        heading: "PawDeck use",
         bullets: [
           "Read-only public RSS and in-app article view with a link back to furrywritersguild.com",
-          "No Guild login or commenting through PawFeed",
+          "No Guild login or commenting through PawDeck",
         ],
       },
     ],
@@ -451,7 +451,7 @@ export const tosSummaries: TosSummary[] = [
     name: "Fluffle",
     sourceUrl: "https://fluffle.xyz/about/",
     sourceLabel: "About / privacy notes",
-    note: "Fluffle does not publish a formal Terms of Service. This summary is from their About page (privacy and logging practices). PawFeed uses Fluffle for reverse-image search.",
+    note: "Fluffle does not publish a formal Terms of Service. This summary is from their About page (privacy and logging practices). PawDeck uses Fluffle for reverse-image search.",
     sections: [
       {
         heading: "What it is",

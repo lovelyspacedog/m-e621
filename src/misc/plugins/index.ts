@@ -7,7 +7,7 @@ export const head = createHead({
   init: [
     {
       title: "Home",
-      titleTemplate: "%s | PawFeed",
+      titleTemplate: "%s | PawDeck",
     }
   ]
 })

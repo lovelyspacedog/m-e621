@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy PawFeed to a remote host and keep it synced with the GitHub fork.
+# Deploy PawDeck to a remote host and keep it synced with the GitHub fork.
 # Personal host/domain/repo values live in ~/.config/m-e621/env or ./deploy.env
 # (see deploy.env.example). Nothing host-specific is hardcoded here.
 set -euo pipefail
@@ -109,7 +109,7 @@ rm -f "$tmp"
 REMOTE
 
 echo
-echo "Deployed PawFeed on $HOST"
+echo "Deployed PawDeck on $HOST"
 echo "  local port : 127.0.0.1:$PORT"
 echo "  app dir    : $REMOTE_DIR"
 echo "  syncs from : $REPO_URL ($BRANCH) every 15m"

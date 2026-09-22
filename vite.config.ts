@@ -749,7 +749,7 @@ function inkbunnyProxy(): Plugin {
 
 function fluffleProxy(): Plugin {
   const FLUFFLE_API = 'https://api.fluffle.xyz/exact-search-by-file';
-  const FLUFFLE_UA = 'PawFeed/1.0 (by lovelyspacedog on GitHub)';
+  const FLUFFLE_UA = 'PawDeck/1.0 (by lovelyspacedog on GitHub)';
 
   const guessFilename = (url: string, contentType: string): { filename: string; mime: string } => {
     const pathLower = new URL(url).pathname.toLowerCase();
@@ -1088,15 +1088,15 @@ export default defineConfig(({ mode }) => {
         },
         manifest: {
           id: "/#/posts",
-          name: "PawFeed",
-          short_name: "PawFeed", // maximum of 12 characters recommended by chromium devs
+          name: "PawDeck",
+          short_name: "PawDeck", // maximum of 12 characters recommended by chromium devs
           start_url: "/#/posts",
           scope: "/",
           display: "standalone",
           background_color: "#000000",
           theme_color: "#000000",
           description:
-            "PawFeed is a personal multi-site fork of Material e621 — a modern web client for e621.net and related sites.",
+            "PawDeck is a personal multi-site fork of Material e621 — a modern web client for e621.net and related sites.",
           orientation: "any",
           lang: "en",
           icons: [

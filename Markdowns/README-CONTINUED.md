@@ -1,4 +1,4 @@
-# PawFeed — detailed guide
+# PawDeck — detailed guide
 
 This document expands on the quick overview in the [main README](./README.md).
 
@@ -190,8 +190,8 @@ docker compose up --build
 Or:
 
 ```bash
-docker build -t pawfeed .
-docker run --rm -p 18621:18621 pawfeed
+docker build -t pawdeck .
+docker run --rm -p 18621:18621 pawdeck
 ```
 
 CI also publishes this fork’s image (with `serve.py`, not upstream static) to **GHCR** on push to `main`/`master` as `ghcr.io/<owner>/<repo>:latest` (and sha tags). Prefer compose for local work; pull from GHCR when you want a prebuilt personal registry image.
@@ -212,13 +212,13 @@ The bundle identifier is `com.lovelyspacedog.me621`.
 
 ### Rename the public hostname
 
-The product name is **PawFeed**. The public URL is [pawfeed.tonypup.box.ca](https://pawfeed.tonypup.box.ca) (Expedition custom app `pawfeed`). Env vars (`M_E621_*`), `~/.config/m-e621/`, the checkout path, Local sidecars (`.me621-*.json`), and the GitHub repo `lovelyspacedog/m-e621` stay unchanged so existing deploys keep working.
+The product name is **PawDeck**. The intended Live URL is [pawdeck.tonypup.box.ca](https://pawdeck.tonypup.box.ca) (Expedition custom app `pawdeck`). Until that Expedition app exists and `M_E621_DOMAIN` is flipped, the running instance may still resolve at `pawfeed.tonypup.box.ca`. Env vars (`M_E621_*`), `~/.config/m-e621/`, the checkout path, Local sidecars (`.me621-*.json`), and the GitHub repo `lovelyspacedog/m-e621` stay unchanged so existing deploys keep working.
 
 To serve the same app under a different subdomain:
 
-1. Pick the new Expedition custom-app name. That label is the DNS host under `tonypup.box.ca` (example: `pawfeed` → `pawfeed.tonypup.box.ca`).
+1. Pick the new Expedition custom-app name. That label is the DNS host under `tonypup.box.ca` (example: `pawdeck` → `pawdeck.tonypup.box.ca`).
 2. Create a reverse-proxied custom app with that name on the same local port (`M_E621_PORT`, default `18621`). Point it at the existing `serve.py` — do not clone a second checkout.
-3. On the VPS, set `M_E621_DOMAIN` in `~/.config/m-e621/env` (or gitignored `deploy.env`) to the new host **without** `https://`. Example: `M_E621_DOMAIN=pawfeed.tonypup.box.ca`.
+3. On the VPS, set `M_E621_DOMAIN` in `~/.config/m-e621/env` (or gitignored `deploy.env`) to the new host **without** `https://`. Example: `M_E621_DOMAIN=pawdeck.tonypup.box.ca`.
 4. Rebuild so Vite picks up the host: `M_E621_FORCE_BUILD=1 ./sync`. That rewrites `.env.local` (`VITE_CANONICAL_URL`, `VITE_APP_DOMAIN`) and regenerates `sitemap.xml`.
 5. Confirm `https://<new-host>` loads and that Settings → Info shows the current commit.
 6. Update the Live links in `Markdowns/README.md` and this file, add a changelog bullet, and change the verification URL in the Cursor skill (`~/.cursor/skills/m-e621/SKILL.md`).
@@ -249,14 +249,14 @@ TLS for `*.tonypup.box.ca` is handled by the Expedition reverse proxy. `serve.py
 - Parallel agents that cannot safely edit README/changelog write untracked notes under `PENDING_DOCS/` for a later survey (see [`PENDING_DOCS/README.md`](../PENDING_DOCS/README.md)).
 - `public/zen-browser.css` provides Zen Browser and Transparent Zen compatibility (including stronger landing hero chip / action button contrast when theme secondary is forced transparent/black, and darkened landing text panels for the tagline / What it does / Tag Wiki / About).
 - The PWA installs as `standalone` (status bar visible; safer with notch/safe-area than `fullscreen`), checks for updates every ten minutes, and shows an update banner with the git short hash when available.
-- The landing page uses site-mode chips, a primary Browse posts action, outlined Scent Marks / Info actions plus a gear for Settings (hero and footer), a one-shot typewritten random splash under the PawFeed title (stays on screen; click or Enter/Space for another; reduced-motion shows it immediately), a site-summary tagline block above What it does, a capability summary (What it does — Federated Search/Following, chip multi-select, layouts, pools/comics, Suggester/Analyzer/Fluffle, community actions), a random [e621 tag wiki](https://e621.net/wiki_pages/204) first-paragraph snippet under that section each visit (click the tag to search e621 in-app; Another page loads a new tag definition in place), honest About/limits copy (site list, Federated Search/Following + chip selection, AGPL), dual Tony Pup / Avoonix Latest updates commit columns (Show more opens an in-app modal; more on GitHub stays), an Info dialog (About / Changelog / TOS tabs), and an AGPL/age footer. What it does, Tag Wiki, and About wrap their copy in darkened text panels so they stay readable under Transparent Zen. The TOS tab lists fair-use summaries for supported sites (Tailspace omitted; no public TOS) plus Fluffle, each with a link to the official document. The tagline and About copy mention News (Flayrah and other RSS outlets) always, and a local folder only when Local browse is available (Chromium File System Access or the Tauri app).
+- The landing page uses site-mode chips, a primary Browse posts action, outlined Scent Marks / Info actions plus a gear for Settings (hero and footer), a one-shot typewritten random splash under the PawDeck title (stays on screen; click or Enter/Space for another; reduced-motion shows it immediately), a site-summary tagline block above What it does, a capability summary (What it does — Federated Search/Following, chip multi-select, layouts, pools/comics, Suggester/Analyzer/Fluffle, community actions), a random [e621 tag wiki](https://e621.net/wiki_pages/204) first-paragraph snippet under that section each visit (click the tag to search e621 in-app; Another page loads a new tag definition in place), honest About/limits copy (site list, Federated Search/Following + chip selection, AGPL), dual Tony Pup / Avoonix Latest updates commit columns (Show more opens an in-app modal; more on GitHub stays), an Info dialog (About / Changelog / TOS tabs), and an AGPL/age footer. What it does, Tag Wiki, and About wrap their copy in darkened text panels so they stay readable under Transparent Zen. The TOS tab lists fair-use summaries for supported sites (Tailspace omitted; no public TOS) plus Fluffle, each with a link to the official document. The tagline and About copy mention News (Flayrah and other RSS outlets) always, and a local folder only when Local browse is available (Chromium File System Access or the Tauri app).
 - The app title can show a short commit hash so a self-host knows which build is running.
 
 ## Project expectations
 
-PawFeed is an active personal, AI-assisted fork. Features may be experimental, incomplete, or optimized for the maintainer's workflow. It is not affiliated with any supported content site. Users are responsible for following each site's rules, age requirements, and API terms.
+PawDeck is an active personal, AI-assisted fork. Features may be experimental, incomplete, or optimized for the maintainer's workflow. It is not affiliated with any supported content site. Users are responsible for following each site's rules, age requirements, and API terms.
 
-A public instance is operable at [pawfeed.tonypup.box.ca](https://pawfeed.tonypup.box.ca). To serve it under a different subdomain, see [Rename the public hostname](#rename-the-public-hostname).
+A public instance is operable at [pawdeck.tonypup.box.ca](https://pawdeck.tonypup.box.ca). To serve it under a different subdomain, see [Rename the public hostname](#rename-the-public-hostname).
 
 For a stable, e621-only client, use [upstream Material e621](https://github.com/avoonix/material-e621).
 

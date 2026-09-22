@@ -98,7 +98,7 @@ export const LANDING_SPLASHES: readonly string[] = [
   "Warning: may contain traces of AI.",
   "Powered by Vue 3 and questionable life choices.",
   "No animals were harmed. Some code was.",
-  "If found, return to pawfeed.tonypup.box.ca.",
+  "If found, return to pawdeck.tonypup.box.ca.",
   "This splash text is a good boy.",
   "Offline mode: napping.",
   "Press F to pet.",

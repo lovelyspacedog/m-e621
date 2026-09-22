@@ -7,7 +7,7 @@
       :class="{ loader: type === 'loader' }"
       :style="{ height: `${size}px` }"
       role="img"
-      aria-label="Baxter, PawFeed mascot"
+      aria-label="Baxter, PawDeck mascot"
     >
       <!-- Baxter: clearer tail (stem + tip below left ear). Face only. -->
       <g class="tail" v-if="type === 'face'">
@@ -136,7 +136,7 @@
         />
       </g>
 
-      <!-- PawFeed wordmark (Fredoka) -->
+      <!-- PawDeck wordmark (Fredoka) -->
       <g v-if="type === 'text'" class="wordmark">
         <text
           x="500"
@@ -149,7 +149,7 @@
           letter-spacing="1"
           fill="rgb(255,255,255)"
         >
-          PawFeed
+          PawDeck
         </text>
       </g>
     </svg>

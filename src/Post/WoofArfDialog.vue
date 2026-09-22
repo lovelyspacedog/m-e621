@@ -24,7 +24,7 @@
       </v-card-title>
       <v-card-text class="pt-0 woof-arf-body">
         <!--
-          PawFeed serves COEP: credentialless (SharedArrayBuffer / ffmpeg.wasm).
+          PawDeck serves COEP: credentialless (SharedArrayBuffer / ffmpeg.wasm).
           YouTube embeds need a credentialless iframe (Chromium) or they refuse
           to connect. Set credentialless before src; tear down on close.
         -->

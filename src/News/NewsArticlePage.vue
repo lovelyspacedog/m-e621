@@ -161,7 +161,7 @@
         <template v-else>
           Content © {{ attributionSite }} and contributors. Attribution: {{ article.author }} /
           <a :href="article.link" target="_blank" rel="noopener">{{ attributionSite }}</a>.
-          PawFeed shows the public RSS for reading with a link back to the original.
+          PawDeck shows the public RSS for reading with a link back to the original.
         </template>
       </p>
     </article>

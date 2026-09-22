@@ -1,7 +1,7 @@
 [package]
 name = "me621"
 version = "0.1.0"
-description = "PawFeed desktop shell"
+description = "PawDeck desktop shell"
 authors = ["lovelyspacedog"]
 license = ""
 repository = "https://github.com/lovelyspacedog/m-e621"

@@ -53,7 +53,7 @@
         Sign in with email/password, or paste SoFurry cookies from DevTools.
         Prefer the Remix <code>_session</code> value (or both
         <code>_session</code> and <code>sofurry_session</code>). A bare cookie
-        value is fine — PawFeed will name it. Cookies are stored in settings and
+        value is fine — PawDeck will name it. Cookies are stored in settings and
         Backup JSON; the password is not saved.
       </p>
       <p class="text-left text-caption mt-2 mb-0">

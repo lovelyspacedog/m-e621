@@ -1,4 +1,4 @@
-# PawFeed
+# PawDeck
 
 Documentation lives in [`Markdowns/`](./Markdowns/).
 
@@ -8,4 +8,4 @@ Documentation lives in [`Markdowns/`](./Markdowns/).
 | [`Markdowns/README-CONTINUED.md`](./Markdowns/README-CONTINUED.md) | Complete guide (sites, Local, deploy, hostname) |
 | [`Markdowns/AI_CONTEXT.md`](./Markdowns/AI_CONTEXT.md) | Agent onboarding / architecture notes |
 
-Live: **[pawfeed.tonypup.box.ca](https://pawfeed.tonypup.box.ca)** · Repo: [lovelyspacedog/m-e621](https://github.com/lovelyspacedog/m-e621)
+Live: **[pawdeck.tonypup.box.ca](https://pawdeck.tonypup.box.ca)** (interim: [pawfeed.tonypup.box.ca](https://pawfeed.tonypup.box.ca)) · Repo: [lovelyspacedog/m-e621](https://github.com/lovelyspacedog/m-e621)

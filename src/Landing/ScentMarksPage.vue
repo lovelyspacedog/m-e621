@@ -15,7 +15,7 @@
       </div>
 
       <p class="text-body-2 text-medium-emphasis mb-6">
-        Leave an anonymous note for anyone visiting PawFeed. Optional display
+        Leave an anonymous note for anyone visiting PawDeck. Optional display
         name; no accounts. Keep it short and kind.
       </p>
 

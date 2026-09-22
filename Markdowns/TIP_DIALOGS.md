@@ -1,6 +1,6 @@
 # Tip toasts (“Don’t show this again”)
 
-PawFeed one-time tip toasts share a small persistence scheme so new tips can reuse the same UI and reset path.
+PawDeck one-time tip toasts share a small persistence scheme so new tips can reuse the same UI and reset path.
 
 This is **not** the older Appearance → Prompts switches (`hideGithubInfo`, `hideMigrationInfo`, `hideInstallPrompt`). Those stay independent booleans. Tip toasts use `appearance.dismissedTips` only.
 

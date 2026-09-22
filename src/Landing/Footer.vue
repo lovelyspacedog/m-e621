@@ -3,7 +3,7 @@
     <v-container class="py-0">
       <div class="d-flex flex-wrap align-center justify-space-between ga-3">
         <div class="text-white text-body-2">
-          PawFeed by Tony Pup · forked from
+          PawDeck by Tony Pup · forked from
           <a href="https://github.com/avoonix/material-e621" class="text-white text-decoration-underline" title="Material e621"
             >Material e621</a
           >

@@ -4,9 +4,9 @@
       <v-row>
         <v-col cols="12" md="8" offset-md="2" lg="6" offset-lg="3">
           <div class="landing-text-panel">
-            <h2 class="text-h4 text-center mb-3">What is PawFeed?</h2>
+            <h2 class="text-h4 text-center mb-3">What is PawDeck?</h2>
             <p class="text-center">
-              PawFeed is a personal, AI-assisted fork of
+              PawDeck is a personal, AI-assisted fork of
               <a
                 class="text-primary text-decoration-underline"
                 target="_blank"

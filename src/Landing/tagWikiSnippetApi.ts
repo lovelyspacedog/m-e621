@@ -8,7 +8,7 @@ export interface TagWikiSnippet {
 
 const WIKI_ORIGIN = "https://e621.net";
 const WIKI_HOME_PATH = "/wiki_pages/204";
-const CLIENT = "PawFeed/landing-tag-wiki";
+const CLIENT = "PawDeck/landing-tag-wiki";
 const BATCH = 48;
 const MAX_FETCH_TRIES = 4;
 const MIN_PARAGRAPH = 40;

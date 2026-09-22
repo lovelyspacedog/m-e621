@@ -79,7 +79,7 @@ type ApiBackend = "e621" | "furbooru" | "inkbunny" | "tailspace" | "furaffinity"
  * worker adapter + Vite/serve.py proxy + siteCapabilities flags.
  * Never fall through to the e621 client (comments/notes/pools/analyzer/…).
  * Post Suggester is multi-mode via AnalyzeService; Tailspace/News still blocked here.
- * UA / `_client`: `PawFeed/<git>`. See Markdowns/AI_CONTEXT.md.
+ * UA / `_client`: `PawDeck/<git>`. See Markdowns/AI_CONTEXT.md.
  */
 const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
   if (mode === "furbooru") return "furbooru";

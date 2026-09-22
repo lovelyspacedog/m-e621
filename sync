@@ -1,5 +1,5 @@
 #!/bin/bash
-# Pull latest from origin, rebuild dist, restart PawFeed if needed.
+# Pull latest from origin, rebuild dist, restart PawDeck if needed.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"

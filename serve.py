@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serve PawFeed dist/ + same-origin API proxies and optional git-pull control.
+"""Serve PawDeck dist/ + same-origin API proxies and optional git-pull control.
 
 FurAffinity: install faapi (`uv venv .venv && uv pip install -r requirements.txt`).
 Optional FA_COOKIE_A / FA_COOKIE_B for host-wide login.
@@ -477,7 +477,7 @@ NEWS_FULL_RSS = {
 
 
 FLUFFLE_API = "https://api.fluffle.xyz/exact-search-by-file"
-FLUFFLE_UA = "PawFeed/1.0 (by lovelyspacedog on GitHub)"
+FLUFFLE_UA = "PawDeck/1.0 (by lovelyspacedog on GitHub)"
 FLUFFLE_PATH = "/api/fluffle/exact-search"
 # Furbooru / Philomena CDN (also used by Fluffle source fetch).
 FURRYCDN_HOSTS = frozenset({"furrycdn.org"})
@@ -508,7 +508,7 @@ def _ensure_token() -> str:
     token = secrets.token_urlsafe(24)
     TOKEN_PATH.write_text(token + "\n", encoding="utf-8")
     TOKEN_PATH.chmod(0o600)
-    print(f"PawFeed created pull token at {TOKEN_PATH}", flush=True)
+    print(f"PawDeck created pull token at {TOKEN_PATH}", flush=True)
     return token
 
 
@@ -3806,8 +3806,8 @@ def main() -> None:
     _ensure_token()
     _write_status()
     httpd = ThreadingHTTPServer((HOST, PORT), SpaHandler)
-    print(f"PawFeed serving {ROOT} on http://{HOST}:{PORT}", flush=True)
-    print(f"PawFeed pull token file: {TOKEN_PATH}", flush=True)
+    print(f"PawDeck serving {ROOT} on http://{HOST}:{PORT}", flush=True)
+    print(f"PawDeck pull token file: {TOKEN_PATH}", flush=True)
     httpd.serve_forever()
 
 

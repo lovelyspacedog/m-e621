@@ -1,4 +1,4 @@
-/** Curated PawFeed release notes derived from the fork commit history (Tony Pup). */
+/** Curated PawDeck release notes derived from the fork commit history (Tony Pup). */
 
 export interface ChangelogSection {
   /** ISO date for sorting / stable keys */
@@ -18,6 +18,7 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-09-21",
     title: "Docs cleanup, discovery tools, and News polish",
     items: [
+      "Public product name is PawDeck (intended Live: pawdeck.tonypup.box.ca); host paths and GitHub stay m-e621 — until the Expedition cutover, the running instance may still be at pawfeed.tonypup.box.ca",
       "In-app changelog abridged into fewer plain-language bullets; outdated planning Markdowns removed from the docs folder; TOS summaries refreshed against current official pages",
       "Sidebar Tools group: Post Suggester, Favorite Analyzer, discovery tools, and (on e621/e6ai) Artist Dashboard — nav stays uncrowded",
       "Discovery tools: Artist Radar, Taste Diff, History Insights, Blacklist Coach, Saved-search Wake-up, Cross-post Finder, Similar Artists, Pool/Series Suggester, Taste Pack, and Activity heatmap",
@@ -75,4 +76,4 @@ export const changelogSections: ChangelogSection[] = [
 ];
 
 export const changelogIntro =
-  "PawFeed is a personal multi-site fork of Material e621. Highlights below cover the fork’s shipped work; older upstream commits are on GitHub.";
+  "PawDeck is a personal multi-site fork of Material e621. Highlights below cover the fork’s shipped work; older upstream commits are on GitHub.";

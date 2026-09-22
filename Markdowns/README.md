@@ -1,9 +1,9 @@
 <div align="center">
-  <img src="../public/favicon.svg" width="88" alt="PawFeed logo">
-  <h1>PawFeed</h1>
+  <img src="../public/favicon.svg" width="88" alt="PawDeck logo">
+  <h1>PawDeck</h1>
   <p>A multi-site imageboard browser and local media library.</p>
   <p>
-    <a href="https://pawfeed.tonypup.box.ca">Live</a>
+    <a href="https://pawdeck.tonypup.box.ca">Live</a>
     ·
     <a href="./README-CONTINUED.md">Documentation</a>
     ·
@@ -15,9 +15,9 @@
 
 ---
 
-PawFeed expands [Material e621](https://github.com/avoonix/material-e621) with additional sites, a Federated feed, local media management, and richer browsing tools. It is built with Vue 3 and Vuetify.
+PawDeck expands [Material e621](https://github.com/avoonix/material-e621) with additional sites, a Federated feed, local media management, and richer browsing tools. It is built with Vue 3 and Vuetify.
 
-A public instance is operable at **[pawfeed.tonypup.box.ca](https://pawfeed.tonypup.box.ca)**. Steps for moving that hostname are in the [complete guide](./README-CONTINUED.md#rename-the-public-hostname).
+A public instance is operable at **[pawdeck.tonypup.box.ca](https://pawdeck.tonypup.box.ca)** (until Expedition cutover, Live may still resolve at [pawfeed.tonypup.box.ca](https://pawfeed.tonypup.box.ca)). Steps for moving that hostname are in the [complete guide](./README-CONTINUED.md#rename-the-public-hostname).
 
 > [!NOTE]
 > This is an experimental, AI-assisted personal project. For a stable e621-only client, use upstream Material e621.
@@ -41,7 +41,7 @@ A public instance is operable at **[pawfeed.tonypup.box.ca](https://pawfeed.tony
 
 > Content shown in screenshots may be NSFW.
 
-[![PawFeed landing page](../screenshots/landing-page.png)](../screenshots/landing-page.png)
+[![PawDeck landing page](../screenshots/landing-page.png)](../screenshots/landing-page.png)
 
 [![Grid layout in Federated mode](../screenshots/grid-and-unified-mode.png)](../screenshots/grid-and-unified-mode.png)
 
