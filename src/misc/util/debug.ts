@@ -1,8 +1,11 @@
 const STORAGE_KEY = "m-e621-debug-logging";
 
-/** Main-thread gate for prod `debug()` logs. Workers are unchanged (no localStorage). */
+/**
+ * Main-thread gate for prod `debug()` logs (Settings → Info).
+ * Workers have no localStorage — default off so Comlink args never dump secrets.
+ */
 export const isDebugLoggingEnabled = (): boolean => {
-  if (typeof localStorage === "undefined") return true;
+  if (typeof localStorage === "undefined") return false;
   try {
     const v = localStorage.getItem(STORAGE_KEY);
     if (v === "0") return false;

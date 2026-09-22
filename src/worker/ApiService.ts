@@ -239,7 +239,17 @@ export class ApiService {
     /** Global SFW-only: inject safe constraints at adapters (skip for id:-only). */
     sfwOnly?: boolean;
   }): Promise<GetPostsResult> {
-    log(args);
+    // Never log auth / unified child credentials (prod debug used to dump api_key).
+    log({
+      mode: args.mode,
+      page: args.page,
+      limit: args.limit,
+      tags: args.tags,
+      baseUrl: args.baseUrl,
+      hasAuth: Boolean(args.auth?.api_key),
+      unifiedChildren: args.unified?.children?.map((c) => c.mode),
+      sfwOnly: args.sfwOnly,
+    });
     if (args.mode === "unified") {
       return this.getUnifiedPosts(args);
     }

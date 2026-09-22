@@ -26,6 +26,7 @@ export const changelogSections: ChangelogSection[] = [
       "Proxy hardening: custom News blocks shared/CGNAT addresses and pins DNS to the checked IP on connect, SoFurry follows redirects with per-hop host checks, and Scent Marks rate limits use the TCP peer",
       "Federated discovery samples and Local Tauri writes refuse wrong-origin URLs and symlink escapes; News HTML strips javascript: / style / unknown attributes",
       "FurAffinity scrape posts stay on furaffinity.net hosts; getPool no longer falls through to e621 under Local or Federated",
+      "Production worker debug no longer dumps API keys; domain migration stops logging full settings to the console",
       "Landing hero again shows the static “Browse nine imageboards…” line under PawDeck; random splash text and the duplicate tagline panel below the hero are removed",
       "Landing Tag Wiki snippets skip artist-tag wiki pages so definitions stay about tags, not creators",
       "Sidebar Site block includes the SFW only switch; light dividers separate saved searches, nav links, and on-page tags",

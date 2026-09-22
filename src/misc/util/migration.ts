@@ -20,7 +20,6 @@ export const useMigrator = () => {
         const openMigrationWindow = () => {
             let success = false;
             window.addEventListener("message", (event: MessageEvent<MigrationMessage>) => {
-                console.log(event)
                 if (event.origin !== expectedOrigin) return;
                 if (event.data?.type !== "migrationDataResponse") return;
                 window.removeEventListener("message", openMigrationWindow);
@@ -30,7 +29,6 @@ export const useMigrator = () => {
                 w?.close();
             });
             const w = window.open(oldDomainUrl, "_blank");
-            console.log(w, oldDomainUrl)
             setTimeout(() => {
                 if (!success) {
                     window.removeEventListener("message", openMigrationWindow);
@@ -90,11 +88,9 @@ export const useMigrator = () => {
     }
 
     function setupMigrationDataListener(allowedOrigin: string): void {
-        console.log("Setting up migration data listener", allowedOrigin);
         setInterval(() => {
             const state = persistanceService.getState();
             if (hasMigratableState(state)) {
-                console.log("sending state to opener");
                 const response: MigrationMessage = {
                     type: "migrationDataResponse",
                     migrationData: state
@@ -106,14 +102,11 @@ export const useMigrator = () => {
             }
         }, 1000);
         window.addEventListener("message", (event: MessageEvent<MigrationMessage>) => {
-            console.log("received message", event.data);
             if (event.origin !== allowedOrigin) return;
 
             if (event.data?.type === "requestMigrationData") {
                 const state = persistanceService.getState();
-                console.log("got state")
                 if (hasMigratableState(state)) {
-                    console.log("sending state");
                     const response: MigrationMessage = {
                         type: "migrationDataResponse",
                         migrationData: state
