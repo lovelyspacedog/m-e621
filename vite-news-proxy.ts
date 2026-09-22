@@ -12,6 +12,7 @@ import {
   isNewsSource,
   newsArticleUpstreamUrl,
 } from "./src/worker/news/registry";
+import { NEWS_RSS_TIMEOUT_MS } from "./src/worker/news/timeouts";
 
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) " +
@@ -50,6 +51,7 @@ function corsOptions(res: ServerResponse): void {
 async function fetchUpstream(
   target: string,
   accept: string,
+  timeoutMs?: number,
 ): Promise<{ status: number; body: Buffer; contentType: string }> {
   const resp = await fetch(target, {
     headers: {
@@ -57,6 +59,8 @@ async function fetchUpstream(
       "User-Agent": UA,
     },
     redirect: "follow",
+    signal:
+      timeoutMs != null ? AbortSignal.timeout(timeoutMs) : undefined,
   });
   const body = Buffer.from(await resp.arrayBuffer());
   const contentType =
@@ -90,6 +94,7 @@ async function proxyRss(
     const resp = await fetchUpstream(
       target,
       "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+      NEWS_RSS_TIMEOUT_MS,
     );
     send(res, resp.status, resp.body, resp.contentType, 300);
   } catch (err) {

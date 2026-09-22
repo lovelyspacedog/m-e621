@@ -409,6 +409,8 @@ SOFURRY_AUTH_POSTS = {
 
 # Must match src/worker/news/registry.ts + feeds.ts (resolveNewsRssUrl).
 NEWS_RSS_PAGE_MAX = 8
+# Per-source upstream budget; keep in sync with src/worker/news/timeouts.ts
+NEWS_RSS_TIMEOUT_SEC = 10
 NEWS_SOURCES = frozenset({"flayrah", "dogpatch", "infurnation", "fwg"})
 NEWS_PAGING_SOURCES = frozenset({"dogpatch", "infurnation", "fwg"})
 FLAYRAH_RSS_URL = "https://www.flayrah.com/rss-full.xml"
@@ -3079,7 +3081,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
         )
         req.add_header("Accept", "application/rss+xml, application/xml, text/xml, */*")
         try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            with urllib.request.urlopen(req, timeout=NEWS_RSS_TIMEOUT_SEC) as resp:
                 body = resp.read()
                 status = getattr(resp, "status", 200)
                 content_type = resp.headers.get("Content-Type", "application/rss+xml")

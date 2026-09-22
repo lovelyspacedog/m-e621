@@ -22,6 +22,7 @@ import {
   newsSourceSupportsPaging,
   newsSourcesInAll,
 } from "./registry";
+import { newsRssAbortSignal } from "./timeouts";
 
 export type { NewsArticle };
 export type { NewsSource, NewsSourceFilter };
@@ -89,12 +90,24 @@ async function fetchOneSource(
   qs.set("page", String(normalizeNewsPage(page)));
   const section = normalizeNewsFeedId(source, feed);
   if (section !== "full") qs.set("feed", section);
-  const response = await fetch(`${proxyBase()}/rss?${qs.toString()}`, {
-    headers: {
-      Accept:
-        "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${proxyBase()}/rss?${qs.toString()}`, {
+      headers: {
+        Accept:
+          "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+      },
+      signal: newsRssAbortSignal(),
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      throw new Error(`${source} RSS timed out`);
+    }
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`${source} RSS timed out`);
+    }
+    throw err;
+  }
   if (!response.ok) {
     throw new Error(`${source} RSS failed (${response.status})`);
   }
