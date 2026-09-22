@@ -99,6 +99,7 @@ export const LANDING_SPLASHES: readonly string[] = [
   "Powered by Vue 3 and questionable life choices.",
   "No animals were harmed. Some code was.",
   "If found, return to pawdeck.tonypup.box.ca.",
+  "Not pawdeck.store. Different good boy.",
   "This splash text is a good boy.",
   "Offline mode: napping.",
   "Press F to pet.",
