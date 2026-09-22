@@ -3,7 +3,7 @@ import { NEWS_RSS_TIMEOUT_MS, newsRssAbortSignal } from "./timeouts";
 
 describe("news RSS timeouts", () => {
   it("uses a short per-source budget", () => {
-    expect(NEWS_RSS_TIMEOUT_MS).toBe(10_000);
+    expect(NEWS_RSS_TIMEOUT_MS).toBe(5_000);
   });
 
   it("builds an abort signal that fires within the budget", async () => {
@@ -24,5 +24,5 @@ describe("news RSS timeouts", () => {
       );
     });
     expect(signal.aborted).toBe(true);
-  }, 15_000);
+  }, 10_000);
 });

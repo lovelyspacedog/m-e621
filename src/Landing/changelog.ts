@@ -25,7 +25,7 @@ export const changelogSections: ChangelogSection[] = [
       "Posts search shows a floating Go to top after you scroll (bottom-right, clear of the sidebar and mobile safe areas)",
       "News prefers full article bodies over short RSS excerpts; saved filters remember source/section/view; Flayrah section chips only when filtering to Flayrah; SFW only stays hidden in News",
       "News reader polish: day-grouped feed, j/k focus, text size and column width, click-to-enlarge images, author/tag/source filters, more outlets (InFurNation, Furry Writers’ Guild), same-story “also on…”, watched authors, and optional new-since-last-visit highlight",
-      "News All-sources merge uses a short per-outlet RSS timeout so a dead source (for example InFurNation) fails within about ten seconds instead of holding the whole feed",
+      "News All-sources merge uses a short per-outlet RSS timeout so a dead source (for example InFurNation) fails within about five seconds instead of holding the whole feed",
     ],
   },
   {

@@ -410,7 +410,7 @@ SOFURRY_AUTH_POSTS = {
 # Must match src/worker/news/registry.ts + feeds.ts (resolveNewsRssUrl).
 NEWS_RSS_PAGE_MAX = 8
 # Per-source upstream budget; keep in sync with src/worker/news/timeouts.ts
-NEWS_RSS_TIMEOUT_SEC = 10
+NEWS_RSS_TIMEOUT_SEC = 5
 NEWS_SOURCES = frozenset({"flayrah", "dogpatch", "infurnation", "fwg"})
 NEWS_PAGING_SOURCES = frozenset({"dogpatch", "infurnation", "fwg"})
 FLAYRAH_RSS_URL = "https://www.flayrah.com/rss-full.xml"
