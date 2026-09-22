@@ -56,13 +56,15 @@ export const modeSupportsPools = (mode: SiteMode): boolean =>
 export const modeSupportsVotes = (mode: SiteMode): boolean =>
   isE621FamilyMode(mode) || mode === "furbooru";
 
-/** Sites where the client can toggle a remote favorite / star / like. */
+/** Sites where the client can toggle a favorite / star / like (incl. Local sidecar). */
 export const modeSupportsFavoriteToggle = (mode: SiteMode): boolean =>
   isE621FamilyMode(mode) ||
   mode === "furbooru" ||
   mode === "furaffinity" ||
   mode === "itaku" ||
-  mode === "sofurry";
+  mode === "sofurry" ||
+  mode === "local";
+// Inkbunny / Weasyl: no public fav-toggle API — keep hidden.
 
 export const modeSupportsComments = (mode: SiteMode): boolean =>
   isE621FamilyMode(mode) ||

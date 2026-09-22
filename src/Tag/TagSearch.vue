@@ -55,6 +55,7 @@ import { categoryIdToCategoryName } from "@/misc/util/utilities";
 import TagFavoriteButton from "./TagFavoriteButton.vue";
 import { useFavoritesStore } from "@/services/FavoriteStore";
 import { useAccountStore, usePostsStore, useShortcutService, useSiteModeStore, useUrlStore } from "@/services";
+import { modeSupportsPools } from "@/misc/util/siteCapabilities";
 import type { ITag } from "./ITag";
 import SearchFilters from "./SearchFilters.vue";
 import type { InternalItem } from "vuetify";
@@ -154,6 +155,15 @@ const fetchTags = debounce(
     tagsLoading.value = true;
     try {
       const service = await getApiService();
+      const poolsPromise = modeSupportsPools(siteMode.activeMode)
+        ? service.getPools({
+            limit: posts.tagFetchLimit,
+            order: "count",
+            query: `*${search}*`,
+            baseUrl: urlStore.e621Url,
+            mode: siteMode.activeMode,
+          })
+        : Promise.resolve([]);
       const result = await Promise.all([
         service.getTags({
           limit: posts.tagFetchLimit,
@@ -163,13 +173,7 @@ const fetchTags = debounce(
           mode: siteMode.activeMode,
           auth: account.auth,
         }),
-        service.getPools({
-          limit: posts.tagFetchLimit,
-          order: "count",
-          query: `*${search}*`,
-          baseUrl: urlStore.e621Url,
-          mode: siteMode.activeMode,
-        }),
+        poolsPromise,
       ]);
       // Ignore stale responses from an older keystroke (M21).
       if (requestId !== tagFetchGeneration) return;

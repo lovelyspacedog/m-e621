@@ -222,11 +222,9 @@ def _scent_blocked_message(blocked: list[str]) -> str:
 
 
 def _scent_client_ip(handler: SimpleHTTPRequestHandler) -> str:
-    # Prefer the direct peer. Client-supplied X-Forwarded-For is spoofable;
-    # only trust X-Real-IP when a reverse proxy sets it.
-    real_ip = (handler.headers.get("X-Real-IP") or "").strip()
-    if real_ip and " " not in real_ip and "," not in real_ip:
-        return real_ip
+    # Never trust client-supplied forwarding headers — they are spoofable when
+    # serve.py is reachable directly. The reverse proxy should connect from a
+    # trusted peer; rate limits use the TCP peer only (same as custom news).
     return handler.client_address[0] if handler.client_address else "unknown"
 
 
@@ -491,6 +489,27 @@ NEWS_FULL_RSS = {
 }
 
 
+def _custom_news_ip_blocked(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Block non-public addresses (align with src/worker/news/customUrl.ts)."""
+    if (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+        or not ip.is_global
+    ):
+        return True
+    # Shared Address Space / CGNAT (100.64/10) — is_global is already False on
+    # current Python, but keep an explicit range check for older interpreters.
+    if isinstance(ip, ipaddress.IPv4Address):
+        n = int(ip)
+        if (n >> 22) == (0x6440 >> 6):  # 100.64.0.0/10
+            return True
+    return False
+
+
 def _custom_news_blocked_hostname(hostname: str) -> bool:
     h = (hostname or "").strip().lower().rstrip(".")
     if not h:
@@ -501,14 +520,7 @@ def _custom_news_blocked_hostname(hostname: str) -> bool:
         return True
     try:
         ip = ipaddress.ip_address(h)
-        return (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_multicast
-            or ip.is_reserved
-            or ip.is_unspecified
-        )
+        return _custom_news_ip_blocked(ip)
     except ValueError:
         return False
 
@@ -555,14 +567,7 @@ def _custom_news_assert_public_host(hostname: str) -> None:
             ip = ipaddress.ip_address(addr)
         except ValueError as exc:
             raise ValueError("host not allowed") from exc
-        if (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_multicast
-            or ip.is_reserved
-            or ip.is_unspecified
-        ):
+        if _custom_news_ip_blocked(ip):
             raise ValueError("host not allowed")
 
 
@@ -2882,6 +2887,16 @@ class SpaHandler(SimpleHTTPRequestHandler):
             )
         return cookie
 
+    def _sofurry_host_allowed(self, host: str, *, media: bool) -> bool:
+        h = (host or "").lower()
+        if h in ("sofurry.com", "www.sofurry.com"):
+            return True
+        if media and (
+            h in SOFURRY_MEDIA_HOSTS or h.endswith(".sofurryfiles.com")
+        ):
+            return True
+        return False
+
     def _sofurry_request(
         self,
         url: str,
@@ -2894,11 +2909,27 @@ class SpaHandler(SimpleHTTPRequestHandler):
         extra_headers: dict | None = None,
         timeout: int = 45,
         redirects: int = 3,
+        media: bool = False,
     ) -> tuple[bytes, int, str, str]:
-        """Returns (body, status, content_type, merged_cookie)."""
+        """Returns (body, status, content_type, merged_cookie).
+
+        Manual redirects with per-hop host checks (no auto-follow). Cookies are
+        only sent to sofurry.com / www.sofurry.com — never to CDN or off-host.
+        """
         current_cookie = cookie
         current_url = url
         for _ in range(max(1, redirects + 1)):
+            parsed = urlparse(current_url)
+            host = (parsed.hostname or "").lower()
+            if parsed.scheme != "https" or not self._sofurry_host_allowed(
+                host, media=media
+            ):
+                return (
+                    json.dumps({"detail": "redirect target not allowed"}).encode(),
+                    400,
+                    "application/json",
+                    current_cookie,
+                )
             req = urllib.request.Request(current_url, method=method)
             req.add_header("Accept", accept)
             req.add_header(
@@ -2907,7 +2938,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
             )
             req.add_header("Referer", f"{SOFURRY_BASE}/")
             req.add_header("Origin", SOFURRY_BASE)
-            if current_cookie:
+            # Session cookies only for the HTML origin, never CDN/off-host.
+            if current_cookie and host in ("sofurry.com", "www.sofurry.com"):
                 req.add_header("Cookie", current_cookie)
             csrf = self._sofurry_csrf(current_cookie)
             if csrf:
@@ -2923,25 +2955,34 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 )
                 req.data = body
             try:
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                with _urlopen_no_redirect(req, timeout=timeout) as resp:
                     data = resp.read()
                     status = getattr(resp, "status", 200)
                     ct = resp.headers.get("Content-Type", "application/octet-stream")
-                    current_cookie = self._sofurry_merge_cookies(current_cookie, resp.headers)
+                    if host in ("sofurry.com", "www.sofurry.com"):
+                        current_cookie = self._sofurry_merge_cookies(
+                            current_cookie, resp.headers
+                        )
                     return data, status, ct, current_cookie
             except urllib.error.HTTPError as exc:
-                current_cookie = self._sofurry_merge_cookies(current_cookie, exc.headers)
+                if host in ("sofurry.com", "www.sofurry.com"):
+                    current_cookie = self._sofurry_merge_cookies(
+                        current_cookie, exc.headers
+                    )
                 if exc.code in (301, 302, 303, 307, 308):
-                    loc = exc.headers.get("Location")
+                    loc = exc.headers.get("Location") if exc.headers else None
                     if loc:
                         current_url = urljoin(current_url, loc)
-                        host = (urlparse(current_url).hostname or "").lower()
-                        if host not in ("sofurry.com", "www.sofurry.com"):
-                            break
                         if exc.code in (301, 302, 303) and method == "POST":
                             method = "GET"
                             body = b""
                         continue
+                    return (
+                        json.dumps({"detail": "redirect without Location"}).encode(),
+                        502,
+                        "application/json",
+                        current_cookie,
+                    )
                 return (
                     exc.read() if hasattr(exc, "read") else b"",
                     exc.code,
@@ -3463,7 +3504,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 self._json(400, {"ok": False, "error": "URL host not allowed"})
                 return
             resp_body, status, ct, _ = self._sofurry_request(
-                target, cookie=cookie, accept="*/*"
+                target, cookie=cookie, accept="*/*", media=True
             )
             self._sofurry_respond(resp_body, status, ct)
             return
@@ -3479,7 +3520,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
             last = (b"not found", 404, "text/plain")
             for target in candidates:
                 resp_body, status, ct, _ = self._sofurry_request(
-                    target, cookie=cookie, accept="*/*"
+                    target, cookie=cookie, accept="*/*", media=True
                 )
                 if 200 <= status < 300:
                     self._sofurry_respond(resp_body, status, ct)

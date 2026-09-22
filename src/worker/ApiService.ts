@@ -216,9 +216,12 @@ const unifiedStateKey = (args: {
 export class ApiService {
   /** Sticky per-child leftovers for sequential Unified pagination. */
   private unifiedMerge: UnifiedMergeState<EnhancedPost> | null = null;
+  /** Bumped on reset / re-init so in-flight legacy seeds cannot clobber newer state. */
+  private unifiedMergeEpoch = 0;
 
   /** Drop sticky Unified leftovers (tags / children / feed-source / mode change). */
   async resetUnifiedMerge(): Promise<void> {
+    this.unifiedMergeEpoch += 1;
     this.unifiedMerge = resetUnifiedMergeState();
   }
 
@@ -382,8 +385,8 @@ export class ApiService {
         ...this.stampUnifiedPosts(posts, child, shared, cursor.nextPage - 1),
       );
     } catch (error: unknown) {
-      // Isolate failure: drop this child's leftovers so stale posts don't linger.
-      cursor.exhausted = true;
+      // Isolate this refill only — do not mark exhausted (transient 5xx/timeout
+      // must not drop the child for the rest of infinite scroll).
       cursor.buffer = [];
       warnings.push(
         `${unifiedChildLabel(child.mode)} skipped: ${error instanceof Error ? error.message : String(error)}`,
@@ -418,22 +421,29 @@ export class ApiService {
       this.unifiedMerge?.key === key &&
       args.page === this.unifiedMerge.lastEmittedPage + 1;
 
-    if (args.page <= 1 || this.unifiedMerge?.key !== key) {
+    // Page 1 (or refresh): always start a fresh sequential merge.
+    // Page > 1 when cold, key-mismatched, or non-sequential: legacy fetch + reseed.
+    // Never init+sequential-fill for page > 1 — that would serve child page 1 labeled as N.
+    if (args.page <= 1) {
+      this.unifiedMergeEpoch += 1;
       this.unifiedMerge = initUnifiedMergeState(
         key,
         children.map((c) => c.mode),
       );
     } else if (!sequential) {
-      // Jump / previous page: keep old behavior; seed cursors for later forward scroll.
+      const epoch = this.unifiedMergeEpoch;
       const legacy = await this.getUnifiedPostsLegacy({
         ...args,
         tags: effectiveTags,
       });
-      this.unifiedMerge = seedUnifiedMergeAfterLegacy(
-        key,
-        children.map((c) => c.mode),
-        args.page,
-      );
+      // Ignore stale completion after reset / newer page-1 init.
+      if (epoch === this.unifiedMergeEpoch) {
+        this.unifiedMerge = seedUnifiedMergeAfterLegacy(
+          key,
+          children.map((c) => c.mode),
+          args.page,
+        );
+      }
       return legacy;
     }
 
@@ -1127,6 +1137,10 @@ export class ApiService {
   }
 
   async getPools(args: IPoolsArgs) {
+    // Federated / Local must not fall through to e621 pools autocomplete.
+    if (args.mode === "unified" || args.mode === "local") {
+      return [];
+    }
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotDedicatedChrome(args.baseUrl, "getPools", args.mode);
     if (backend === "furbooru") {
@@ -1185,8 +1199,11 @@ export class ApiService {
   }
 
   async getComments(args: ICommentsListArgs) {
-    const backend = resolveApiBackend(args.baseUrl, args.mode);
     assertNotDedicatedChrome(args.baseUrl, "getComments", args.mode);
+    if (args.mode === "local" || args.mode === "unified") {
+      return [];
+    }
+    const backend = resolveApiBackend(args.baseUrl, args.mode);
     if (backend === "inkbunny" || backend === "weasyl" || backend === "sofurry") {
       return [];
     }
@@ -1225,6 +1242,9 @@ export class ApiService {
 
   async favoritePost(args: IPostFavoriteArgs) {
     assertNotDedicatedChrome(args.baseUrl, "favoritePost", args.mode);
+    if (args.mode === "local" || args.mode === "unified") {
+      return false;
+    }
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     if (backend === "inkbunny" || backend === "weasyl") {
       return false;
@@ -1270,6 +1290,9 @@ export class ApiService {
 
   async unfavoritePost(args: IPostFavoriteArgs) {
     assertNotDedicatedChrome(args.baseUrl, "unfavoritePost", args.mode);
+    if (args.mode === "local" || args.mode === "unified") {
+      return false;
+    }
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     if (backend === "inkbunny" || backend === "weasyl") {
       return false;

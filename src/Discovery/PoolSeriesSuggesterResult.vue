@@ -72,11 +72,13 @@ import {
 import { poolSearchSeeds, type RankedTag } from "@/misc/util/discoveryTools";
 import { sampleFavoriteProfile } from "@/misc/util/discoveryFavoriteSample";
 import { probeFaHostCookiesAvailable } from "@/misc/util/favoriteAuthGate";
+import { authFromAccount } from "@/misc/util/postOrigin";
 import {
   isE621FamilyMode,
   modeSupportsPools,
 } from "@/misc/util/siteCapabilities";
-import type { PoolOriginMode } from "@/services/types";
+import { createEmptySiteProfile } from "@/services/siteProfiles";
+import { SITE_MODE_URLS, type PoolOriginMode } from "@/services/types";
 import { getApiService } from "@/worker/services";
 import { useHead } from "@unhead/vue";
 import { computed, onMounted, ref, toRaw, watch } from "vue";
@@ -182,15 +184,17 @@ const run = async () => {
       for (const origin of origins) {
         if (thisGen !== generation) return;
         try {
+          const profile =
+            main.$state.profiles[origin] || createEmptySiteProfile(origin);
           const pools = await api.getPools({
-            baseUrl: urlStore.e621Url,
+            baseUrl: profile.baseUrl || SITE_MODE_URLS[origin],
             mode: origin,
             limit: 8,
             page: 1,
             order: "post_count",
             postTagsMatch: seed.name,
             query: origin === "furbooru" ? seed.name : undefined,
-            auth: toRaw(account.auth),
+            auth: authFromAccount(origin, toRaw(profile.account)),
           });
           for (const pool of pools) {
             const key = watchedKey(origin, pool.id);

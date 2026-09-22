@@ -35,6 +35,16 @@ describe("prepareUnifiedChildTags", () => {
     });
   });
 
+  it("passes stars:me through on Itaku without a false remap", () => {
+    const { tags, remapped, dropped } = prepareUnifiedChildTags("itaku", [
+      "stars:me",
+      "fox",
+    ]);
+    expect(tags).toEqual(["stars:me", "fox"]);
+    expect(remapped).toEqual([]);
+    expect(dropped).toEqual([]);
+  });
+
   it("maps favs:me to my:faves on Furbooru and drops foreign order", () => {
     const { tags, remapped, dropped, stripped } = prepareUnifiedChildTags(
       "furbooru",

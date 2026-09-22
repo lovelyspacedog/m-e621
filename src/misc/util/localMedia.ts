@@ -1251,11 +1251,13 @@ const writeLibrarySidecarForRoot = async (
 
 const persistFavorites = async (folderKey: string) => {
   if (!folderKey) return;
-  const all = (await localforage.getItem<FavoritesStore>(FAVORITES_KEY)) || {};
-  all[folderKey] = [...(favoritedByFolder[folderKey] || new Set())];
-  await localforage.setItem(FAVORITES_KEY, all);
-  const browse = browseRootsByKey.get(folderKey);
-  if (browse) await writeFavoritesSidecarForRoot(browse);
+  return withSidecarMergeLock(async () => {
+    const all = (await localforage.getItem<FavoritesStore>(FAVORITES_KEY)) || {};
+    all[folderKey] = [...(favoritedByFolder[folderKey] || new Set())];
+    await localforage.setItem(FAVORITES_KEY, all);
+    const browse = browseRootsByKey.get(folderKey);
+    if (browse) await writeFavoritesSidecarForRoot(browse);
+  });
 };
 
 const loadFavoritesForRoot = async (root: BrowseRoot) => {
@@ -1406,11 +1408,13 @@ export const saveLocalResume = async (
         : undefined,
     savedAt: Date.now(),
   };
-  const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
-  all[key] = state;
-  await localforage.setItem(RESUME_KEY, all);
-  const browse = browseRootsByKey.get(key);
-  if (browse) await writeLibrarySidecarForRoot(browse, state);
+  await withSidecarMergeLock(async () => {
+    const all = (await localforage.getItem<ResumeStore>(RESUME_KEY)) || {};
+    all[key] = state;
+    await localforage.setItem(RESUME_KEY, all);
+    const browse = browseRootsByKey.get(key);
+    if (browse) await writeLibrarySidecarForRoot(browse, state);
+  });
 };
 
 const resumeForKey = async (

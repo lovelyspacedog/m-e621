@@ -333,6 +333,8 @@ const fetchPostBytes = async (post: EnhancedPost): Promise<{ data: ArrayBuffer; 
 export type SaveLocalResult = {
   relativePath: string;
   dirHandle: FileSystemDirectoryHandle | null;
+  /** Tauri browse root used when dirHandle is null (desktop Open in Local). */
+  tauriRoot?: string | null;
   saved?: number;
   queued?: true;
 };
@@ -536,7 +538,11 @@ export const savePostLocally = async (
     if (!opts?.quiet) {
       offerOpenInLocalTauri(snackbar, posts, tauriRoot, savedPath);
     }
-    return { relativePath: savedPath, dirHandle: null as FileSystemDirectoryHandle | null };
+    return {
+      relativePath: savedPath,
+      dirHandle: null as FileSystemDirectoryHandle | null,
+      tauriRoot,
+    };
   }
 
   // Firefox/Zen (or no folder chosen): flatten path for Downloads.
@@ -657,7 +663,8 @@ export const savePostsLocally = async (
   let index = 0;
   const lastSavedBox: Array<{
     relativePath: string;
-    dirHandle: FileSystemDirectoryHandle;
+    dirHandle?: FileSystemDirectoryHandle;
+    tauriRoot?: string;
   }> = [];
 
   const worker = async () => {
@@ -666,10 +673,15 @@ export const savePostsLocally = async (
       const current = eligible[index++];
       try {
         const result = await savePostLocally(current, { quiet: true });
-        if (result.dirHandle && result.relativePath) {
+        if (result.relativePath && result.dirHandle) {
           lastSavedBox[0] = {
             relativePath: result.relativePath,
             dirHandle: result.dirHandle,
+          };
+        } else if (result.relativePath && result.tauriRoot) {
+          lastSavedBox[0] = {
+            relativePath: result.relativePath,
+            tauriRoot: result.tauriRoot,
           };
         }
       } catch (error) {
@@ -701,7 +713,7 @@ export const savePostsLocally = async (
       ? `Saved ${eligible.length - failed}/${eligible.length} locally (${failed} failed)`
       : `Saved ${eligible.length} posts locally`;
     const saved = lastSavedBox[0];
-    if (saved) {
+    if (saved?.dirHandle) {
       if (postsStore.openInLocalAfterSave) {
         snackbar.addMessage(summary);
         void openSavedPathInLocal(saved.dirHandle, saved.relativePath);
@@ -709,7 +721,18 @@ export const savePostsLocally = async (
         snackbar.addMessage(summary, {
           label: "Open in Local",
           onClick: () =>
-            openSavedPathInLocal(saved.dirHandle, saved.relativePath),
+            openSavedPathInLocal(saved.dirHandle!, saved.relativePath),
+        });
+      }
+    } else if (saved?.tauriRoot) {
+      if (postsStore.openInLocalAfterSave) {
+        snackbar.addMessage(summary);
+        void openSavedPathInLocalTauri(saved.tauriRoot, saved.relativePath);
+      } else {
+        snackbar.addMessage(summary, {
+          label: "Open in Local",
+          onClick: () =>
+            openSavedPathInLocalTauri(saved.tauriRoot!, saved.relativePath),
         });
       }
     } else {

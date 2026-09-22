@@ -4,11 +4,21 @@ import {
   isE621FamilyMode,
   modeSupportsDiscoveryTools,
   modeSupportsFavoriteAnalyzer,
+  modeSupportsFavoriteToggle,
   modeSupportsOtherUserFavorites,
   modeSupportsPools,
   modeSupportsSuggester,
 } from "./siteCapabilities";
 import type { SiteMode } from "@/services/types";
+
+describe("modeSupportsFavoriteToggle", () => {
+  it("includes Local and hides Inkbunny/Weasyl", () => {
+    expect(modeSupportsFavoriteToggle("local")).toBe(true);
+    expect(modeSupportsFavoriteToggle("e621")).toBe(true);
+    expect(modeSupportsFavoriteToggle("inkbunny")).toBe(false);
+    expect(modeSupportsFavoriteToggle("weasyl")).toBe(false);
+  });
+});
 
 describe("modeSupportsPools", () => {
   it("matches e621-family, Furbooru, Inkbunny, and Federated", () => {

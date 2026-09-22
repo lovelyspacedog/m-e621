@@ -93,12 +93,12 @@ Local mode can:
 - Limit the grid to one folder with a `folder:Name` tag (exact folder label)
 - Sort by newest, name, size, duration, video, stills, or audio
 - Play common image, video, and audio formats
-- Track favorites and playback position (portable sidecars `.me621-favorites.json` and `.me621-library.json` per folder)
+- Track favorites (heart toggle on Local posts) and playback position (portable sidecars `.me621-favorites.json` and `.me621-library.json` per folder)
 - Read tags from `.me621-tags.json`
 - Use poster images where available
 - Remux individual files or every unplayable result in the current filter
 
-Chromium uses the File System Access API for browse and write. The Tauri desktop build can browse and **write under the picked Local browse roots** (Save Locally into the first browse folder when no Chromium save folder is set, remux output, and sidecars). Picking an arbitrary save folder outside those roots still needs Chromium's File System Access API. **Open in Local** after a save replaces the browse list with that save folder and focuses the file.
+Chromium uses the File System Access API for browse and write. The Tauri desktop build can browse and **write under the picked Local browse roots** (Save Locally into the first browse folder when no Chromium save folder is set, remux output, and sidecars). Picking an arbitrary save folder outside those roots still needs Chromium's File System Access API. **Open in Local** after a single or bulk save replaces the browse list with that save folder and focuses the file (Chromium directory handle or Tauri browse root).
 
 ## Saving and remuxing
 

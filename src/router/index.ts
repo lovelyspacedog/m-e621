@@ -442,7 +442,11 @@ router.beforeEach((to, from) => {
       "TailspaceComic",
       "TailspaceFollowing",
     ]);
-    const newsRoutes = new Set(["NewsFeed", "NewsArticle"]);
+    const newsRoutes = new Set([
+      "NewsFeed",
+      "NewsArticle",
+      "NewsCustomArticle",
+    ]);
     const discoveryToolRoutes = new Set([
       "ArtistRadar",
       "ArtistRadarResult",

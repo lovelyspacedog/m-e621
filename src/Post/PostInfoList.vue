@@ -179,10 +179,10 @@ import type { EnhancedPost } from "@/worker/ApiService";
 import { originModeOf, unifiedChildLabel } from "@/misc/util/postOrigin";
 import { isPoolOriginMode, poolRouteQuery } from "@/misc/util/poolOrigin";
 import {
-  modeSupportsComments,
   modeSupportsNotes,
   modeSupportsPools,
   modeSupportsVotes,
+  postSupportsComments,
 } from "@/misc/util/siteCapabilities";
 
 const props = defineProps({
@@ -220,7 +220,7 @@ const poolOpenQuery = computed(() =>
 );
 const supportsNotes = computed(() => modeSupportsNotes(originMode.value));
 const supportsComments = computed(() =>
-  modeSupportsComments(originMode.value),
+  postSupportsComments(props.post as EnhancedPost, siteMode.activeMode),
 );
 /** Views-style sites + likes-only sites: scalar, not up/down. */
 const scalarEngagement = computed(

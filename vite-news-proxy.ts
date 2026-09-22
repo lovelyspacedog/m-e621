@@ -42,6 +42,30 @@ const NEWS_ARTICLE_RE =
   /^\/api\/news\/article\/(flayrah|dogpatch|infurnation|fwg)\/(\d+)$/;
 const LEGACY_ARTICLE_RE = /^\/api\/flayrah\/article\/(\d+)$/;
 
+/** Match serve.py CUSTOM_NEWS_RATE_BURST (30 / 60s per peer). */
+const CUSTOM_NEWS_RATE_BURST = 30;
+const CUSTOM_NEWS_RATE_WINDOW_MS = 60_000;
+const customNewsRateByIp = new Map<string, number[]>();
+
+function customNewsClientIp(req: IncomingMessage): string {
+  return req.socket.remoteAddress || "unknown";
+}
+
+function customNewsRateOk(req: IncomingMessage): boolean {
+  const ip = customNewsClientIp(req);
+  const now = Date.now();
+  const stamps = (customNewsRateByIp.get(ip) || []).filter(
+    (t) => now - t < CUSTOM_NEWS_RATE_WINDOW_MS,
+  );
+  if (stamps.length >= CUSTOM_NEWS_RATE_BURST) {
+    customNewsRateByIp.set(ip, stamps);
+    return false;
+  }
+  stamps.push(now);
+  customNewsRateByIp.set(ip, stamps);
+  return true;
+}
+
 function send(
   res: ServerResponse,
   status: number,
@@ -387,6 +411,12 @@ export function newsProxy(): Plugin {
         if (req.method !== "GET") {
           sendJson(res, 405, { ok: false, message: "method not allowed" });
           return;
+        }
+        if (isCustomRss || isCustomArticle || isCustomMedia) {
+          if (!customNewsRateOk(req)) {
+            sendJson(res, 429, { ok: false, message: "rate limited" });
+            return;
+          }
         }
         if (isCustomRss) {
           await proxyCustomRss(req, res);

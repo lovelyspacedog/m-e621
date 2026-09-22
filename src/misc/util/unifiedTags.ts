@@ -157,6 +157,9 @@ export const prepareUnifiedChildTags = (
         if (mode === "itaku" && (core === "favs:me" || core === "fav:me")) {
           out.push(negated ? "-stars:me" : "stars:me");
           remapped.push(tag);
+        } else if (mode === "itaku" && core === "stars:me") {
+          // Native Itaku token — pass through (adapter also accepts favs:me).
+          out.push(tag);
         } else if (core === "stars:me") {
           out.push(negated ? "-favs:me" : "favs:me");
           remapped.push(tag);

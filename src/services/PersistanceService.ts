@@ -212,6 +212,15 @@ class PersistanceService {
     this.main.$subscribe(() => {
       this.scheduleSave();
     });
+    if (typeof window !== "undefined") {
+      window.addEventListener("pagehide", () => {
+        if (this.saveTimer != null) {
+          clearTimeout(this.saveTimer);
+          this.saveTimer = null;
+        }
+        void this.saveState();
+      });
+    }
   }
 
   public resetStateToDefault() {
@@ -1061,6 +1070,12 @@ class PersistanceService {
         ...newState.profiles.e621,
       };
     }
+    // Local mode needs FSA (Chromium) or Tauri. Fall back quietly otherwise.
+    // Sync live mirrors into the Local profile first (same as SiteModeStore).
+    if (newState.activeMode === "local" && !supportsLocalBrowse()) {
+      syncMirrorsToActiveProfile(newState);
+      newState.activeMode = "e621";
+    }
     if (
       newState.activeMode !== "e621" &&
       newState.activeMode !== "e6ai" &&
@@ -1075,10 +1090,6 @@ class PersistanceService {
       newState.activeMode !== "news" &&
       newState.activeMode !== "unified"
     ) {
-      newState.activeMode = "e621";
-    }
-    // Local mode needs FSA (Chromium) or Tauri. Fall back quietly otherwise.
-    if (newState.activeMode === "local" && !supportsLocalBrowse()) {
       newState.activeMode = "e621";
     }
     // Normalize base URLs
