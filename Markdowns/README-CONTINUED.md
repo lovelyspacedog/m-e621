@@ -38,7 +38,7 @@ Tailspace posts, News, and Local are not included in the Federated Posts feed. T
 - `o` shortcut to open the current fullscreen post on its source site
 - Story, PDF, RTF, and DOCX fullscreen previews; legacy `.doc` remains unsupported
 - Fluffle reverse-image search for still images (with copy-URL on results)
-- Compact sidebar site switcher; origin badge icons in Federated
+- Compact sidebar site switcher with SFW under Site; light dividers between saved searches, nav links, and on-page tags; origin badge icons in Federated
 - **Scent Marks** (`#/scent-marks`) — anonymous public guestbook from the landing page; host operators moderate via a hashed admin password on the VPS (pin and delete)
 
 ## Pools and comics
@@ -234,7 +234,7 @@ TLS for `*.tonypup.box.ca` is handled by the Expedition reverse proxy. `serve.py
 - Settings hub search finds pages and rows across groups (including synonyms like “hotkey” → shortcuts, plus playback, route transitions, git pull, and sanitized backup).
 - On desktop, Settings open as an overlay over the current page (`?settings=` sync); on mobile they stay full-page `/settings*` routes.
 - Appearance includes themes, System/Dark/Light color scheme, navigation density, fullscreen and route transitions (route animations respect reduced motion), an optional paw cursor, and a Prompts subgroup for dismissable banners plus **Reset tooltips** for one-time tip toasts (Federated mode/Following, Local, Layout, pools, watched comics, fullscreen, Saved posts, blacklist, Tailspace comics, Fluffle, remux, Suggester, Analyzer, News offline, News intro, starred tags — see `Markdowns/TIP_CHECKLIST.md`). On mobile, the sidebar drawer is 300px (desktop stays 400px), shows a close button next to the logo, and closes after navigation; the menu button uses the same mobile breakpoint as the drawer. Fullscreen uses dynamic viewport height with safe-area padding; comments go full-bleed on narrow screens.
-- **SFW only** (Post settings, app-bar shield, and sidebar switch) forces safe rating on adapters that support it, overrides conflicting rating search tags, and hides non-safe posts in list feeds. On e621, e6ai, Furbooru, FurAffinity, and Federated, adding `rating:safe` or `rating:s` to the search turns SFW on (removing that tag does not turn it off). Federated no longer snackbars when SFW’s injected safe rating is dropped on children that lack rating search (e.g. SoFurry). Direct post URLs still open. Off by default; global across site modes (not per-profile).
+- **SFW only** (Post settings, app-bar shield, and Site block in the sidebar) forces safe rating on adapters that support it, overrides conflicting rating search tags, and hides non-safe posts in list feeds. On e621, e6ai, Furbooru, FurAffinity, and Federated, adding `rating:safe` or `rating:s` to the search turns SFW on (removing that tag does not turn it off). Federated no longer snackbars when SFW’s injected safe rating is dropped on children that lack rating search (e.g. SoFurry). Direct post URLs still open. Off by default; global across site modes (not per-profile).
 - Post settings also cover feed layout (list/grid, full-width, compact cards), infinite scroll, slideshow / card auto-next, data saver, media autoplay, and local save path templates.
 - Account settings use per-site panels with credentials material and last verify/login probe status; Federated feed source and site presets are also editable there.
 - Info → Debug can silence main-thread production console diagnostics (workers unchanged).

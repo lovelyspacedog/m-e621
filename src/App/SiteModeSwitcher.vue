@@ -11,7 +11,8 @@
       variant="outlined"
       density="compact"
       hide-details
-      class="site-mode-sidebar mx-3 mb-2"
+      class="site-mode-sidebar mx-3"
+      :class="siteMode.isNews ? 'mb-2' : 'mb-1'"
       menu-icon="mdi-chevron-down"
       placeholder="Choose site"
       autocomplete="off"
@@ -31,6 +32,27 @@
         />
       </template>
     </v-autocomplete>
+    <v-list v-if="!siteMode.isNews" class="pa-0" density="compact">
+      <v-list-item
+        :active="posts.sfwOnly"
+        @click="posts.sfwOnly = !posts.sfwOnly"
+      >
+        <template #prepend>
+          <v-icon>{{ posts.sfwOnly ? "mdi-shield-check" : "mdi-shield-outline" }}</v-icon>
+        </template>
+        <v-list-item-title>SFW only</v-list-item-title>
+        <template #append>
+          <v-switch
+            :model-value="posts.sfwOnly"
+            color="accent"
+            hide-details
+            density="compact"
+            @click.stop
+            @update:model-value="(v: boolean | null) => { posts.sfwOnly = !!v }"
+          />
+        </template>
+      </v-list-item>
+    </v-list>
   </div>
   <div v-else-if="variant === 'chips'" class="site-mode-chips">
     <v-btn
@@ -94,6 +116,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
+import { usePostsStore } from "@/services";
 import { useSiteModeStore } from "@/services/SiteModeStore";
 import type { SiteMode, UnifiedChildMode } from "@/services/types";
 
@@ -110,6 +133,7 @@ const props = withDefaults(
   },
 );
 
+const posts = usePostsStore();
 const siteMode = useSiteModeStore();
 const router = useRouter();
 

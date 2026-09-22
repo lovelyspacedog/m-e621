@@ -188,6 +188,7 @@
         {{ hiddenPostCount }} blacklisted hidden
       </v-chip>
       <template v-if="suggestedTags.length > 0">
+        <v-divider class="sidebar-section-rule my-2 mx-3" />
         <v-list class="pa-0" density="compact">
           <v-list-item
             class="sidebar-section-header"

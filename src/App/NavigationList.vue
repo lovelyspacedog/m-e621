@@ -10,27 +10,9 @@
       <site-mode-switcher />
     </template>
     <template v-if="section === 'secondary' || section === 'all'">
-      <v-list-item
-        v-if="!siteMode.isNews"
-        :active="posts.sfwOnly"
-        @click="posts.sfwOnly = !posts.sfwOnly"
-      >
-        <template #prepend>
-          <v-icon>{{ posts.sfwOnly ? "mdi-shield-check" : "mdi-shield-outline" }}</v-icon>
-        </template>
-        <v-list-item-title>SFW only</v-list-item-title>
-        <template #append>
-          <v-switch
-            :model-value="posts.sfwOnly"
-            color="accent"
-            hide-details
-            density="compact"
-            @click.stop
-            @update:model-value="(v: boolean | null) => { posts.sfwOnly = !!v }"
-          />
-        </template>
-      </v-list-item>
+      <v-divider class="sidebar-section-rule my-2 mx-3" />
       <saved-search-nav />
+      <v-divider class="sidebar-section-rule my-2 mx-3" />
       <template v-for="option in trailingBeforeTools" :key="option.resolved">
         <v-list-item
           v-if="option.to.name === 'Settings'"
@@ -115,17 +97,14 @@ import {
 import SavedSearchNav from "./SavedSearchNav.vue";
 import SiteModeSwitcher from "./SiteModeSwitcher.vue";
 import { openSettings } from "@/Settings/settingsOverlay";
-import { usePostsStore, useSiteModeStore } from "@/services";
 import { computed } from "vue";
 import { useRoute } from "vue-router";
 
-const posts = usePostsStore();
-const siteMode = useSiteModeStore();
 const route = useRoute();
 
 withDefaults(
   defineProps<{
-    /** primary = Home + Site; secondary = saved searches + trailing; all = both */
+    /** primary = Home + Site (incl. SFW); secondary = saved searches + trailing; all = both */
     section?: "primary" | "secondary" | "all";
   }>(),
   { section: "all" },

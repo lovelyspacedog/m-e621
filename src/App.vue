@@ -287,7 +287,11 @@ watch(mobile, (val, prevVal) => {
   top: 0;
   z-index: 2;
   background: inherit;
-  padding-bottom: 4px;
+  padding-bottom: 8px;
+}
+.sidebar-section-rule {
+  opacity: 0.28;
+  border-color: currentColor;
 }
 .sidebar-logo-link {
   display: block;
