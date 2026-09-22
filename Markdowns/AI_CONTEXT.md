@@ -1,18 +1,18 @@
 # AI_CONTEXT — PawFeed
 
-Onboarding for other AI agents. Prefer this file plus `README.md` / `README-CONTINUED.md`. `FEATURES.md` is a personal backlog, not a product contract.
+Onboarding for other AI agents. Prefer this file plus `README.md` / `README-CONTINUED.md`. Tip toast inventory: `TIP_CHECKLIST.md` / `TIP_DIALOGS.md`.
 
 ## Purpose
 
 **PawFeed** (`package.json` name `pawfeed`, GitHub `lovelyspacedog/m-e621`) is a personal, AI-assisted fork of [Material e621](https://github.com/avoonix/material-e621). It is a Vue 3 SPA that browses multiple furry imageboards and a local media folder from one UI. User-facing branding lives in `src/misc/util/brand.ts` (`APP_NAME`). Host paths, env vars (`M_E621_*`), and Local sidecars stay `m-e621`. Public instance: **https://pawfeed.tonypup.box.ca**.
 
-Supported **site modes** (`SiteMode` in `src/services/types.ts`): `e621`, `e6ai`, `furbooru`, `inkbunny`, `furaffinity`, `weasyl`, `itaku`, `sofurry`, `flayrah`, `tailspace`, `local`, `unified`.
+Supported **site modes** (`SiteMode` in `src/services/types.ts`): `e621`, `e6ai`, `furbooru`, `inkbunny`, `furaffinity`, `weasyl`, `itaku`, `sofurry`, `news`, `tailspace`, `local`, `unified`.
 
 - **Federated** is the UI label for SiteMode `"unified"` (code, profiles, URLs, and merge helpers still use `unified`). Date-merges remote gallery children into a Search or Following feed.
-- **Tailspace, Flayrah, and Local are not Federated Posts children.** Greyed on landing chips (`isFederatedIncompatible`).
+- **Tailspace, News, and Local are not Federated Posts children.** Greyed on landing chips (`isFederatedIncompatible`).
 - Tailspace comics can join **Federated Pools** name browse when `unifiedIncludeTailspaceComics` is on (Pools sidebar **Sites in Pools**; default true; independent of Defaults / Auth-only).
-- Flayrah uses dedicated news routes (`/#/flayrah`) backed by RSS — never `getPosts` / e621 fall-through (same dedicated-chrome pattern as Tailspace).
-- Flayrah proxy: `GET /api/flayrah/rss?feed=` (allowlisted taxonomy feeds) and `GET /api/flayrah/article/:id` (HTML archive fallback). Offline last-good RSS is cached in IndexedDB; Flayrah stays selectable when offline.
+- **News** (SiteMode `"news"`, UI label News) uses dedicated routes (`/#/news`, legacy `/#/flayrah` redirects) backed by merged public RSS — never `getPosts` / e621 fall-through (same dedicated-chrome pattern as Tailspace).
+- News proxies: Flayrah `GET /api/flayrah/rss?feed=` / `GET /api/flayrah/article/:id`, plus WordPress RSS allowlists for Dogpatch / InFurNation / Furry Writers’ Guild (`/api/news/*`). Offline last-good RSS is cached in IndexedDB; News stays selectable when offline.
 - Each mode has an independent **site profile** (auth, blacklist, starred tags, saved searches, history).
 - License: **AGPL-3.0**. Network use of a modified version must offer corresponding source.
 - Not affiliated with the sites or upstream. Follow each site’s rules and API terms.
@@ -49,7 +49,7 @@ src/worker/                 # API workers + per-site adapters
 src/Post/                   # Feed, cards, fullscreen, comments, save, Saved posts
 src/Pool/                   # e621-family / Furbooru / Inkbunny / Federated pools + reader
 src/Tailspace/              # Tailspace-only pages/reader
-src/Flayrah/                # Flayrah RSS feed + article reader
+src/News/                   # News RSS feed + article reader
 src/Landing/                # Landing, Scent Marks, changelog, TOS, Info, tag wiki
 src/Suggester/              # Post Suggester
 src/Analyzer/               # Favorite Analyzer
@@ -59,7 +59,7 @@ src/App/                    # Nav, logo, mode switcher
 src/misc/util/              # Capabilities, proxies, local FS, federated merge
 src/misc/plugins/           # Vuetify + Unhead
 vite.config.ts              # Dev proxies, PWA, sitemap, git define
-vite-*-proxy.ts             # Dev-only site proxies (FA, Tailspace, Weasyl, Itaku, SoFurry, Flayrah) + Scent Marks stub
+vite-*-proxy.ts             # Dev-only site proxies (FA, Tailspace, Weasyl, Itaku, SoFurry, News) + Scent Marks stub
 serve.py                    # Production static server + same-origin proxies
 fa_proxy.py / furbooru_cf.py
 src-tauri/                  # Desktop shell + Local FS commands (pick/list/read/write)
@@ -68,7 +68,6 @@ start / sync / deploy.sh    # Self-host + SSH deploy
 
 Other notable files:
 
-- `Markdowns/FEATURES.md` — fork backlog / session log.
 - `Markdowns/TIP_CHECKLIST.md` / `TIP_DIALOGS.md` — one-time tip ids (Appearance → Reset tooltips).
 - `deploy.env.example` — env template. Real values: `~/.config/m-e621/env` or gitignored `deploy.env`.
 - `public/zen-browser.css` — Zen / Transparent Zen.
@@ -83,7 +82,7 @@ UI (Vue pages)
   → useMainStore()  // single persisted state tree
   → getApiService() Comlink worker
        ApiService.resolveApiBackend(mode|hostname)
-         → e621 / furbooru / inkbunny / furaffinity / weasyl / itaku / sofurry / tailspace / flayrah adapters
+         → e621 / furbooru / inkbunny / furaffinity / weasyl / itaku / sofurry / tailspace / news adapters
          → same-origin /api/* proxies (Vite in dev, serve.py in prod)
        Federated Posts: prepareUnifiedChildTags + unifiedMerge leftover buffers
        Federated Pools: poolOrigin fan-out (e621/e6ai/Furbooru list; Inkbunny watch/open-by-id; optional Tailspace comics)
@@ -102,7 +101,7 @@ UI (Vue pages)
 - `useMainStore` (`src/services/state.ts`) is a clone of `defaultSettings` (`configVersion` **47**).
 - Domain stores are mostly getters/setters over slices of that tree.
 - **Profile mirrors:** live `account` / `blacklist` / `favorites` / `searches` / `history` on main state are copied into `profiles[activeMode]` on save and mode switch (`siteProfiles.ts`). Always sync both; do not persist only the detached copy.
-- Top-level (not under profiles): `savedPosts`, `watchedPools`, `watchedComics`, `flayrahNews`, `previousModeBeforeUnified`.
+- Top-level (not under profiles): `savedPosts`, `watchedPools`, `watchedComics`, `news` (legacy `flayrahNews` migrated), `previousModeBeforeUnified`.
 - `PersistanceService` (filename spelling is upstream) writes the whole tree to localforage. **Never `JSON.stringify` reactive proxies inside `$subscribe`** — that retriggers the deep watcher and freezes the tab. Snackbar is stripped before save.
 
 **Posts**
@@ -174,7 +173,7 @@ Deploy helpers: `./deploy.sh` (SSH via `EXPEDITION_HOST` + `EXPEDITION_SECRET`),
 - ESLint: `@typescript-eslint/consistent-type-imports` is **error**.
 - Tests live next to code as `foo.spec.ts`. The ESLint Vitest block only targets `src/**/__tests__/*`, which is unused.
 - Commits on this fork follow Conventional Commits (`feat(scope):`, `fix(scope):`, `docs:`).
-- Product bias (`FEATURES.md`): “works for me” over general polish. Prefer extending `siteCapabilities.ts` and adapters over special-casing every button in templates.
+- Product bias: “works for me” over general polish. Prefer extending `siteCapabilities.ts` and adapters over special-casing every button in templates.
 - Adding a settings field: bump `configVersion` in `defaultSettings.ts` **and** `ISettingsServiceState`, add a `< N` migration in `PersistanceService`.
 - Adding a site mode: types + `SITE_MODE_URLS` + empty profile + `SiteModeStore` + nav/router guards + worker adapter + Vite/`serve.py` proxy + capability flags. Do not fall through to the e621 client.
 - User-facing Federated vs code `unified`: keep identifiers (`SiteMode`, `UNIFIED_CHILD_MODES`, `unifiedMerge`, `unifiedSites`) unless there is an explicit product rename of the type. `SiteModeStore.modeLabel` maps `"unified"` → `"Federated"`.
@@ -220,7 +219,7 @@ Load order: process env wins; then `~/.config/m-e621/env`, then `deploy.env` (`l
 - SoFurry: email/password or pasted cookies (session only).
 - Tailspace: password or `tailspace_session` cookie.
 
-**External APIs / hosts:** e621.net, e6ai.net, furbooru.org (Philomena; Cloudflare bot challenge via `furbooru_cf.py`), inkbunny.net, furaffinity.net, weasyl.com, itaku.ee, sofurry.com, flayrah.com (`rss-full.xml`), tailspace.com, [Fluffle](https://api.fluffle.xyz/exact-search-by-file) reverse-image (stills only; max 4 MiB).
+**External APIs / hosts:** e621.net, e6ai.net, furbooru.org (Philomena; Cloudflare bot challenge via `furbooru_cf.py`), inkbunny.net, furaffinity.net, weasyl.com, itaku.ee, sofurry.com, flayrah.com / dogpatch.press / infurnation.com / furrywritersguild.com (News RSS), tailspace.com, [Fluffle](https://api.fluffle.xyz/exact-search-by-file) reverse-image (stills only; max 4 MiB).
 
 PWA: `registerType: 'prompt'`, `display: "standalone"`, update poll every 10 minutes, Workbox max cache **4 MiB**, `ruffle/**` excluded from precache, `/api/` denylisted from navigate fallback. Start URL `/#/posts`.
 
@@ -233,8 +232,8 @@ PWA: `registerType: 'prompt'`, `display: "standalone"`, update poll every 10 min
 - **Furbooru** needs `curl_cffi` + cached `_philomena_key` (`.furbooru_philomena_key`, gitignored). Node `fetch` gets HTTP 501 “I'm not a robot”.
 - **FA search** scrapes HTML and **deliberately delays** between requests (`fa_proxy.py`).
 - **Weasyl guests are SFW-only.** Inkbunny and Weasyl have **no public fav-toggle API** — keep the favorite button hidden (`modeSupportsFavoriteToggle`).
-- **SoFurry / Flayrah / other non-e621 modes must not fall through to e621 comments, notes, pools, or dashboard.** Post Suggester and Favorite Analyzer are allowed outside Tailspace and Flayrah via `modeSupportsSuggester` / `modeSupportsFavoriteAnalyzer` (`isDedicatedChromeMode`), using mode-native favorite queries — never the e621 client.
-- **Flayrah** is read-only RSS news chrome (`/#/flayrah`); proxy is `GET /api/flayrah/rss?feed=` plus `GET /api/flayrah/article/:id` for archive HTML.
+- **SoFurry / News / other non-e621 modes must not fall through to e621 comments, notes, pools, or dashboard.** Post Suggester and Favorite Analyzer are allowed outside Tailspace and News via `modeSupportsSuggester` / `modeSupportsFavoriteAnalyzer` (`isDedicatedChromeMode`), using mode-native favorite queries — never the e621 client.
+- **News** is read-only multi-source RSS chrome (`/#/news`; legacy `/#/flayrah` redirects). Flayrah proxy remains `GET /api/flayrah/rss?feed=` plus `GET /api/flayrah/article/:id`; other outlets use allowlisted WordPress RSS via `/api/news/*`.
 - **Federated merge** keeps sticky per-child leftovers (`unifiedMerge.ts`). Sequential pages reuse discarded posts; tag/children changes must reset state. Page jumps use legacy merge then reseed.
 - **Federated tag translation** (`unifiedTags.ts`) strips/remaps metatags per child (`order:`, `favs:me` → `my:faves` / `stars:me`, etc.) and may snackbar ignored tokens.
 - **Landing does not restore Federated** as the selected mode (`demoteUnifiedOnLanding` unless navigating back from Browse posts). Close/label exits via `previousModeBeforeUnified` (fallback e621). Inclusion chips persist when leaving and re-entering Federated.
@@ -248,10 +247,10 @@ PWA: `registerType: 'prompt'`, `display: "standalone"`, update poll every 10 min
 - **Settings:** desktop overlay keeps the current page mounted (`settingsOverlay.ts`); mobile stays full-page `/settings*`. Landing gear opens Settings from the hero and footer. One-time tips live in `appearance.dismissedTips` (Reset tooltips). Mobile sidebar is 300px with a close button (desktop 400px).
 - **Vuetify defaults:** global `transition: 'no'`, `ripple: false`; `VBtn` variant `text`.
 - **PWA Reload** needs the `controllerchange` workaround in `misc/serviceWorker/register.ts`.
-- **`.github/workflows/docker.yml`** publishes the fork Docker image (`serve.py` runtime) to GHCR on push to main/master (`latest` + sha). Local docs still prefer `docker compose up --build`; GHCR is the optional personal registry (FEATURES 7.1 — **keep**).
+- **`.github/workflows/docker.yml`** publishes the fork Docker image (`serve.py` runtime) to GHCR on push to main/master (`latest` + sha). Local docs still prefer `docker compose up --build`; GHCR is the optional personal registry (**keep**).
 - **e2e:** hash-route Playwright smoke; CI uses npm + Node 20. Prefer local `npm run test:unit` as the merge gate.
 - **`tsconfig.node.json` `include`** covers `vite-*-proxy.ts`.
-- Default Federated children (`defaultUnifiedSites`): all eight remote children on (including Weasyl and Itaku); Tailspace/Flayrah/Local are never Posts children.
+- Default Federated children (`defaultUnifiedSites`): all eight remote children on (including Weasyl and Itaku); Tailspace/News/Local are never Posts children.
 - `getAppName()` appends a short git hash when `VITE_GIT_COMMIT_INFO` parsed successfully.
 - Fork vs upstream commit URLs use author matching `tony pup` / `lovelyspacedog` (`src/misc/util/git.ts`).
 - Docker/sync skip `vue-tsc` (`build-only`).
@@ -274,7 +273,7 @@ PWA: `registerType: 'prompt'`, `display: "standalone"`, update poll every 10 min
 - **View-transition first-load skip.**
 - **Landing Federated demote** (`demoteUnifiedOnLanding`) unless coming from Browse posts.
 - Do not add **Inkbunny/Weasyl favorite toggles** without a real public API.
-- Do not put Tailspace, Flayrah, or Local into `UNIFIED_CHILD_MODES` without an explicit product change.
+- Do not put Tailspace, News, or Local into `UNIFIED_CHILD_MODES` without an explicit product change.
 - Do not rename SiteMode `"unified"` / `UNIFIED_CHILD_MODES` / `unifiedMerge` solely to match the Federated UI label.
 - Do not commit `FA_COOKIE_*`, API keys, `deploy.env`, or `~/.config/m-e621/*`.
 - Do not switch the package manager to yarn/pnpm.

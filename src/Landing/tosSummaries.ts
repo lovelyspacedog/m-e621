@@ -31,6 +31,7 @@ export const tosSummaries: TosSummary[] = [
     name: "e621",
     sourceUrl: "https://e621.net/wiki_pages/e621:terms_of_service",
     sourceLabel: "Terms of Service",
+    note: "Official wiki page last revised October 2, 2025. PawFeed summary checked against that revision; the live wiki always controls.",
     sections: [
       {
         heading: "Who it binds",
@@ -56,13 +57,13 @@ export const tosSummaries: TosSummary[] = [
         bullets: [
           "Illegal activity; harming or exploiting minors",
           "Spam, impersonation, malware, or attacks on the service",
-          "Automated access only as allowed by their API / bot guidelines",
+          "Bots/crawlers only for non-malicious use that follows their published API / bot guidelines",
         ],
       },
       {
-        heading: "Liability",
+        heading: "Liability and disputes",
         paragraphs: [
-          "The service is provided as-is with disclaimers and liability limits. Governing law and dispute resolution (including arbitration for US/Canada users) are set out in the full Terms.",
+          "The service is provided as-is with disclaimers and liability limits. US/Canada users are under a special arbitration clause (individual claims; AAA); other users follow the jurisdiction terms in the full document. Claims generally must be brought within one year.",
         ],
       },
     ],
@@ -72,6 +73,7 @@ export const tosSummaries: TosSummary[] = [
     name: "e6AI",
     sourceUrl: "https://e6ai.net/wiki_pages/2",
     sourceLabel: "Terms of Service",
+    note: "Official wiki page last revised October 2, 2025. Structure matches e621; PawFeed summary checked against that revision.",
     sections: [
       {
         heading: "Who it binds",
@@ -81,7 +83,7 @@ export const tosSummaries: TosSummary[] = [
         bullets: [
           "18+ only",
           "Changes take effect when posted; continued use accepts them",
-          "Same general account-security and prohibited-use themes as e621",
+          "Keep credentials confidential; do not share login access",
         ],
       },
       {
@@ -93,9 +95,17 @@ export const tosSummaries: TosSummary[] = [
         ],
       },
       {
-        heading: "Note",
+        heading: "Prohibited use (high level)",
+        bullets: [
+          "Illegal activity; harming or exploiting minors",
+          "Spam, impersonation, malware, or attacks on the service",
+          "Bots/crawlers only for non-malicious use that follows their published API / bot guidelines",
+        ],
+      },
+      {
+        heading: "Liability and disputes",
         paragraphs: [
-          "Read the e6AI original for AI-site-specific wording; do not assume every e621 rule text is identical.",
+          "As-is service with disclaimers and liability limits. US/Canada users fall under a special arbitration clause; bring claims promptly (generally within one year). Read the e6AI original for AI-site-specific wording — do not assume every e621 sentence is identical.",
         ],
       },
     ],
