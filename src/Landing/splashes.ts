@@ -100,6 +100,7 @@ export const LANDING_SPLASHES: readonly string[] = [
   "No animals were harmed. Some code was.",
   "If found, return to pawdeck.tonypup.box.ca.",
   "Not pawdeck.store. Different good boy.",
+  "Also not youtube.com/@paw_deck. Wrong pup.",
   "This splash text is a good boy.",
   "Offline mode: napping.",
   "Press F to pet.",
