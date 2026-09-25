@@ -8,8 +8,11 @@ import {
   modeSupportsDiscoveryTools,
 } from "@/misc/util/siteCapabilities";
 import { peekNewsCachedArticles } from "@/worker/news/api";
+import { browsePostsRoute } from "@/misc/util/browsePostsRoute";
 import { computed } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
+
+export { browsePostsRoute } from "@/misc/util/browsePostsRoute";
 
 const hasFavorites = computed(() => {
   const store = useFavoritesStore();
@@ -46,19 +49,12 @@ const resolveItem = (
 
 export const useHomeNavigationItem = () => {
   const router = useRouter();
-  const siteMode = useSiteModeStore();
   return computed(() =>
     resolveItem(router, {
       icon: "mdi-home",
       name: "Home",
       exact: true,
-      to: {
-        name: siteMode.isTailspace
-          ? "TailspacePosts"
-          : siteMode.isNews
-            ? "NewsFeed"
-            : "Posts",
-      },
+      to: { name: "Home" },
     }),
   );
 };
@@ -240,6 +236,12 @@ export const useTrailingNavigationItems = () => {
         ]
       : [];
     return [
+      {
+        icon: "mdi-image-multiple",
+        name: "Posts",
+        exact: false,
+        to: browsePostsRoute(siteMode.activeMode),
+      },
       ...(siteMode.supportsSavedPosts
         ? [
             {

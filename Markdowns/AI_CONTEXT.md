@@ -52,6 +52,7 @@ src/Pool/                   # e621-family / Furbooru / Inkbunny / Federated pool
 src/Tailspace/              # Tailspace-only pages/reader
 src/News/                   # News RSS feed + article reader
 src/Landing/                # Landing, Scent Marks, changelog, TOS, Info, tag wiki
+src/Home/                   # Sidebar Home overview (/home)
 src/Suggester/              # Post Suggester
 src/Analyzer/               # Favorite Analyzer
 src/ArtistDashboard/        # e621-family artist dashboard

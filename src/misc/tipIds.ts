@@ -33,6 +33,8 @@ export const TIP_IDS = {
   /** @deprecated use newsOffline */
   flayrahOffline: "flayrah-offline",
   starredTags: "starred-tags",
+  /** First visit to Home overview (`/home`). */
+  homeOverview: "home-overview",
 } as const;
 
 export type TipId = (typeof TIP_IDS)[keyof typeof TIP_IDS];

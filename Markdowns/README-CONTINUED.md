@@ -80,6 +80,8 @@ Sibling tools to Suggester / Analyzer (same mode surface; Tailspace and News exc
 - **Taste Pack** (`/tools/taste-pack`) — export/import JSON of counts + weights; star top tags or open Suggester
 - **Activity heatmap** (`/tools/activity`) — calendar of favorited posts by upload date (Dashboard-style grid)
 
+**Home** (`/home`) is the sidebar Home target (all modes). It shows mode shortcuts (browse posts, Following where supported, Pools, Saved, News), saved-search wake `+N` rows for the active profile, watched pools/comics as links (live +N badges stay on the Pools / Comics pages), Saved/collections counts, and teasers to History Insights and Activity heatmap. Artist Dashboard remains under Tools on e621/e6ai only. Browse posts stays a separate sidebar link.
+
 ## Saved searches, starred tags, and bookmarks
 
 Saved searches and starred tags can be placed into named, collapsible groups. Groups and entries support reordering and drag-and-drop. Favorites, blacklists, and compatible saved searches (e621 ↔ e6ai) can be copied between site profiles using merge or replace. Gallery saved-search rows in the sidebar show a +N badge when Wake-up (or a background stale refresh) finds posts newer than last open; opening the search clears the badge. Blacklist Settings can also **push** the active profile’s lines into every signed-in Federated child, remapping each line through the Federated metatag map before merging.

@@ -46,6 +46,7 @@ When a tip ships: check the box, keep the tip id stable, mention it in `src/Land
 - [x] `flayrah-offline` — First offline News cache alert (tip id kept). Host: `NewsFeedPage.vue`. Last-good RSS cache.
 - [x] `news-intro` — First News feed visit. Host: `NewsFeedPage.vue`. Sources, Flayrah sections, Dogpatch content note, attribution.
 - [x] `starred-tags` — First Favorites / starred-tag groups page. Host: `FavoritesPage.vue`. Starred groups + cross-site copy.
+- [x] `home-overview` — First Home (`/home`) visit. Host: `HomePage.vue`. Shortcuts, wake, watches, Saved, discovery teasers.
 
 ## Done / out of scope
 

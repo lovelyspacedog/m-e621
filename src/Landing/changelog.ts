@@ -15,6 +15,14 @@ export interface ChangelogSection {
  */
 export const changelogSections: ChangelogSection[] = [
   {
+    date: "2026-09-25",
+    title: "Home overview",
+    items: [
+      "Sidebar Home opens /home: mode shortcuts, saved-search wake hits, watched pools/comics, Saved/collections, and discovery teasers for the current site profile",
+      "Browse posts stays a sidebar link (Posts / Tailspace / News); Artist Dashboard remains under Tools on e621 and e6ai",
+    ],
+  },
+  {
     date: "2026-09-23",
     title: "Feature ideas: badges through host sync",
     items: [

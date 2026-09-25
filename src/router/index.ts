@@ -57,6 +57,12 @@ const router = createRouter({
       },
     },
     {
+      path: "/home",
+      name: "Home",
+      component: () =>
+        import(/* webpackChunkName: "misc" */ "@/Home/HomePage.vue"),
+    },
+    {
       path: "/posts",
       // alias: "/e621",
       name: "Posts",
