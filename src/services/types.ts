@@ -78,6 +78,15 @@ export interface SavedPostEntry {
   savedAt: number;
 }
 
+/** Named folder of Saved posts; a post key may appear in more than one. */
+export interface SavedPostCollection {
+  id: string;
+  name: string;
+  order: number;
+  /** `postFeedKey` values (`${originMode}:${id}`). */
+  postKeys: string[];
+}
+
 export interface NewsSavedArticle {
   /** Namespaced id: `flayrah:123` / `dogpatch:456` / `custom:c_…:hex`. */
   id: string;
@@ -326,7 +335,8 @@ export interface ISettingsServiceState {
     | 48
     | 49
     | 50
-    | 51;
+    | 51
+    | 52;
   activeMode: SiteMode;
   /** Mode before entering Federated; restored when leaving or demoting on landing. */
   previousModeBeforeUnified: SiteMode | null;
@@ -428,6 +438,7 @@ export interface ISettingsServiceState {
   /** Mode-independent local bookmarks (federated child modes + Unified). Not under profiles. */
   savedPosts: {
     entries: SavedPostEntry[];
+    collections: SavedPostCollection[];
   };
   /** News (Flayrah + Dogpatch) read-state, saved articles, and feed layout. Not under profiles. */
   news: NewsState;
@@ -462,6 +473,8 @@ export interface ISettingsServiceState {
           newestKey?: string;
           createdMs?: number;
           lastHitCount?: number;
+          /** Last background / Wake-up check time (ms). */
+          checkedAt?: number;
         }
       >;
     };

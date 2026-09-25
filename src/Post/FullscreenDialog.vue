@@ -347,7 +347,7 @@ if (!fsListenerRegistered) {
 
 const emit = defineEmits<{
   close: [];
-  "next-post": [opts?: { skipDocuments?: boolean }];
+  "next-post": [opts?: { skipDocuments?: boolean; audioOnly?: boolean }];
   "previous-post": [];
   "set-post-favorite": [payload: unknown];
   "set-post-vote": [payload: unknown];
@@ -364,6 +364,10 @@ const props = defineProps({
   hasNextFullscreenPost: {
     type: Boolean,
     required: true,
+  },
+  audioQueueActive: {
+    type: Boolean,
+    default: false,
   },
   current: {
     type: null as unknown as PropType<null | EnhancedPost>,
@@ -936,7 +940,10 @@ const advanceSlideshow = () => {
   }
   clearSlideshowTimer();
   loadStart();
-  emit("next-post", { skipDocuments: true });
+  emit("next-post", {
+    skipDocuments: true,
+    ...(props.audioQueueActive ? { audioOnly: true } : {}),
+  });
   setTransitionNames("right");
 };
 
@@ -955,12 +962,21 @@ const toggleSlideshow = () => {
 };
 
 const onVideoEnded = () => {
-  if (!slideshowPlaying.value) return;
   if (prefersReducedMotion()) {
     stopSlideshow();
     return;
   }
-  void advanceSlideshow();
+  if (slideshowPlaying.value) {
+    void advanceSlideshow();
+    return;
+  }
+  // Audio queue: advance to the next audio hit when the track ends.
+  if (props.audioQueueActive && isAudioPost.value) {
+    if (!props.hasNextFullscreenPost) return;
+    loadStart();
+    emit("next-post", { skipDocuments: true, audioOnly: true });
+    setTransitionNames("right");
+  }
 };
 
 const loadTimeout = ref<ReturnType<typeof setTimeout> | null>(null);
@@ -1004,10 +1020,15 @@ const showNextImage = () => {
   clearSlideshowTimer();
   loadStart();
   // Manual next keeps stories reachable; slideshow skips them.
-  emit(
-    "next-post",
-    slideshowPlaying.value ? { skipDocuments: true } : undefined,
-  );
+  // Audio queue keeps next/prev on audio hits.
+  const opts =
+    slideshowPlaying.value || props.audioQueueActive
+      ? {
+          ...(slideshowPlaying.value ? { skipDocuments: true } : {}),
+          ...(props.audioQueueActive ? { audioOnly: true } : {}),
+        }
+      : undefined;
+  emit("next-post", opts);
   setTransitionNames("right");
 };
 const showPreviousImage = () => {

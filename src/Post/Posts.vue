@@ -32,7 +32,9 @@
     <fullscreen-dialog
       v-if="!useInkbunnyViewer"
       :has-previous-fullscreen-post="hasPreviousFullscreenPost"
-      :has-next-fullscreen-post="hasNextFullscreenPost" :current="fullscreenPost || null"
+      :has-next-fullscreen-post="hasNextFullscreenPost"
+      :audio-queue-active="audioQueueActive"
+      :current="fullscreenPost || null"
       @close="$emit('exit-fullscreen')" @next-post="$emit('next-fullscreen-post', $event)"
       @previous-post="$emit('previous-fullscreen-post')" @open-post-details="$emit('open-post-details', $event)"
       @set-post-favorite="$emit('set-post-favorite', $event)"
@@ -125,6 +127,7 @@ const props = defineProps({
   hasPreviousFullscreenPost: { type: Boolean, required: true },
   hasNextFullscreenPost: { type: Boolean, required: true },
   hasPrevious: { type: Boolean, required: true },
+  audioQueueActive: { type: Boolean, default: false },
   resumeEnabled: { type: Boolean, default: false },
   restorePath: { type: String, default: undefined },
   restoreFolderKey: { type: String, default: undefined },

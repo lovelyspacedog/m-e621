@@ -17,6 +17,7 @@ import { itakuProxy } from './vite-itaku-proxy'
 import { sofurryProxy } from './vite-sofurry-proxy'
 import { newsProxy } from './vite-news-proxy'
 import { scentMarksProxy } from './vite-scent-marks-proxy'
+import { settingsSyncProxy } from './vite-settings-sync-proxy'
 
 // Furbooru's Cloudflare IPv6 path 520s from some hosts; prefer IPv4.
 dns.setDefaultResultOrder('ipv4first');
@@ -1071,6 +1072,7 @@ export default defineConfig(({ mode }) => {
       sofurryProxy(),
       newsProxy(),
       scentMarksProxy(),
+      settingsSyncProxy(),
       fluffleProxy(),
       rufflePlugin(),
       generateSitemap(env),

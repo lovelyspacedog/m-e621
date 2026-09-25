@@ -5,6 +5,8 @@ import {
   mergeSavedSearches,
   canCopySavedSearches,
   copyProfileLists,
+  pushBlacklistToSignedInChildren,
+  remapBlacklistLineForChild,
 } from "./profileListSync";
 import { createEmptySiteProfile } from "./siteProfiles";
 import {
@@ -62,7 +64,7 @@ const blankState = (active: SiteMode = "e621"): ISettingsServiceState => {
       hideDetailsSidebar: false,
       hideBlacklisted: false,
     },
-    savedPosts: { entries: [] },
+    savedPosts: { entries: [], collections: [] },
     news: { readIds: [], saved: [], layout: "list" },
   } as unknown as ISettingsServiceState;
 };
@@ -240,5 +242,51 @@ describe("mergeSavedSearches", () => {
     );
     expect(mergeSavedSearches(target, source)).toBe(1);
     expect(target.entries).toHaveLength(2);
+  });
+});
+
+describe("pushBlacklistToSignedInChildren", () => {
+  it("remaps and merges into signed-in children only", () => {
+    const state = blankState("e621");
+    state.blacklist.tags = [["species:wolf"], ["favs:me"], ["order:score"]];
+    state.profiles.e621.blacklist.tags = structuredClone(state.blacklist.tags);
+    state.profiles.furbooru.account = { username: null, apiKey: "fb-key" };
+    state.profiles.itaku.account = { username: null, apiKey: "itaku-token" };
+    state.profiles.inkbunny.account = { username: null, apiKey: null };
+
+    expect(remapBlacklistLineForChild("furbooru", ["species:wolf"])).toEqual([
+      "wolf",
+    ]);
+    expect(remapBlacklistLineForChild("furbooru", ["favs:me"])).toEqual([
+      "my:faves",
+    ]);
+
+    const result = pushBlacklistToSignedInChildren(state);
+    expect(result.updated.sort()).toEqual(["furbooru", "itaku"]);
+    expect(result.added).toBeGreaterThan(0);
+    expect(
+      state.profiles.furbooru.blacklist.tags.some((l) => l.includes("wolf")),
+    ).toBe(true);
+    expect(
+      state.profiles.furbooru.blacklist.tags.some((l) =>
+        l.includes("my:faves"),
+      ),
+    ).toBe(true);
+    expect(state.profiles.inkbunny.blacklist.tags).toEqual([]);
+  });
+
+  it("does not rewrite the active mode profile", () => {
+    const state = blankState("furbooru");
+    state.blacklist.tags = [["dragon"]];
+    state.profiles.furbooru.blacklist.tags = [["dragon"]];
+    state.profiles.furbooru.account = { username: null, apiKey: "fb" };
+    state.profiles.e621.account = { username: "u", apiKey: "k" };
+
+    const before = structuredClone(state.profiles.furbooru.blacklist.tags);
+    pushBlacklistToSignedInChildren(state);
+    expect(state.profiles.furbooru.blacklist.tags).toEqual(before);
+    expect(
+      state.profiles.e621.blacklist.tags.some((l) => l.includes("dragon")),
+    ).toBe(true);
   });
 });

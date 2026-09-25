@@ -33,7 +33,7 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 51,
+  configVersion: 52,
   activeMode: "e621",
   previousModeBeforeUnified: null,
   profiles: {
@@ -141,6 +141,7 @@ export const defaultSettings: ISettingsServiceState = {
   },
   savedPosts: {
     entries: [],
+    collections: [],
   },
   news: {
     readIds: [],

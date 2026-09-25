@@ -77,6 +77,7 @@
       @previous-fullscreen-post="openPreviousFullscreenPost()"
       :has-previous-fullscreen-post="hasPreviousFullscreenPost"
       :has-next-fullscreen-post="hasNextFullscreenPost"
+      :audio-queue-active="audioQueueActive"
       :details-post="detailsPost || undefined" @open-post-details="openPostDetails"
       @close-details="detailsPost = null" @set-post-favorite="setPostFavorite($event)"
       @set-post-vote="setPostVote($event)"
@@ -300,9 +301,11 @@ import {
 import { orderSupport, type UnifiedOrderKind } from "../misc/util/orderSupport";
 import {
   buildUnifiedFetchArgs,
+  postFeedKey,
   unifiedChildIcon,
   unifiedChildLabel,
 } from "../misc/util/postOrigin";
+import { isAudioExt } from "@/misc/util/audioExts";
 import { UNIFIED_CHILD_MODES, type UnifiedFeedSource } from "@/services/types";
 import { modeSupportsFollowing } from "@/misc/util/siteCapabilities";
 import {
@@ -316,6 +319,7 @@ import {
   revokeLocalBlobUrls,
   takePendingLocalFocusPath,
 } from "../misc/util/localMedia";
+import { tagUntaggedLocalViaFluffle } from "../misc/util/localFluffleTag";
 import HistoryList from "../Tag/HistoryList.vue";
 import TagSearch from "../Tag/TagSearch.vue";
 import LocalFolderPicker from "../Settings/LocalFolderPicker.vue";
@@ -398,8 +402,10 @@ const restoreVideoTime = ref<number | undefined>(undefined);
 const bulkSaving = ref(false);
 const searchSaving = ref(false);
 const bulkRemuxing = ref(false);
+const bulkFluffleTagging = ref(false);
 let searchSaveAbort: AbortController | null = null;
 let remuxAbort: AbortController | null = null;
+let fluffleTagAbort: AbortController | null = null;
 const { tags, addTag, removeTag, updateQuery, query, setTags } =
   useRouterTagManager();
 const urlStore = useUrlStore();
@@ -423,6 +429,8 @@ const {
   openFullscreenPost,
   openNextFullscreenPost,
   openPreviousFullscreenPost,
+  setAudioQueueActive,
+  audioQueueActive,
   setPostFavorite,
   setPostVote,
   hasPrevious,
@@ -515,12 +523,48 @@ const {
 });
 
 const shortcutService = useShortcutService();
-const onNextFullscreenPost = async (opts?: { skipDocuments?: boolean }) => {
+const onNextFullscreenPost = async (opts?: {
+  skipDocuments?: boolean;
+  audioOnly?: boolean;
+}) => {
   const moved = await openNextFullscreenPost(opts);
   // Slideshow asked to skip stories/PDFs but nothing else remained.
   if (opts?.skipDocuments && !moved) {
     shortcutService.emitter.emit("fullscreenSlideshowStop");
   }
+};
+
+const startAudioQueue = async () => {
+  const list = posts.value;
+  const currentKey = fullscreenPost.value
+    ? postFeedKey(fullscreenPost.value)
+    : null;
+  const startIdx = currentKey
+    ? list.findIndex((p) => postFeedKey(p) === currentKey)
+    : -1;
+  const from = startIdx >= 0 ? startIdx : 0;
+  const isPlayableAudio = (p: (typeof list)[number]) =>
+    !!p.file.url && isAudioExt(p.file.ext) && !p.__meta.isBlacklisted;
+  let target =
+    list.slice(from).find(isPlayableAudio) || list.find(isPlayableAudio);
+  if (!target) {
+    snackbar.addMessage("No audio in the current results");
+    return;
+  }
+  setAudioQueueActive(true);
+  if (
+    fullscreenPost.value &&
+    postFeedKey(fullscreenPost.value) === postFeedKey(target)
+  ) {
+    snackbar.addMessage("Audio queue on — next track when this ends");
+    return;
+  }
+  await openFullscreenPost({
+    postId: target.id,
+    originMode: target.__meta.originMode,
+  });
+  setAudioQueueActive(true);
+  snackbar.addMessage("Audio queue on");
 };
 
 const reloadLocal = () => {
@@ -594,6 +638,58 @@ const toggleBulkRemux = async () => {
   } finally {
     bulkRemuxing.value = false;
     remuxAbort = null;
+  }
+};
+
+const toggleBulkFluffleTags = async () => {
+  if (!siteMode.isLocal) return;
+  if (bulkFluffleTagging.value) {
+    fluffleTagAbort?.abort();
+    return;
+  }
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    snackbar.addMessage("Fluffle tag needs a network connection");
+    return;
+  }
+  bulkFluffleTagging.value = true;
+  fluffleTagAbort = new AbortController();
+  let lastLabel = "";
+  try {
+    const result = await tagUntaggedLocalViaFluffle({
+      posts: posts.value,
+      signal: fluffleTagAbort.signal,
+      onProgress: (p) => {
+        const name = p.path.split("/").pop() || p.path;
+        const label = `Fluffle tag ${p.index}/${p.total}: ${name}`;
+        if (label !== lastLabel) {
+          lastLabel = label;
+          snackbar.addMessage(label);
+        }
+      },
+    });
+    if (
+      !result.tagged &&
+      !result.failed &&
+      !result.skipped &&
+      !result.aborted
+    ) {
+      snackbar.addMessage("No untagged stills in this Local page");
+    } else {
+      const parts: string[] = [];
+      if (result.tagged) parts.push(`${result.tagged} tagged`);
+      if (result.skipped) parts.push(`${result.skipped} no match`);
+      if (result.failed) parts.push(`${result.failed} failed`);
+      if (result.aborted) parts.push("cancelled");
+      snackbar.addMessage(parts.join(", ") || "Done");
+      if (result.tagged) reloadLocal();
+    }
+  } catch (err) {
+    snackbar.addMessage(
+      err instanceof Error ? err.message : "Fluffle tag failed",
+    );
+  } finally {
+    bulkFluffleTagging.value = false;
+    fluffleTagAbort = null;
   }
 };
 
@@ -1073,6 +1169,16 @@ const toolbarActions = computed((): ToolbarAction[] => {
         run: () => toggleTypeTag("type:audio"),
       },
       {
+        key: "audio-queue",
+        label: audioQueueActive.value ? "Queue on" : "Queue",
+        active: audioQueueActive.value,
+        title:
+          "Play audio hits in order — skips non-audio in fullscreen until you close it",
+        run: () => {
+          void startAudioQueue();
+        },
+      },
+      {
         key: "duration",
         label: "Duration",
         active: activeOrder.value === "order:duration",
@@ -1096,14 +1202,38 @@ const toolbarActions = computed((): ToolbarAction[] => {
           void toggleBulkRemux();
         },
       },
+      {
+        key: "fluffle-tag",
+        label: bulkFluffleTagging.value ? "Cancel Fluffle tag" : "Fluffle tag",
+        loading: bulkFluffleTagging.value,
+        active: bulkFluffleTagging.value,
+        error: bulkFluffleTagging.value,
+        title:
+          "Match untagged stills on this Local page via Fluffle and write tags into .me621-tags.json (e621/e6ai when exact; else artist names; ≤4 MiB)",
+        run: () => {
+          void toggleBulkFluffleTags();
+        },
+      },
     );
   } else if (musicCapable) {
-    actions.push({
-      key: "audio",
-      label: "Audio",
-      active: hasTypeTag("type:audio"),
-      run: () => toggleTypeTag("type:audio"),
-    });
+    actions.push(
+      {
+        key: "audio",
+        label: "Audio",
+        active: hasTypeTag("type:audio"),
+        run: () => toggleTypeTag("type:audio"),
+      },
+      {
+        key: "audio-queue",
+        label: audioQueueActive.value ? "Queue on" : "Queue",
+        active: audioQueueActive.value,
+        title:
+          "Play audio hits in order — skips non-audio in fullscreen until you close it",
+        run: () => {
+          void startAudioQueue();
+        },
+      },
+    );
   }
   if (!siteMode.isLocal) {
     actions.push(

@@ -101,6 +101,10 @@ TOKEN_PATH = CONFIG_DIR / "pull_token"
 STATUS_PATH = CONFIG_DIR / "pull_status.json"
 SCENT_MARKS_PATH = CONFIG_DIR / "scent_marks.json"
 SCENT_ADMIN_HASH_PATH = CONFIG_DIR / "scent_marks_admin.hash"
+SETTINGS_SYNC_PATH = CONFIG_DIR / "settings_sync.json"
+SETTINGS_SYNC_TOKEN = os.environ.get("M_E621_SETTINGS_SYNC_TOKEN", "").strip()
+SETTINGS_SYNC_MAX_BODY = 8 * 1024 * 1024
+SETTINGS_SYNC_API = re.compile(r"^/api/settings-sync/?$")
 _SCENT_ROOT = Path(__file__).resolve().parent
 # Docker copies beside serve.py; checkout keeps the file under src/Landing/.
 SCENT_BLOCKLIST_CANDIDATES = (
@@ -228,6 +232,23 @@ def _scent_client_ip(handler: SimpleHTTPRequestHandler) -> str:
     # serve.py is reachable directly. The reverse proxy should connect from a
     # trusted peer; rate limits use the TCP peer only (same as custom news).
     return handler.client_address[0] if handler.client_address else "unknown"
+
+
+def _settings_sync_peer_allowed(handler: SimpleHTTPRequestHandler) -> bool:
+    """Loopback TCP peer, or Bearer token when M_E621_SETTINGS_SYNC_TOKEN is set."""
+    ip = _scent_client_ip(handler)
+    try:
+        if ipaddress.ip_address(ip).is_loopback:
+            return True
+    except ValueError:
+        pass
+    if not SETTINGS_SYNC_TOKEN:
+        return False
+    auth = handler.headers.get("Authorization") or ""
+    if not auth.lower().startswith("bearer "):
+        return False
+    offered = auth[7:].strip()
+    return bool(offered) and secrets.compare_digest(offered, SETTINGS_SYNC_TOKEN)
 
 
 def _scent_admin_rate_ok(ip: str) -> bool:
@@ -1408,6 +1429,75 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if auth.lower().startswith("bearer "):
             return auth[7:].strip()
         return (self.headers.get("X-Scent-Admin") or "").strip()
+
+    def _handle_settings_sync_get(self) -> None:
+        if not _settings_sync_peer_allowed(self):
+            self._json(403, {"ok": False, "message": "forbidden"})
+            return
+        if not SETTINGS_SYNC_PATH.is_file():
+            self._json(404, {"ok": False, "message": "no host snapshot yet"})
+            return
+        try:
+            raw = SETTINGS_SYNC_PATH.read_bytes()
+        except OSError as exc:
+            self._json(500, {"ok": False, "message": f"storage error: {exc}"})
+            return
+        if len(raw) > SETTINGS_SYNC_MAX_BODY:
+            self._json(500, {"ok": False, "message": "snapshot too large"})
+            return
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._json(500, {"ok": False, "message": "corrupt snapshot"})
+            return
+        if not isinstance(payload, dict):
+            self._json(500, {"ok": False, "message": "corrupt snapshot"})
+            return
+        self._json(200, {"ok": True, "settings": payload})
+
+    def _handle_settings_sync_post(self, body: bytes) -> None:
+        if not _settings_sync_peer_allowed(self):
+            self._json(403, {"ok": False, "message": "forbidden"})
+            return
+        if len(body) > SETTINGS_SYNC_MAX_BODY:
+            self._json(413, {"ok": False, "message": "body too large"})
+            return
+        try:
+            payload = json.loads(body.decode("utf-8") if body else "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._json(400, {"ok": False, "message": "invalid JSON"})
+            return
+        if not isinstance(payload, dict):
+            self._json(400, {"ok": False, "message": "settings must be a JSON object"})
+            return
+        # Accept either raw settings or { settings: {...} } wrappers.
+        settings = payload.get("settings") if isinstance(payload.get("settings"), dict) else payload
+        if not isinstance(settings, dict):
+            self._json(400, {"ok": False, "message": "settings must be a JSON object"})
+            return
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        encoded = (json.dumps(settings, ensure_ascii=False, indent=2) + "\n").encode(
+            "utf-8"
+        )
+        try:
+            with open(SETTINGS_SYNC_PATH, "wb") as fh:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+                try:
+                    fh.write(encoded)
+                    fh.flush()
+                    os.fsync(fh.fileno())
+                finally:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        except OSError as exc:
+            self._json(500, {"ok": False, "message": f"storage error: {exc}"})
+            return
+        self._json(
+            200,
+            {
+                "ok": True,
+                "bytes": len(encoded),
+            },
+        )
 
     def _handle_scent_marks_get(self) -> None:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -3926,6 +4016,9 @@ class SpaHandler(SimpleHTTPRequestHandler):
             else:
                 self._json(200, _git_public_status())
             return
+        if SETTINGS_SYNC_API.match(path):
+            self._handle_settings_sync_get()
+            return
         if SCENT_MARKS_LIST_PATH.match(path):
             self._handle_scent_marks_get()
             return
@@ -4076,6 +4169,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
         path = parsed.path
         length = int(self.headers.get("Content-Length", "0") or 0)
         body = self.rfile.read(length) if length else b""
+
+        if SETTINGS_SYNC_API.match(path):
+            self._handle_settings_sync_post(body)
+            return
 
         if SCENT_MARKS_AUTH_PATH.match(path):
             self._handle_scent_marks_auth()

@@ -257,7 +257,7 @@ class PersistanceService {
         this.main.favorites = clone(d.favorites);
         break;
       case "savedPosts":
-        this.main.savedPosts = { entries: [] };
+        this.main.savedPosts = { entries: [], collections: [] };
         break;
       case "news":
         this.main.news = {
@@ -911,6 +911,14 @@ class PersistanceService {
       delete posts.localDirectoryName;
       newState.configVersion = 51;
     }
+    if (newState.configVersion < 52) {
+      if (!newState.savedPosts) {
+        newState.savedPosts = { entries: [], collections: [] };
+      } else if (!Array.isArray(newState.savedPosts.collections)) {
+        newState.savedPosts.collections = [];
+      }
+      newState.configVersion = 52;
+    }
     if (
       newState.previousModeBeforeUnified !== null &&
       newState.previousModeBeforeUnified !== undefined &&
@@ -929,7 +937,9 @@ class PersistanceService {
       newState.watchedComics = { entries: [] };
     }
     if (!newState.savedPosts || !Array.isArray(newState.savedPosts.entries)) {
-      newState.savedPosts = { entries: [] };
+      newState.savedPosts = { entries: [], collections: [] };
+    } else if (!Array.isArray(newState.savedPosts.collections)) {
+      newState.savedPosts.collections = [];
     }
     if (!newState.news) {
       newState.news = {

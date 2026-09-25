@@ -19,6 +19,24 @@
       >
         <v-icon size="16" :icon="originIcon" />
       </v-chip>
+      <div
+        v-if="duplicateOrigins.length"
+        class="dup-origins"
+        :title="duplicateTitle"
+      >
+        <v-chip
+          v-for="dup in duplicateOrigins"
+          :key="dup.originMode + ':' + dup.id"
+          class="dup-origin-chip"
+          size="x-small"
+          color="secondary"
+          variant="tonal"
+          :title="dupLabel(dup)"
+          :aria-label="dupLabel(dup)"
+        >
+          <v-icon size="14" :icon="unifiedChildIcon(dup.originMode)" />
+        </v-chip>
+      </div>
       <post-preview
         :file="post.file"
         :preview="post.preview"
@@ -141,6 +159,21 @@ export default defineComponent({
     const originIcon = computed(() =>
       originMode.value ? unifiedChildIcon(originMode.value) : "",
     );
+    const duplicateOrigins = computed(
+      () => props.post.__meta?.duplicateOrigins || [],
+    );
+    const dupLabel = (dup: {
+      originMode: string;
+      id: number;
+      score?: number;
+    }) => {
+      const score =
+        typeof dup.score === "number" ? ` · score ${dup.score}` : "";
+      return `Also on ${unifiedChildLabel(dup.originMode)} #${dup.id}${score}`;
+    };
+    const duplicateTitle = computed(() =>
+      duplicateOrigins.value.map(dupLabel).join("\n"),
+    );
     const feedKey = computed(() =>
       postFeedKey(props.post).replace(":", "-"),
     );
@@ -213,6 +246,10 @@ export default defineComponent({
       onCardActivate,
       originLabel,
       originIcon,
+      duplicateOrigins,
+      duplicateTitle,
+      dupLabel,
+      unifiedChildIcon,
       feedKey,
     };
   },
@@ -252,6 +289,20 @@ export default defineComponent({
   left: 8px;
   z-index: 2;
   padding: 0 4px;
+  min-width: 0;
+}
+.dup-origins {
+  position: absolute;
+  top: 8px;
+  left: 40px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  max-width: calc(100% - 48px);
+}
+.dup-origin-chip {
+  padding: 0 2px;
   min-width: 0;
 }
 </style>

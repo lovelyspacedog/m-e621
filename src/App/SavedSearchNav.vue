@@ -140,6 +140,7 @@
                   exact
                   density="compact"
                   class="saved-search-entry"
+                  @click="onOpenEntry(element)"
                 >
                   <template #prepend>
                     <v-icon
@@ -152,6 +153,13 @@
                   </template>
                   <v-list-item-title>{{ element.name }}</v-list-item-title>
                   <template #append>
+                    <span
+                      v-if="newCount(element) > 0"
+                      class="saved-search-new"
+                      :title="`${newCount(element)} newer than last open`"
+                    >
+                      +{{ newCount(element) }}
+                    </span>
                     <v-menu location="bottom end">
                       <template #activator="{ props: menuProps }">
                         <v-btn
@@ -292,21 +300,139 @@
 </template>
 
 <script setup lang="ts">
-import { parseSavedSearchTags, useSavedSearchStore } from "@/services";
+import {
+  parseSavedSearchTags,
+  useAccountStore,
+  useDiscoveryStore,
+  useMainStore,
+  usePostsStore,
+  useSavedSearchStore,
+  useUrlStore,
+} from "@/services";
 import { useSiteModeStore } from "@/services/SiteModeStore";
 import {
   UNGROUPED_SAVED_SEARCH_GROUP_ID,
+  BlacklistMode,
   type SavedSearchEntry,
   type SavedSearchGroup,
 } from "@/services/types";
-import { computed, ref } from "vue";
+import {
+  checkSavedSearchWake,
+  WAKE_SIDEBAR_CHECK_LIMIT,
+  wakeCursorIsStale,
+} from "@/misc/util/savedSearchWakeCheck";
+import { getApiService } from "@/worker/services";
+import { computed, onMounted, onUnmounted, ref, toRaw, watch } from "vue";
 import { useRoute } from "vue-router";
 import Draggable from "vuedraggable";
 
 const savedSearches = useSavedSearchStore();
+const discovery = useDiscoveryStore();
 const siteMode = useSiteModeStore();
+const account = useAccountStore();
+const urlStore = useUrlStore();
+const postsStore = usePostsStore();
+const main = useMainStore();
 const route = useRoute();
 const ungroupedId = UNGROUPED_SAVED_SEARCH_GROUP_ID;
+
+/** Force re-render when wake cursors update during background check. */
+const wakeTick = ref(0);
+watch(
+  () => discovery.wakeById,
+  () => {
+    wakeTick.value += 1;
+  },
+  { deep: true },
+);
+
+const newCount = (entry: SavedSearchEntry) => {
+  void wakeTick.value;
+  if (entry.news) return 0;
+  return discovery.newCountFor(entry.id);
+};
+
+const onOpenEntry = (entry: SavedSearchEntry) => {
+  if (entry.news) return;
+  discovery.markSavedSearchOpened(entry.id);
+};
+
+let refreshCancelled = false;
+
+const refreshStaleWakeBadges = async () => {
+  if (siteMode.isNews) return;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+  const gallery = savedSearches.entries.filter((e) => !e.news);
+  const stale = gallery
+    .filter((e) => wakeCursorIsStale(discovery.getWakeCursor(e.id)))
+    .slice(0, WAKE_SIDEBAR_CHECK_LIMIT);
+  for (const entry of stale) {
+    if (refreshCancelled) return;
+    try {
+      const cursor = discovery.getWakeCursor(entry.id);
+      const counted = await checkSavedSearchWake({
+        mode: siteMode.activeMode,
+        cursor,
+        fetchLocal:
+          siteMode.activeMode === "local"
+            ? async () => {
+                const { getLocalPostsPage } = await import(
+                  "@/misc/util/localMedia"
+                );
+                return getLocalPostsPage(1, 24, entry.tags);
+              }
+            : undefined,
+        fetchRemote:
+          siteMode.activeMode !== "local"
+            ? async () => {
+                const api = await getApiService();
+                return api.getPosts({
+                  blacklistMode: BlacklistMode.blur,
+                  blacklist: [],
+                  limit: 24,
+                  tags: entry.tags,
+                  baseUrl: urlStore.e621Url,
+                  mode: siteMode.activeMode,
+                  page: 1,
+                  auth: toRaw(account.auth),
+                  userId: account.userId,
+                  sfwOnly: postsStore.sfwOnly,
+                  ...(siteMode.activeMode === "unified"
+                    ? {
+                        unified: toRaw(
+                          (
+                            await import("@/misc/util/postOrigin")
+                          ).buildUnifiedFetchArgs(main.$state),
+                        ),
+                      }
+                    : {}),
+                });
+              }
+            : undefined,
+      });
+      if (refreshCancelled) return;
+      discovery.recordWakeCheck(entry.id, counted);
+    } catch {
+      // Ignore per-entry failures; Wake-up tool surfaces errors explicitly.
+    }
+  }
+};
+
+onMounted(() => {
+  refreshCancelled = false;
+  void refreshStaleWakeBadges();
+});
+
+onUnmounted(() => {
+  refreshCancelled = true;
+});
+
+watch(
+  () => siteMode.activeMode,
+  () => {
+    void refreshStaleWakeBadges();
+  },
+);
 
 const entryKey = (entry: SavedSearchEntry) => entry.id;
 
@@ -489,6 +615,18 @@ const save = () => {
 .saved-search-entry:hover .entry-chrome,
 .saved-search-entry:focus-within .entry-chrome {
   opacity: 1;
+}
+.saved-search-new {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: rgb(var(--v-theme-on-primary));
+  background: rgb(var(--v-theme-primary));
 }
 @media (hover: none) {
   .entry-chrome {

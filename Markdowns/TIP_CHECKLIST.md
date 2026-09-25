@@ -23,7 +23,7 @@ When a tip ships: check the box, keep the tip id stable, mention it in `src/Land
 - [x] `watched-pools` — First Watched Pools visit with a `+N` badge. Host: `PoolsSearchPage.vue`. New-page badges after watching.
 - [x] `watched-comics` — First Watched Comics visit with a `+N` badge. Host: `TailspaceComicsPage.vue`. New-page badges after watching.
 - [x] `fullscreen-gestures` — First fullscreen open. Host: `FullscreenDialog.vue`. Swipe, pinch zoom, notes, slideshow, comments rail.
-- [x] `saved-posts` — First Saved Posts visit. Host: `SavedPostsPage.vue`. Mode-independent list vs site favorites.
+- [x] `saved-posts` — First Saved Posts visit. Host: `SavedPostsPage.vue`. Mode-independent list vs site favorites; named collections.
 - [x] `blacklist-modes` — First Blacklist settings visit. Host: `BlacklistSettingsPage.vue`. Display mode vs server-side hide vs custom lines.
 - [x] `tailspace-comics` — First Tailspace comic open. Host: `TailspaceComicReader.vue`. Gallery/scroll + Account login for follow.
 
@@ -37,7 +37,7 @@ When a tip ships: check the box, keep the tip id stable, mention it in `src/Land
 - [x] `taste-diff` — First Taste Diff visit. Host: `TasteDiff.vue`. Two favorites profiles side-by-side.
 - [x] `history-insights` — First History Insights visit. Host: `HistoryInsights.vue`. Browse-history tag ranks.
 - [x] `blacklist-coach` — First Blacklist Coach visit. Host: `BlacklistCoach.vue`. Suggest single-tag rules from blacklisted favorites.
-- [x] `saved-search-wake` — First Saved-search Wake-up visit. Host: `SavedSearchWake.vue`. Newer posts since last open.
+- [x] `saved-search-wake` — First Saved-search Wake-up visit. Host: `SavedSearchWake.vue`. Newer posts since last open; sidebar +N badges.
 - [x] `cross-post-finder` — First Cross-post Finder. Host: `CrossPostFinder.vue`. Fluffle + heuristic tags.
 - [x] `similar-artists` — First Similar Artists. Host: `SimilarArtists.vue`. Co-occurrence from favorites.
 - [x] `pool-series-suggester` — First Pool/Series Suggester. Host: `PoolSeriesSuggester.vue`. Favorite seeds → pools.

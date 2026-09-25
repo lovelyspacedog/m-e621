@@ -15,6 +15,20 @@ export interface ChangelogSection {
  */
 export const changelogSections: ChangelogSection[] = [
   {
+    date: "2026-09-23",
+    title: "Feature ideas: badges through host sync",
+    items: [
+      "Saved searches show a +N badge in the sidebar when there are posts newer than your last open (same Wake-up cursors as Tools → Saved-search Wake-up)",
+      "Sidebar quietly refreshes stale wake checks in the background; opening a saved search clears its badge",
+      "Blacklist Settings can push the active profile’s lines to every signed-in Federated child, remapping metatags the same way Federated search does",
+      "Music-capable modes gain a Queue toolbar action that plays audio hits in fullscreen and skips non-audio until you close it",
+      "Saved posts can be grouped into named collections (sidebar on /saved; a post can sit in more than one)",
+      "Local mode Fluffle tag writes tags for untagged stills on the current page into .me621-tags.json (e621/e6ai when exact; else artist names)",
+      "Federated feed collapses cross-site duplicates by md5 / source URL / size+dims+artist, keeping the highest-score card and showing other origins as chips",
+      "Backup and Restore can push/pull a sanitized settings snapshot on the host (serve.py → ~/.config/m-e621/settings_sync.json) for Saved, collections, and tips across browsers",
+    ],
+  },
+  {
     date: "2026-09-22",
     title: "Custom News feeds and landing polish",
     items: [

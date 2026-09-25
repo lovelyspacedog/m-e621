@@ -48,6 +48,10 @@ import {
   type UnifiedMergeState,
 } from "@/misc/util/unifiedMerge";
 import {
+  collapseFederatedDuplicates,
+  filterPostsAgainstDupKeys,
+} from "@/misc/util/federatedDuplicates";
+import {
   formatUnifiedTagWarning,
   omitSfwInjectedRatingNoise,
   prepareUnifiedChildTags,
@@ -177,6 +181,12 @@ export interface EnhancedPost extends Post {
     kind?: string;
     originMode?: UnifiedChildMode | "local";
     originBaseUrl?: string;
+    /** Other Federated origins collapsed into this card. */
+    duplicateOrigins?: Array<{
+      originMode: UnifiedChildMode;
+      id: number;
+      score?: number;
+    }>;
   };
 }
 
@@ -218,11 +228,25 @@ export class ApiService {
   private unifiedMerge: UnifiedMergeState<EnhancedPost> | null = null;
   /** Bumped on reset / re-init so in-flight legacy seeds cannot clobber newer state. */
   private unifiedMergeEpoch = 0;
+  /** Match keys already collapsed in this Federated scroll session. */
+  private unifiedDupKeys = new Set<string>();
 
   /** Drop sticky Unified leftovers (tags / children / feed-source / mode change). */
   async resetUnifiedMerge(): Promise<void> {
     this.unifiedMergeEpoch += 1;
     this.unifiedMerge = resetUnifiedMergeState();
+    this.unifiedDupKeys.clear();
+  }
+
+  private applyFederatedDuplicateCollapse(
+    posts: EnhancedPost[],
+  ): EnhancedPost[] {
+    const { posts: collapsed, newKeys } = collapseFederatedDuplicates(
+      posts,
+      this.unifiedDupKeys,
+    );
+    for (const k of newKeys) this.unifiedDupKeys.add(k);
+    return collapsed;
   }
 
   async getPosts(args: {
@@ -346,15 +370,16 @@ export class ApiService {
       }),
     );
     const { taken } = takeMergedFromBuffers(groups, args.limit);
+    const posts = this.applyFederatedDuplicateCollapse(taken);
     const hardFailures = warnings.filter(
       (w) =>
         !/: (dropped|remapped|ignored) /.test(w) &&
         !/; remapped /.test(w),
     );
-    if (!taken.length && hardFailures.length === children.length) {
+    if (!posts.length && hardFailures.length === children.length) {
       throw new Error(hardFailures.join(" · "));
     }
-    return warnings.length ? { posts: taken, warnings } : { posts: taken };
+    return warnings.length ? { posts, warnings } : { posts };
   }
 
   private async refillUnifiedChild(
@@ -436,6 +461,7 @@ export class ApiService {
     // Never init+sequential-fill for page > 1 — that would serve child page 1 labeled as N.
     if (args.page <= 1) {
       this.unifiedMergeEpoch += 1;
+      this.unifiedDupKeys.clear();
       this.unifiedMerge = initUnifiedMergeState(
         key,
         children.map((c) => c.mode),
@@ -503,19 +529,30 @@ export class ApiService {
     }
 
     const { taken, remaining } = takeMergedFromBuffers(
-      state.children.map((c) => c.buffer),
+      state.children.map((c) =>
+        filterPostsAgainstDupKeys(c.buffer, this.unifiedDupKeys),
+      ),
       args.limit,
     );
     state.children.forEach((c, i) => {
-      c.buffer = remaining[i] || [];
+      // Keep non-taken leftovers, still filtered against known dup keys.
+      const rem = remaining[i] || [];
+      c.buffer = filterPostsAgainstDupKeys(rem, this.unifiedDupKeys);
     });
-    const posts = taken.map((post) => ({
-      ...post,
-      __meta: {
-        ...post.__meta,
-        pageNumber: args.page,
-      },
-    }));
+    const collapsed = this.applyFederatedDuplicateCollapse(
+      taken.map((post) => ({
+        ...post,
+        __meta: {
+          ...post.__meta,
+          pageNumber: args.page,
+        },
+      })),
+    );
+    // After collapse, strip newly-known dups from leftovers.
+    state.children.forEach((c) => {
+      c.buffer = filterPostsAgainstDupKeys(c.buffer, this.unifiedDupKeys);
+    });
+    const posts = collapsed;
     state.lastEmittedPage = args.page;
 
     const hardFailures = warnings.filter(

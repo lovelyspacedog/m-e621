@@ -1,21 +1,25 @@
 import clone from "clone";
 import { toRaw } from "vue";
+import { prepareUnifiedChildTags } from "@/misc/util/unifiedTags";
 import type {
   FavoriteTagEntry,
   ISettingsServiceState,
   SavedSearchEntry,
   SiteMode,
   SiteProfile,
+  UnifiedChildMode,
 } from "./types";
 import {
   BlacklistMode,
   SITE_MODE_URLS,
+  UNIFIED_CHILD_MODES,
   UNGROUPED_FAVORITE_GROUP_ID,
   UNGROUPED_SAVED_SEARCH_GROUP_ID,
 } from "./types";
 import {
   applyActiveProfileToMirrors,
   ensureSiteProfile,
+  profileHasAuthMaterial,
   syncMirrorsToActiveProfile,
 } from "./siteProfiles";
 import {
@@ -336,4 +340,72 @@ export const copyProfileLists = (
   }
   if (state.activeMode === args.to) applyActiveProfileToMirrors(state);
   return { added, total: to.blacklist.tags.length };
+};
+
+/**
+ * Remap one blacklist line for a Federated child via the same metatag map as
+ * Federated search. Empty after remap → null (line dropped).
+ */
+export const remapBlacklistLineForChild = (
+  mode: UnifiedChildMode,
+  line: string[],
+): string[] | null => {
+  const prepared = prepareUnifiedChildTags(mode, line);
+  const tags = prepared.tags.map(stripTag).filter(Boolean);
+  return tags.length ? tags : null;
+};
+
+export type PushBlacklistResult = {
+  /** Modes that received at least one new line. */
+  updated: UnifiedChildMode[];
+  /** Signed-in children with nothing new after remap/dedupe. */
+  skipped: UnifiedChildMode[];
+  /** Signed-in children that had no usable remapped lines. */
+  empty: UnifiedChildMode[];
+  /** Total new lines merged across all children. */
+  added: number;
+};
+
+/**
+ * Merge the active profile's blacklist into every signed-in Federated child,
+ * remapping each line through `prepareUnifiedChildTags` for that child.
+ * Does not change blacklist display mode / hide-server flags on targets.
+ */
+export const pushBlacklistToSignedInChildren = (
+  state: ISettingsServiceState,
+): PushBlacklistResult => {
+  syncMirrorsToActiveProfile(state);
+  const sourceLines = cloneRaw(state.blacklist.tags, []);
+  const result: PushBlacklistResult = {
+    updated: [],
+    skipped: [],
+    empty: [],
+    added: 0,
+  };
+
+  for (const mode of UNIFIED_CHILD_MODES) {
+    if (mode === state.activeMode) continue;
+    const profile = ensureSiteProfile(state, mode);
+    if (!profileHasAuthMaterial(mode, profile.account)) continue;
+
+    const remapped: string[][] = [];
+    for (const line of sourceLines) {
+      const next = remapBlacklistLineForChild(mode, line);
+      if (next) remapped.push(next);
+    }
+    if (!remapped.length) {
+      result.empty.push(mode);
+      continue;
+    }
+
+    const added = mergeBlacklistTags(profile.blacklist, {
+      ...profile.blacklist,
+      tags: remapped,
+    });
+    result.added += added;
+    if (added > 0) result.updated.push(mode);
+    else result.skipped.push(mode);
+  }
+
+  return result;
 };

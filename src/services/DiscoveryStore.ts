@@ -13,10 +13,14 @@ export type SavedSearchWakeCursor = {
   newestKey?: string;
   createdMs?: number;
   lastHitCount?: number;
+  checkedAt?: number;
 };
 
 const MAX_RADAR_CURSORS = 400;
 const MAX_WAKE_CURSORS = 200;
+
+/** Placeholder newestKey when opened without a fetched top post. */
+export const SAVED_SEARCH_OPENED_KEY = "__opened__";
 
 export const useDiscoveryStore = defineStore("discovery", () => {
   const main = useMainStore();
@@ -65,16 +69,63 @@ export const useDiscoveryStore = defineStore("discovery", () => {
     main.discovery.savedSearchWake.byId = next;
   };
 
-  const markSavedSearchOpened = (
+  /** Newer-post count for sidebar badges (0 when caught up / never checked). */
+  const newCountFor = (id: string): number => {
+    const n = getWakeCursor(id)?.lastHitCount;
+    return typeof n === "number" && n > 0 ? Math.floor(n) : 0;
+  };
+
+  /**
+   * Persist a wake check. First observation seeds the cursor with no badge;
+   * later checks only update lastHitCount / checkedAt (last-seen stays put).
+   */
+  const recordWakeCheck = (
     id: string,
-    extras?: Partial<SavedSearchWakeCursor>,
+    result: {
+      newer: number;
+      newestKey: string | null;
+      newestCreatedMs: number | null;
+    },
   ) => {
     const prev = getWakeCursor(id);
+    const now = Date.now();
+    const needsBaseline = !prev?.newestKey && prev?.createdMs == null;
+    if (needsBaseline) {
+      setWakeCursor(id, {
+        lastOpenedAt: prev?.lastOpenedAt ?? 0,
+        newestKey: result.newestKey || undefined,
+        createdMs: result.newestCreatedMs ?? undefined,
+        lastHitCount: 0,
+        checkedAt: now,
+      });
+      return;
+    }
     setWakeCursor(id, {
-      lastOpenedAt: Date.now(),
-      newestKey: extras?.newestKey ?? prev?.newestKey,
-      createdMs: extras?.createdMs ?? prev?.createdMs,
-      lastHitCount: extras?.lastHitCount ?? prev?.lastHitCount,
+      ...prev!,
+      lastHitCount: Math.max(0, result.newer),
+      checkedAt: now,
+    });
+  };
+
+  /**
+   * Mark a saved search as opened / seen. Clears the sidebar badge.
+   * Pass newestKey/createdMs from a fresh page-1 fetch when available.
+   */
+  const markSavedSearchOpened = (
+    id: string,
+    extras?: Partial<
+      Pick<SavedSearchWakeCursor, "newestKey" | "createdMs" | "checkedAt">
+    >,
+  ) => {
+    const prev = getWakeCursor(id);
+    const now = Date.now();
+    setWakeCursor(id, {
+      lastOpenedAt: now,
+      newestKey:
+        extras?.newestKey ?? prev?.newestKey ?? SAVED_SEARCH_OPENED_KEY,
+      createdMs: extras?.createdMs ?? now,
+      lastHitCount: 0,
+      checkedAt: extras?.checkedAt ?? prev?.checkedAt,
     });
   };
 
@@ -85,6 +136,8 @@ export const useDiscoveryStore = defineStore("discovery", () => {
     setArtistCursor,
     getWakeCursor,
     setWakeCursor,
+    newCountFor,
+    recordWakeCheck,
     markSavedSearchOpened,
   };
 });

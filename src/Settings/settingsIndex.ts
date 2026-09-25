@@ -109,6 +109,7 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   // Blacklist
   { label: "Blacklist mode", keywords: ["hide", "blur", "blackout", "blacklist"], section: "blacklist", hash: "mode" },
   { label: "Copy blacklist between sites", keywords: ["sync", "copy", "blacklist"], section: "blacklist", hash: "sync" },
+  { label: "Push blacklist to Federated children", keywords: ["sync", "push", "federated", "blacklist", "remap"], section: "blacklist", hash: "sync" },
   { label: "Custom blacklist", keywords: ["tags", "blacklist", "custom"], section: "blacklist", hash: "custom" },
   { label: "Import e621 blacklist", keywords: ["import", "paste", "e621"], section: "blacklist", hash: "import" },
 
@@ -120,6 +121,7 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { label: "Keyboard shortcuts", keywords: ["shortcut", "hotkey", "keyboard", "keybind"], section: "shortcuts" },
   { label: "Backup settings", keywords: ["backup", "download", "export", "json"], section: "restore", hash: "backup" },
   { label: "Sanitized backup", keywords: ["sanitized", "no credentials", "strip keys"], section: "restore", hash: "backup" },
+  { label: "Host settings sync", keywords: ["host", "sync", "push", "pull", "tauri", "server"], section: "restore", hash: "host-sync" },
   { label: "Restore settings", keywords: ["restore", "upload", "import", "reset"], section: "restore", hash: "restore" },
   { label: "Saved posts library", keywords: ["bookmarks", "saved posts", "clear library"], section: "restore", hash: "library" },
   { label: "Watched pools library", keywords: ["watched", "pools", "clear library"], section: "restore", hash: "library" },

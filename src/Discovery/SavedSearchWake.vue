@@ -18,8 +18,9 @@
 
         <p class="text-body-2 text-medium-emphasis mb-4">
           For each saved search on this site profile, fetch the newest page and
-          show how many posts are newer than your last open. Open marks the
-          search as seen.
+          show how many posts are newer than your last open. Results also appear
+          as +N badges on sidebar saved-search rows. Open marks the search as
+          seen.
         </p>
 
         <v-alert
@@ -75,7 +76,8 @@
     >
       <p class="mb-0">
         Checks each saved search for newer posts since you last opened it from
-        this tool. News filters are omitted here — use News unread for those.
+        this tool or the sidebar. Hits show as +N on sidebar rows. News filters
+        are omitted here — use News unread for those.
       </p>
     </TipDialog>
   </v-container>
@@ -94,7 +96,7 @@ import {
 import TipDialog from "@/misc/TipDialog.vue";
 import { TIP_IDS } from "@/misc/tipIds";
 import { useTipOpen } from "@/misc/useTipOpen";
-import { countNewerThanCursor } from "@/misc/util/discoveryTools";
+import { checkSavedSearchWake } from "@/misc/util/savedSearchWakeCheck";
 import { getApiService } from "@/worker/services";
 import { BlacklistMode } from "@/services/types";
 import { useHead } from "@unhead/vue";
@@ -138,16 +140,17 @@ const rebuildRows = () => {
     rows.length,
     ...galleryEntries.value.map((e) => {
       const cursor = discovery.getWakeCursor(e.id);
+      const hit = cursor?.lastHitCount;
       return {
         id: e.id,
         name: e.name,
         tags: [...e.tags],
-        newer: null as number | null,
+        newer: typeof hit === "number" && hit > 0 ? hit : null,
         newestKey: cursor?.newestKey || null,
         newestCreatedMs: cursor?.createdMs ?? null,
         status: cursor?.lastOpenedAt
           ? `last open ${new Date(cursor.lastOpenedAt).toLocaleString()}`
-          : "never opened from Wake-up",
+          : "never opened",
         loading: false,
       };
     }),
@@ -159,49 +162,57 @@ const checkOne = async (row: WakeRow) => {
   row.status = "checking…";
   try {
     const cursor = discovery.getWakeCursor(row.id);
-    if (siteMode.activeMode === "local") {
-      const { getLocalPostsPage } = await import("@/misc/util/localMedia");
-      const { posts } = await getLocalPostsPage(1, 24, row.tags);
-      const counted = countNewerThanCursor(posts, cursor);
-      row.newer = counted.newer;
-      row.newestKey = counted.newestKey;
-      row.newestCreatedMs = counted.newestCreatedMs;
-      row.status =
-        counted.newer > 0
-          ? `${counted.newer} newer than last open`
-          : "caught up";
-      return;
-    }
-    const api = await getApiService();
-    const { posts } = await api.getPosts({
-      blacklistMode: BlacklistMode.blur,
-      blacklist: [],
-      limit: 24,
-      tags: row.tags,
-      baseUrl: urlStore.e621Url,
+    const counted = await checkSavedSearchWake({
       mode: siteMode.activeMode,
-      page: 1,
-      auth: toRaw(account.auth),
-      userId: account.userId,
-      sfwOnly: postsStore.sfwOnly,
-      ...(siteMode.activeMode === "unified"
-        ? {
-            unified: toRaw(
-              (await import("@/misc/util/postOrigin")).buildUnifiedFetchArgs(
-                main.$state,
-              ),
-            ),
-          }
-        : {}),
+      cursor,
+      fetchLocal:
+        siteMode.activeMode === "local"
+          ? async () => {
+              const { getLocalPostsPage } = await import(
+                "@/misc/util/localMedia"
+              );
+              return getLocalPostsPage(1, 24, row.tags);
+            }
+          : undefined,
+      fetchRemote:
+        siteMode.activeMode !== "local"
+          ? async () => {
+              const api = await getApiService();
+              return api.getPosts({
+                blacklistMode: BlacklistMode.blur,
+                blacklist: [],
+                limit: 24,
+                tags: row.tags,
+                baseUrl: urlStore.e621Url,
+                mode: siteMode.activeMode,
+                page: 1,
+                auth: toRaw(account.auth),
+                userId: account.userId,
+                sfwOnly: postsStore.sfwOnly,
+                ...(siteMode.activeMode === "unified"
+                  ? {
+                      unified: toRaw(
+                        (
+                          await import("@/misc/util/postOrigin")
+                        ).buildUnifiedFetchArgs(main.$state),
+                      ),
+                    }
+                  : {}),
+              });
+            }
+          : undefined,
     });
-    const counted = countNewerThanCursor(posts, cursor);
-    row.newer = counted.newer;
+    discovery.recordWakeCheck(row.id, counted);
+    const after = discovery.getWakeCursor(row.id);
+    row.newer = after?.lastHitCount && after.lastHitCount > 0 ? after.lastHitCount : 0;
     row.newestKey = counted.newestKey;
     row.newestCreatedMs = counted.newestCreatedMs;
     row.status =
-      counted.newer > 0
-        ? `${counted.newer} newer than last open`
-        : "caught up";
+      row.newer > 0
+        ? `${row.newer} newer than last open`
+        : cursor?.newestKey
+          ? "caught up"
+          : "baseline set";
   } catch (err: unknown) {
     row.status = err instanceof Error ? err.message : String(err);
   } finally {
@@ -219,7 +230,6 @@ const openEntry = (row: WakeRow) => {
   discovery.markSavedSearchOpened(row.id, {
     newestKey: row.newestKey || undefined,
     createdMs: row.newestCreatedMs ?? undefined,
-    lastHitCount: row.newer ?? undefined,
   });
   row.newer = 0;
   row.status = "opened";

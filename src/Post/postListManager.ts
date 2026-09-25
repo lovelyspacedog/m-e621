@@ -13,11 +13,16 @@ import {
   unifiedChildLabel,
 } from "@/misc/util/postOrigin";
 import { isDocumentPost } from "@/misc/util/documentPost";
+import { isAudioExt } from "@/misc/util/audioExts";
 import { faUnavailableMeta, isFaNotFoundError } from "@/worker/furaffinity/api";
 import { openSettings } from "@/Settings/settingsOverlay";
 
 type PostPointer = number | { postId: number; originMode?: string };
-type FullscreenAdvanceOpts = { skipDocuments?: boolean };
+export type FullscreenAdvanceOpts = {
+  skipDocuments?: boolean;
+  /** Prefer audio posts only (Audio queue mode). */
+  audioOnly?: boolean;
+};
 
 const pointerOf = (target: PostPointer): { postId: number; originMode?: string } =>
   typeof target === "number" ? { postId: target } : target;
@@ -49,6 +54,8 @@ export const usePostListManager = ({
   /** When next/prev is requested during an in-flight page load, retry once (M23). */
   let pendingFullscreenAdvance: -1 | 1 | null = null;
   let pendingFullscreenAdvanceOpts: FullscreenAdvanceOpts | null = null;
+  /** Session flag: next/prev and @ended skip non-audio until fullscreen closes. */
+  const audioQueueActive = ref(false);
   let flushPendingFullscreenAdvance = () => {
     /* assigned after _openFullscreenPost exists */
   };
@@ -451,6 +458,8 @@ export const usePostListManager = ({
     if (!post.file.url) return false;
     if (!allowBlacklistedFullscreen && post.__meta.isBlacklisted) return false;
     if (opts?.skipDocuments && isDocumentPost(post)) return false;
+    const audioOnly = opts?.audioOnly ?? audioQueueActive.value;
+    if (audioOnly && !isAudioExt(post.file.ext)) return false;
     return true;
   };
   const _openFullscreenPost =
@@ -504,12 +513,29 @@ export const usePostListManager = ({
   const openNextFullscreenPost = async (opts?: FullscreenAdvanceOpts) => {
     const pointer = fullscreenPointer();
     if (!pointer) return false;
-    return _openFullscreenPost(1, opts)(pointer, 0);
+    const merged: FullscreenAdvanceOpts = { ...opts };
+    if (merged.audioOnly == null && audioQueueActive.value) {
+      merged.audioOnly = true;
+    }
+    return _openFullscreenPost(1, merged)(pointer, 0);
   };
-  const openPreviousFullscreenPost = () => {
+  const openPreviousFullscreenPost = (opts?: FullscreenAdvanceOpts) => {
     const pointer = fullscreenPointer();
-    if (pointer) void _openFullscreenPost(-1)(pointer, 0);
+    if (!pointer) return;
+    const merged: FullscreenAdvanceOpts = { ...opts };
+    if (merged.audioOnly == null && audioQueueActive.value) {
+      merged.audioOnly = true;
+    }
+    void _openFullscreenPost(-1, merged)(pointer, 0);
   };
+
+  const setAudioQueueActive = (active: boolean) => {
+    audioQueueActive.value = active;
+  };
+
+  watch(fullscreenPost, (post) => {
+    if (!post) audioQueueActive.value = false;
+  });
 
   flushPendingFullscreenAdvance = () => {
     if (!pendingFullscreenAdvance) return;
@@ -543,6 +569,7 @@ export const usePostListManager = ({
     loading.value = false;
     pendingFullscreenAdvance = null;
     pendingFullscreenAdvanceOpts = null;
+    audioQueueActive.value = false;
     // Search/mode/pool reloads must not leave overlays on stale posts (H3).
     fullscreenPost.value = null;
     detailsPost.value = null;
@@ -623,6 +650,8 @@ export const usePostListManager = ({
     openFullscreenPost,
     openNextFullscreenPost,
     openPreviousFullscreenPost,
+    setAudioQueueActive,
+    audioQueueActive,
     setPostFavorite,
     setPostVote,
     clearPosts,

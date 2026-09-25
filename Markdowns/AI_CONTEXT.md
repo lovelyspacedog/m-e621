@@ -99,7 +99,7 @@ UI (Vue pages)
 
 **State**
 
-- `useMainStore` (`src/services/state.ts`) is a clone of `defaultSettings` (`configVersion` **51**).
+- `useMainStore` (`src/services/state.ts`) is a clone of `defaultSettings` (`configVersion` **52**).
 - Domain stores are mostly getters/setters over slices of that tree.
 - **Profile mirrors:** live `account` / `blacklist` / `favorites` / `searches` / `history` on main state are copied into `profiles[activeMode]` on save and mode switch (`siteProfiles.ts`). Always sync both; do not persist only the detached copy.
 - Top-level (not under profiles): `savedPosts`, `watchedPools`, `watchedComics`, `news` (legacy `flayrahNews` migrated), `previousModeBeforeUnified`.

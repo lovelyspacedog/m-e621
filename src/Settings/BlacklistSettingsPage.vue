@@ -15,6 +15,20 @@
           <settings-row title="Copy from another site" stack>
             <profile-list-sync kind="blacklist" />
           </settings-row>
+          <settings-row
+            title="Push to signed-in Federated children"
+            description="Merge this profile’s lines into every signed-in gallery child, remapping metatags the same way Federated search does (favs:me, order:, rating:, ignored tokens)."
+            stack
+          >
+            <v-btn
+              variant="tonal"
+              :disabled="busyPush || !blacklist.length"
+              :loading="busyPush"
+              @click="pushToFederated"
+            >
+              Push to signed-in children
+            </v-btn>
+          </settings-row>
         </settings-group>
 
         <settings-group title="Mode" anchor="mode">
@@ -113,16 +127,62 @@ import { computed, onMounted, ref } from "vue";
 import blacklistSuggestions from "@/misc/data/blacklistSuggestions.json";
 import TagSearch from "../Tag/TagSearch.vue";
 import { BlacklistMode } from "@/services/types";
-import { useBlacklistStore } from "@/services";
+import {
+  useBlacklistStore,
+  useMainStore,
+  useSnackbarStore,
+} from "@/services";
+import { pushBlacklistToSignedInChildren } from "@/services/profileListSync";
+import { unifiedChildLabel } from "@/misc/util/postOrigin";
 import { useHead } from "@unhead/vue";
 
 useHead({ title: "Blacklist Settings" });
 
 const blacklistStore = useBlacklistStore();
+const main = useMainStore();
+const snackbar = useSnackbarStore();
+const busyPush = ref(false);
 const { open: blacklistTipOpen, tryOpen: tryBlacklistTip } = useTipOpen(
   TIP_IDS.blacklistModes,
 );
 onMounted(() => tryBlacklistTip());
+
+const pushToFederated = () => {
+  if (busyPush.value || !blacklist.value.length) return;
+  busyPush.value = true;
+  try {
+    const result = pushBlacklistToSignedInChildren(main.$state);
+    if (
+      !result.updated.length &&
+      !result.skipped.length &&
+      !result.empty.length
+    ) {
+      snackbar.addMessage("No other signed-in Federated children to update");
+      return;
+    }
+    const parts: string[] = [];
+    if (result.updated.length) {
+      parts.push(
+        `merged into ${result.updated.map(unifiedChildLabel).join(", ")} (+${result.added})`,
+      );
+    }
+    if (result.skipped.length) {
+      parts.push(
+        `already present on ${result.skipped.map(unifiedChildLabel).join(", ")}`,
+      );
+    }
+    if (result.empty.length) {
+      parts.push(
+        `nothing remappable for ${result.empty.map(unifiedChildLabel).join(", ")}`,
+      );
+    }
+    snackbar.addMessage(parts.join("; "));
+  } catch (e: unknown) {
+    snackbar.addMessage(e instanceof Error ? e.message : String(e));
+  } finally {
+    busyPush.value = false;
+  }
+};
 
 const navChips: SettingsNavChip[] = [
   { label: "Sync", anchor: "sync" },
