@@ -16,6 +16,13 @@ export interface ChangelogSection {
 export const changelogSections: ChangelogSection[] = [
   {
     date: "2026-09-25",
+    title: "SFW exclude-safe fix",
+    items: [
+      "Typing -rating:safe (exclude safe) no longer turns on SFW only or rewrites the tag to rating:safe",
+    ],
+  },
+  {
+    date: "2026-09-25",
     title: "Home overview",
     items: [
       "Sidebar Home opens /home: mode shortcuts, saved-search wake hits, watched pools/comics, Saved/collections, and discovery teasers for the current site profile",

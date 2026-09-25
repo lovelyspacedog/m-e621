@@ -71,9 +71,11 @@ export const isRatingTag = (tag: string): boolean => {
 /**
  * e621-style safe markers SFW injects into Federated/e621 queries.
  * Used to trip SFW from manual entry and to quiet Federated drop toasts.
+ * Negations (`-rating:safe`) must not match — they mean exclude-safe, not SFW.
  */
 export const isSfwSafeRatingTag = (tag: string): boolean => {
-  const bare = tag.trim().toLowerCase().replace(/^-/, "");
+  const bare = tag.trim().toLowerCase();
+  if (bare.startsWith("-")) return false;
   return bare === "rating:safe" || bare === "rating:s";
 };
 

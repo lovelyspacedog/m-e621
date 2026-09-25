@@ -39,10 +39,13 @@ describe("sfwMode", () => {
     expect(isSfwSafeRatingTag("rating:safe")).toBe(true);
     expect(isSfwSafeRatingTag("rating:s")).toBe(true);
     expect(isSfwSafeRatingTag("Rating:Safe")).toBe(true);
-    expect(isSfwSafeRatingTag("-rating:safe")).toBe(true);
+    // Exclude-safe must not trip SFW or get rewritten to rating:safe
+    expect(isSfwSafeRatingTag("-rating:safe")).toBe(false);
+    expect(isSfwSafeRatingTag("-rating:s")).toBe(false);
     expect(isSfwSafeRatingTag("rating:explicit")).toBe(false);
     expect(isSfwSafeRatingTag("safe")).toBe(false);
     expect(tagsIncludeSfwSafeRating(["fox", "rating:s"])).toBe(true);
+    expect(tagsIncludeSfwSafeRating(["fox", "-rating:safe"])).toBe(false);
     expect(tagsIncludeSfwSafeRating(["fox"])).toBe(false);
   });
 
