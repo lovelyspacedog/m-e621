@@ -16,6 +16,14 @@ export interface ChangelogSection {
 export const changelogSections: ChangelogSection[] = [
   {
     date: "2026-09-25",
+    title: "XTRA video sites",
+    items: [
+      "Post settings gains XTRA mode: when enabled (and SFW only is off), Murrtube and Badpups join the site list for browse and HLS/MP4 playback",
+      "XTRA sites stay out of Federated; turning on SFW only or turning XTRA off demotes you back to e621",
+    ],
+  },
+  {
+    date: "2026-09-25",
     title: "SFW exclude-safe fix",
     items: [
       "Typing -rating:safe (exclude safe) no longer turns on SFW only or rewrites the tag to rating:safe",

@@ -430,6 +430,21 @@ SOFURRY_AUTH_POSTS = {
     "/api/sofurry/login-cookies",
 }
 
+MURRTUBE_ORIGIN = "https://murrtube.net"
+MURRTUBE_PATH = re.compile(r"^/api/murrtube(?:/.*)?$")
+MURRTUBE_UA = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36 PawDeck-murrtube-proxy/1.0"
+)
+_murrtube_cookie = ""
+
+BADPUPS_ORIGIN = "https://badpups.com"
+BADPUPS_PATH = re.compile(r"^/api/badpups(?:/.*)?$")
+BADPUPS_UA = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36 PawDeck-badpups-proxy/1.0"
+)
+
 # Must match src/worker/news/registry.ts + feeds.ts (resolveNewsRssUrl).
 NEWS_RSS_PAGE_MAX = 8
 # Per-source upstream budget; keep in sync with src/worker/news/timeouts.ts
@@ -1949,6 +1964,14 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return parsed.geturl()
         if host in SOFURRY_MEDIA_HOSTS or host.endswith(".sofurryfiles.com"):
             return parsed.geturl()
+        if host == "storage.murrtube.net" or host.endswith(".murrtube.net"):
+            return parsed.geturl()
+        if (
+            host in ("badpups.com", "www.badpups.com", "cdn.badpups.com")
+            or host.endswith(".badpups.com")
+            or host.endswith(".b-cdn.net")
+        ):
+            return parsed.geturl()
         if host in NEWS_MEDIA_HOSTS or host.endswith(".wp.com") or host.endswith(".wordpress.com"):
             return parsed.geturl()
         if host in FURRYCDN_HOSTS or host.endswith(FURRYCDN_SUFFIXES):
@@ -2172,6 +2195,14 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 req.add_header("Referer", "https://itaku.ee")
             if host in SOFURRY_MEDIA_HOSTS or host.endswith(".sofurryfiles.com"):
                 req.add_header("Referer", "https://sofurry.com")
+            if host == "storage.murrtube.net" or host.endswith(".murrtube.net"):
+                req.add_header("Referer", "https://murrtube.net/")
+            if host.endswith(".b-cdn.net") or host.endswith(".badpups.com") or host in (
+                "badpups.com",
+                "www.badpups.com",
+                "cdn.badpups.com",
+            ):
+                req.add_header("Referer", "https://badpups.com/")
             try:
                 with _urlopen_no_redirect(req, timeout=120) as resp:
                     final = resp.geturl() if hasattr(resp, "geturl") else current
@@ -3702,6 +3733,193 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self._sofurry_respond(resp_body, status, ct, session_rejected=rejected)
 
     # ------------------------------------------------------------------
+    # Murrtube / Badpups (XTRA) proxies
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _merge_set_cookie(existing: str, resp_headers) -> str:
+        jar: dict[str, str] = {}
+        for part in (existing or "").split(";"):
+            part = part.strip()
+            if "=" in part:
+                k, v = part.split("=", 1)
+                jar[k.strip()] = v.strip()
+        raw = resp_headers.get_all("Set-Cookie") if hasattr(resp_headers, "get_all") else None
+        if raw is None:
+            one = resp_headers.get("Set-Cookie")
+            raw = [one] if one else []
+        for line in raw:
+            first = (line or "").split(";", 1)[0]
+            if "=" in first:
+                k, v = first.split("=", 1)
+                jar[k.strip()] = v.strip()
+        return "; ".join(f"{k}={v}" for k, v in jar.items())
+
+    def _murrtube_http(
+        self, url: str, *, method: str = "GET", body: bytes = b"", headers: dict | None = None
+    ) -> tuple[bytes, int, str, object]:
+        global _murrtube_cookie
+        req = urllib.request.Request(url, data=body or None, method=method)
+        req.add_header("User-Agent", MURRTUBE_UA)
+        req.add_header("Accept", "*/*")
+        if _murrtube_cookie:
+            req.add_header("Cookie", _murrtube_cookie)
+        if headers:
+            for k, v in headers.items():
+                req.add_header(k, v)
+        try:
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                data = resp.read()
+                _murrtube_cookie = self._merge_set_cookie(_murrtube_cookie, resp.headers)
+                ct = resp.headers.get("Content-Type", "application/octet-stream")
+                return data, getattr(resp, "status", 200), ct, resp.headers
+        except urllib.error.HTTPError as exc:
+            data = exc.read() if exc.fp else b""
+            _murrtube_cookie = self._merge_set_cookie(_murrtube_cookie, exc.headers)
+            ct = exc.headers.get("Content-Type", "application/octet-stream")
+            return data, exc.code, ct, exc.headers
+
+    def _murrtube_ensure_age(self) -> None:
+        global _murrtube_cookie
+        body, _, _, _ = self._murrtube_http(f"{MURRTUBE_ORIGIN}/")
+        html = body.decode("utf-8", "ignore")
+        if "data-page=" in html and "18 or older" not in html:
+            return
+        m = re.search(r'name="authenticity_token" value="([^"]+)"', html)
+        if not m:
+            return
+        token = m.group(1)
+        self._murrtube_http(
+            f"{MURRTUBE_ORIGIN}/accept_age_check",
+            method="POST",
+            body=urllib.parse.urlencode({"authenticity_token": token}).encode(),
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Referer": f"{MURRTUBE_ORIGIN}/",
+            },
+        )
+
+    @staticmethod
+    def _murrtube_extract_data_page(html: str):
+        m = re.search(r'data-page="([^"]+)"', html)
+        if not m:
+            raise ValueError("no data-page")
+        decoded = (
+            m.group(1)
+            .replace("&quot;", '"')
+            .replace("&amp;", "&")
+            .replace("&#39;", "'")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+        )
+        return json.loads(decoded)
+
+    @staticmethod
+    def _murrtube_media_allowed(url: str) -> bool:
+        try:
+            p = urlparse(url)
+            h = (p.hostname or "").lower()
+            return p.scheme == "https" and (
+                h == "storage.murrtube.net" or h.endswith(".murrtube.net")
+            )
+        except Exception:
+            return False
+
+    def _murrtube_rewrite_m3u8(self, text: str, playlist_url: str) -> bytes:
+        base = playlist_url.rsplit("/", 1)[0] + "/"
+        out_lines = []
+        for line in text.splitlines():
+            t = line.strip()
+            if not t or t.startswith("#"):
+                out_lines.append(line)
+                continue
+            abs_url = urllib.parse.urljoin(base, t)
+            if self._murrtube_media_allowed(abs_url):
+                out_lines.append(
+                    f"/api/murrtube/media?url={urllib.parse.quote(abs_url, safe='')}"
+                )
+            else:
+                out_lines.append(line)
+        return ("\n".join(out_lines) + "\n").encode()
+
+    def _proxy_murrtube(self, path: str, parsed) -> None:
+        qs = parse_qs(parsed.query)
+        if path == "/api/murrtube/inertia":
+            raw_path = (qs.get("path") or ["/"])[0] or "/"
+            if not raw_path.startswith("/"):
+                raw_path = "/" + raw_path
+            if "://" in raw_path or ".." in raw_path:
+                self._json(400, {"ok": False, "message": "bad path"})
+                return
+            try:
+                self._murrtube_ensure_age()
+                body, status, _, _ = self._murrtube_http(
+                    f"{MURRTUBE_ORIGIN}{raw_path}",
+                    headers={"Accept": "text/html", "Referer": f"{MURRTUBE_ORIGIN}/"},
+                )
+                html = body.decode("utf-8", "ignore")
+                if "18 or older" in html:
+                    self._murrtube_ensure_age()
+                    body, status, _, _ = self._murrtube_http(
+                        f"{MURRTUBE_ORIGIN}{raw_path}",
+                        headers={"Accept": "text/html"},
+                    )
+                    html = body.decode("utf-8", "ignore")
+                page = self._murrtube_extract_data_page(html)
+                self._json(200, page)
+            except Exception as exc:
+                self._json(502, {"ok": False, "message": str(exc)})
+            return
+        if path == "/api/murrtube/media":
+            target = (qs.get("url") or [""])[0]
+            if not self._murrtube_media_allowed(target):
+                self._json(400, {"ok": False, "message": "host not allowed"})
+                return
+            try:
+                body, status, ct, _ = self._murrtube_http(
+                    target, headers={"Referer": f"{MURRTUBE_ORIGIN}/"}
+                )
+                if ".m3u8" in target.split("?", 1)[0] or "mpegurl" in (ct or "").lower():
+                    body = self._murrtube_rewrite_m3u8(body.decode("utf-8", "ignore"), target)
+                    ct = "application/vnd.apple.mpegurl"
+                self.send_response(status)
+                self.send_header("Content-Type", ct)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Cross-Origin-Resource-Policy", "cross-origin")
+                self.send_header("Cache-Control", "private, max-age=3600")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as exc:
+                self._json(502, {"ok": False, "message": str(exc)})
+            return
+        self._json(404, {"ok": False, "message": "not found"})
+
+    def _proxy_badpups(self, path: str, parsed) -> None:
+        qs = parse_qs(parsed.query)
+        if path != "/api/badpups/html":
+            self._json(404, {"ok": False, "message": "not found"})
+            return
+        raw_path = (qs.get("path") or ["/"])[0] or "/"
+        if not raw_path.startswith("/"):
+            raw_path = "/" + raw_path
+        if "://" in raw_path or ".." in raw_path:
+            self._json(400, {"ok": False, "message": "bad path"})
+            return
+        try:
+            req = urllib.request.Request(f"{BADPUPS_ORIGIN}{raw_path}", method="GET")
+            req.add_header("User-Agent", BADPUPS_UA)
+            req.add_header("Accept", "text/html,application/xhtml+xml")
+            req.add_header("Referer", f"{BADPUPS_ORIGIN}/")
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                html = resp.read().decode("utf-8", "ignore")
+            self._json(200, {"html": html})
+        except urllib.error.HTTPError as exc:
+            self._json(exc.code, {"ok": False, "message": f"upstream {exc.code}"})
+        except Exception as exc:
+            self._json(502, {"ok": False, "message": str(exc)})
+
+    # ------------------------------------------------------------------
     # Furbooru proxy helpers
     # ------------------------------------------------------------------
 
@@ -4117,6 +4335,12 @@ class SpaHandler(SimpleHTTPRequestHandler):
             return
         if SOFURRY_PATH.match(path):
             self._proxy_sofurry(path, parsed, method="GET")
+            return
+        if MURRTUBE_PATH.match(path):
+            self._proxy_murrtube(path, parsed)
+            return
+        if BADPUPS_PATH.match(path):
+            self._proxy_badpups(path, parsed)
             return
         if path.startswith("/api/"):
             self._json(404, {"ok": False, "message": "not found"})

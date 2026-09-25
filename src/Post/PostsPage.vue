@@ -480,6 +480,8 @@ const {
       !siteMode.isWeasyl &&
       !siteMode.isItaku &&
       !siteMode.isSofurry &&
+      !siteMode.isMurrtube &&
+      !siteMode.isBadpups &&
       !siteMode.isTailspace &&
       !siteMode.isNews &&
       !siteMode.isUnified
@@ -945,6 +947,8 @@ const sfwTagMode = (): SfwTagMode => {
     siteMode.isWeasyl ||
     siteMode.isItaku ||
     siteMode.isSofurry ||
+    siteMode.isMurrtube ||
+    siteMode.isBadpups ||
     siteMode.isLocal ||
     siteMode.isTailspace ||
     siteMode.isNews

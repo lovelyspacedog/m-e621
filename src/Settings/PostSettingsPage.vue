@@ -35,10 +35,23 @@
         <settings-group title="Feed layout" anchor="layout">
           <settings-row
             title="SFW only (safe rating)"
-            description="Forces safe rating on every site that supports it, overrides rating search tags, and hides non-safe posts in list feeds. Direct post links still open."
+            description="Forces safe rating on every site that supports it, overrides rating search tags, and hides non-safe posts in list feeds. Direct post links still open. Blocks XTRA video sites while on."
             switch
           >
             <v-switch v-model="posts.sfwOnly" color="accent" hide-details density="compact" />
+          </settings-row>
+          <settings-row
+            title="XTRA mode"
+            description="Adds Murrtube and Badpups to the site list. Adult video sites only; unavailable while SFW only is on."
+            switch
+          >
+            <v-switch
+              v-model="posts.xtraModeEnabled"
+              color="accent"
+              hide-details
+              density="compact"
+              :disabled="posts.sfwOnly"
+            />
           </settings-row>
           <settings-row
             title="Full-width post feed"

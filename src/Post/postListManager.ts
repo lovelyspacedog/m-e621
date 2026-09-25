@@ -138,6 +138,8 @@ export const usePostListManager = ({
       post.__meta.originMode === "furaffinity" || siteMode.isFurAffinity;
     const originSofurry =
       post.__meta.originMode === "sofurry" || siteMode.isSofurry;
+    const originMurrtube = siteMode.isMurrtube;
+    const originBadpups = siteMode.isBadpups;
     const originWeasyl =
       post.__meta.originMode === "weasyl" || siteMode.isWeasyl;
     const originItaku =
@@ -148,6 +150,10 @@ export const usePostListManager = ({
       if (post.__meta.furaffinity?.detailsLoaded) return post;
     } else if (originSofurry) {
       if (post.__meta.sofurry?.detailsLoaded) return post;
+    } else if (originMurrtube) {
+      if (post.__meta.murrtube?.detailsLoaded && post.file?.url) return post;
+    } else if (originBadpups) {
+      if (post.__meta.badpups?.detailsLoaded && post.file?.url) return post;
     } else if (originWeasyl) {
       if (post.__meta.weasyl?.detailsLoaded) return post;
     } else if (originItaku) {
@@ -172,6 +178,14 @@ export const usePostListManager = ({
       } else if (originSofurry) {
         updated = await service.enrichSofurryPost(toRaw(post), {
           cookies: origin.auth?.api_key ?? null,
+          blacklist: toRaw(origin.blacklist),
+        });
+      } else if (originMurrtube) {
+        updated = await service.enrichMurrtubePost(toRaw(post), {
+          blacklist: toRaw(origin.blacklist),
+        });
+      } else if (originBadpups) {
+        updated = await service.enrichBadpupsPost(toRaw(post), {
           blacklist: toRaw(origin.blacklist),
         });
       } else if (originItaku) {

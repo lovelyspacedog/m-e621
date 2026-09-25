@@ -8,6 +8,7 @@ import {
 import { supportsLocalBrowse } from "@/misc/util/tauriLocalFs";
 import { hiddenButtonsForMode, modeSupportsFollowing } from "@/misc/util/siteCapabilities";
 import { postSupportsFluffle } from "@/misc/util/fluffleSearch";
+import { isXtraMode, xtraModesSelectable } from "@/misc/util/xtraMode";
 import { useMainStore } from "./state";
 import { useSnackbarStore } from "./SnackbarStore";
 import type { ButtonType, SiteMode, UnifiedChildMode, UnifiedFeedSource } from "./types";
@@ -31,6 +32,8 @@ const ALL_SITE_MODES: SiteMode[] = [
   "weasyl",
   "itaku",
   "sofurry",
+  "murrtube",
+  "badpups",
   "news",
   "local",
   "tailspace",
@@ -55,8 +58,18 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   /** Remote modes need network; Local and News (last-good RSS cache) still work offline. */
   const isModeOnlineCapable = (mode: SiteMode) =>
     mode === "local" || mode === "news" || isOnline.value;
+  const xtraAvailable = computed(() =>
+    xtraModesSelectable({
+      xtraModeEnabled: !!main.misc.xtraModeEnabled,
+      sfwOnly: !!main.posts.sfwOnly,
+    }),
+  );
   const siteModes = computed(() =>
-    ALL_SITE_MODES.filter((mode) => isModeSupported(mode)),
+    ALL_SITE_MODES.filter((mode) => {
+      if (!isModeSupported(mode)) return false;
+      if (isXtraMode(mode) && !xtraAvailable.value) return false;
+      return true;
+    }),
   );
   const selectableSiteModes = computed(() =>
     siteModes.value.filter((mode) => isModeOnlineCapable(mode)),
@@ -70,6 +83,8 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const isWeasyl = computed(() => main.activeMode === "weasyl");
   const isItaku = computed(() => main.activeMode === "itaku");
   const isSofurry = computed(() => main.activeMode === "sofurry");
+  const isMurrtube = computed(() => main.activeMode === "murrtube");
+  const isBadpups = computed(() => main.activeMode === "badpups");
   const isUnified = computed(() => main.activeMode === "unified");
   const activeLabel = computed(() => {
     switch (main.activeMode) {
@@ -83,6 +98,8 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       case "weasyl": return "Weasyl";
       case "itaku": return "Itaku";
       case "sofurry": return "SoFurry";
+      case "murrtube": return "Murrtube";
+      case "badpups": return "Badpups";
       case "unified": return "Federated";
       default: return "e621";
     }
@@ -232,11 +249,34 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     }
   };
 
+  const demoteFromXtra = (opts?: { silent?: boolean; reason?: string }) => {
+    if (!isXtraMode(main.activeMode)) return;
+    const fallback: SiteMode = "e621";
+    syncMirrorsToActiveProfile(main.$state);
+    if (!main.profiles[fallback]) {
+      main.profiles[fallback] = createEmptySiteProfile(fallback);
+    }
+    main.activeMode = fallback;
+    applyActiveProfileToMirrors(main.$state);
+    modeChangeCount.value++;
+    if (!opts?.silent) {
+      snackbar.addMessage(opts?.reason || "Switched to e621");
+    }
+  };
+
   const setMode = (mode: SiteMode, opts?: { silent?: boolean }) => {
     if (mode === main.activeMode) return;
     if (!isModeSupported(mode)) {
       snackbar.addMessage(
         "Local mode needs the File System Access API (Chromium).",
+      );
+      return;
+    }
+    if (isXtraMode(mode) && !xtraAvailable.value) {
+      snackbar.addMessage(
+        main.posts.sfwOnly
+          ? "XTRA sites are blocked while SFW only is on"
+          : "Enable XTRA mode in Post settings to use Murrtube and Badpups",
       );
       return;
     }
@@ -317,10 +357,22 @@ export const useSiteModeStore = defineStore("site-mode", () => {
 
   /** Modes that cannot join Federated Posts search (greyed on chips). */
   const isFederatedIncompatible = (mode: SiteMode) =>
-    mode === "local" || mode === "tailspace" || mode === "news";
+    mode === "local" ||
+    mode === "tailspace" ||
+    mode === "news" ||
+    isXtraMode(mode);
 
   /** If restored settings point at an unsupported mode, fall back quietly. */
   const ensureCompatibleActiveMode = () => {
+    if (isXtraMode(main.activeMode) && !xtraAvailable.value) {
+      demoteFromXtra({
+        silent: false,
+        reason: main.posts.sfwOnly
+          ? "XTRA sites are blocked while SFW only is on; switched to e621"
+          : "XTRA mode is off; switched to e621",
+      });
+      return;
+    }
     if (isModeSupported(main.activeMode)) return;
     const fallback: SiteMode = "e621";
     syncMirrorsToActiveProfile(main.$state);
@@ -388,7 +440,10 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     isWeasyl,
     isItaku,
     isSofurry,
+    isMurrtube,
+    isBadpups,
     isUnified,
+    demoteFromXtra,
     unifiedSites,
     unifiedFeedSource,
     unifiedIncludeTailspaceComics,

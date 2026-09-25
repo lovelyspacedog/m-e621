@@ -15,6 +15,8 @@ import { tailspaceProxy } from './vite-tailspace-proxy'
 import { weasylProxy } from './vite-weasyl-proxy'
 import { itakuProxy } from './vite-itaku-proxy'
 import { sofurryProxy } from './vite-sofurry-proxy'
+import { murrtubeProxy } from './vite-murrtube-proxy'
+import { badpupsProxy } from './vite-badpups-proxy'
 import { newsProxy } from './vite-news-proxy'
 import { scentMarksProxy } from './vite-scent-marks-proxy'
 import { settingsSyncProxy } from './vite-settings-sync-proxy'
@@ -84,6 +86,8 @@ const MEDIA_HOST_OK = (host: string) =>
   isWeasylMediaHost(host) ||
   isItakuMediaHost(host) ||
   isSofurryMediaHost(host) ||
+  isMurrtubeMediaHost(host) ||
+  isBadpupsMediaHost(host) ||
   host === 'furrycdn.org' ||
   host.endsWith('.furrycdn.org') ||
   host === 'pics.tailspace.com';
@@ -108,6 +112,16 @@ const isSofurryMediaHost = (host: string) =>
   host === 'cdn.sofurryfiles.com' ||
   host === 's3.sofurryfiles.com' ||
   host.endsWith('.sofurryfiles.com');
+
+const isMurrtubeMediaHost = (host: string) =>
+  host === 'storage.murrtube.net' || host.endsWith('.murrtube.net');
+
+const isBadpupsMediaHost = (host: string) =>
+  host === 'badpups.com' ||
+  host === 'www.badpups.com' ||
+  host === 'cdn.badpups.com' ||
+  host.endsWith('.b-cdn.net') ||
+  host.endsWith('.badpups.com');
 
 const isFluffleSourceHost = (host: string) =>
   MEDIA_HOST_OK(host) ||
@@ -1070,6 +1084,8 @@ export default defineConfig(({ mode }) => {
       weasylProxy(),
       itakuProxy(),
       sofurryProxy(),
+      murrtubeProxy(),
+      badpupsProxy(),
       newsProxy(),
       scentMarksProxy(),
       settingsSyncProxy(),

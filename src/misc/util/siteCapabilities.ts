@@ -91,7 +91,7 @@ export const postSupportsInkbunnyGallery = (post: {
 };
 
 export const modeSupportsFluffle = (mode: SiteMode): boolean =>
-  !isDedicatedChromeMode(mode); // Local keeps Fluffle reverse image search
+  !isDedicatedChromeMode(mode) && mode !== "murrtube" && mode !== "badpups";
 
 /**
  * Sites whose adapters already expose a following/watch feed via

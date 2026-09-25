@@ -69,7 +69,7 @@
             <video v-else-if="isVideoPost && currentFileUrl"
               ref="videoEl"
               class="overflow flash bg-black position-relative" controls
-              :src="String(currentFileUrl)"
+              :src="hlsVideoSrc ? undefined : String(currentFileUrl)"
               :loop="!slideshowPlaying" autoplay playsinline preload="metadata"
               @ended="onVideoEnded"
               @volumechange="onFullscreenVolumeChange"
@@ -299,6 +299,7 @@ import DText from "../Parser/DText.vue";
 import { useBlacklistClasses } from "../misc/util/blacklist";
 import { isAudioExt } from "@/misc/util/audioExts";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
+import { attachHls, urlLooksLikeHls, type HlsHandle } from "@/misc/util/hlsPlayback";
 import { isDocumentPost as postIsDocument } from "@/misc/util/documentPost";
 import { prefersReducedMotion } from "@/misc/util/reducedMotion";
 import {
@@ -524,8 +525,14 @@ const { classes: blacklistClasses } = useBlacklistClasses({
 const buttons = computed(() =>
   siteMode.filterButtonsForPost(posts.fullscreenButtons, props.current),
 );
-const isVideoExt = (ext?: string) => ext === "webm" || ext === "mp4";
+const isVideoExt = (ext?: string) =>
+  ext === "webm" || ext === "mp4" || ext === "m3u8";
 const isVideoPost = computed(() => isVideoExt(props.current?.file.ext));
+let fullscreenHls: HlsHandle | null = null;
+const destroyFullscreenHls = () => {
+  fullscreenHls?.destroy();
+  fullscreenHls = null;
+};
 const isAudioPost = computed(() => isAudioExt(props.current?.file.ext));
 const IMAGE_EXTS = new Set([
   "jpg",
@@ -1060,6 +1067,7 @@ const openCurrentOnSource = () => {
 };
 
 onBeforeUnmount(() => {
+  destroyFullscreenHls();
   commentsResizeCleanup?.();
   ui.fullscreenOpen = false;
   stopSlideshow();
@@ -1117,6 +1125,10 @@ const currentFileUrl = computed(() => {
   }
   return url;
 });
+const hlsVideoSrc = computed(() => {
+  const url = currentFileUrl.value;
+  return typeof url === "string" && urlLooksLikeHls(url) ? url : null;
+});
 const currentSampleFileUrl = computed(() => props.current?.preview.url || false);
 const audioCoverUrl = computed(() => {
   if (!isAudioPost.value) return "";
@@ -1148,11 +1160,19 @@ watch(
       ) {
         // Wait for media ended; ensure playback starts.
         await nextTick();
+        destroyFullscreenHls();
+        if (hlsVideoSrc.value && videoEl.value) {
+          fullscreenHls = attachHls(videoEl.value, hlsVideoSrc.value);
+        }
         applyFullscreenPlaybackPrefs();
         videoEl.value?.play().catch(() => undefined);
         loadEnd();
       } else if (isVideoExt(val.file.ext) || isAudioExt(val.file.ext)) {
         await nextTick();
+        destroyFullscreenHls();
+        if (hlsVideoSrc.value && videoEl.value) {
+          fullscreenHls = attachHls(videoEl.value, hlsVideoSrc.value);
+        }
         applyFullscreenPlaybackPrefs();
         loadEnd();
       } else {

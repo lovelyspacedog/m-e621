@@ -180,6 +180,7 @@ import {
   resolvePlaybackPrefs,
   type PlaybackMediaKind,
 } from "@/misc/util/playbackPrefs";
+import { attachHls, urlLooksLikeHls, type HlsHandle } from "@/misc/util/hlsPlayback";
 import { useMainStore, usePostsStore, useSnackbarStore } from "@/services";
 import { type SiteMode } from "@/services/types";
 import type { File, Preview, Sample } from "@/worker/api";
@@ -189,7 +190,7 @@ import FixedAspectRatioBox from "./FixedAspectRatioBox.vue";
 import { useRouter } from "vue-router";
 import { openSettings } from "@/Settings/settingsOverlay";
 
-const VIDEO_EXTS = new Set(["webm", "mp4", "mkv", "mov"]);
+const VIDEO_EXTS = new Set(["webm", "mp4", "mkv", "mov", "m3u8"]);
 
 export default defineComponent({
   components: { FixedAspectRatioBox },
@@ -381,6 +382,7 @@ export default defineComponent({
     let visibilityObserver: IntersectionObserver | null = null;
     let boundVideo: HTMLVideoElement | null = null;
     let videoIsIntersecting = false;
+    let hlsHandle: HlsHandle | null = null;
     // With feed autoplay, only keep src while on-screen so off-screen cards free buffers.
     const videoSrcLive = ref(!posts.autoplayFeedVideo);
 
@@ -394,10 +396,16 @@ export default defineComponent({
       el.loop = true;
     };
 
+    const destroyHls = () => {
+      hlsHandle?.destroy();
+      hlsHandle = null;
+    };
+
     const releaseVideoBuffer = (el: HTMLVideoElement) => {
       el.pause();
       if (!posts.autoplayFeedVideo) return;
       videoSrcLive.value = false;
+      destroyHls();
       // Drop decoder/network buffers immediately; poster still shows.
       el.removeAttribute("src");
       el.load();
@@ -422,8 +430,17 @@ export default defineComponent({
       }
       if (!el.isConnected) return;
       const url = playableUrl.value;
-      // Belt-and-suspenders if the binding hasn't landed yet.
-      if (url && !el.getAttribute("src")) {
+      if (url && urlLooksLikeHls(url)) {
+        if (!hlsHandle) {
+          el.removeAttribute("src");
+          hlsHandle = attachHls(el, url);
+          if (!hlsHandle) {
+            videoLoadFailed.value = true;
+            return;
+          }
+        }
+      } else if (url && !el.getAttribute("src")) {
+        // Belt-and-suspenders if the binding hasn't landed yet.
         el.src = url;
       }
       playWhenVisible(el, forcePlay);
@@ -444,12 +461,17 @@ export default defineComponent({
       videoLoadFailed.value = true;
     };
 
+    onBeforeUnmount(() => {
+      destroyHls();
+    });
+
     const setVideoEl = (el: unknown) => {
       if (!(el instanceof HTMLVideoElement)) {
         visibilityObserver?.disconnect();
         visibilityObserver = null;
         boundVideo = null;
         videoIsIntersecting = false;
+        destroyHls();
         return;
       }
       // Function refs re-fire on re-render with the same node. Re-init would set

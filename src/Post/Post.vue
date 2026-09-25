@@ -90,6 +90,7 @@ import {
   unifiedChildLabel,
 } from "@/misc/util/postOrigin";
 import { useBlacklistStore, usePostsStore, useSiteModeStore } from "@/services";
+import type { SiteMode } from "@/services/types";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { INKBUNNY_SUBMISSION_TYPE_WRITING } from "@/worker/inkbunny/api";
 import type { PropType, Ref } from "vue";
@@ -169,7 +170,7 @@ export default defineComponent({
     }) => {
       const score =
         typeof dup.score === "number" ? ` · score ${dup.score}` : "";
-      return `Also on ${unifiedChildLabel(dup.originMode)} #${dup.id}${score}`;
+      return `Also on ${unifiedChildLabel(dup.originMode as SiteMode)} #${dup.id}${score}`;
     };
     const duplicateTitle = computed(() =>
       duplicateOrigins.value.map(dupLabel).join("\n"),

@@ -68,7 +68,7 @@ export interface SavedSearchEntry {
 export const UNGROUPED_FAVORITE_GROUP_ID = "ungrouped";
 export const UNGROUPED_SAVED_SEARCH_GROUP_ID = "ungrouped";
 
-export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "news" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "unified";
+export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "news" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "murrtube" | "badpups" | "unified";
 
 export type UnifiedChildMode = "e621" | "e6ai" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry";
 
@@ -206,6 +206,8 @@ export const SITE_MODE_URLS: Record<SiteMode, string> = {
   weasyl: "https://www.weasyl.com/",
   itaku: "https://itaku.ee/",
   sofurry: "https://www.sofurry.com/",
+  murrtube: "https://murrtube.net/",
+  badpups: "https://badpups.com/",
   news: "",
   unified: "",
 };
@@ -336,7 +338,8 @@ export interface ISettingsServiceState {
     | 49
     | 50
     | 51
-    | 52;
+    | 52
+    | 53;
   activeMode: SiteMode;
   /** Mode before entering Federated; restored when leaving or demoting on landing. */
   previousModeBeforeUnified: SiteMode | null;
@@ -498,5 +501,10 @@ export interface ISettingsServiceState {
      * Synced to localStorage; workers keep previous logging behavior.
      */
     debugLogging: boolean;
+    /**
+     * When true, Murrtube and Badpups appear in the site picker (blocked while SFW only is on).
+     * Optional for older snapshots; treat missing as false.
+     */
+    xtraModeEnabled?: boolean;
   };
 }

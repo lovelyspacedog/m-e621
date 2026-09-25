@@ -211,6 +211,29 @@ export const usePostsStore = defineStore("posts", () => {
     },
     set(value: boolean) {
       main.posts.sfwOnly = value;
+      if (value) {
+        // Lazy import avoids circular SiteModeStore ↔ PostsStore init.
+        void import("./SiteModeStore").then(({ useSiteModeStore }) => {
+          useSiteModeStore().demoteFromXtra({
+            reason: "XTRA sites are blocked while SFW only is on; switched to e621",
+          });
+        });
+      }
+    },
+  });
+  const xtraModeEnabled = computed({
+    get() {
+      return !!main.misc.xtraModeEnabled;
+    },
+    set(value: boolean) {
+      main.misc.xtraModeEnabled = value;
+      if (!value) {
+        void import("./SiteModeStore").then(({ useSiteModeStore }) => {
+          useSiteModeStore().demoteFromXtra({
+            reason: "XTRA mode turned off; switched to e621",
+          });
+        });
+      }
     },
   });
   const saveLocalPathTemplate = computed({
@@ -291,6 +314,7 @@ export const usePostsStore = defineStore("posts", () => {
     autoplayFeedVideo,
     autoplayFeedVideoSilent,
     sfwOnly,
+    xtraModeEnabled,
     saveLocalPathTemplate,
     saveLocalDirectoryName,
     openInLocalAfterSave,

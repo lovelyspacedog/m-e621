@@ -22,6 +22,8 @@ import type { FaMeta } from "./furaffinity/api";
 import * as weasyl from "./weasyl/api";
 import * as itaku from "./itaku/api";
 import * as sofurry from "./sofurry/api";
+import * as murrtube from "./murrtube/api";
+import * as badpups from "./badpups/api";
 import * as tailspace from "./tailspace/api";
 import { isPostBlacklisted } from "./blacklist";
 import { BlacklistMode, type SiteMode, type SavedPostEntry } from "@/services/types";
@@ -69,13 +71,28 @@ const isItakuUrl = (baseUrl: string) =>
   /(?:^|\.)itaku\.ee(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
 const isSofurryUrl = (baseUrl: string) =>
   /(?:^|\.)sofurry\.com(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
+const isMurrtubeUrl = (baseUrl: string) =>
+  /(?:^|\.)murrtube\.net(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
+const isBadpupsUrl = (baseUrl: string) =>
+  /(?:^|\.)badpups\.com(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
 const isNewsUrl = (baseUrl: string) =>
   /(?:^|\.)(?:flayrah\.com|dogpatch\.press)(?:\/|$)/i.test(
     baseUrl.replace(/^https?:\/\//i, ""),
   );
 
 /** Prefer explicit mode; fall back to hostname only when mode omitted (M17). */
-type ApiBackend = "e621" | "furbooru" | "inkbunny" | "tailspace" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "news";
+type ApiBackend =
+  | "e621"
+  | "furbooru"
+  | "inkbunny"
+  | "tailspace"
+  | "furaffinity"
+  | "weasyl"
+  | "itaku"
+  | "sofurry"
+  | "murrtube"
+  | "badpups"
+  | "news";
 
 /**
  * Site-mode checklist (do NOT invent a plugin framework; refuse drive-by sites):
@@ -94,6 +111,8 @@ const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
   if (mode === "weasyl") return "weasyl";
   if (mode === "itaku") return "itaku";
   if (mode === "sofurry") return "sofurry";
+  if (mode === "murrtube") return "murrtube";
+  if (mode === "badpups") return "badpups";
   if (mode === "e621" || mode === "e6ai" || mode === "local") return "e621";
   if (isFurbooruUrl(baseUrl)) return "furbooru";
   if (isInkbunnyUrl(baseUrl)) return "inkbunny";
@@ -103,6 +122,8 @@ const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
   if (isWeasylUrl(baseUrl)) return "weasyl";
   if (isItakuUrl(baseUrl)) return "itaku";
   if (isSofurryUrl(baseUrl)) return "sofurry";
+  if (isMurrtubeUrl(baseUrl)) return "murrtube";
+  if (isBadpupsUrl(baseUrl)) return "badpups";
   return "e621";
 };
 
@@ -176,6 +197,8 @@ export interface EnhancedPost extends Post {
     inkbunny?: InkbunnyMeta;
     furaffinity?: FaMeta;
     sofurry?: sofurry.SofurryMeta;
+    murrtube?: murrtube.MurrtubeMeta & { detailsLoaded?: boolean };
+    badpups?: badpups.BadpupsMeta & { detailsLoaded?: boolean };
     itaku?: itaku.ItakuMeta;
     weasyl?: weasyl.WeasylMeta;
     kind?: string;
@@ -1109,6 +1132,54 @@ export class ApiService {
       }));
     }
 
+    if (backend === "murrtube") {
+      const tags = workingTags.filter(
+        (t) => !t.toLowerCase().startsWith("order:") && !t.toLowerCase().startsWith("rating:"),
+      );
+      const result = await murrtube.searchBrowse({
+        tags: tags.join(" "),
+        page: args.page,
+        limit: args.limit,
+      });
+      let browsePosts = result.posts;
+      if (workingTags.some((t) => t.toLowerCase() === "order:random")) {
+        browsePosts = shuffled(browsePosts);
+      }
+      return browsePosts.map((post: Post): EnhancedPost => ({
+        ...post,
+        __meta: {
+          ...(post as EnhancedPost).__meta,
+          isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
+          pageNumber: args.page,
+          murrtube: (post as EnhancedPost).__meta?.murrtube,
+        },
+      }));
+    }
+
+    if (backend === "badpups") {
+      const tags = workingTags.filter(
+        (t) => !t.toLowerCase().startsWith("order:") && !t.toLowerCase().startsWith("rating:"),
+      );
+      const result = await badpups.searchBrowse({
+        tags: tags.join(" "),
+        page: args.page,
+        limit: args.limit,
+      });
+      let browsePosts = result.posts;
+      if (workingTags.some((t) => t.toLowerCase() === "order:random")) {
+        browsePosts = shuffled(browsePosts);
+      }
+      return browsePosts.map((post: Post): EnhancedPost => ({
+        ...post,
+        __meta: {
+          ...(post as EnhancedPost).__meta,
+          isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
+          pageNumber: args.page,
+          badpups: (post as EnhancedPost).__meta?.badpups,
+        },
+      }));
+    }
+
     const posts = (
       await e621.posts.list({
         ...args,
@@ -1175,6 +1246,18 @@ export class ApiService {
         limit: args.limit,
       });
     }
+    if (backend === "murrtube") {
+      return murrtube.searchTags({
+        tags: args.query ?? args.name ?? "",
+        limit: args.limit,
+      });
+    }
+    if (backend === "badpups") {
+      return badpups.searchTags({
+        tags: args.query ?? args.name ?? "",
+        limit: args.limit,
+      });
+    }
     const data = await e621.tags.list(args);
     if (Array.isArray(data)) {
       return data;
@@ -1211,7 +1294,15 @@ export class ApiService {
       return result.pools;
     }
     // Inkbunny has no pools-list API — name/tags browse stays empty; use getPool(ids).
-    if (backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
+    if (
+      backend === "inkbunny" ||
+      backend === "furaffinity" ||
+      backend === "weasyl" ||
+      backend === "itaku" ||
+      backend === "sofurry" ||
+      backend === "murrtube" ||
+      backend === "badpups"
+    ) {
       return [];
     }
     // Retry: concurrent e621/e6ai fetches under COEP often throw "Failed to fetch".
@@ -1243,7 +1334,14 @@ export class ApiService {
       );
       return result.pool;
     }
-    if (backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
+    if (
+      backend === "furaffinity" ||
+      backend === "weasyl" ||
+      backend === "itaku" ||
+      backend === "sofurry" ||
+      backend === "murrtube" ||
+      backend === "badpups"
+    ) {
       throw new Error("Pools are not supported on this site");
     }
     return withRetry(() => e621.pools.get(args));
@@ -1255,7 +1353,13 @@ export class ApiService {
       return [];
     }
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    if (backend === "inkbunny" || backend === "weasyl" || backend === "sofurry") {
+    if (
+      backend === "inkbunny" ||
+      backend === "weasyl" ||
+      backend === "sofurry" ||
+      backend === "murrtube" ||
+      backend === "badpups"
+    ) {
       return [];
     }
     if (backend === "itaku") {
@@ -1285,7 +1389,16 @@ export class ApiService {
       return [];
     }
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    if (backend === "furbooru" || backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
+    if (
+      backend === "furbooru" ||
+      backend === "inkbunny" ||
+      backend === "furaffinity" ||
+      backend === "weasyl" ||
+      backend === "itaku" ||
+      backend === "sofurry" ||
+      backend === "murrtube" ||
+      backend === "badpups"
+    ) {
       return [];
     }
     return e621.notes.list(args);
@@ -1297,7 +1410,12 @@ export class ApiService {
       return false;
     }
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    if (backend === "inkbunny" || backend === "weasyl") {
+    if (
+      backend === "inkbunny" ||
+      backend === "weasyl" ||
+      backend === "murrtube" ||
+      backend === "badpups"
+    ) {
       return false;
     }
     if (backend === "itaku") {
@@ -1345,7 +1463,12 @@ export class ApiService {
       return false;
     }
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    if (backend === "inkbunny" || backend === "weasyl") {
+    if (
+      backend === "inkbunny" ||
+      backend === "weasyl" ||
+      backend === "murrtube" ||
+      backend === "badpups"
+    ) {
       return false;
     }
     if (backend === "itaku") {
@@ -1393,7 +1516,15 @@ export class ApiService {
       return { score: 0, up: 0, down: 0 };
     }
     const backend = resolveApiBackend(args.baseUrl, args.mode);
-    if (backend === "inkbunny" || backend === "furaffinity" || backend === "weasyl" || backend === "itaku" || backend === "sofurry") {
+    if (
+      backend === "inkbunny" ||
+      backend === "furaffinity" ||
+      backend === "weasyl" ||
+      backend === "itaku" ||
+      backend === "sofurry" ||
+      backend === "murrtube" ||
+      backend === "badpups"
+    ) {
       return { score: 0, up: 0, down: 0 };
     }
     if (backend === "furbooru") {
@@ -1680,6 +1811,84 @@ export class ApiService {
         // Recompute after keywords load — search hits lack tags (H10).
         isBlacklisted: isPostBlacklisted(merged, args.blacklist || []),
         inkbunny: inkbunny.inkbunnyMetaFromHit(sub, sid, true),
+      },
+    } satisfies EnhancedPost;
+  }
+
+  async enrichMurrtubePost(
+    post: EnhancedPost,
+    args: { blacklist?: string[][] },
+  ) {
+    if (post.__meta.murrtube?.detailsLoaded && post.file?.url) return post;
+    const code =
+      post.__meta.murrtube?.shortCode ||
+      murrtube.softIdForNumeric(post.id) ||
+      null;
+    if (!code) return post;
+    const adapted = await murrtube.fetchMedium(code);
+    if (!adapted) return post;
+    const adaptedMeta = (adapted as EnhancedPost).__meta || {};
+    const merged = {
+      ...post,
+      ...adapted,
+      file: adapted.file,
+      sample: adapted.sample,
+      preview: adapted.preview?.url ? adapted.preview : post.preview,
+      description: adapted.description || post.description,
+      tags: adapted.tags,
+    };
+    return {
+      ...merged,
+      __meta: {
+        ...post.__meta,
+        ...adaptedMeta,
+        isBlacklisted: isPostBlacklisted(merged, args.blacklist || []),
+        pageNumber: post.__meta.pageNumber,
+        murrtube: {
+          ...(adaptedMeta.murrtube || post.__meta.murrtube || {
+            id: code,
+            shortCode: code,
+          }),
+          detailsLoaded: true,
+        },
+      },
+    } satisfies EnhancedPost;
+  }
+
+  async enrichBadpupsPost(
+    post: EnhancedPost,
+    args: { blacklist?: string[][] },
+  ) {
+    if (post.__meta.badpups?.detailsLoaded && post.file?.url) return post;
+    const slug =
+      post.__meta.badpups?.slug || badpups.slugForNumeric(post.id) || null;
+    if (!slug) return post;
+    const adapted = await badpups.fetchDetail(slug);
+    if (!adapted) return post;
+    const adaptedMeta = (adapted as EnhancedPost).__meta || {};
+    const merged = {
+      ...post,
+      ...adapted,
+      file: adapted.file?.url ? adapted.file : post.file,
+      sample: adapted.sample,
+      preview: adapted.preview?.url ? adapted.preview : post.preview,
+      description: adapted.description || post.description,
+      tags: adapted.tags,
+    };
+    return {
+      ...merged,
+      __meta: {
+        ...post.__meta,
+        ...adaptedMeta,
+        isBlacklisted: isPostBlacklisted(merged, args.blacklist || []),
+        pageNumber: post.__meta.pageNumber,
+        badpups: {
+          ...(adaptedMeta.badpups || post.__meta.badpups || {
+            slug,
+            pageUrl: `https://badpups.com/${slug}/`,
+          }),
+          detailsLoaded: true,
+        },
       },
     } satisfies EnhancedPost;
   }

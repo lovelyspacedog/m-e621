@@ -33,7 +33,7 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 52,
+  configVersion: 53,
   activeMode: "e621",
   previousModeBeforeUnified: null,
   profiles: {
@@ -48,6 +48,8 @@ export const defaultSettings: ISettingsServiceState = {
     weasyl: createEmptySiteProfile("weasyl"),
     itaku: createEmptySiteProfile("itaku"),
     sofurry: createEmptySiteProfile("sofurry"),
+    murrtube: createEmptySiteProfile("murrtube"),
+    badpups: createEmptySiteProfile("badpups"),
     unified: createEmptySiteProfile("unified"),
   },
   shortcuts: [
@@ -216,6 +218,7 @@ export const defaultSettings: ISettingsServiceState = {
       proxy: "/api/",
     },
     debugLogging: true,
+    xtraModeEnabled: false,
   },
 };
 

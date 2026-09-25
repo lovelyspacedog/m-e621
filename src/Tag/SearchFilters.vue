@@ -211,7 +211,9 @@ const showRatingFilter = computed(
     !siteMode.isLocal &&
     !siteMode.isWeasyl &&
     !siteMode.isItaku &&
-    !siteMode.isSofurry,
+    !siteMode.isSofurry &&
+    !siteMode.isMurrtube &&
+    !siteMode.isBadpups,
 );
 const ratingTagItems = computed(() =>
   siteMode.isFurbooru

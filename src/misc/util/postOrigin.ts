@@ -40,6 +40,10 @@ export const unifiedChildLabel = (mode: SiteMode | UnifiedChildMode): string => 
       return "Itaku";
     case "sofurry":
       return "SoFurry";
+    case "murrtube":
+      return "Murrtube";
+    case "badpups":
+      return "Badpups";
     case "unified":
       return "Federated";
     case "local":
@@ -69,6 +73,10 @@ export const unifiedChildIcon = (mode: SiteMode | UnifiedChildMode): string => {
       return "$itaku";
     case "sofurry":
       return "$sofurry";
+    case "murrtube":
+      return "mdi-video";
+    case "badpups":
+      return "mdi-dog-side";
     case "unified":
       return "mdi-earth";
     case "local":

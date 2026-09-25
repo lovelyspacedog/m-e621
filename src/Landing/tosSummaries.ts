@@ -449,6 +449,52 @@ export const tosSummaries: TosSummary[] = [
     ],
   },
   {
+    id: "murrtube",
+    name: "Murrtube",
+    sourceUrl: "https://murrtube.net/",
+    sourceLabel: "Site (age gate / rules on-site)",
+    note: "Murrtube does not publish a standalone formal Terms page that PawDeck could deep-link. Treat the live site’s age gate and posted rules as controlling. PawDeck uses an age-gated Inertia scrape for personal browse only.",
+    sections: [
+      {
+        heading: "Who it binds",
+        bullets: [
+          "18+ / age of majority only (age confirmation on entry)",
+          "Follow any community or upload rules shown on the site",
+        ],
+      },
+      {
+        heading: "PawDeck use",
+        bullets: [
+          "Browse and play for personal use through the XTRA-mode adapter",
+          "Do not treat this client as an official Murrtube app or API",
+        ],
+      },
+    ],
+  },
+  {
+    id: "badpups",
+    name: "Badpups",
+    sourceUrl: "https://badpups.com/",
+    sourceLabel: "Site / staff pages",
+    note: "Badpups is a WordPress video site. Prefer any posted rules, upload guidelines, or staff notices on the live site. PawDeck browses public HTML/RSS and Bunny CDN media for personal use when XTRA mode is on.",
+    sections: [
+      {
+        heading: "Who it binds",
+        bullets: [
+          "Adult content; follow jurisdiction and site age requirements",
+          "Creators and uploaders must follow Badpups upload / moderation process",
+        ],
+      },
+      {
+        heading: "PawDeck use",
+        bullets: [
+          "Read-only browse and playback when XTRA mode is enabled",
+          "Not affiliated with Badpups; respect takedowns and site rules",
+        ],
+      },
+    ],
+  },
+  {
     id: "fluffle",
     name: "Fluffle",
     sourceUrl: "https://fluffle.xyz/about/",

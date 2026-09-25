@@ -487,6 +487,8 @@ class PersistanceService {
         weasyl: createEmptySiteProfile("weasyl"),
         itaku: createEmptySiteProfile("itaku"),
         sofurry: createEmptySiteProfile("sofurry"),
+        murrtube: createEmptySiteProfile("murrtube"),
+        badpups: createEmptySiteProfile("badpups"),
         unified: createEmptySiteProfile("unified"),
       };
       // Current flat fields become the active mode's profile (usually e621).
@@ -518,6 +520,8 @@ class PersistanceService {
           weasyl: createEmptySiteProfile("weasyl"),
           itaku: createEmptySiteProfile("itaku"),
           sofurry: createEmptySiteProfile("sofurry"),
+          murrtube: createEmptySiteProfile("murrtube"),
+          badpups: createEmptySiteProfile("badpups"),
           unified: createEmptySiteProfile("unified"),
         };
       } else {
@@ -722,6 +726,8 @@ class PersistanceService {
           weasyl: createEmptySiteProfile("weasyl"),
           itaku: createEmptySiteProfile("itaku"),
           sofurry: createEmptySiteProfile("sofurry"),
+          murrtube: createEmptySiteProfile("murrtube"),
+          badpups: createEmptySiteProfile("badpups"),
           unified: createEmptySiteProfile("unified"),
         };
       } else if (!newState.profiles.news) {
@@ -919,6 +925,27 @@ class PersistanceService {
       }
       newState.configVersion = 52;
     }
+    if (newState.configVersion < 53) {
+      if (!newState.misc) {
+        newState.misc = {
+          urls: { e621: "https://e621.net/", proxy: "/api/" },
+          debugLogging: true,
+          xtraModeEnabled: false,
+        };
+      } else if (newState.misc.xtraModeEnabled === undefined) {
+        newState.misc.xtraModeEnabled = false;
+      }
+      if (!newState.profiles?.murrtube) {
+        if (!newState.profiles) {
+          newState.profiles = {} as ISettingsServiceState["profiles"];
+        }
+        newState.profiles.murrtube = createEmptySiteProfile("murrtube");
+      }
+      if (!newState.profiles?.badpups) {
+        newState.profiles.badpups = createEmptySiteProfile("badpups");
+      }
+      newState.configVersion = 53;
+    }
     if (
       newState.previousModeBeforeUnified !== null &&
       newState.previousModeBeforeUnified !== undefined &&
@@ -1024,6 +1051,8 @@ class PersistanceService {
         weasyl: createEmptySiteProfile("weasyl"),
         itaku: createEmptySiteProfile("itaku"),
         sofurry: createEmptySiteProfile("sofurry"),
+        murrtube: createEmptySiteProfile("murrtube"),
+        badpups: createEmptySiteProfile("badpups"),
         unified: createEmptySiteProfile("unified"),
       };
     }
@@ -1038,6 +1067,8 @@ class PersistanceService {
     newState.profiles.weasyl = newState.profiles.weasyl || createEmptySiteProfile("weasyl");
     newState.profiles.itaku = newState.profiles.itaku || createEmptySiteProfile("itaku");
     newState.profiles.sofurry = newState.profiles.sofurry || createEmptySiteProfile("sofurry");
+    newState.profiles.murrtube = newState.profiles.murrtube || createEmptySiteProfile("murrtube");
+    newState.profiles.badpups = newState.profiles.badpups || createEmptySiteProfile("badpups");
     newState.profiles.unified = newState.profiles.unified || createEmptySiteProfile("unified");
     if (!newState.profiles.unified.unifiedSites) {
       newState.profiles.unified.unifiedSites = {
@@ -1097,9 +1128,19 @@ class PersistanceService {
       newState.activeMode !== "weasyl" &&
       newState.activeMode !== "itaku" &&
       newState.activeMode !== "sofurry" &&
+      newState.activeMode !== "murrtube" &&
+      newState.activeMode !== "badpups" &&
       newState.activeMode !== "news" &&
       newState.activeMode !== "unified"
     ) {
+      newState.activeMode = "e621";
+    }
+    // XTRA modes require the setting and are blocked while SFW only is on.
+    if (
+      (newState.activeMode === "murrtube" || newState.activeMode === "badpups") &&
+      (!newState.misc?.xtraModeEnabled || newState.posts?.sfwOnly)
+    ) {
+      syncMirrorsToActiveProfile(newState);
       newState.activeMode = "e621";
     }
     // Normalize base URLs
@@ -1120,6 +1161,14 @@ class PersistanceService {
       newState.profiles.sofurry = createEmptySiteProfile("sofurry");
     }
     newState.profiles.sofurry.baseUrl = newState.profiles.sofurry.baseUrl || SITE_MODE_URLS.sofurry;
+    if (!newState.profiles.murrtube) {
+      newState.profiles.murrtube = createEmptySiteProfile("murrtube");
+    }
+    newState.profiles.murrtube.baseUrl = newState.profiles.murrtube.baseUrl || SITE_MODE_URLS.murrtube;
+    if (!newState.profiles.badpups) {
+      newState.profiles.badpups = createEmptySiteProfile("badpups");
+    }
+    newState.profiles.badpups.baseUrl = newState.profiles.badpups.baseUrl || SITE_MODE_URLS.badpups;
     if (!newState.profiles.tailspace) {
       newState.profiles.tailspace = createEmptySiteProfile("tailspace");
     }
@@ -1197,6 +1246,9 @@ class PersistanceService {
     }
     if (newState.misc.debugLogging === undefined) {
       newState.misc.debugLogging = true;
+    }
+    if (newState.misc.xtraModeEnabled === undefined) {
+      newState.misc.xtraModeEnabled = false;
     }
     if (assignLive) {
       setDebugLoggingEnabled(!!newState.misc.debugLogging);

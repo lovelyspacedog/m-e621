@@ -75,6 +75,7 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { label: "Post buttons", keywords: ["buttons", "fullscreen", "details"], section: "posts", hash: "buttons" },
   { label: "Go fullscreen", keywords: ["fullscreen"], section: "posts", hash: "buttons" },
   { label: "SFW only", keywords: ["sfw", "safe", "nsfw", "rating", "work safe"], section: "posts", hash: "layout" },
+  { label: "XTRA mode", keywords: ["xtra", "murrtube", "badpups", "video", "extra sites"], section: "posts", hash: "layout" },
   { label: "Grid layout", keywords: ["grid", "layout", "feed", "compact"], section: "posts", hash: "layout" },
   { label: "Full-width feed", keywords: ["full-width", "full width", "layout"], section: "posts", hash: "layout" },
   { label: "Compact cards", keywords: ["compact", "hover", "tags"], section: "posts", hash: "layout" },
