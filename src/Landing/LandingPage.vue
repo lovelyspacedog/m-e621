@@ -5,7 +5,18 @@
     <section class="landing-hero v-toolbar elevation-0 bg-primary d-flex">
       <div class="w-100 d-flex flex-column align-center justify-center fill-height py-10 px-4">
         <app-logo v-view-transition-name="'applogo'" type="face" size="160" />
-        <h1 class="mb-2 text-h1 text-center">{{ APP_NAME }}</h1>
+        <div class="landing-title-wrap mb-2">
+          <h1 class="text-h1 text-center mb-0">{{ APP_NAME }}</h1>
+          <a
+            v-if="commit && versionLabel"
+            class="landing-commit text-caption"
+            :href="`https://github.com/lovelyspacedog/m-e621/commit/${commit.hash}`"
+            target="_blank"
+            rel="noopener"
+            :title="`Commit ${versionLabel}`"
+            >{{ versionLabel }}</a
+          >
+        </div>
         <p class="text-h6 text-center mb-4">{{ tagline }}</p>
         <site-mode-switcher class="mb-5" variant="chips" :navigate-on-change="false" />
         <div v-if="showTagSearch" class="landing-search mb-4">
@@ -179,11 +190,14 @@ import { useRouter, type RouteLocationRaw } from "vue-router";
 import MigrationInfo from "./MigrationInfo.vue";
 import { useSiteModeStore } from "@/services/SiteModeStore";
 import { APP_NAME } from "@/misc/util/brand";
+import { getGitInfo } from "@/misc/util/git";
 import { openSettings } from "@/Settings/settingsOverlay";
 
 const router = useRouter();
 const siteMode = useSiteModeStore();
 const infoOpen = ref(false);
+const commit = getGitInfo()[0];
+const versionLabel = commit?.hash?.substring(0, 7) ?? "";
 const commitHistoryOpen = ref(false);
 const commitHistorySource = ref<"fork" | "upstream">("fork");
 const commitHistoryTitle = computed(() =>
@@ -247,6 +261,30 @@ const removeTag = (tag: string) => {
 <style scoped>
 .landing-hero {
   min-height: min(70vh, 36rem);
+}
+
+.landing-title-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.landing-commit {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 0.05rem;
+  color: inherit;
+  opacity: 0.78;
+  text-decoration: none;
+  line-height: 1;
+  white-space: nowrap;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.landing-commit:hover {
+  opacity: 1;
+  text-decoration: underline;
 }
 
 .landing-search {

@@ -48,7 +48,7 @@
       </v-slide-x-transition>
       <history-nav-buttons v-if="!minimalHeader && !mobile" class="mr-1" />
       <portal-target name="toolbar">
-        <v-toolbar-title>{{ appName }}</v-toolbar-title>
+        <v-toolbar-title>{{ toolbarTitle }}</v-toolbar-title>
       </portal-target>
       <v-spacer />
       <v-tooltip v-if="!minimalHeader" text="SFW only (safe rating)" location="bottom">
@@ -106,6 +106,7 @@ import PwaUpdateBanner from "./App/PwaUpdateBanner.vue";
 import TipDialog from "./misc/TipDialog.vue";
 import { TIP_IDS } from "./misc/tipIds";
 import { useTipOpen } from "./misc/useTipOpen";
+import { APP_NAME } from "./misc/util/brand";
 import { getAppName } from "./misc/util/utilities";
 import { useAppearanceStore, useMainStore, usePersistanceService, usePostsStore, useShortcutService, useSiteModeStore } from "./services";
 import { useHead } from '@unhead/vue';
@@ -227,6 +228,8 @@ const drawer_ = ref(true);
 const appName = getAppName();
 
 const minimalHeader = computed(() => !!route.meta?.minimalHeader);
+/** Landing hero shows the short commit; keep the toolbar title clean there. */
+const toolbarTitle = computed(() => (minimalHeader.value ? APP_NAME : appName));
 
 const drawer = computed({
   get: () =>
