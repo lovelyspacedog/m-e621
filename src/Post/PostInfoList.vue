@@ -5,16 +5,24 @@
         <th>Site</th>
         <td class="post-info-value">{{ originLabel }}</td>
       </tr>
+      <tr v-if="videoTitle">
+        <th>Title</th>
+        <td class="post-info-value">{{ videoTitle }}</td>
+      </tr>
       <tr v-if="isLocal">
         <th>Path</th>
         <td class="post-info-value">{{ post.sources[0] || "—" }}</td>
       </tr>
-      <tr v-else>
+      <tr v-else-if="!isVideoChild">
         <th>ID</th>
         <td class="post-info-value">{{ post.id }}</td>
       </tr>
+      <tr v-if="isVideoChild && videoSoftId">
+        <th>ID</th>
+        <td class="post-info-value">{{ videoSoftId }}</td>
+      </tr>
       <tr v-if="creatorTags.length">
-        <th>{{ creatorLabel }}</th>
+        <th>{{ isVideoChild ? "Uploader" : creatorLabel }}</th>
         <td class="post-info-value">
           <TagWithMenu
             small
@@ -24,9 +32,21 @@
           />
         </td>
       </tr>
+      <tr v-else-if="uploaderDisplay">
+        <th>Uploader</th>
+        <td class="post-info-value">{{ uploaderDisplay }}</td>
+      </tr>
       <tr v-if="post.uploader_name && isFurbooru">
         <th>Uploader</th>
         <td class="post-info-value">{{ post.uploader_name }}</td>
+      </tr>
+      <tr v-if="durationLabel">
+        <th>Duration</th>
+        <td class="post-info-value">{{ durationLabel }}</td>
+      </tr>
+      <tr v-if="videoViews != null">
+        <th>Views</th>
+        <td class="post-info-value">{{ videoViews.toLocaleString() }}</td>
       </tr>
       <tr v-if="poolEntries.length">
         <th>Pools</th>
@@ -58,7 +78,7 @@
           </div>
         </td>
       </tr>
-      <tr v-if="!isLocal">
+      <tr v-if="!isLocal && showEngagementRow">
         <th>{{ engagementLabel }}</th>
         <td class="post-info-value">
           <div class="d-flex align-center justify-end ga-1 flex-wrap">
@@ -113,11 +133,11 @@
           />
         </td>
       </tr>
-      <tr v-if="!isLocal">
+      <tr v-if="!isLocal && !isVideoChild">
         <th>Favorites</th>
         <td class="post-info-value">{{ post.fav_count }}</td>
       </tr>
-      <tr>
+      <tr v-if="!isVideoChild">
         <th>File size</th>
         <td class="post-info-value">
           <template v-if="post.file.size > 0">
@@ -127,7 +147,7 @@
           <template v-else>—</template>
         </td>
       </tr>
-      <tr>
+      <tr v-if="!isVideoChild">
         <th>Dimensions</th>
         <td class="post-info-value">
           <template v-if="hasDimensions">
@@ -138,6 +158,10 @@
           <span v-if="post.file.ext" class="text-medium-emphasis"> · {{ post.file.ext }}</span>
         </td>
       </tr>
+      <tr v-if="isVideoChild && post.file.ext">
+        <th>Format</th>
+        <td class="post-info-value">{{ formatLabel }}</td>
+      </tr>
       <tr v-if="showHashRow">
         <th>{{ hashLabel }}</th>
         <td class="post-info-value post-info-hash">{{ post.file.md5 }}</td>
@@ -145,6 +169,10 @@
       <tr v-if="!isLocal">
         <th>Rating</th>
         <td class="post-info-value">{{ ratingLabel }}</td>
+      </tr>
+      <tr v-if="!isLocal && uploadedLabel">
+        <th>Uploaded</th>
+        <td class="post-info-value">{{ uploadedLabel }}</td>
       </tr>
       <tr v-if="!isLocal">
         <th>Sources</th>
@@ -178,6 +206,7 @@ import { useSiteModeStore } from "@/services";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { originModeOf, unifiedChildLabel } from "@/misc/util/postOrigin";
 import { isPoolOriginMode, poolRouteQuery } from "@/misc/util/poolOrigin";
+import { isVideoChildMode } from "@/misc/util/videoMode";
 import {
   modeSupportsNotes,
   modeSupportsPools,
@@ -208,6 +237,9 @@ const isFurAffinity = computed(() => originMode.value === "furaffinity");
 const isWeasyl = computed(() => originMode.value === "weasyl");
 const isItaku = computed(() => originMode.value === "itaku");
 const isSofurry = computed(() => originMode.value === "sofurry");
+const isMurrtube = computed(() => originMode.value === "murrtube");
+const isBadpups = computed(() => originMode.value === "badpups");
+const isVideoChild = computed(() => isVideoChildMode(originMode.value));
 const supportsVotes = computed(() => modeSupportsVotes(originMode.value));
 const supportsPoolReader = computed(() =>
   isPoolOriginMode(originMode.value) || modeSupportsPools(originMode.value),
@@ -229,19 +261,83 @@ const scalarEngagement = computed(
     isFurAffinity.value ||
     isWeasyl.value ||
     isSofurry.value ||
-    isItaku.value,
+    isItaku.value ||
+    isVideoChild.value,
 );
-const engagementLabel = computed(() =>
-  isInkbunny.value || isFurAffinity.value || isWeasyl.value
-    ? "Views"
-    : "Score",
-);
+const engagementLabel = computed(() => {
+  if (isMurrtube.value) return "Likes";
+  if (isInkbunny.value || isFurAffinity.value || isWeasyl.value) return "Views";
+  return "Score";
+});
+const showEngagementRow = computed(() => {
+  if (isBadpups.value) return false;
+  if (isMurrtube.value) return props.post.score.total > 0;
+  return true;
+});
 const originLabel = computed(() =>
   (props.post as EnhancedPost).__meta?.originMode
     ? unifiedChildLabel((props.post as EnhancedPost).__meta.originMode!)
     : "",
 );
-const creatorTags = computed(() => getCreatorTags(props.post.tags));
+const creatorTags = computed(() =>
+  getCreatorTags(props.post.tags).filter(
+    (name) => name && name.toLowerCase() !== "unknown",
+  ),
+);
+const uploaderDisplay = computed(() => {
+  if (!isVideoChild.value) return "";
+  const name = (props.post.uploader_name || "").trim();
+  return name;
+});
+const videoTitle = computed(() => {
+  if (!isVideoChild.value) return "";
+  const meta = (props.post as EnhancedPost).__meta;
+  const fromMeta = meta?.murrtube?.title || meta?.badpups?.title || "";
+  if (fromMeta.trim()) return fromMeta.trim();
+  return (props.post.description || "").replace(/\s+/g, " ").trim();
+});
+const videoSoftId = computed(() => {
+  const meta = (props.post as EnhancedPost).__meta;
+  if (isMurrtube.value) {
+    return meta?.murrtube?.shortCode || meta?.murrtube?.id || "";
+  }
+  if (isBadpups.value) return meta?.badpups?.slug || "";
+  return "";
+});
+const videoViews = computed(() => {
+  const n = (props.post as EnhancedPost).__meta?.murrtube?.viewsCount;
+  return typeof n === "number" ? n : null;
+});
+const durationLabel = computed(() => {
+  const sec = props.post.duration;
+  if (sec == null || !Number.isFinite(sec) || sec <= 0) return "";
+  const total = Math.round(sec);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+  return `${m}:${String(s).padStart(2, "0")}`;
+});
+const formatLabel = computed(() => {
+  const ext = (props.post.file.ext || "").toLowerCase();
+  if (ext === "m3u8") return "HLS (m3u8)";
+  if (ext === "mp4") return "MP4";
+  return ext.toUpperCase() || "—";
+});
+const uploadedLabel = computed(() => {
+  if (!isVideoChild.value) return "";
+  const raw = props.post.created_at;
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return "";
+  // Badpups list cards stamp "now" when upload date is unknown — skip those.
+  if (isBadpups.value && !(props.post as EnhancedPost).__meta?.badpups?.detailsLoaded) {
+    return "";
+  }
+  return d.toLocaleString();
+});
 const fileSize = computed(() => prettyBytes(props.post.file.size));
 const hasDimensions = computed(
   () => props.post.file.width > 0 && props.post.file.height > 0,
@@ -263,7 +359,9 @@ const poolEntries = computed(() => {
     name: byId.get(id) || "",
   }));
 });
-const showHashRow = computed(() => !!props.post.file?.md5);
+const showHashRow = computed(
+  () => !!props.post.file?.md5 && !isVideoChild.value,
+);
 const hashLabel = computed(() => {
   if (isFurbooru.value) return "SHA-512";
   if (isSofurry.value) return "Soft ID";
@@ -277,6 +375,7 @@ const ratingLabel = computed(() => {
     case "q":
       return isInkbunny.value || isFurAffinity.value ? "Mature" : "Questionable";
     case "e":
+      if (isVideoChild.value) return "Adult";
       return isInkbunny.value || isFurAffinity.value ? "Adult" : "Explicit";
     default:
       return props.post.rating || "—";

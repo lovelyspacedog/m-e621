@@ -63,6 +63,10 @@ export const usePostListManager = ({
   const FA_FEED_ENRICH_LIMIT = 3;
   const faEnrichPending = new Set<string>();
   let faEnrichActive = 0;
+  // Murrtube home cards omit tags; enrich detail pages for feed chips (capped).
+  const VIDEO_FEED_ENRICH_LIMIT = 2;
+  const videoEnrichPending = new Set<string>();
+  let videoEnrichActive = 0;
   const urlStore = useUrlStore();
   const blacklistStore = useBlacklistStore();
   const postsStore = usePostsStore();
@@ -110,6 +114,37 @@ export const usePostListManager = ({
       faEnrichPending.add(postFeedKey(post));
     }
     pumpFaFeedEnrich();
+  };
+
+  const needsMurrtubeFeedEnrich = (post: EnhancedPost) => {
+    const meta = post.__meta?.murrtube;
+    if (!meta || meta.detailsLoaded) return false;
+    // Home cards omit tags; enrich once so general chips appear.
+    return !(post.tags?.general?.length);
+  };
+
+  const pumpVideoFeedEnrich = () => {
+    const gen = generation.value;
+    while (videoEnrichActive < VIDEO_FEED_ENRICH_LIMIT && videoEnrichPending.size) {
+      const key = videoEnrichPending.values().next().value as string;
+      videoEnrichPending.delete(key);
+      const post = posts.value.find((p) => postFeedKey(p) === key);
+      if (!post || !needsMurrtubeFeedEnrich(post)) continue;
+      videoEnrichActive += 1;
+      void enrichRemote(post, { silent: true }).finally(() => {
+        videoEnrichActive -= 1;
+        if (gen === generation.value) pumpVideoFeedEnrich();
+      });
+    }
+  };
+
+  /** Fetch Murrtube detail pages so Video cards get tags (list omit tags). */
+  const scheduleVideoFeedEnrich = (batch: EnhancedPost[]) => {
+    for (const post of batch) {
+      if (!needsMurrtubeFeedEnrich(post)) continue;
+      videoEnrichPending.add(postFeedKey(post));
+    }
+    pumpVideoFeedEnrich();
   };
 
   const applyEnrichedPost = (updated: EnhancedPost, gen: number) => {
@@ -378,6 +413,7 @@ export const usePostListManager = ({
         postCountToRemove,
       );
       scheduleFaFeedEnrich(newPostsFiltered);
+      scheduleVideoFeedEnrich(newPostsFiltered);
     } catch (error) {
       if (thisGen === generation.value) handleError(error);
     } finally {
@@ -415,6 +451,7 @@ export const usePostListManager = ({
         posts.value.push(...newPostsFiltered);
         posts.value.splice(0, postCountToRemove);
         scheduleFaFeedEnrich(newPostsFiltered);
+        scheduleVideoFeedEnrich(newPostsFiltered);
       }
     } catch (error) {
       if (thisGen === generation.value) handleError(error);
@@ -580,6 +617,7 @@ export const usePostListManager = ({
   const clearPosts = () => {
     generation.value += 1;
     faEnrichPending.clear();
+    videoEnrichPending.clear();
     posts.value = [];
     reachedEnd.value = false;
     loading.value = false;
@@ -612,6 +650,7 @@ export const usePostListManager = ({
       : null;
     generation.value += 1;
     faEnrichPending.clear();
+    videoEnrichPending.clear();
     posts.value = next;
     reachedEnd.value = true;
     loading.value = false;
@@ -621,6 +660,7 @@ export const usePostListManager = ({
     detailsPost.value = nextDetails;
     if (!nextFs) useUiStore().fullscreenOpen = false;
     scheduleFaFeedEnrich(next);
+    scheduleVideoFeedEnrich(next);
   };
 
   const hasPrevious = computed(() => posts.value.length !== 0 && posts.value[0].__meta.pageNumber > 1);

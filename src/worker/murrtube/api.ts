@@ -11,6 +11,9 @@ export type MurrtubeMeta = {
   shortCode: string;
   hlsUrl?: string | null;
   title?: string;
+  viewsCount?: number;
+  /** True after /v/{code} enrich filled tags + HLS. */
+  detailsLoaded?: boolean;
 };
 
 const softIdByNumeric = new Map<number, string>();
@@ -69,19 +72,36 @@ function emptyTags(): PostTags {
   };
 }
 
-function asTagNames(v: unknown): string[] {
-  if (!Array.isArray(v)) return [];
-  return v
-    .map((x) => {
-      if (typeof x === "string") return x;
-      if (x && typeof x === "object") {
-        const o = x as { name?: string; slug?: string };
-        return o.name || o.slug || "";
-      }
-      return "";
-    })
-    .map((s) => s.trim().replace(/\s+/g, "_"))
-    .filter(Boolean);
+const TAG_BUCKETS = new Set([
+  "general",
+  "species",
+  "character",
+  "copyright",
+  "artist",
+  "invalid",
+  "lore",
+  "meta",
+]);
+
+/** Map list/detail tag payloads into PostTags (detail includes category). */
+function applyMurrTags(tags: PostTags, v: unknown): void {
+  if (!Array.isArray(v)) return;
+  for (const x of v) {
+    let name = "";
+    let category = "general";
+    if (typeof x === "string") {
+      name = x;
+    } else if (x && typeof x === "object") {
+      const o = x as { name?: string; slug?: string; category?: string };
+      name = o.name || o.slug || "";
+      if (o.category) category = String(o.category).toLowerCase();
+    }
+    name = name.trim().replace(/\s+/g, "_");
+    if (!name) continue;
+    const bucket = (TAG_BUCKETS.has(category) ? category : "general") as keyof PostTags;
+    const list = tags[bucket];
+    if (Array.isArray(list) && !list.includes(name)) list.push(name);
+  }
 }
 
 type MurrUser = {
@@ -112,11 +132,15 @@ export function adaptMedium(raw: MurrMedium): Post {
   const softId = String(raw.id || raw.short_code || "").trim();
   const numericId = murrtubeNumericId(softId || raw.short_code || "0");
   rememberId(softId || String(raw.short_code || ""), numericId);
-  const artist =
-    (raw.user?.slug || raw.user?.name || "").trim().replace(/\s+/g, "_") || "unknown";
+  const artistSlug = (raw.user?.slug || "").trim().replace(/\s+/g, "_");
+  const artistName = (raw.user?.name || "").trim().replace(/\s+/g, "_");
+  const artist = artistSlug || artistName;
   const tags = emptyTags();
-  tags.artist = [artist];
-  tags.general = asTagNames(raw.tags);
+  applyMurrTags(tags, raw.tags);
+  // Uploader is the card artist even when tag list is empty (home cards omit tags).
+  if (artist && !tags.artist.includes(artist)) {
+    tags.artist = [artist, ...tags.artist];
+  }
   const thumb = rewriteMediaUrl(raw.thumbnail_url) || "";
   const preview = rewriteMediaUrl(raw.preview_url) || thumb;
   const hls = rewriteMediaUrl(raw.hls_url);
@@ -124,6 +148,7 @@ export function adaptMedium(raw: MurrMedium): Post {
     ? raw.url
     : `${ORIGIN}${raw.url || `/v/${raw.short_code || softId}`}`;
   const created = raw.published_at || raw.created_at || new Date().toISOString();
+  const hasDetailTags = Array.isArray(raw.tags) && raw.tags.length > 0;
   const post = {
     id: numericId,
     created_at: created,
@@ -165,6 +190,7 @@ export function adaptMedium(raw: MurrMedium): Post {
     },
     approver_id: undefined,
     uploader_id: 0,
+    uploader_name: (raw.user?.name || raw.user?.slug || "").trim() || undefined,
     description: raw.title || raw.description || "",
     comment_count: 0,
     is_favorited: false,
@@ -177,6 +203,10 @@ export function adaptMedium(raw: MurrMedium): Post {
       shortCode: String(raw.short_code || ""),
       hlsUrl: raw.hls_url || null,
       title: String(raw.title || "").trim() || undefined,
+      viewsCount:
+        typeof raw.views_count === "number" ? raw.views_count : undefined,
+      // List cards omit tags; detail pages include them.
+      detailsLoaded: hasDetailTags && !!hls,
     },
   };
   return post;

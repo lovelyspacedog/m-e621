@@ -16,6 +16,15 @@ export interface ChangelogSection {
 export const changelogSections: ChangelogSection[] = [
   {
     date: "2026-09-25",
+    title: "Video cards and Overview",
+    items: [
+      "Video cards show uploader/artist (Murrtube) and category/general tags; Murrtube tags load as detail pages enrich in the background",
+      "Compact Video cards put uploader · title on the site chip so artist stays visible without hovering chrome",
+      "Overview for Video posts favors title, duration, views/likes, uploader, and format — hides fake MD5/dimensions/size",
+    ],
+  },
+  {
+    date: "2026-09-25",
     title: "Video mode hub",
     items: [
       "Post settings renames XTRA to Video mode: one Video site merges Murrtube and Badpups with per-site toggles (sidebar and landing chips)",

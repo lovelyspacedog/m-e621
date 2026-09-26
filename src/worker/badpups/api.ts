@@ -235,8 +235,8 @@ function cardToPost(card: BadpupsListCard): Post {
   const numericId = badpupsNumericId(card.slug);
   rememberSlug(card.slug, numericId);
   const tags = emptyTags();
+  // Listing exposes WP categories only — no per-uploader field on cards.
   tags.general = card.categories;
-  tags.artist = ["unknown"];
   const guid = card.guid;
   const bunny = guid ? bunnyUrls(guid) : null;
   const thumb = card.thumbUrl || bunny?.thumb || "";
@@ -301,8 +301,8 @@ function detailToPost(detail: BadpupsDetail): Post {
   const numericId = badpupsNumericId(detail.slug);
   rememberSlug(detail.slug, numericId);
   const tags = emptyTags();
+  // Badpups tags/categories have no artist namespace on the public HTML.
   tags.general = detail.tags;
-  tags.artist = ["unknown"];
   const bunny = detail.guid ? bunnyUrls(detail.guid) : null;
   const thumb = detail.thumbUrl || bunny?.thumb || "";
   const created = detail.uploadDate || new Date().toISOString();

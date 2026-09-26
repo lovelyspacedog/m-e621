@@ -85,6 +85,8 @@ export interface Post {
   comment_count: number;
   is_favorited: boolean;
   has_notes: boolean;
+  /** Seconds when known (video sites, local media). */
+  duration?: number | null;
 }
 
 export interface Posts {

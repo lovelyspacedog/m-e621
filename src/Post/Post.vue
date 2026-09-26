@@ -18,12 +18,12 @@
         :title="originChipLabel"
       >
         <v-icon size="16" :icon="originIcon" />
-        <span v-if="originTitle" class="origin-badge__title">{{ originTitle }}</span>
+        <span v-if="originBadgeText" class="origin-badge__title">{{ originBadgeText }}</span>
       </v-chip>
       <div
         v-if="duplicateOrigins.length"
         class="dup-origins"
-        :class="{ 'dup-origins--end': !!originTitle }"
+        :class="{ 'dup-origins--end': !!originBadgeText }"
         :title="duplicateTitle"
       >
         <v-chip
@@ -162,6 +162,17 @@ export default defineComponent({
     const originIcon = computed(() =>
       originMode.value ? unifiedChildIcon(originMode.value) : "",
     );
+    const originArtist = computed(() => {
+      if (originMode.value !== "murrtube" && originMode.value !== "badpups") {
+        return "";
+      }
+      const fromUploader = (props.post.uploader_name || "").trim();
+      if (fromUploader) return fromUploader.replace(/\s+/g, " ");
+      const artist = (props.post.tags?.artist || []).find(
+        (name) => name && name.toLowerCase() !== "unknown",
+      );
+      return artist ? artist.replace(/_/g, " ") : "";
+    });
     const originTitle = computed(() => {
       const meta = props.post.__meta as {
         murrtube?: { title?: string };
@@ -179,11 +190,18 @@ export default defineComponent({
       }
       return "";
     });
+    /** Compact cards hide chrome — bake artist into the always-visible badge. */
+    const originBadgeText = computed(() => {
+      const artist = originArtist.value;
+      const title = originTitle.value;
+      if (artist && title) return `${artist} · ${title}`;
+      return artist || title;
+    });
     const originChipLabel = computed(() => {
-      if (originTitle.value && originLabel.value) {
-        return `${originLabel.value}: ${originTitle.value}`;
+      if (originBadgeText.value && originLabel.value) {
+        return `${originLabel.value}: ${originBadgeText.value}`;
       }
-      return originTitle.value || originLabel.value;
+      return originBadgeText.value || originLabel.value;
     });
     const duplicateOrigins = computed(
       () => props.post.__meta?.duplicateOrigins || [],
@@ -273,6 +291,7 @@ export default defineComponent({
       originLabel,
       originIcon,
       originTitle,
+      originBadgeText,
       originChipLabel,
       duplicateOrigins,
       duplicateTitle,

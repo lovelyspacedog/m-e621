@@ -204,7 +204,7 @@ export interface EnhancedPost extends Post {
     itaku?: itaku.ItakuMeta;
     weasyl?: weasyl.WeasylMeta;
     kind?: string;
-    originMode?: UnifiedChildMode | "local";
+    originMode?: UnifiedChildMode | VideoChildMode | "local";
     originBaseUrl?: string;
     /** Other Federated origins collapsed into this card. */
     duplicateOrigins?: Array<{
@@ -1984,6 +1984,8 @@ export class ApiService {
     const adapted = await murrtube.fetchMedium(code);
     if (!adapted) return post;
     const adaptedMeta = (adapted as EnhancedPost).__meta || {};
+    const prevMt = post.__meta.murrtube;
+    const nextMt = adaptedMeta.murrtube;
     const merged = {
       ...post,
       ...adapted,
@@ -1992,6 +1994,7 @@ export class ApiService {
       preview: adapted.preview?.url ? adapted.preview : post.preview,
       description: adapted.description || post.description,
       tags: adapted.tags,
+      uploader_name: adapted.uploader_name || post.uploader_name,
     };
     return {
       ...merged,
@@ -2001,10 +2004,10 @@ export class ApiService {
         isBlacklisted: isPostBlacklisted(merged, args.blacklist || []),
         pageNumber: post.__meta.pageNumber,
         murrtube: {
-          ...(adaptedMeta.murrtube || post.__meta.murrtube || {
-            id: code,
-            shortCode: code,
-          }),
+          ...(prevMt || { id: code, shortCode: code }),
+          ...(nextMt || {}),
+          viewsCount: nextMt?.viewsCount ?? prevMt?.viewsCount,
+          title: nextMt?.title || prevMt?.title,
           detailsLoaded: true,
         },
       },

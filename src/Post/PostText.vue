@@ -8,17 +8,33 @@
       {{ filename }}
     </div>
     <div>
-      <v-chip v-if="!isLocal && !isInkbunny && !isFurAffinity" variant="outlined" class="mr-2 mb-2 no-before-content">
+      <v-chip v-if="!isLocal && !isInkbunny && !isFurAffinity && !isVideoChild" variant="outlined" class="mr-2 mb-2 no-before-content">
         <v-icon>mdi-thumbs-up-down</v-icon>
         <span class="ml-2">
           {{ post.score.total }}
         </span>
       </v-chip>
-      <v-chip v-if="!isLocal && !isInkbunny && !isFurAffinity" variant="outlined" class="mr-2 mb-2 no-before-content">
+      <v-chip v-if="!isLocal && !isInkbunny && !isFurAffinity && !isVideoChild" variant="outlined" class="mr-2 mb-2 no-before-content">
         <v-icon>mdi-heart</v-icon>
         <span class="ml-2">
           {{ post.fav_count }}
         </span>
+      </v-chip>
+      <v-chip
+        v-if="isMurrtube && post.score.total > 0"
+        variant="outlined"
+        class="mr-2 mb-2 no-before-content"
+      >
+        <v-icon>mdi-heart</v-icon>
+        <span class="ml-2">{{ post.score.total }}</span>
+      </v-chip>
+      <v-chip
+        v-if="murrtubeViews != null"
+        variant="outlined"
+        class="mr-2 mb-2 no-before-content"
+      >
+        <v-icon>mdi-eye</v-icon>
+        <span class="ml-2">{{ murrtubeViews.toLocaleString() }}</span>
       </v-chip>
       <v-chip
         v-if="isInkbunny && inkbunnyPagecount > 1"
@@ -47,6 +63,20 @@
         @click.stop="creatorsExpanded = !creatorsExpanded"
       >
         {{ creatorsExpanded ? "Show less" : `+${hiddenCreatorCount} more` }}
+      </v-chip>
+      <tag-with-menu
+        v-for="name in visibleVideoGeneralTags"
+        :key="'vg-' + name"
+        :tag="{ name, category: 'general' }"
+      />
+      <v-chip
+        v-if="hiddenVideoGeneralCount > 0 || videoGeneralExpanded"
+        class="mr-2 mb-2"
+        variant="tonal"
+        color="accent"
+        @click.stop="videoGeneralExpanded = !videoGeneralExpanded"
+      >
+        {{ videoGeneralExpanded ? "Show less" : `+${hiddenVideoGeneralCount} more` }}
       </v-chip>
       <template v-if="isLocal">
         <tag-with-menu
@@ -92,6 +122,7 @@ import { getTagColorFromCategory } from "@/misc/util/utilities";
 import { addLocalTags, parseLocalTags, removeLocalTag } from "@/misc/util/localMedia";
 import { getCreatorTags, useSiteLabels } from "@/misc/util/siteLabels";
 import { originModeOf } from "@/misc/util/postOrigin";
+import { isVideoChildMode } from "@/misc/util/videoMode";
 import { useSiteModeStore } from "@/services";
 import TagWithMenu from "@/Tag/TagWithMenu.vue";
 import type { ScoredPost } from "@/worker/AnalyzeService";
@@ -104,6 +135,8 @@ const isScoredPost = (post: Post): post is ScoredPost => '__score' in post;
 
 /** Max artist/creator chips on a feed card before collapsing. */
 const CREATOR_TAG_LIMIT = 6;
+/** Max general tags shown on Video-mode cards. */
+const VIDEO_GENERAL_TAG_LIMIT = 8;
 
 const artistColor = getTagColorFromCategory("artist");
 
@@ -118,18 +151,25 @@ export default defineComponent({
     const { creatorCategory } = useSiteLabels();
     const siteMode = useSiteModeStore();
     const isLocal = computed(() => siteMode.isLocal);
-    const isInkbunny = computed(
-      () => originModeOf(props.post as EnhancedPost, siteMode.activeMode) === "inkbunny",
+    const origin = computed(() =>
+      originModeOf(props.post as EnhancedPost, siteMode.activeMode),
     );
-    const isFurAffinity = computed(
-      () => originModeOf(props.post as EnhancedPost, siteMode.activeMode) === "furaffinity",
+    const isInkbunny = computed(() => origin.value === "inkbunny");
+    const isFurAffinity = computed(() => origin.value === "furaffinity");
+    const isMurrtube = computed(() => origin.value === "murrtube");
+    const isVideoChild = computed(() => isVideoChildMode(origin.value));
+    const creatorTags = computed(() =>
+      getCreatorTags(props.post.tags).filter(
+        (name) => name && name.toLowerCase() !== "unknown",
+      ),
     );
-    const creatorTags = computed(() => getCreatorTags(props.post.tags));
     const creatorsExpanded = ref(false);
+    const videoGeneralExpanded = ref(false);
     watch(
       () => props.post.id,
       () => {
         creatorsExpanded.value = false;
+        videoGeneralExpanded.value = false;
       },
     );
     const visibleCreatorTags = computed(() =>
@@ -140,6 +180,22 @@ export default defineComponent({
     const hiddenCreatorCount = computed(() =>
       Math.max(0, creatorTags.value.length - CREATOR_TAG_LIMIT),
     );
+    const videoGeneralTags = computed(() => {
+      if (!isVideoChild.value) return [] as string[];
+      return (props.post.tags.general || []).filter(Boolean);
+    });
+    const visibleVideoGeneralTags = computed(() =>
+      videoGeneralExpanded.value
+        ? videoGeneralTags.value
+        : videoGeneralTags.value.slice(0, VIDEO_GENERAL_TAG_LIMIT),
+    );
+    const hiddenVideoGeneralCount = computed(() =>
+      Math.max(0, videoGeneralTags.value.length - VIDEO_GENERAL_TAG_LIMIT),
+    );
+    const murrtubeViews = computed(() => {
+      const n = (props.post as EnhancedPost).__meta?.murrtube?.viewsCount;
+      return typeof n === "number" ? n : null;
+    });
     const enhanced = computed(() => props.post as EnhancedPost);
     const inkbunnyPagecount = computed(
       () => enhanced.value.__meta?.inkbunny?.pagecount || 1,
@@ -206,9 +262,15 @@ export default defineComponent({
       visibleCreatorTags,
       hiddenCreatorCount,
       creatorsExpanded,
+      visibleVideoGeneralTags,
+      hiddenVideoGeneralCount,
+      videoGeneralExpanded,
       isLocal,
       isInkbunny,
       isFurAffinity,
+      isMurrtube,
+      isVideoChild,
+      murrtubeViews,
       inkbunnyPagecount,
       filename,
       localDerivedGeneral,
