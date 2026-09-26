@@ -132,6 +132,20 @@
               Clear
             </v-btn>
           </settings-row>
+          <settings-row
+            title="Watched u18chan"
+            :description="`${watchedU18chanCount} watch${watchedU18chanCount === 1 ? '' : 'es'}`"
+          >
+            <v-btn
+              variant="text"
+              color="error"
+              size="small"
+              :disabled="!watchedU18chanCount"
+              @click="pendingSlice = 'watchedU18chan'"
+            >
+              Clear
+            </v-btn>
+          </settings-row>
         </settings-group>
 
         <settings-group
@@ -204,6 +218,7 @@
                 <li>News saved: {{ importPreview.newsSaved }}</li>
                 <li>Watched pools: {{ importPreview.watchedPools }}</li>
                 <li>Watched comics: {{ importPreview.watchedComics }}</li>
+                <li>Watched u18chan: {{ importPreview.watchedU18chan }}</li>
               </ul>
             </v-card-text>
             <v-card-actions>
@@ -228,6 +243,7 @@ import {
   useSnackbarStore,
   useWatchedComicsStore,
   useWatchedPoolsStore,
+  useWatchedU18chanStore,
 } from "@/services";
 import type {
   SettingsImportPreview,
@@ -258,6 +274,7 @@ const savedPosts = useSavedPostsStore();
 const newsStore = useNewsStore();
 const watchedPools = useWatchedPoolsStore();
 const watchedComics = useWatchedComicsStore();
+const watchedU18chan = useWatchedU18chanStore();
 const fileInput = ref<HTMLInputElement>();
 const confirmReset = ref(false);
 const confirmImport = ref(false);
@@ -272,6 +289,7 @@ const newsSavedCount = computed(() => newsStore.savedCount);
 const newsReadCount = computed(() => newsStore.readCount);
 const watchedCount = computed(() => watchedPools.entries.length);
 const watchedComicsCount = computed(() => watchedComics.entries.length);
+const watchedU18chanCount = computed(() => watchedU18chan.entries.length);
 
 const partialItems: { slice: SettingsResetSlice; label: string }[] = [
   { slice: "posts", label: "Posts" },
@@ -293,6 +311,8 @@ const sliceTitle = computed(() => {
       return "Clear watched pools?";
     case "watchedComics":
       return "Clear watched comics?";
+    case "watchedU18chan":
+      return "Clear watched u18chan threads?";
     case "posts":
       return "Reset Posts settings?";
     case "appearance":
@@ -322,6 +342,8 @@ const sliceBody = computed(() => {
       return "Unwatches every pool. Site credentials are kept.";
     case "watchedComics":
       return "Unwatches every Tailspace comic. Site credentials are kept.";
+    case "watchedU18chan":
+      return "Unwatches every u18chan thread. Site credentials are kept.";
     case "blacklist":
     case "history":
     case "searches":

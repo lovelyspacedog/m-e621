@@ -16,6 +16,14 @@ export interface ChangelogSection {
 export const changelogSections: ChangelogSection[] = [
   {
     date: "2026-09-25",
+    title: "u18chan Watched threads",
+    items: [
+      "u18chan sidebar gains Watched: local thread watches with +N when replies arrive since last open",
+      "Watch / Unwatch from catalog cards and the thread header; opening a watched thread clears its badge",
+    ],
+  },
+  {
+    date: "2026-09-25",
     title: "u18chan Indices mode",
     items: [
       "New dedicated-chrome u18chan site mode: sidebar Indices catalogs (Cub omitted), thread reader with native reply/new-thread compose",

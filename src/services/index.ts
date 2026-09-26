@@ -16,6 +16,7 @@ export * from "./SavedPostsStore";
 export * from "./NewsStore";
 export * from "./WatchedPoolsStore";
 export * from "./WatchedComicsStore";
+export * from "./WatchedU18chanStore";
 export * from "./SiteModeStore";
 export * from "./PwaUpdateStore";
 export * from "./UiStore";

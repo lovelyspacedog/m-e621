@@ -62,6 +62,17 @@
           <span class="u18-view-label">{{ fullWidthScroll ? "Fit" : "Full width" }}</span>
         </v-btn>
         <v-btn
+          v-if="thread"
+          size="small"
+          variant="tonal"
+          :color="threadWatched ? 'accent' : undefined"
+          :prepend-icon="threadWatched ? 'mdi-eye' : 'mdi-eye-outline'"
+          :title="threadWatched ? 'Unwatch thread' : 'Watch thread'"
+          @click="onToggleWatch"
+        >
+          <span class="u18-view-label">{{ threadWatched ? "Unwatch" : "Watch" }}</span>
+        </v-btn>
+        <v-btn
           icon
           variant="text"
           :loading="loading"
@@ -299,6 +310,7 @@ import {
   type U18chanDumpPage,
   type U18chanThreadViewMode,
 } from "@/misc/util/u18chanImageDump";
+import { useWatchedU18chanStore } from "@/services";
 import U18chanComposeForm from "./U18chanComposeForm.vue";
 
 const VIEW_MODE_KEY = "u18chan-thread-view-mode";
@@ -306,6 +318,7 @@ const FULL_WIDTH_KEY = "u18chan-scroll-full-width";
 
 const route = useRoute();
 const router = useRouter();
+const watchedStore = useWatchedU18chanStore();
 
 const loading = ref(false);
 const posting = ref(false);
@@ -329,6 +342,36 @@ const liveBoard = computed(() => {
 });
 
 const dumpPages = computed(() => extractU18chanImageDump(thread.value?.posts));
+
+const threadWatchSnapshot = () => {
+  const t = thread.value;
+  if (!t) return { postCount: 0 };
+  const thumb =
+    t.posts.find((p) => p.images.length)?.images[0]?.thumbUrl || null;
+  return {
+    postCount: t.posts.length,
+    subject: t.subject,
+    thumbUrl: thumb,
+    indexBoard: indexBoard.value,
+  };
+};
+
+const threadWatched = computed(() =>
+  topicId.value
+    ? watchedStore.isWatched(liveBoard.value, topicId.value)
+    : false,
+);
+
+const onToggleWatch = () => {
+  if (!thread.value || !topicId.value) return;
+  watchedStore.toggle(
+    liveBoard.value,
+    topicId.value,
+    thread.value.subject || `Thread ${topicId.value}`,
+    indexBoard.value,
+    threadWatchSnapshot(),
+  );
+};
 
 const chunkSize = computed(() =>
   viewMode.value === "scroll" ? SCROLL_CHUNK_SIZE : GALLERY_CHUNK_SIZE,
@@ -383,6 +426,13 @@ const load = async () => {
     thread.value = await getThread(liveBoard.value, topicId.value, indexBoard.value);
     loadPersistedOrDefaultView();
     chunkPage.value = 1;
+    if (watchedStore.isWatched(liveBoard.value, topicId.value)) {
+      watchedStore.markSeen(
+        liveBoard.value,
+        topicId.value,
+        threadWatchSnapshot(),
+      );
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Failed to load thread";
     thread.value = null;

@@ -46,6 +46,7 @@ export type SettingsImportPreview = {
   newsSaved: number;
   watchedPools: number;
   watchedComics: number;
+  watchedU18chan: number;
 };
 
 export type SettingsResetSlice =
@@ -59,7 +60,8 @@ export type SettingsResetSlice =
   | "savedPosts"
   | "news"
   | "watchedPools"
-  | "watchedComics";
+  | "watchedComics"
+  | "watchedU18chan";
 
 const clearAccountSecrets = (account: {
   username?: string | null;
@@ -102,6 +104,7 @@ export const summarizeSettingsImport = (
     newsSaved: settings.news?.saved?.length ?? 0,
     watchedPools: settings.watchedPools?.entries?.length ?? 0,
     watchedComics: settings.watchedComics?.entries?.length ?? 0,
+    watchedU18chan: settings.watchedU18chan?.entries?.length ?? 0,
   };
 };
 
@@ -273,6 +276,9 @@ class PersistanceService {
         break;
       case "watchedComics":
         this.main.watchedComics = { entries: [] };
+        break;
+      case "watchedU18chan":
+        this.main.watchedU18chan = { entries: [] };
         break;
       default:
         return;
@@ -1001,6 +1007,10 @@ class PersistanceService {
       }
       newState.configVersion = 55;
     }
+    if (newState.configVersion < 56) {
+      newState.watchedU18chan = { entries: [] };
+      newState.configVersion = 56;
+    }
     if (
       newState.previousModeBeforeUnified !== null &&
       newState.previousModeBeforeUnified !== undefined &&
@@ -1017,6 +1027,9 @@ class PersistanceService {
     }
     if (!newState.watchedComics || !Array.isArray(newState.watchedComics.entries)) {
       newState.watchedComics = { entries: [] };
+    }
+    if (!newState.watchedU18chan || !Array.isArray(newState.watchedU18chan.entries)) {
+      newState.watchedU18chan = { entries: [] };
     }
     if (!newState.savedPosts || !Array.isArray(newState.savedPosts.entries)) {
       newState.savedPosts = { entries: [], collections: [] };

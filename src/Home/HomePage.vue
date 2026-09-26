@@ -104,8 +104,9 @@
             density="compact"
             class="mb-0"
           >
-            No watched pools or comics yet. Open a pool or comic and watch it —
-            +N badges still live on the Pools / Comics pages.
+            No watched pools, comics, or u18chan threads yet. Open one and
+            watch it — +N badges still live on the Pools / Comics / u18chan
+            Watched pages.
           </v-alert>
           <v-list v-else lines="one" border rounded density="compact">
             <v-list-item
@@ -216,6 +217,7 @@ import {
   useSiteModeStore,
   useWatchedComicsStore,
   useWatchedPoolsStore,
+  useWatchedU18chanStore,
 } from "@/services";
 import TipDialog from "@/misc/TipDialog.vue";
 import { TIP_IDS } from "@/misc/tipIds";
@@ -241,6 +243,7 @@ const savedSearches = useSavedSearchStore();
 const savedPosts = useSavedPostsStore();
 const watchedPools = useWatchedPoolsStore();
 const watchedComics = useWatchedComicsStore();
+const watchedU18chan = useWatchedU18chanStore();
 const history = useHistoryStore();
 const newsStore = useNewsStore();
 
@@ -255,8 +258,10 @@ const showWatchedSection = computed(
   () =>
     showPoolsLink.value ||
     siteMode.isTailspace ||
+    siteMode.isU18chan ||
     watchedPools.entries.length > 0 ||
-    watchedComics.entries.length > 0,
+    watchedComics.entries.length > 0 ||
+    watchedU18chan.entries.length > 0,
 );
 
 const galleryEntries = computed(() =>
@@ -331,6 +336,13 @@ const shortcuts = computed((): Shortcut[] => {
         to: { name: "TailspaceFollowing" },
       },
     );
+  } else if (siteMode.isU18chan) {
+    items.push({
+      key: "u18-watched",
+      label: "Watched",
+      to: { name: "U18chanWatched" },
+      badge: watchedU18chan.entries.length || undefined,
+    });
   } else if (siteMode.isUnified) {
     items.push({
       key: "following",
@@ -395,7 +407,21 @@ const watchedRows = computed(() => {
       params: { name: e.name },
     },
   }));
+  const u18 = watchedU18chan.entries.map((e) => ({
+    key: `u18:${e.liveBoard}:${e.topicId}`,
+    title: e.subject || `Thread ${e.topicId}`,
+    subtitle: `u18chan /${e.liveBoard}/`,
+    to: {
+      name: "U18chanThread" as const,
+      params: {
+        board: e.indexBoard || "ifur",
+        id: String(e.topicId),
+      },
+      query: { live: e.liveBoard },
+    },
+  }));
   if (siteMode.isTailspace) return comics;
+  if (siteMode.isU18chan) return u18;
   if (siteMode.isUnified) return [...pools, ...comics];
   return pools;
 });

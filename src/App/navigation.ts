@@ -219,7 +219,7 @@ export const useTrailingNavigationItems = () => {
       ].map((item) => resolveItem(router, item));
     }
 
-    // u18chan: Indices catalogs (+ optional Gore) + Settings
+    // u18chan: Watched + Indices catalogs (+ optional Gore) + Settings
     if (siteMode.isU18chan) {
       const indices = visibleU18chanIndices(siteMode.u18chanIncludeGore).map(
         (board) => ({
@@ -232,7 +232,16 @@ export const useTrailingNavigationItems = () => {
           },
         }),
       );
-      return [...indices, settings].map((item) => resolveItem(router, item));
+      return [
+        {
+          icon: "mdi-eye",
+          name: "Watched",
+          exact: false,
+          to: { name: "U18chanWatched" },
+        },
+        ...indices,
+        settings,
+      ].map((item) => resolveItem(router, item));
     }
 
     const poolItems = modeSupportsPools(siteMode.activeMode)

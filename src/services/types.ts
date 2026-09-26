@@ -182,6 +182,22 @@ export interface WatchedComicEntry {
   lastSeenUpdatedAt?: string;
 }
 
+/** Local u18chan thread watch (guest board; not a server-side bookmark). */
+export interface WatchedU18chanEntry {
+  /** Live board the topic lives on (e.g. `gc`). */
+  liveBoard: string;
+  topicId: number;
+  /** Index catalog slug used when opening (e.g. `igc`). */
+  indexBoard: string;
+  subject: string;
+  thumbUrl?: string | null;
+  watchedAt: number;
+  /** Reply+OP post count when last opened / watched. Used for +N badges. */
+  lastSeenPostCount?: number;
+  /** Optional ISO when last opened / watched. */
+  lastSeenUpdatedAt?: string;
+}
+
 export const UNIFIED_CHILD_MODES: UnifiedChildMode[] = ["e621", "e6ai", "furbooru", "inkbunny", "furaffinity", "weasyl", "itaku", "sofurry"];
 
 export type UnifiedSites = Record<UnifiedChildMode, boolean>;
@@ -355,7 +371,8 @@ export interface ISettingsServiceState {
     | 52
     | 53
     | 54
-    | 55;
+    | 55
+    | 56;
   activeMode: SiteMode;
   /** Mode before entering Federated; restored when leaving or demoting on landing. */
   previousModeBeforeUnified: SiteMode | null;
@@ -473,6 +490,10 @@ export interface ISettingsServiceState {
   /** Local Tailspace comic watches with new-page badges. Not under profiles. */
   watchedComics: {
     entries: WatchedComicEntry[];
+  };
+  /** Local u18chan thread watches with new-reply badges. Not under profiles. */
+  watchedU18chan: {
+    entries: WatchedU18chanEntry[];
   };
   /** Recently viewed e621-family artist dashboard tags (MRU). */
   artistDashboard: {

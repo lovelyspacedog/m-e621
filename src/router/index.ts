@@ -371,6 +371,12 @@ const router = createRouter({
         import(/* webpackChunkName: "tailspace" */ "@/Tailspace/TailspaceComicReader.vue"),
     },
     {
+      path: "/u18chan/watched",
+      name: "U18chanWatched",
+      component: () =>
+        import(/* webpackChunkName: "u18chan" */ "@/U18chan/U18chanWatchedPage.vue"),
+    },
+    {
       path: "/u18chan/:board/thread/:id",
       name: "U18chanThread",
       component: () =>
@@ -460,7 +466,11 @@ router.beforeEach((to, from) => {
       "TailspaceComic",
       "TailspaceFollowing",
     ]);
-    const u18chanRoutes = new Set(["U18chanCatalog", "U18chanThread"]);
+    const u18chanRoutes = new Set([
+      "U18chanCatalog",
+      "U18chanThread",
+      "U18chanWatched",
+    ]);
     const newsRoutes = new Set([
       "NewsFeed",
       "NewsArticle",

@@ -8,6 +8,7 @@ export const TIP_IDS = {
   poolReader: "pool-reader",
   watchedPools: "watched-pools",
   watchedComics: "watched-comics",
+  watchedU18chan: "watched-u18chan",
   fullscreenGestures: "fullscreen-gestures",
   savedPosts: "saved-posts",
   blacklistModes: "blacklist-modes",

@@ -42,24 +42,38 @@
     </div>
 
     <div v-else-if="threads.length" class="u18-grid">
-      <button
-        v-for="thread in threads"
-        :key="thread.id"
-        type="button"
-        class="u18-card"
-        @click="openThread(thread)"
-      >
-        <div class="u18-thumb">
-          <img
-            v-if="thread.thumbUrl"
-            :src="thread.thumbUrl"
-            :alt="thread.subject"
-            loading="lazy"
-          />
-          <v-icon v-else size="40" color="medium-emphasis">mdi-image-off</v-icon>
-        </div>
-        <div class="u18-card-title">{{ thread.subject }}</div>
-      </button>
+      <div v-for="thread in threads" :key="thread.id" class="u18-card-wrap">
+        <button
+          type="button"
+          class="u18-card"
+          @click="openThread(thread)"
+        >
+          <div class="u18-thumb">
+            <img
+              v-if="thread.thumbUrl"
+              :src="thread.thumbUrl"
+              :alt="thread.subject"
+              loading="lazy"
+            />
+            <v-icon v-else size="40" color="medium-emphasis">mdi-image-off</v-icon>
+          </div>
+          <div class="u18-card-title">{{ thread.subject }}</div>
+        </button>
+        <v-btn
+          class="u18-watch-btn"
+          icon
+          size="x-small"
+          variant="tonal"
+          :color="isWatched(thread) ? 'accent' : undefined"
+          :title="isWatched(thread) ? 'Unwatch thread' : 'Watch thread'"
+          :aria-label="isWatched(thread) ? 'Unwatch thread' : 'Watch thread'"
+          @click.stop="toggleWatch(thread)"
+        >
+          <v-icon size="18">
+            {{ isWatched(thread) ? "mdi-eye" : "mdi-eye-outline" }}
+          </v-icon>
+        </v-btn>
+      </div>
     </div>
 
     <div v-else-if="!loading" class="u18-empty">
@@ -83,7 +97,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { useSiteModeStore } from "@/services";
+import { useSiteModeStore, useWatchedU18chanStore } from "@/services";
 import {
   DEFAULT_U18CHAN_INDEX,
   U18CHAN_BASE,
@@ -97,6 +111,7 @@ import U18chanComposeForm from "./U18chanComposeForm.vue";
 const route = useRoute();
 const router = useRouter();
 const siteMode = useSiteModeStore();
+const watchedStore = useWatchedU18chanStore();
 
 const loading = ref(false);
 const posting = ref(false);
@@ -144,6 +159,23 @@ const openThread = (thread: U18chanCatalogThread) => {
     },
     query: { live: thread.liveBoard },
   });
+};
+
+const isWatched = (thread: U18chanCatalogThread) =>
+  watchedStore.isWatched(thread.liveBoard, thread.id);
+
+const toggleWatch = (thread: U18chanCatalogThread) => {
+  watchedStore.toggle(
+    thread.liveBoard,
+    thread.id,
+    thread.subject || `Thread ${thread.id}`,
+    boardSlug.value,
+    {
+      subject: thread.subject,
+      thumbUrl: thread.thumbUrl,
+      indexBoard: boardSlug.value,
+    },
+  );
 };
 
 const onNewThread = async (payload: Omit<U18chanPostPayload, "liveBoard" | "topicId">) => {
@@ -202,6 +234,9 @@ watch(
 .u18-skel {
   min-height: 160px;
 }
+.u18-card-wrap {
+  position: relative;
+}
 .u18-card {
   display: flex;
   flex-direction: column;
@@ -212,6 +247,7 @@ watch(
   cursor: pointer;
   text-align: left;
   color: inherit;
+  width: 100%;
 }
 .u18-thumb {
   aspect-ratio: 1;
@@ -226,6 +262,12 @@ watch(
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.u18-watch-btn {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 1;
 }
 .u18-card-title {
   font-size: 0.8rem;
