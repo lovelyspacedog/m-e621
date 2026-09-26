@@ -9,6 +9,7 @@ export default defineConfig((configEnv) =>
       test: {
         environment: 'jsdom',
         exclude: [...configDefaults.exclude, 'e2e/**'],
+        setupFiles: [fileURLToPath(new URL('./vitest.setup.ts', import.meta.url))],
         root: fileURLToPath(new URL('./', import.meta.url)),
       },
     }),

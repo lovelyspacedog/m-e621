@@ -153,9 +153,12 @@ npm run build
 npm run type-check
 npm run lint
 npm run test:unit
+npm run test:contracts
+LIVE=1 npm run test:live-smoke   # optional; hits public e621 / Flayrah / Weasyl
 npm run test:e2e
 ```
 
+`test:contracts` checks HTML/RSS parser fixtures (FA, Weasyl, u18chan, news, badpups) and API backend routing without network. Live smoke is never part of CI.
 The development server includes the required API proxies. Production multi-site hosting needs `serve.py` or this repository's Docker image.
 
 ### Run `serve.py`

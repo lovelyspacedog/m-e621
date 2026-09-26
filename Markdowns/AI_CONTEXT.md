@@ -36,7 +36,7 @@ Repos: origin `lovelyspacedog/m-e621`; upstream remote `avoonix/material-e621`. 
 | Media | `@ffmpeg/ffmpeg` (wasm remux), `@ruffle-rs/ruffle` (SWF), `mammoth` (DOCX) |
 | Python proxy | `serve.py` + `faapi`, `curl_cffi` (`requirements.txt`) |
 | Desktop | Tauri 1 (`src-tauri/`, Rust 2021, bundle id `com.lovelyspacedog.me621`) |
-| Tests | Vitest + jsdom (colocated `*.spec.ts`); Playwright (`e2e/`) |
+| Tests | Vitest + jsdom (colocated `*.spec.ts`, fixture `*.contracts.spec.ts`); Playwright (`e2e/`); opt-in live smoke (`*.live.spec.ts`) |
 | Lint/format | ESLint 9 flat (`eslint.config.ts`) + oxlint + Prettier |
 
 Path alias: `@/` → `src/`.
@@ -142,9 +142,14 @@ npm run preview             # vite preview (Playwright CI uses 4173)
 npm run type-check
 npm run lint                # oxlint then eslint, both --fix
 npm run format              # prettier --write src/
-npm run test:unit           # vitest
+npm run test:unit           # vitest run (all unit specs; live smoke skipped unless LIVE=1)
+npm run test:unit:watch     # vitest watch
+npm run test:contracts      # scrape/parser fixtures + resolveApiBackend + news/badpups parsers
+npm run test:live-smoke     # LIVE=1 upstream canaries (e621 / Flayrah RSS / Weasyl search); not CI
 npm run test:e2e            # playwright
 ```
+
+**Contracts vs live:** `test:contracts` uses checked-in HTML/RSS fixtures under `fixtures/contracts/` and never hits the network. It covers FA / Weasyl / u18chan HTML parsers (`src/worker/*/htmlParse.ts`), `resolveApiBackend`, and existing news/badpups parser specs. Vite proxies import those TS parsers; production Python mirrors in `serve.py` / `u18chan_proxy.py` are **not** dual-tested — keep them in sync manually when markup changes. `test:live-smoke` is local-only (`LIVE=1`); CI runs `test:unit` + `test:contracts` via `.github/workflows/unit.yml` and never sets `LIVE`. `vitest.setup.ts` stubs `localforage` (jsdom has no IndexedDB).
 
 Self-host:
 
@@ -252,7 +257,7 @@ PWA: `registerType: 'prompt'`, `display: "standalone"`, update poll every 10 min
 - **Vuetify defaults:** global `transition: 'no'`, `ripple: false`; `VBtn` variant `text`.
 - **PWA Reload** needs the `controllerchange` workaround in `misc/serviceWorker/register.ts`.
 - **`.github/workflows/docker.yml`** publishes the fork Docker image (`serve.py` runtime) to GHCR on push to main/master (`latest` + sha). Local docs still prefer `docker compose up --build`; GHCR is the optional personal registry (**keep**).
-- **e2e:** hash-route Playwright smoke; CI uses npm + Node 20. Prefer local `npm run test:unit` as the merge gate.
+- **e2e:** hash-route Playwright smoke; CI uses npm + Node 20. Unit + contracts gate via `.github/workflows/unit.yml`; prefer `npm run test:unit` / `test:contracts` locally before merge. Live smoke (`LIVE=1 npm run test:live-smoke`) is opt-in only.
 - **`tsconfig.node.json` `include`** covers `vite-*-proxy.ts`.
 - Default Federated children (`defaultUnifiedSites`): all eight remote children on (including Weasyl and Itaku); Tailspace/News/Local are never Posts children.
 - `getAppName()` appends a short git hash when `VITE_GIT_COMMIT_INFO` parsed successfully.
