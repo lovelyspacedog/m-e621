@@ -10,6 +10,7 @@ import base64
 import fcntl
 import hashlib
 import http.client
+import http.cookiejar
 import ipaddress
 import json
 import os
@@ -436,7 +437,13 @@ MURRTUBE_UA = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/124.0.0.0 Safari/537.36 PawDeck-murrtube-proxy/1.0"
 )
-_murrtube_cookie = ""
+# CookieJar keeps Set-Cookie from 302 hops (age_check). Manual Cookie + urlopen
+# drops intermediate cookies when urllib follows redirects.
+_murrtube_jar = http.cookiejar.CookieJar()
+_murrtube_opener = urllib.request.build_opener(
+    urllib.request.HTTPCookieProcessor(_murrtube_jar)
+)
+_murrtube_lock = threading.Lock()
 
 BADPUPS_ORIGIN = "https://badpups.com"
 BADPUPS_PATH = re.compile(r"^/api/badpups(?:/.*)?$")
@@ -3736,51 +3743,27 @@ class SpaHandler(SimpleHTTPRequestHandler):
     # Murrtube / Badpups (XTRA) proxies
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _merge_set_cookie(existing: str, resp_headers) -> str:
-        jar: dict[str, str] = {}
-        for part in (existing or "").split(";"):
-            part = part.strip()
-            if "=" in part:
-                k, v = part.split("=", 1)
-                jar[k.strip()] = v.strip()
-        raw = resp_headers.get_all("Set-Cookie") if hasattr(resp_headers, "get_all") else None
-        if raw is None:
-            one = resp_headers.get("Set-Cookie")
-            raw = [one] if one else []
-        for line in raw:
-            first = (line or "").split(";", 1)[0]
-            if "=" in first:
-                k, v = first.split("=", 1)
-                jar[k.strip()] = v.strip()
-        return "; ".join(f"{k}={v}" for k, v in jar.items())
-
     def _murrtube_http(
         self, url: str, *, method: str = "GET", body: bytes = b"", headers: dict | None = None
     ) -> tuple[bytes, int, str, object]:
-        global _murrtube_cookie
         req = urllib.request.Request(url, data=body or None, method=method)
         req.add_header("User-Agent", MURRTUBE_UA)
         req.add_header("Accept", "*/*")
-        if _murrtube_cookie:
-            req.add_header("Cookie", _murrtube_cookie)
         if headers:
             for k, v in headers.items():
                 req.add_header(k, v)
-        try:
-            with urllib.request.urlopen(req, timeout=45) as resp:
-                data = resp.read()
-                _murrtube_cookie = self._merge_set_cookie(_murrtube_cookie, resp.headers)
-                ct = resp.headers.get("Content-Type", "application/octet-stream")
-                return data, getattr(resp, "status", 200), ct, resp.headers
-        except urllib.error.HTTPError as exc:
-            data = exc.read() if exc.fp else b""
-            _murrtube_cookie = self._merge_set_cookie(_murrtube_cookie, exc.headers)
-            ct = exc.headers.get("Content-Type", "application/octet-stream")
-            return data, exc.code, ct, exc.headers
+        with _murrtube_lock:
+            try:
+                with _murrtube_opener.open(req, timeout=45) as resp:
+                    data = resp.read()
+                    ct = resp.headers.get("Content-Type", "application/octet-stream")
+                    return data, getattr(resp, "status", 200), ct, resp.headers
+            except urllib.error.HTTPError as exc:
+                data = exc.read() if exc.fp else b""
+                ct = exc.headers.get("Content-Type", "application/octet-stream")
+                return data, exc.code, ct, exc.headers
 
     def _murrtube_ensure_age(self) -> None:
-        global _murrtube_cookie
         body, _, _, _ = self._murrtube_http(f"{MURRTUBE_ORIGIN}/")
         html = body.decode("utf-8", "ignore")
         if "data-page=" in html and "18 or older" not in html:

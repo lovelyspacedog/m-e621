@@ -379,6 +379,22 @@ export default defineComponent({
         videoLoadFailed.value = false;
       },
     );
+    // Video cards use <video poster> — no img @load. Probe thumb so landscape
+    // posts don't sit in a tall placeholder box (letterbox bars).
+    watch(
+      () => [isVideo.value, previewPoster.value] as const,
+      ([video, poster]) => {
+        if (!video || !poster) return;
+        const img = new Image();
+        img.onload = () => {
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            naturalRatio.value = img.naturalHeight / img.naturalWidth;
+          }
+        };
+        img.src = poster;
+      },
+      { immediate: true },
+    );
     let visibilityObserver: IntersectionObserver | null = null;
     let boundVideo: HTMLVideoElement | null = null;
     let videoIsIntersecting = false;

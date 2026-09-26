@@ -20,6 +20,8 @@ export const changelogSections: ChangelogSection[] = [
     items: [
       "Post settings gains XTRA mode: when enabled (and SFW only is off), Murrtube and Badpups join the site list for browse and HLS/MP4 playback",
       "XTRA sites stay out of Federated; turning on SFW only or turning XTRA off demotes you back to e621",
+      "Murrtube browse no longer fails with a proxy 502 after the age gate (session cookies now survive the unlock redirect)",
+      "Murrtube and Badpups video cards size to the thumbnail aspect ratio so landscape clips are not padded with large top/bottom bars",
     ],
   },
   {

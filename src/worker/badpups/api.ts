@@ -246,8 +246,9 @@ function cardToPost(card: BadpupsListCard): Post {
     created_at: created,
     updated_at: created,
     file: {
-      width: 720,
-      height: 1280,
+      // Default 16:9 — thumbs are landscape; portrait hardcode letterboxed cards.
+      width: 1280,
+      height: 720,
       ext: "mp4",
       size: 0,
       md5: (guid || card.slug).replace(/-/g, "").slice(0, 32),
@@ -308,8 +309,9 @@ function detailToPost(detail: BadpupsDetail): Post {
     created_at: created,
     updated_at: created,
     file: {
-      width: 720,
-      height: 1280,
+      // Default 16:9 — thumbs are landscape; portrait hardcode letterboxed cards.
+      width: 1280,
+      height: 720,
       ext: "mp4",
       size: 0,
       md5: (detail.guid || detail.slug).replace(/-/g, "").slice(0, 32),

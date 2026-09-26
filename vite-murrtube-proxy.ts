@@ -92,12 +92,17 @@ function httpsRequest(
   });
 }
 
+function takeSetCookie(headers: IncomingMessage["headers"]): string[] {
+  const raw = headers["set-cookie"];
+  if (!raw) return [];
+  return Array.isArray(raw) ? raw : [raw];
+}
+
 async function ensureAgeUnlocked(): Promise<void> {
   const home = await httpsRequest(ORIGIN + "/", {
     headers: sessionCookie ? { Cookie: sessionCookie } : {},
   });
-  const set1 = home.headers["set-cookie"];
-  sessionCookie = mergeSetCookie(sessionCookie, Array.isArray(set1) ? set1 : set1 ? [set1] : []);
+  sessionCookie = mergeSetCookie(sessionCookie, takeSetCookie(home.headers));
   const html = home.body.toString("utf8");
   if (!html.includes("18 or older") && html.includes("data-page=")) return;
   const token = html.match(/name="authenticity_token" value="([^"]+)"/)?.[1];
@@ -114,8 +119,16 @@ async function ensureAgeUnlocked(): Promise<void> {
     },
     body,
   });
-  const set2 = accept.headers["set-cookie"];
-  sessionCookie = mergeSetCookie(sessionCookie, Array.isArray(set2) ? set2 : set2 ? [set2] : []);
+  // Node does not follow redirects — keep age_check from the 302, then land.
+  sessionCookie = mergeSetCookie(sessionCookie, takeSetCookie(accept.headers));
+  const loc = accept.headers.location;
+  if (accept.status >= 300 && accept.status < 400 && typeof loc === "string") {
+    const landUrl = new URL(loc, ORIGIN).href;
+    const land = await httpsRequest(landUrl, {
+      headers: { Cookie: sessionCookie, Referer: ORIGIN + "/" },
+    });
+    sessionCookie = mergeSetCookie(sessionCookie, takeSetCookie(land.headers));
+  }
 }
 
 function extractDataPage(html: string): unknown {
@@ -192,10 +205,9 @@ export function murrtubeProxy(): Plugin {
                 Referer: ORIGIN + "/",
               },
             });
-            const set = upstream.headers["set-cookie"];
             sessionCookie = mergeSetCookie(
               sessionCookie,
-              Array.isArray(set) ? set : set ? [set] : [],
+              takeSetCookie(upstream.headers),
             );
             const html = upstream.body.toString("utf8");
             if (html.includes("18 or older")) {
