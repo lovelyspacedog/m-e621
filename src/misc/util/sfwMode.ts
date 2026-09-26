@@ -88,6 +88,19 @@ export const stripConflictingRatingTags = (tags: string[]): string[] =>
 
 export type SfwTagMode = "e621" | "furbooru" | "furaffinity" | "none";
 
+/** Tokens `applySfwTagOverride` appends for each tag-driven mode (lowercase). */
+const SFW_INJECTED_TAGS: Record<Exclude<SfwTagMode, "none">, ReadonlySet<string>> =
+  {
+    e621: new Set(["rating:safe", "rating:s"]),
+    furbooru: new Set([
+      "safe",
+      "-suggestive",
+      "-questionable",
+      "-explicit",
+    ]),
+    furaffinity: new Set(["rating:general"]),
+  };
+
 /**
  * Strip conflicting rating tags, then force a safe marker for tag-driven backends.
  * Furbooru uses bare `safe` (+ negations applied at the ApiService choke).
@@ -107,4 +120,17 @@ export const applySfwTagOverride = (
     return [...stripped, "rating:general"];
   }
   return stripped;
+};
+
+/**
+ * Drop markers SFW only injected into the search bar when the mode is turned off.
+ * Adapter-only modes (`none`) leave tags unchanged.
+ */
+export const removeSfwTagOverride = (
+  tags: string[],
+  mode: SfwTagMode,
+): string[] => {
+  if (mode === "none") return tags;
+  const injected = SFW_INJECTED_TAGS[mode];
+  return tags.filter((t) => !injected.has(t.trim().toLowerCase()));
 };

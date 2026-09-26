@@ -5,6 +5,7 @@ import {
   isRatingTag,
   isSafeRating,
   isSfwSafeRatingTag,
+  removeSfwTagOverride,
   stripConflictingRatingTags,
   tagsIncludeSfwSafeRating,
 } from "./sfwMode";
@@ -78,5 +79,25 @@ describe("sfwMode", () => {
       "rating:general",
     ]);
     expect(applySfwTagOverride(["cat", "rating:e"], "none")).toEqual(["cat"]);
+  });
+
+  it("removeSfwTagOverride drops injected markers", () => {
+    expect(
+      removeSfwTagOverride(["wolf", "rating:safe", "order:score"], "e621"),
+    ).toEqual(["wolf", "order:score"]);
+    expect(removeSfwTagOverride(["fox", "Rating:S"], "e621")).toEqual(["fox"]);
+    expect(
+      removeSfwTagOverride(
+        ["fox", "safe", "-suggestive", "-questionable", "-explicit"],
+        "furbooru",
+      ),
+    ).toEqual(["fox"]);
+    expect(
+      removeSfwTagOverride(["dog", "rating:general"], "furaffinity"),
+    ).toEqual(["dog"]);
+    expect(removeSfwTagOverride(["cat", "rating:safe"], "none")).toEqual([
+      "cat",
+      "rating:safe",
+    ]);
   });
 });

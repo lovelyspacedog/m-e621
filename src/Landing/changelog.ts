@@ -20,6 +20,7 @@ export const changelogSections: ChangelogSection[] = [
     items: [
       "Posts toolbar actions default to a ⋮ menu so the Tags field keeps more horizontal space (Post settings → Always collapse toolbar actions to show icons inline instead)",
       "When toolbar actions are expanded on wide screens, they are icon-only with labels on hover",
+      "Turning SFW only off removes the injected safe rating tags from the search (e.g. rating:safe)",
     ],
   },
   {

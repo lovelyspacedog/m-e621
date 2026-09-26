@@ -339,6 +339,7 @@ import {
 } from "../misc/util/createTagQuery";
 import {
   applySfwTagOverride,
+  removeSfwTagOverride,
   stripConflictingRatingTags,
   tagsIncludeSfwSafeRating,
   type SfwTagMode,
@@ -1025,8 +1026,14 @@ watch(
   () => postsStore.sfwOnly,
   (on) => {
     if (!on) {
-      // Turning off: reload so Layer B stops injecting; keep current tags.
-      onSearchClick();
+      // Turning off: drop injected safe markers and reload (Layer B stops injecting).
+      const next = removeSfwTagOverride([...tags.value], sfwTagMode());
+      if (!isEqual(next, [...tags.value])) {
+        setTags(next);
+        updateQuery();
+      } else {
+        onSearchClick();
+      }
       return;
     }
     const next =
@@ -1043,8 +1050,8 @@ watch(
 );
 
 // Manual rating:safe / rating:s trips SFW (e621 / e6ai / Furbooru / FA / Federated).
-// Removing the tag does not turn SFW off. Turning SFW off with the tag still present
-// does not re-trip until the safe marker is newly introduced again.
+// Removing the tag does not turn SFW off. Turning SFW off strips the injected
+// markers so the trip watcher does not immediately re-enable.
 watch(
   tags,
   (next, prev) => {
