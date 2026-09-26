@@ -82,7 +82,7 @@
           </settings-row>
           <settings-row
             title="Always collapse toolbar actions"
-            description="Put Score / Favs / Random (and other posts toolbar actions) behind a ⋮ menu on all screen sizes. When off, they only collapse on narrow screens."
+            description="Put Score / Favs / Random (and other posts toolbar actions) behind a ⋮ menu on all screen sizes so the Tags field keeps more room. When off, wide screens show icon-only buttons (labels still in the menu on narrow screens)."
             switch
           >
             <v-switch

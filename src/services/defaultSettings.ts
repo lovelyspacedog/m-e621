@@ -33,7 +33,7 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 56,
+  configVersion: 57,
   activeMode: "e621",
   previousModeBeforeUnified: null,
   profiles: {
@@ -183,7 +183,7 @@ export const defaultSettings: ISettingsServiceState = {
     cardAutoNext: false,
     cardAutoNextIntervalMs: 15000,
     compactCards: false,
-    alwaysCollapseToolbar: false,
+    alwaysCollapseToolbar: true,
     videoVolume: 1,
     videoMuted: true,
     videoPlaybackRate: 1,

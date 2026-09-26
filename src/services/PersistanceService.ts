@@ -1013,6 +1013,12 @@ class PersistanceService {
       newState.watchedU18chan = { entries: [] };
       newState.configVersion = 56;
     }
+    if (newState.configVersion < 57) {
+      // Prefer tags search space: collapse Score/Favs/… behind ⋮ by default.
+      // Opt out in Post settings → Always collapse toolbar actions.
+      newState.posts.alwaysCollapseToolbar = true;
+      newState.configVersion = 57;
+    }
     if (
       newState.previousModeBeforeUnified !== null &&
       newState.previousModeBeforeUnified !== undefined &&
@@ -1303,7 +1309,7 @@ class PersistanceService {
       newState.posts.compactCards = false;
     }
     if (newState.posts.alwaysCollapseToolbar === undefined) {
-      newState.posts.alwaysCollapseToolbar = false;
+      newState.posts.alwaysCollapseToolbar = true;
     }
     if (newState.posts.feedLayout !== "list" && newState.posts.feedLayout !== "grid") {
       newState.posts.feedLayout = "list";

@@ -5,25 +5,26 @@
         <tag-search v-view-transition-name="'tagsearch'" class="posts-toolbar-search" :tags="tags" @add-tag="addTag"
           @remove-tag="removeTag" @confirm-search="updateQuery(), onSearchClick()" label="Tags" />
 
-        <!-- Wide: inline action buttons -->
+        <!-- Wide: icon-only action buttons (labels live in title + ⋮ menu) -->
         <template v-if="!compactToolbarActions">
           <v-btn
             v-for="action in toolbarActions"
             :key="action.key"
-            class="text-none"
+            icon
             size="small"
             variant="text"
             :color="action.active ? (action.error ? 'error' : 'accent') : undefined"
             :loading="action.loading"
             :disabled="action.disabled"
-            :title="action.title"
+            :title="action.title || action.label"
+            :aria-label="action.label"
             @click="action.run"
           >
-            {{ action.label }}
+            <v-icon>{{ action.icon }}</v-icon>
           </v-btn>
         </template>
 
-        <!-- Narrow: collapse actions into a menu -->
+        <!-- Narrow / always-collapse: actions behind a ⋮ menu -->
         <v-menu v-else location="bottom end" transition="slide-y-transition">
           <template #activator="{ props: menuProps }">
             <v-btn v-bind="menuProps" icon size="small" title="Actions">
@@ -40,6 +41,9 @@
               :subtitle="action.disabled ? action.title : undefined"
               @click="action.run"
             >
+              <template #prepend>
+                <v-icon :icon="action.icon" size="small" />
+              </template>
               <template v-if="action.loading" #append>
                 <v-progress-circular indeterminate size="16" width="2" />
               </template>
@@ -1147,6 +1151,7 @@ const toggleTypeTag = (typeTag: string) => {
 type ToolbarAction = {
   key: string;
   label: string;
+  icon: string;
   active?: boolean;
   error?: boolean;
   loading?: boolean;
@@ -1160,28 +1165,32 @@ const toolbarActions = computed((): ToolbarAction[] => {
     kind: UnifiedOrderKind,
     orderTag: string,
     label: string,
+    icon: string,
   ): ToolbarAction => {
     const support = orderSupport(siteMode.activeMode, kind, tags.value);
     return {
       key: kind,
       label,
+      icon,
       active: support.supported && activeOrder.value === orderTag,
       disabled: !support.supported,
-      title: support.reason,
+      title: support.reason || label,
       run: support.supported ? () => applyOrder(orderTag) : () => {},
     };
   };
 
   const actions: ToolbarAction[] = [
-    unified("score", "order:score", "Score"),
-    unified("favs", "order:favcount", "Favs"),
-    unified("random", "order:random", "Random"),
+    unified("score", "order:score", "Score", "mdi-arrow-up-bold"),
+    unified("favs", "order:favcount", "Favs", "mdi-heart"),
+    unified("random", "order:random", "Random", "mdi-dice-multiple"),
   ];
   if (siteMode.isInkbunny || siteMode.isFurAffinity) {
     actions.push({
       key: "newest",
       label: "Newest",
+      icon: "mdi-clock-outline",
       active: activeOrder.value === "order:newest",
+      title: "Newest",
       run: () => applyOrder("order:newest"),
     });
   }
@@ -1197,42 +1206,55 @@ const toolbarActions = computed((): ToolbarAction[] => {
       {
         key: "newest",
         label: "Newest",
+        icon: "mdi-clock-outline",
         active: !activeOrder.value || activeOrder.value === "order:newest",
+        title: "Newest",
         run: () => applyOrder("order:newest"),
       },
       {
         key: "name",
         label: "Name",
+        icon: "mdi-sort-alphabetical-ascending",
         active: activeOrder.value === "order:name",
+        title: "Name",
         run: () => applyOrder("order:name"),
       },
       {
         key: "size",
         label: "Size",
+        icon: "mdi-file-outline",
         active: activeOrder.value === "order:filesize",
+        title: "Size",
         run: () => applyOrder("order:filesize"),
       },
       {
         key: "video",
         label: "Video",
+        icon: "mdi-video",
         active: hasTypeTag("type:video"),
+        title: "Video",
         run: () => toggleTypeTag("type:video"),
       },
       {
         key: "stills",
         label: "Stills",
+        icon: "mdi-image",
         active: hasTypeTag("type:still"),
+        title: "Stills",
         run: () => toggleTypeTag("type:still"),
       },
       {
         key: "audio",
         label: "Audio",
+        icon: "mdi-music",
         active: hasTypeTag("type:audio"),
+        title: "Audio",
         run: () => toggleTypeTag("type:audio"),
       },
       {
         key: "audio-queue",
         label: audioQueueActive.value ? "Queue on" : "Queue",
+        icon: "mdi-playlist-play",
         active: audioQueueActive.value,
         title:
           "Play audio hits in order — skips non-audio in fullscreen until you close it",
@@ -1243,18 +1265,23 @@ const toolbarActions = computed((): ToolbarAction[] => {
       {
         key: "duration",
         label: "Duration",
+        icon: "mdi-timer-outline",
         active: activeOrder.value === "order:duration",
+        title: "Duration",
         run: () => applyOrder("order:duration"),
       },
       {
         key: "local-favs",
         label: "Favorited",
+        icon: "mdi-star",
         active: hasTypeTag("type:favorited"),
+        title: "Favorited",
         run: () => toggleTypeTag("type:favorited"),
       },
       {
         key: "remux-unplayable",
         label: bulkRemuxing.value ? "Cancel remux" : "Remux unplayable",
+        icon: "mdi-cog-transfer",
         loading: bulkRemuxing.value,
         active: bulkRemuxing.value,
         error: bulkRemuxing.value,
@@ -1267,6 +1294,7 @@ const toolbarActions = computed((): ToolbarAction[] => {
       {
         key: "fluffle-tag",
         label: bulkFluffleTagging.value ? "Cancel Fluffle tag" : "Fluffle tag",
+        icon: "mdi-tag-multiple",
         loading: bulkFluffleTagging.value,
         active: bulkFluffleTagging.value,
         error: bulkFluffleTagging.value,
@@ -1282,12 +1310,15 @@ const toolbarActions = computed((): ToolbarAction[] => {
       {
         key: "audio",
         label: "Audio",
+        icon: "mdi-music",
         active: hasTypeTag("type:audio"),
+        title: "Audio",
         run: () => toggleTypeTag("type:audio"),
       },
       {
         key: "audio-queue",
         label: audioQueueActive.value ? "Queue on" : "Queue",
+        icon: "mdi-playlist-play",
         active: audioQueueActive.value,
         title:
           "Play audio hits in order — skips non-audio in fullscreen until you close it",
@@ -1302,8 +1333,10 @@ const toolbarActions = computed((): ToolbarAction[] => {
       {
         key: "save-visible",
         label: "Save visible",
+        icon: "mdi-download-multiple",
         loading: bulkSaving.value,
         disabled: !posts.value.length || bulkSaving.value || searchSaving.value,
+        title: "Save visible",
         run: () => {
           void bulkSaveVisible();
         },
@@ -1311,9 +1344,11 @@ const toolbarActions = computed((): ToolbarAction[] => {
       {
         key: "save-search",
         label: searchSaving.value ? "Cancel save" : "Save search",
+        icon: "mdi-cloud-download",
         active: searchSaving.value,
         error: searchSaving.value,
         disabled: bulkSaving.value,
+        title: searchSaving.value ? "Cancel save" : "Save search",
         run: () => {
           void toggleSaveSearch();
         },

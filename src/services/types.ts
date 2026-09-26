@@ -377,7 +377,8 @@ export interface ISettingsServiceState {
     | 53
     | 54
     | 55
-    | 56;
+    | 56
+    | 57;
   activeMode: SiteMode;
   /** Mode before entering Federated; restored when leaving or demoting on landing. */
   previousModeBeforeUnified: SiteMode | null;

@@ -15,6 +15,14 @@ export interface ChangelogSection {
  */
 export const changelogSections: ChangelogSection[] = [
   {
+    date: "2026-09-26",
+    title: "Roomier Posts toolbar",
+    items: [
+      "Posts toolbar actions default to a ⋮ menu so the Tags field keeps more horizontal space (Post settings → Always collapse toolbar actions to show icons inline instead)",
+      "When toolbar actions are expanded on wide screens, they are icon-only with labels on hover",
+    ],
+  },
+  {
     date: "2026-09-25",
     title: "More site comments",
     items: [
