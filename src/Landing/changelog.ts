@@ -19,6 +19,7 @@ export const changelogSections: ChangelogSection[] = [
     title: "u18chan Indices mode",
     items: [
       "New dedicated-chrome u18chan site mode: sidebar Indices catalogs (Cub omitted), thread reader with native reply/new-thread compose",
+      "Thread / Gallery / Scroll on threads: Gallery and Scroll read the leading OP-name image dump (comics boards default to Gallery when the dump has multiple pages)",
       "Settings stores optional guest posting name / deletion password; Include u18chan Gore Index is off by default",
       "Vite and serve.py scrape proxies for catalogs, threads, media, and multipart posts — never fall through to e621 getPosts",
     ],
