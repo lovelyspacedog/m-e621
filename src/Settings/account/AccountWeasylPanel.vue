@@ -25,6 +25,17 @@
       @click:append="showSecret.weasyl = !showSecret.weasyl"
       autocomplete="off"
     />
+    <v-textarea
+      variant="filled"
+      label="Session cookies (for commenting)"
+      v-model="fields.weasyl.cookies"
+      rows="2"
+      auto-grow
+      hint="Paste Weasyl browser cookies to post comments. Browse still uses the API key."
+      persistent-hint
+      autocomplete="off"
+      class="mb-2"
+    />
     <details class="text-left mb-2">
       <summary class="text-caption text-medium-emphasis account-help-summary">
         How to get an API key
@@ -32,6 +43,8 @@
       <p class="text-left text-caption mt-1 mb-0">
         Go to <external-link href="https://www.weasyl.com/control/apikeys" /> to generate an API key.
         Without a key, only SFW/general content is shown. The username is used to browse your favorites.
+        To post comments, paste session cookies from a logged-in Weasyl browser tab
+        (DevTools → Application → Cookies for weasyl.com).
       </p>
     </details>
     <div>

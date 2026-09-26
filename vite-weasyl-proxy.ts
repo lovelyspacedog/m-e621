@@ -92,6 +92,86 @@ function parseWeasylSearchHtml(html: string): {
   return { submissions, nextid };
 }
 
+function stripTags(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
+function parseWeasylCommentsHtml(
+  html: string,
+  postId: number,
+): Array<{
+  id: number;
+  body: string;
+  creator_name: string;
+  created_at: string;
+  is_hidden: boolean;
+}> {
+  const comments: Array<{
+    id: number;
+    body: string;
+    creator_name: string;
+    created_at: string;
+    is_hidden: boolean;
+  }> = [];
+  const re =
+    /<div[^>]*\bclass="[^"]*\bcomment\b[^"]*"[^>]*(?:id="cid(\d+)"|data-id="(\d+)")[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(html))) {
+    const id = Number(match[1] || match[2] || 0);
+    if (!id) continue;
+    const block = match[3] || "";
+    const name =
+      /class="[^"]*username[^"]*"[^>]*>([^<]+)</i.exec(block)?.[1]?.trim() ||
+      /href="\/~([^"/]+)"/i.exec(block)?.[1] ||
+      "";
+    const bodyHtml =
+      /class="[^"]*formatted-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(block)?.[1] ||
+      "";
+    const hidden = /\bhidden-comment\b/i.test(match[0]);
+    comments.push({
+      id,
+      body: stripTags(bodyHtml),
+      creator_name: name,
+      created_at: new Date().toISOString(),
+      is_hidden: hidden,
+    });
+  }
+  // Fallback: data-id only blocks
+  if (!comments.length) {
+    const re2 = /id="cid(\d+)"[\s\S]{0,800}?class="[^"]*username[^"]*"[^>]*>([^<]+)[\s\S]{0,1200}?class="[^"]*formatted-content[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+    let m2: RegExpExecArray | null;
+    while ((m2 = re2.exec(html))) {
+      comments.push({
+        id: Number(m2[1]),
+        body: stripTags(m2[3] || ""),
+        creator_name: (m2[2] || "").trim(),
+        created_at: new Date().toISOString(),
+        is_hidden: false,
+      });
+    }
+  }
+  void postId;
+  return comments;
+}
+
+function readBody(req: { on: Function }): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (c: Buffer) => chunks.push(c));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Proxy helpers
 // ---------------------------------------------------------------------------
@@ -244,6 +324,153 @@ export function weasylProxy(): Plugin {
               apiKey,
             );
             sendBuffer(res, status, body, contentType);
+            return;
+          }
+
+          // ── GET/POST /api/weasyl/submission/<id>/comments ───────────────
+          const commentsMatch = /^\/api\/weasyl\/submission\/(\d+)\/comments$/.exec(urlPath);
+          if (commentsMatch) {
+            const submitid = commentsMatch[1];
+            const cookies =
+              (req.headers["x-weasyl-cookies"] as string | undefined) ||
+              params.get("cookies") ||
+              "";
+            const owner = params.get("owner") || "";
+
+            if (req.method === "POST") {
+              if (!cookies.trim()) {
+                sendJson(res, 401, {
+                  ok: false,
+                  message: "Log in with Weasyl session cookies to comment",
+                });
+                return;
+              }
+              const raw = await readBody(req);
+              let content = "";
+              try {
+                const parsed = JSON.parse(raw.toString("utf8")) as {
+                  content?: string;
+                  body?: string;
+                  owner?: string;
+                };
+                content = String(parsed.content || parsed.body || "").trim();
+                if (!owner && parsed.owner) {
+                  // prefer query owner; body owner as fallback via local
+                }
+              } catch {
+                content = "";
+              }
+              if (!content) {
+                sendJson(res, 400, { ok: false, message: "content required" });
+                return;
+              }
+              // Resolve owner for form page when missing
+              let ownerLogin = owner;
+              if (!ownerLogin) {
+                const view = await weasylApiRequest(
+                  `${WEASYL_API_BASE}/api/submissions/${submitid}/view?anyway=1`,
+                  apiKey,
+                );
+                try {
+                  const j = JSON.parse(view.body.toString("utf8")) as {
+                    owner_login?: string;
+                  };
+                  ownerLogin = j.owner_login || "";
+                } catch {
+                  ownerLogin = "";
+                }
+              }
+              const pagePath = ownerLogin
+                ? `/~${encodeURIComponent(ownerLogin)}/submissions/${submitid}`
+                : `/submission/${submitid}`;
+              const pageHeaders: Record<string, string> = {
+                Accept: "text/html,application/xhtml+xml,*/*",
+                "User-Agent": UA,
+                Cookie: cookies,
+                Origin: WEASYL_API_BASE,
+                Referer: `${WEASYL_API_BASE}${pagePath}`,
+              };
+              if (apiKey) pageHeaders["X-Weasyl-API-Key"] = apiKey;
+              const pageResp = await fetch(`${WEASYL_API_BASE}${pagePath}`, {
+                headers: pageHeaders,
+              });
+              const pageHtml = await pageResp.text();
+              if (!/class="comment-form"|name="content"/i.test(pageHtml)) {
+                sendJson(res, 502, {
+                  ok: false,
+                  message:
+                    "Could not find Weasyl comment form (login/cookies required?)",
+                });
+                return;
+              }
+              const formData = new URLSearchParams();
+              formData.set("submitid", submitid);
+              formData.set("parentid", "");
+              formData.set("content", content);
+              const postResp = await fetch(`${WEASYL_API_BASE}/submit/comment`, {
+                method: "POST",
+                headers: {
+                  ...pageHeaders,
+                  "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body: formData.toString(),
+                redirect: "manual",
+              });
+              if (postResp.status >= 400 && postResp.status < 500) {
+                sendJson(res, postResp.status, {
+                  ok: false,
+                  message: `Weasyl comment rejected (${postResp.status})`,
+                });
+                return;
+              }
+              if (postResp.status >= 500) {
+                sendJson(res, 502, {
+                  ok: false,
+                  message: `Weasyl comment failed (${postResp.status})`,
+                });
+                return;
+              }
+              sendJson(res, 200, { ok: true });
+              return;
+            }
+
+            // GET — scrape comments from submission HTML
+            let ownerLogin = owner;
+            if (!ownerLogin) {
+              const view = await weasylApiRequest(
+                `${WEASYL_API_BASE}/api/submissions/${submitid}/view?anyway=1`,
+                apiKey,
+              );
+              try {
+                const j = JSON.parse(view.body.toString("utf8")) as {
+                  owner_login?: string;
+                };
+                ownerLogin = j.owner_login || "";
+              } catch {
+                ownerLogin = "";
+              }
+            }
+            const pagePath = ownerLogin
+              ? `/~${encodeURIComponent(ownerLogin)}/submissions/${submitid}`
+              : `/submission/${submitid}`;
+            const headers: Record<string, string> = {
+              Accept: "text/html,application/xhtml+xml,*/*",
+              "User-Agent": UA,
+              Referer: WEASYL_API_BASE + "/",
+            };
+            if (apiKey) headers["X-Weasyl-API-Key"] = apiKey;
+            if (cookies) headers.Cookie = cookies;
+            const resp = await fetch(`${WEASYL_API_BASE}${pagePath}`, { headers });
+            if (!resp.ok) {
+              sendJson(res, resp.status, {
+                ok: false,
+                message: `Weasyl page returned ${resp.status}`,
+              });
+              return;
+            }
+            const html = await resp.text();
+            const comments = parseWeasylCommentsHtml(html, Number(submitid));
+            sendJson(res, 200, { comments });
             return;
           }
 

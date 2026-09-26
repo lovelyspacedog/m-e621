@@ -404,6 +404,7 @@ WEASYL_MEDIA_HOSTS = frozenset({"www.weasyl.com", "weasyl.com", "cdn.weasyl.com"
 WEASYL_FRONTPAGE_PATH = re.compile(r"^/api/weasyl/frontpage$")
 WEASYL_SEARCH_PATH = re.compile(r"^/api/weasyl/search$")
 WEASYL_SUBMISSION_PATH = re.compile(r"^/api/weasyl/submission/(\d+)$")
+WEASYL_COMMENTS_PATH = re.compile(r"^/api/weasyl/submission/(\d+)/comments$")
 WEASYL_GALLERY_PATH = re.compile(r"^/api/weasyl/gallery/([^/]+)$")
 WEASYL_FAVORITES_PATH = re.compile(r"^/api/weasyl/favorites/([^/]+)$")
 WEASYL_USER_PATH = re.compile(r"^/api/weasyl/user/([^/]+)$")
@@ -2839,6 +2840,140 @@ class SpaHandler(SimpleHTTPRequestHandler):
         body, status, ct = self._weasyl_api_request(url, api_key=api_key)
         self._weasyl_respond(body, status, ct)
 
+    def _weasyl_cookies_header(self) -> str:
+        return (self.headers.get("X-Weasyl-Cookies") or "").strip()
+
+    def _parse_weasyl_comments_html(self, html_text: str) -> list[dict]:
+        import re as _re
+        import html as html_module
+
+        comments: list[dict] = []
+        # Prefer cidN + username + formatted-content blocks
+        pattern = _re.compile(
+            r'id="cid(\d+)"[\s\S]{0,1200}?class="[^"]*username[^"]*"[^>]*>([^<]+)'
+            r'[\s\S]{0,2000}?class="[^"]*formatted-content[^"]*"[^>]*>([\s\S]*?)</div>',
+            _re.I,
+        )
+        for m in pattern.finditer(html_text):
+            body = m.group(3) or ""
+            body = _re.sub(r"<br\s*/?>", "\n", body, flags=_re.I)
+            body = _re.sub(r"<[^>]+>", "", body)
+            body = html_module.unescape(body).strip()
+            comments.append(
+                {
+                    "id": int(m.group(1)),
+                    "body": body,
+                    "creator_name": html_module.unescape((m.group(2) or "").strip()),
+                    "created_at": "",
+                    "is_hidden": False,
+                }
+            )
+        return comments
+
+    def _weasyl_submission_page_path(self, submitid: str, owner: str, api_key: str | None) -> str:
+        owner_login = (owner or "").strip()
+        if not owner_login:
+            url = f"{WEASYL_API_BASE}/api/submissions/{submitid}/view?anyway=1"
+            body, status, _ct = self._weasyl_api_request(url, api_key=api_key)
+            if status < 400:
+                try:
+                    data = json.loads(body.decode("utf-8", "replace"))
+                    owner_login = str(data.get("owner_login") or "")
+                except Exception:  # noqa: BLE001
+                    owner_login = ""
+        if owner_login:
+            return f"/~{quote(owner_login)}/submissions/{submitid}"
+        return f"/submission/{submitid}"
+
+    def _proxy_weasyl_comments_get(self, submitid: str, parsed) -> None:
+        """GET /api/weasyl/submission/<id>/comments — scrape HTML comment thread."""
+        params = parse_qs(parsed.query)
+        api_key = self._weasyl_api_key(parsed)
+        owner = (params.get("owner") or [""])[0]
+        cookies = self._weasyl_cookies_header()
+        page_path = self._weasyl_submission_page_path(submitid, owner, api_key)
+        url = f"{WEASYL_API_BASE}{page_path}"
+        req = urllib.request.Request(url, method="GET")
+        req.add_header("Accept", "text/html,application/xhtml+xml,*/*")
+        req.add_header(
+            "User-Agent",
+            f"me621-weasyl-proxy/1.0 (https://{DOMAIN}; browser proxy)",
+        )
+        req.add_header("Referer", WEASYL_API_BASE + "/")
+        if api_key:
+            req.add_header("X-Weasyl-API-Key", api_key)
+        if cookies:
+            req.add_header("Cookie", cookies)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                html_text = resp.read().decode("utf-8", "replace")
+                status = getattr(resp, "status", 200)
+        except urllib.error.HTTPError as exc:
+            self._json(exc.code, {"ok": False, "message": f"Weasyl page returned {exc.code}"})
+            return
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "message": str(exc)})
+            return
+        if status >= 400:
+            self._json(status, {"ok": False, "message": f"Weasyl page returned {status}"})
+            return
+        comments = self._parse_weasyl_comments_html(html_text)
+        self._json(200, {"comments": comments})
+
+    def _proxy_weasyl_comments_post(self, submitid: str, parsed, body: bytes) -> None:
+        """POST /api/weasyl/submission/<id>/comments — form POST /submit/comment."""
+        cookies = self._weasyl_cookies_header()
+        if not cookies:
+            self._json(401, {"ok": False, "message": "Log in with Weasyl session cookies to comment"})
+            return
+        api_key = self._weasyl_api_key(parsed)
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}")
+        except Exception:  # noqa: BLE001
+            payload = {}
+        content = str(payload.get("content") or payload.get("body") or "").strip()
+        owner = str(payload.get("owner") or "")
+        if not content:
+            self._json(400, {"ok": False, "message": "content required"})
+            return
+        page_path = self._weasyl_submission_page_path(submitid, owner, api_key)
+        form = urlencode(
+            {"submitid": submitid, "parentid": "", "content": content}
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            f"{WEASYL_API_BASE}/submit/comment",
+            data=form,
+            method="POST",
+        )
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+        req.add_header("Accept", "text/html,application/xhtml+xml,*/*")
+        req.add_header(
+            "User-Agent",
+            f"me621-weasyl-proxy/1.0 (https://{DOMAIN}; browser proxy)",
+        )
+        req.add_header("Origin", WEASYL_API_BASE)
+        req.add_header("Referer", f"{WEASYL_API_BASE}{page_path}")
+        req.add_header("Cookie", cookies)
+        if api_key:
+            req.add_header("X-Weasyl-API-Key", api_key)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                status = getattr(resp, "status", 200)
+                resp.read()
+        except urllib.error.HTTPError as exc:
+            self._json(exc.code if exc.code < 500 else 502, {
+                "ok": False,
+                "message": f"Weasyl comment failed ({exc.code})",
+            })
+            return
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "message": str(exc)})
+            return
+        if status >= 400:
+            self._json(status, {"ok": False, "message": f"Weasyl comment failed ({status})"})
+            return
+        self._json(200, {"ok": True})
+
     def _proxy_weasyl_gallery(self, login: str, parsed) -> None:
         """GET /api/weasyl/gallery/<login> → Weasyl /api/users/<login>/gallery"""
         params = parse_qs(parsed.query)
@@ -4342,6 +4477,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if WEASYL_SEARCH_PATH.match(path):
             self._proxy_weasyl_search(parsed)
             return
+        weasyl_comments = WEASYL_COMMENTS_PATH.match(path)
+        if weasyl_comments:
+            self._proxy_weasyl_comments_get(weasyl_comments.group(1), parsed)
+            return
         weasyl_sub = WEASYL_SUBMISSION_PATH.match(path)
         if weasyl_sub:
             self._proxy_weasyl_submission(weasyl_sub.group(1), parsed)
@@ -4502,6 +4641,11 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
         if FURBOORU_COMMENTS_POST_PATH.match(path):
             self._proxy_furbooru_comments_post(parsed, body)
+            return
+
+        weasyl_comments = WEASYL_COMMENTS_PATH.match(path)
+        if weasyl_comments:
+            self._proxy_weasyl_comments_post(weasyl_comments.group(1), parsed, body)
             return
 
         itaku_like = ITAKU_LIKE_PATH.match(path)

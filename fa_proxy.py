@@ -395,6 +395,28 @@ def serialize_submission(sub: Any) -> dict[str, Any]:
 def serialize_journal(journal: Any) -> dict[str, Any]:
     stats = getattr(journal, "stats", None)
     comments_n = int(getattr(stats, "comments", 0) or 0)
+    comments = []
+    try:
+        comments = [
+            {
+                "id": int(c.id),
+                "created_at": _iso(c.date),
+                "post_id": int(getattr(journal, "id", 0) or 0),
+                "creator_id": 0,
+                "body": _html_text(c.text),
+                "score": 0,
+                "updated_at": _iso(c.date),
+                "updater_id": 0,
+                "do_not_bump_post": False,
+                "is_hidden": bool(getattr(c, "hidden", False)),
+                "is_sticky": False,
+                "creator_name": getattr(getattr(c, "author", None), "name", "") or "",
+                "updater_name": getattr(getattr(c, "author", None), "name", "") or "",
+            }
+            for c in flatten_comments(list(getattr(journal, "comments", None) or []))
+        ]
+    except Exception:
+        comments = []
     return {
         "id": int(getattr(journal, "id", 0) or 0),
         "title": getattr(journal, "title", "") or "",
@@ -405,7 +427,8 @@ def serialize_journal(journal: Any) -> dict[str, Any]:
         "kind": "journal",
         "date": _iso(getattr(journal, "date", None)),
         "description": _html_text(getattr(journal, "content", "") or ""),
-        "comment_count": comments_n,
+        "comment_count": comments_n or len(comments),
+        "comments": comments,
         "details": True,
     }
 
@@ -646,7 +669,9 @@ def _comment(api: faapi.FAAPI, payload: dict[str, Any]) -> dict[str, Any]:
     body = str(payload.get("body") or "").strip()
     if not sid or not body:
         raise FaProxyError("id and body required", 400)
-    page = api.get_parsed(f"view/{sid}")
+    kind = str(payload.get("kind") or "submission").strip().lower()
+    path = f"journal/{sid}" if kind == "journal" else f"view/{sid}"
+    page = api.get_parsed(path)
     textarea = page.select_one("textarea[name='reply']")
     form = textarea.find_parent("form") if textarea else None
     if form is None:
@@ -658,7 +683,7 @@ def _comment(api: faapi.FAAPI, payload: dict[str, Any]) -> dict[str, Any]:
             data[str(name)] = str(inp.get("value") or "")
     data["reply"] = body
     # Form action may be absolute; _fa_request_url pins host to FA_ROOT.
-    action = str(form.get("action") or f"/view/{sid}/")
+    action = str(form.get("action") or f"/{path}/")
     resp = _session_post(api, action, data)
     if resp.status_code >= 400:
         raise FaProxyError(f"Comment failed ({resp.status_code})", resp.status_code)

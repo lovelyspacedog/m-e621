@@ -70,9 +70,11 @@ export const modeSupportsComments = (mode: SiteMode): boolean =>
   isE621FamilyMode(mode) ||
   mode === "furbooru" ||
   mode === "furaffinity" ||
-  mode === "itaku";
-// SoFurry intentionally omitted: getComments returns [] / no write API.
-// Story chrome owns text; do not fake e621 notes or comment POST (FEATURES 4.4).
+  mode === "itaku" ||
+  mode === "sofurry" ||
+  mode === "weasyl";
+// SoFurry: artwork only (stories/music gated in postSupportsComments).
+// Weasyl: HTML scrape; posting needs session cookies alongside the API key.
 
 export const modeSupportsNotes = (mode: SiteMode): boolean =>
   isE621FamilyMode(mode);
@@ -111,10 +113,13 @@ type PostMetaLike = {
   __meta?: {
     originMode?: string;
     furaffinity?: { kind?: string };
+    sofurry?: { type?: string };
+    kind?: string;
   };
+  tags?: { meta?: string[] };
 } | null | undefined;
 
-/** Comments UI for this post (origin-aware; FA journals excluded). */
+/** Comments UI for this post (origin-aware; SoFurry stories/music excluded). */
 export const postSupportsComments = (
   post: PostMetaLike,
   fallback: SiteMode,
@@ -129,8 +134,17 @@ export const postSupportsComments = (
   )
     return false;
   if (!modeSupportsComments(mode)) return false;
-  if (mode === "furaffinity" && post?.__meta?.furaffinity?.kind === "journal") {
-    return false;
+  if (mode === "sofurry") {
+    if (post?.__meta?.kind === "story") return false;
+    const softType = String(post?.__meta?.sofurry?.type || "").toLowerCase();
+    if (/^(shortstory|writing|story|journal|document|text)$/.test(softType)) {
+      return false;
+    }
+    if (/^(music|audio|song|track)$/.test(softType)) return false;
+    const metaTags = post?.tags?.meta || [];
+    if (metaTags.includes("type:audio") || metaTags.includes("story")) {
+      return false;
+    }
   }
   return true;
 };

@@ -22,6 +22,11 @@ export const useAccountFields = (mode: SiteMode) => {
       set: (value: string) =>
         setLiveAccount(main.$state, mode, { apiKey: value || null }),
     }),
+    cookies: computed({
+      get: () => liveAccount(main.$state, mode).cookies || "",
+      set: (value: string) =>
+        setLiveAccount(main.$state, mode, { cookies: value || null }),
+    }),
     baseUrl: computed({
       get: () => liveBaseUrl(main.$state, mode),
       set: (value: string) => setLiveBaseUrl(main.$state, mode, value),

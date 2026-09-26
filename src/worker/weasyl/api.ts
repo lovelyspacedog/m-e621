@@ -12,6 +12,7 @@
 import { isAudioExt } from "@/misc/util/audioExts";
 import { shuffled } from "@/misc/util/shuffle";
 import type { Post, PostTags } from "@/worker/api/returnTypes";
+import type { Comment } from "@/worker/api/returnTypes";
 
 // ---------------------------------------------------------------------------
 // Weasyl wire types
@@ -486,6 +487,117 @@ export async function whoami(apiKey: string): Promise<{ login: string; userid: n
   const data = await fetchJson<{ login: string; userid: number }>(url);
   if (!data.login) throw new Error("Weasyl: API key is invalid or not authorized");
   return data;
+}
+
+function proxyCommentsBase(): string {
+  const origin = typeof location !== "undefined" ? location.origin : "";
+  return `${origin}/api/weasyl`;
+}
+
+function stripHtmlSimple(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
+/** List comments via HTML scrape proxy (API has count only). */
+export async function getComments(args: {
+  id: number;
+  apiKey?: string | null;
+  cookies?: string | null;
+  ownerLogin?: string | null;
+}): Promise<Comment[]> {
+  const q = new URLSearchParams();
+  if (args.apiKey) q.set("key", args.apiKey);
+  if (args.ownerLogin) q.set("owner", args.ownerLogin);
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (args.cookies) headers["X-Weasyl-Cookies"] = args.cookies;
+  const url = `${proxyCommentsBase()}/submission/${args.id}/comments?${q}`;
+  const response = await fetch(url, { headers });
+  if (!response.ok) {
+    throw new Error(`Weasyl comments failed (${response.status})`);
+  }
+  const data = (await response.json()) as {
+    comments?: Array<{
+      id: number;
+      body: string;
+      creator_name: string;
+      created_at?: string;
+      is_hidden?: boolean;
+    }>;
+  };
+  return (data.comments || []).map((c) => ({
+    id: c.id,
+    created_at: c.created_at || new Date().toISOString(),
+    post_id: args.id,
+    creator_id: 0,
+    body: stripHtmlSimple(c.body || ""),
+    score: 0,
+    updated_at: c.created_at || new Date().toISOString(),
+    updater_id: 0,
+    do_not_bump_post: false,
+    is_hidden: !!c.is_hidden,
+    is_sticky: false,
+    creator_name: c.creator_name || "",
+    updater_name: c.creator_name || "",
+  }));
+}
+
+/** Post a Weasyl comment (requires session cookies + Origin CSRF). */
+export async function createComment(args: {
+  id: number;
+  body: string;
+  apiKey?: string | null;
+  cookies?: string | null;
+  ownerLogin?: string | null;
+}): Promise<Comment> {
+  const text = String(args.body || "").trim();
+  if (!text) throw new Error("Comment body required");
+  if (!args.cookies?.trim()) {
+    throw new Error("Log in with Weasyl session cookies to comment");
+  }
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    "X-Weasyl-Cookies": args.cookies,
+  };
+  const response = await fetch(`${proxyCommentsBase()}/submission/${args.id}/comments`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      content: text,
+      owner: args.ownerLogin || undefined,
+      key: args.apiKey || undefined,
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({})) as { message?: string; error?: string };
+    throw new Error(
+      err.message || err.error || `Weasyl comment failed (${response.status})`,
+    );
+  }
+  return {
+    id: Date.now(),
+    created_at: new Date().toISOString(),
+    post_id: args.id,
+    creator_id: 0,
+    body: text,
+    score: 0,
+    updated_at: new Date().toISOString(),
+    updater_id: 0,
+    do_not_bump_post: false,
+    is_hidden: false,
+    is_sticky: false,
+    creator_name: "",
+    updater_name: "",
+  };
 }
 
 export { adaptSubmission as adaptSearchHit };

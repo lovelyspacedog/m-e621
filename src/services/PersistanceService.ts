@@ -67,10 +67,12 @@ const clearAccountSecrets = (account: {
   username?: string | null;
   apiKey?: string | null;
   userId?: number | null;
+  cookies?: string | null;
 } | null | undefined) => {
   if (!account) return;
   account.apiKey = null;
   account.userId = null;
+  account.cookies = null;
   // Keep usernames — useful for restore without re-typing; secrets are gone.
 };
 
@@ -90,7 +92,7 @@ export const summarizeSettingsImport = (
   const profiles = settings.profiles || {};
   let credentialSiteCount = 0;
   for (const profile of Object.values(profiles)) {
-    if (profile?.account?.apiKey) credentialSiteCount += 1;
+    if (profile?.account?.apiKey || profile?.account?.cookies) credentialSiteCount += 1;
   }
   if (settings.account?.apiKey) credentialSiteCount += 1;
   return {

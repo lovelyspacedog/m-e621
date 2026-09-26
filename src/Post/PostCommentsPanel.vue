@@ -97,6 +97,13 @@ const loadComments = async (key: string) => {
       baseUrl: toRaw(origin.baseUrl),
       mode: toRaw(origin.mode),
       auth: toRaw(origin.auth),
+      softId: props.post.__meta?.sofurry?.id ?? null,
+      kind:
+        props.post.__meta?.furaffinity?.kind === "journal"
+          ? "journal"
+          : "submission",
+      cookies: origin.cookies ?? null,
+      ownerLogin: props.post.uploader_name || null,
     });
     // Ignore stale responses after the user switched posts (H6).
     if (postFeedKey(props.post) !== key) return;
@@ -149,6 +156,11 @@ const submitComment = async () => {
       proxyUrl: toRaw(urlStore.proxyUrl),
       baseUrl: toRaw(origin.baseUrl),
       mode: toRaw(origin.mode),
+      softId: post.__meta?.sofurry?.id ?? null,
+      kind:
+        post.__meta?.furaffinity?.kind === "journal" ? "journal" : "submission",
+      cookies: origin.cookies ?? null,
+      ownerLogin: post.uploader_name || null,
     });
     comments.value = [...comments.value, created];
     post.comment_count = (post.comment_count || 0) + 1;

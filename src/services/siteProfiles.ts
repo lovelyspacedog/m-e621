@@ -31,6 +31,7 @@ const emptyAccount = (): SiteProfile["account"] => ({
   username: null,
   apiKey: null,
   userId: null,
+  cookies: null,
 });
 
 export const createEmptySiteProfile = (mode: SiteMode): SiteProfile => ({

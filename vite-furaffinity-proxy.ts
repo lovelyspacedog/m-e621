@@ -544,6 +544,30 @@ async function handleAction(action: string, payload: Record<string, unknown>) {
       /class="[^"]*journal-body[^"]*"[^>]*>([\s\S]*?)<\/div>/.exec(html)?.[1] ||
       "";
     const author = /href="\/user\/([^"/]+)\/?"/.exec(html)?.[1] || "";
+    const commentsN = Number(
+      /Comments[\s\S]{0,80}?>(\d[\d,]*)/.exec(html)?.[1]?.replace(/,/g, "") || 0,
+    );
+    const comments: Array<Record<string, unknown>> = [];
+    const cre =
+      /id="cid:(\d+)"[\s\S]*?class="[^"]*comment_username[^"]*"[^>]*>([^<]+)[\s\S]*?class="[^"]*comment_text[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+    let cm: RegExpExecArray | null;
+    while ((cm = cre.exec(html))) {
+      comments.push({
+        id: Number(cm[1]),
+        created_at: parseFaTimestamp(cm[0]),
+        post_id: id,
+        creator_id: 0,
+        body: stripTags(cm[3] || ""),
+        score: 0,
+        updated_at: parseFaTimestamp(cm[0]),
+        updater_id: 0,
+        do_not_bump_post: false,
+        is_hidden: false,
+        is_sticky: false,
+        creator_name: decodeHtml(cm[2] || ""),
+        updater_name: decodeHtml(cm[2] || ""),
+      });
+    }
     return {
       status: 200,
       body: {
@@ -556,6 +580,8 @@ async function handleAction(action: string, payload: Record<string, unknown>) {
         kind: "journal",
         date: parseFaTimestamp(html),
         description: stripTags(content),
+        comment_count: commentsN || comments.length,
+        comments,
         details: true,
       },
     };
@@ -590,14 +616,18 @@ async function handleAction(action: string, payload: Record<string, unknown>) {
     const id = Number(payload.id || 0);
     const body = String(payload.body || "").trim();
     if (!id || !body) return { status: 400, body: { ok: false, message: "id and body required" } };
-    const html = await (await faFetch(`view/${id}/`, cookies)).text();
+    const kind = String(payload.kind || "submission").toLowerCase();
+    const path = kind === "journal" ? `journal/${id}/` : `view/${id}/`;
+    const html = await (await faFetch(path, cookies)).text();
     const formM = /<form[^>]*>([\s\S]*?<textarea[^>]*name=["']reply["'][\s\S]*?)<\/form>/i.exec(html);
     if (!formM) return { status: 502, body: { ok: false, message: "Could not find FurAffinity comment form" } };
     const data = new URLSearchParams();
     const hidden = formM[1].matchAll(/<input[^>]*name=["']([^"']+)["'][^>]*value=["']([^"']*)["']/gi);
     for (const h of hidden) data.set(h[1], h[2]);
     data.set("reply", body);
-    await faFetch(`view/${id}/`, cookies, {
+    const actionUrl =
+      /<form[^>]*action=["']([^"']+)["']/i.exec(formM[0])?.[1] || path;
+    await faFetch(actionUrl.replace(/^https?:\/\/[^/]+\//i, ""), cookies, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: data.toString(),

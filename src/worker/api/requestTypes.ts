@@ -66,6 +66,14 @@ export interface ICommentsListArgs extends IBaseArgs {
     login: string;
     api_key: string;
   };
+  /** Soft hashid when numeric id alone can't reverse-map. */
+  softId?: string | null;
+  /** FurAffinity view vs journal. */
+  kind?: "submission" | "journal";
+  /** Weasyl session cookies for HTML scrape (optional for read). */
+  cookies?: string | null;
+  /** Weasyl owner login for canonical submission URL. */
+  ownerLogin?: string | null;
 }
 
 export interface INotesListArgs extends IBaseArgs {

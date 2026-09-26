@@ -259,6 +259,11 @@ export interface SiteProfile {
     apiKey: string | null;
     /** Inkbunny member user_id (not used on other sites). */
     userId?: number | null;
+    /**
+     * Optional browser session cookies (Weasyl comment POST).
+     * Kept separate from apiKey so Weasyl browse can keep using the API key.
+     */
+    cookies?: string | null;
   };
   favorites: {
     groups: FavoriteTagGroup[];
@@ -532,6 +537,7 @@ export interface ISettingsServiceState {
     username: string | null;
     apiKey: string | null;
     userId?: number | null;
+    cookies?: string | null;
   };
   misc: {
     urls: {

@@ -290,6 +290,7 @@ export const originAuthForPost = (
       SITE_MODE_URLS[mode],
     auth: authFromAccount(mode, profile.account),
     userId: profile.account.userId ?? null,
+    cookies: profile.account.cookies ?? null,
     // When this origin is the active mode, live mirrors are authoritative
     // (profile copy may lag until save sync). Otherwise use the origin profile,
     // and for Federated also fold in the live shared blacklist.

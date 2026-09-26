@@ -569,8 +569,13 @@ export async function unfavoriteSubmission(id: number, cookies?: string | null):
   await faRequest("unfavorite", { ...cookieField(cookies), id });
 }
 
-export async function createComment(id: number, body: string, cookies?: string | null): Promise<void> {
-  await faRequest("comment", { ...cookieField(cookies), id, body });
+export async function createComment(
+  id: number,
+  body: string,
+  cookies?: string | null,
+  kind: "submission" | "journal" = "submission",
+): Promise<void> {
+  await faRequest("comment", { ...cookieField(cookies), id, body, kind });
 }
 
 export async function getWatchlist(cookies?: string | null, username?: string | null): Promise<Array<{ name: string }>> {
@@ -599,9 +604,13 @@ export async function searchKeywords(query: string): Promise<Tag[]> {
   ];
 }
 
-export async function getComments(id: number, cookies?: string | null): Promise<Comment[]> {
-  const sub = await getSubmission(id, cookies);
-  return (sub.comments || []).map((c) => ({
+export async function getComments(
+  id: number,
+  cookies?: string | null,
+  kind: "submission" | "journal" = "submission",
+): Promise<Comment[]> {
+  const item = kind === "journal" ? await getJournal(id, cookies) : await getSubmission(id, cookies);
+  return (item.comments || []).map((c) => ({
     ...c,
     body: stripHtml(c.body || ""),
   }));

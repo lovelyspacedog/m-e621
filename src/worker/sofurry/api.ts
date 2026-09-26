@@ -8,7 +8,7 @@
  * Client sends cookies as `X-Sofurry-Cookies`; the proxy forwards Cookie.
  */
 import { isAudioExt } from "@/misc/util/audioExts";
-import type { Post, Tag } from "@/worker/api/returnTypes";
+import type { Comment, Post, Tag } from "@/worker/api/returnTypes";
 
 const SOFURRY_ORIGIN = "https://www.sofurry.com";
 const BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -857,6 +857,14 @@ export async function fetchSubmission(args: {
   const post = adaptSubmission(sub, true);
   if (!post) return null;
 
+  const commentsMeta = digCommentsMeta(unpacked);
+  if (commentsMeta?.total != null && Number.isFinite(Number(commentsMeta.total))) {
+    post.comment_count = Math.max(0, Number(commentsMeta.total));
+  } else {
+    const n = digComments(unpacked).filter((c) => !c.isDeleted).length;
+    if (n > 0) post.comment_count = n;
+  }
+
   // Stories: always hydrate full body from the signed content URL.
   const meta = (post as Post & { __meta?: { kind?: string; sofurry?: SofurryMeta } })
     .__meta;
@@ -1089,4 +1097,140 @@ export async function listFollowing(): Promise<
   } catch {
     return [];
   }
+}
+
+type SoftComment = {
+  id?: number | string;
+  comment?: string;
+  body?: string;
+  createdAt?: string;
+  user?: { handle?: string; username?: string } | null;
+  isDeleted?: boolean;
+};
+
+function digRoutePayload(unpacked: Record<string, unknown>): Record<string, unknown> | null {
+  const direct = unpacked.data;
+  if (direct && typeof direct === "object" && "submission" in (direct as object)) {
+    return direct as Record<string, unknown>;
+  }
+  for (const [key, value] of Object.entries(unpacked)) {
+    if (!/submission/i.test(key) || !value || typeof value !== "object") continue;
+    const route = value as Record<string, unknown>;
+    if (route.data && typeof route.data === "object") {
+      return route.data as Record<string, unknown>;
+    }
+    if (route.submission) return route;
+  }
+  return null;
+}
+
+function digComments(unpacked: Record<string, unknown>): SoftComment[] {
+  const route = digRoutePayload(unpacked);
+  const raw = route?.comments ?? unpacked.comments;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((c): c is SoftComment => !!c && typeof c === "object");
+}
+
+function digCommentsMeta(unpacked: Record<string, unknown>): { total?: number } | null {
+  const route = digRoutePayload(unpacked);
+  const meta = route?.commentsMeta ?? unpacked.commentsMeta;
+  if (!meta || typeof meta !== "object") return null;
+  return meta as { total?: number };
+}
+
+function adaptSoftComment(c: SoftComment, postId: number): Comment {
+  const created = c.createdAt || new Date().toISOString();
+  const name = c.user?.username || c.user?.handle || "";
+  return {
+    id: Number(c.id) || Date.now(),
+    created_at: created,
+    post_id: postId,
+    creator_id: 0,
+    body: String(c.comment || c.body || ""),
+    score: 0,
+    updated_at: created,
+    updater_id: 0,
+    do_not_bump_post: false,
+    is_hidden: !!c.isDeleted,
+    is_sticky: false,
+    creator_name: name,
+    updater_name: name,
+  };
+}
+
+/** List comments for a Soft submission (artwork). Uses `/s/{id}.data` pack. */
+export async function getComments(args: {
+  id: string | number;
+}): Promise<Comment[]> {
+  const softId =
+    typeof args.id === "string" && /[A-Za-z]/.test(args.id)
+      ? args.id
+      : softIdForNumeric(Number(args.id)) || String(args.id);
+  if (!softId) return [];
+  const response = await sofurryFetch(`/s/${encodeURIComponent(softId)}.data`);
+  if (!response.ok) {
+    throw new Error(`SoFurry comments failed (${response.status})`);
+  }
+  const unpacked = unpackSofurryData(await response.text()) as Record<string, unknown> | null;
+  if (!unpacked) return [];
+  const post = adaptSubmission(digSubmission(unpacked) || { id: softId }, true);
+  const postId = post?.id || Number(args.id) || 0;
+  return digComments(unpacked)
+    .filter((c) => !c.isDeleted)
+    .map((c) => adaptSoftComment(c, postId));
+}
+
+/** Post a Soft submission comment. Requires session cookies (CSRF via proxy). */
+export async function createComment(args: {
+  id: string | number;
+  body: string;
+}): Promise<Comment> {
+  const softId =
+    typeof args.id === "string" && /[A-Za-z]/.test(args.id)
+      ? args.id
+      : softIdForNumeric(Number(args.id)) || String(args.id);
+  if (!softId) throw new Error("Missing SoFurry submission id");
+  const text = String(args.body || "").trim();
+  if (!text) throw new Error("Comment body required");
+  if (!activeCookies) throw new Error("Log in to SoFurry to post comments");
+
+  const response = await sofurryFetch(
+    `/api/submission-comment/${encodeURIComponent(softId)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ comment: text }),
+    },
+  );
+  if (response.status === 401) {
+    notifySessionCleared();
+    throw new Error("SoFurry session expired — sign in again");
+  }
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    throw new Error(
+      errText.trim() || `SoFurry comment failed (${response.status})`,
+    );
+  }
+  let created: SoftComment | null = null;
+  try {
+    const data = (await response.json()) as SoftComment & { data?: SoftComment };
+    created =
+      data && (data.comment != null || data.id != null)
+        ? data
+        : data?.data || null;
+  } catch {
+    created = null;
+  }
+  const postId = Number.isFinite(Number(args.id)) ? Number(args.id) : Date.now();
+  if (created) return adaptSoftComment(created, postId);
+  return adaptSoftComment(
+    {
+      id: Date.now(),
+      comment: text,
+      createdAt: new Date().toISOString(),
+      user: null,
+    },
+    postId,
+  );
 }

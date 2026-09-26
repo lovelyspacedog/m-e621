@@ -205,6 +205,12 @@ export interface IPostFavoriteArgs {
   mode?: SiteMode;
   /** Soft hashid when numeric id alone can't reverse-map. */
   softId?: string | null;
+  /** FurAffinity view vs journal. */
+  kind?: "submission" | "journal";
+  /** Weasyl session cookies for comment POST / HTML scrape. */
+  cookies?: string | null;
+  /** Weasyl owner login for canonical submission URL. */
+  ownerLogin?: string | null;
 }
 
 export interface IPostVoteArgs extends IPostFavoriteArgs {

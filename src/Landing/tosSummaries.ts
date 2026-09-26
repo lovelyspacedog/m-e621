@@ -227,6 +227,12 @@ export const tosSummaries: TosSummary[] = [
           "FA disclaims liability for user disputes, third parties, and unauthorized access",
         ],
       },
+      {
+        heading: "PawDeck use",
+        bullets: [
+          "Browse and post comments on submissions and journals through the FA proxy when signed in",
+        ],
+      },
     ],
   },
   {
@@ -267,6 +273,13 @@ export const tosSummaries: TosSummary[] = [
         heading: "Commerce",
         paragraphs: [
           "Limited art-related commercial activity is allowed for members; other commercial use needs approval. Member-to-member deals are between those parties.",
+        ],
+      },
+      {
+        heading: "PawDeck use",
+        bullets: [
+          "Browse with an API key; view comments via HTML scrape",
+          "Posting comments requires optional Weasyl session cookies in Account settings (API key alone is not enough)",
         ],
       },
     ],
@@ -342,6 +355,13 @@ export const tosSummaries: TosSummary[] = [
           "API clients must follow the AUP; access can be revoked",
           "Slander/allegations that create legal risk can be removed",
           "Appeal moderator decisions via support ticket",
+        ],
+      },
+      {
+        heading: "PawDeck use",
+        bullets: [
+          "View and post comments on artwork submissions when signed in with a Soft session",
+          "Stories and music comments are not wired through PawDeck’s shared comments rail",
         ],
       },
     ],

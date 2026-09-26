@@ -16,6 +16,15 @@ export interface ChangelogSection {
 export const changelogSections: ChangelogSection[] = [
   {
     date: "2026-09-25",
+    title: "More site comments",
+    items: [
+      "SoFurry artwork posts support view/post comments in the shared comments rail (stories and music stay excluded)",
+      "Weasyl comments: read via page scrape; posting needs optional session cookies alongside the API key",
+      "FurAffinity journals open the comments rail and can post replies (same proxy path as submissions)",
+    ],
+  },
+  {
+    date: "2026-09-25",
     title: "u18chan Watched threads",
     items: [
       "u18chan sidebar gains Watched: local thread watches with +N when replies arrive since last open",

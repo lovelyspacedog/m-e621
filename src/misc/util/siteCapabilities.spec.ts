@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   isDedicatedChromeMode,
   isE621FamilyMode,
+  modeSupportsComments,
   modeSupportsDiscoveryTools,
   modeSupportsFavoriteAnalyzer,
   modeSupportsFavoriteToggle,
   modeSupportsOtherUserFavorites,
   modeSupportsPools,
   modeSupportsSuggester,
+  postSupportsComments,
 } from "./siteCapabilities";
 import type { SiteMode } from "@/services/types";
 
@@ -86,5 +88,44 @@ describe("modeSupportsOtherUserFavorites", () => {
     expect(modeSupportsOtherUserFavorites("furbooru")).toBe(false);
     expect(modeSupportsOtherUserFavorites("unified")).toBe(false);
     expect(modeSupportsOtherUserFavorites("local")).toBe(false);
+  });
+});
+
+describe("modeSupportsComments / postSupportsComments", () => {
+  it("includes SoFurry and Weasyl modes", () => {
+    expect(modeSupportsComments("sofurry")).toBe(true);
+    expect(modeSupportsComments("weasyl")).toBe(true);
+    expect(modeSupportsComments("furaffinity")).toBe(true);
+    expect(modeSupportsComments("inkbunny")).toBe(false);
+  });
+
+  it("allows FA journals and SoFurry artwork only", () => {
+    expect(
+      postSupportsComments(
+        { __meta: { originMode: "furaffinity", furaffinity: { kind: "journal" } } },
+        "furaffinity",
+      ),
+    ).toBe(true);
+    expect(
+      postSupportsComments(
+        { __meta: { originMode: "sofurry", sofurry: { type: "drawing" } } },
+        "sofurry",
+      ),
+    ).toBe(true);
+    expect(
+      postSupportsComments(
+        { __meta: { originMode: "sofurry", kind: "story", sofurry: { type: "shortstory" } } },
+        "sofurry",
+      ),
+    ).toBe(false);
+    expect(
+      postSupportsComments(
+        {
+          __meta: { originMode: "sofurry", sofurry: { type: "music" } },
+          tags: { meta: ["type:audio"] },
+        },
+        "sofurry",
+      ),
+    ).toBe(false);
   });
 });

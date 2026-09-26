@@ -1530,12 +1530,26 @@ export class ApiService {
     const backend = resolveApiBackend(args.baseUrl, args.mode);
     if (
       backend === "inkbunny" ||
-      backend === "weasyl" ||
-      backend === "sofurry" ||
       backend === "murrtube" ||
       backend === "badpups"
     ) {
       return [];
+    }
+    if (backend === "sofurry") {
+      if (args.auth?.api_key) sofurry.setActiveSofurryCookies(args.auth.api_key);
+      const softId =
+        args.softId ||
+        sofurry.softIdForNumeric(args.postId) ||
+        String(args.postId);
+      return sofurry.getComments({ id: softId });
+    }
+    if (backend === "weasyl") {
+      return weasyl.getComments({
+        id: args.postId,
+        apiKey: args.auth?.api_key ?? null,
+        cookies: args.cookies ?? null,
+        ownerLogin: args.ownerLogin ?? null,
+      });
     }
     if (backend === "itaku") {
       return itaku.getComments({
@@ -1545,7 +1559,11 @@ export class ApiService {
       });
     }
     if (backend === "furaffinity") {
-      return furaffinity.getComments(args.postId, args.auth?.api_key ?? null);
+      return furaffinity.getComments(
+        args.postId,
+        args.auth?.api_key ?? null,
+        args.kind === "journal" ? "journal" : "submission",
+      );
     }
     if (backend === "furbooru") {
       return furbooru.getComments({
@@ -1737,7 +1755,13 @@ export class ApiService {
       throw new Error("Inkbunny does not support posting comments via API");
     }
     if (backend === "weasyl") {
-      throw new Error("Weasyl does not support posting comments via API");
+      return weasyl.createComment({
+        id: args.postId,
+        body: args.body,
+        apiKey: args.auth?.api_key ?? null,
+        cookies: args.cookies ?? null,
+        ownerLogin: args.ownerLogin ?? null,
+      });
     }
     if (backend === "itaku") {
       return itaku.createComment({
@@ -1747,10 +1771,20 @@ export class ApiService {
       });
     }
     if (backend === "sofurry") {
-      throw new Error("SoFurry does not support posting comments via API");
+      if (args.auth?.api_key) sofurry.setActiveSofurryCookies(args.auth.api_key);
+      const softId =
+        args.softId ||
+        sofurry.softIdForNumeric(args.postId) ||
+        String(args.postId);
+      return sofurry.createComment({ id: softId, body: args.body });
     }
     if (backend === "furaffinity") {
-      await furaffinity.createComment(args.postId, args.body, args.auth?.api_key ?? null);
+      await furaffinity.createComment(
+        args.postId,
+        args.body,
+        args.auth?.api_key ?? null,
+        args.kind === "journal" ? "journal" : "submission",
+      );
       return {
         id: Date.now(),
         created_at: new Date().toISOString(),
