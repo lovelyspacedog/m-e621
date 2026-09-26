@@ -9,12 +9,12 @@
           <h1 class="text-h1 text-center mb-0">{{ APP_NAME }}</h1>
           <a
             v-if="commit && versionLabel"
-            class="landing-commit text-caption"
+            class="landing-commit"
             :href="`https://github.com/lovelyspacedog/m-e621/commit/${commit.hash}`"
             target="_blank"
             rel="noopener"
             :title="`Commit ${versionLabel}`"
-            >{{ versionLabel }}</a
+            >{{ versionLabel.toUpperCase() }}</a
           >
         </div>
         <p class="text-h6 text-center mb-4">{{ tagline }}</p>
@@ -270,16 +270,20 @@ const removeTag = (tag: string) => {
 
 .landing-commit {
   position: absolute;
-  right: 0;
-  top: 100%;
-  margin-top: 0.05rem;
+  left: 100%;
+  bottom: 0.2em;
+  margin-left: 0.4em;
   color: inherit;
   opacity: 0.78;
   text-decoration: none;
   line-height: 1;
   white-space: nowrap;
-  font-weight: 400;
-  letter-spacing: 0.02em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .landing-commit:hover {
