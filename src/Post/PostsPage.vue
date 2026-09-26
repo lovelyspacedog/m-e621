@@ -178,6 +178,47 @@
           </v-list-item>
         </template>
       </v-list>
+      <v-list v-if="siteMode.isVideo" class="pa-0 mt-1 mb-2 unified-sidebar" density="compact">
+        <v-list-item
+          class="sidebar-section-header unified-sidebar__sites-header"
+          @click="toggleVideoSitesOpen"
+        >
+          <template #prepend>
+            <v-icon size="small">
+              {{ videoSitesOpen ? "mdi-chevron-down" : "mdi-chevron-right" }}
+            </v-icon>
+          </template>
+          <v-list-item-title class="text-overline">
+            Sites in this search
+          </v-list-item-title>
+          <template #append>
+            <span class="text-caption text-medium-emphasis mr-1">
+              {{ videoSitesSummary }}
+            </span>
+          </template>
+        </v-list-item>
+        <template v-if="videoSitesOpen">
+          <v-list-item
+            v-for="child in videoSidebarChildren"
+            :key="child"
+          >
+            <template #prepend>
+              <v-icon>{{ unifiedChildIcon(child) }}</v-icon>
+            </template>
+            <v-list-item-title>{{ unifiedChildLabel(child) }}</v-list-item-title>
+            <template #append>
+              <v-switch
+                class="ma-0"
+                color="accent"
+                density="compact"
+                hide-details
+                :model-value="siteMode.videoSites[child]"
+                @update:model-value="siteMode.setVideoChild(child, !!$event)"
+              />
+            </template>
+          </v-list-item>
+        </template>
+      </v-list>
       <feed-layout-menu />
       <v-chip
         v-if="hiddenPostCount > 0"
@@ -301,12 +342,14 @@ import {
 import { orderSupport, type UnifiedOrderKind } from "../misc/util/orderSupport";
 import {
   buildUnifiedFetchArgs,
+  buildVideoFetchArgs,
   postFeedKey,
   unifiedChildIcon,
   unifiedChildLabel,
 } from "../misc/util/postOrigin";
 import { isAudioExt } from "@/misc/util/audioExts";
 import { UNIFIED_CHILD_MODES, type UnifiedFeedSource } from "@/services/types";
+import { VIDEO_CHILD_MODES } from "@/misc/util/videoMode";
 import { modeSupportsFollowing } from "@/misc/util/siteCapabilities";
 import {
   findLocalPathTarget,
@@ -371,6 +414,16 @@ const unifiedSitesSummary = computed(() => {
   const children = unifiedSidebarChildren.value;
   const enabled = children.filter((child) => siteMode.unifiedSites[child]).length;
   return `${enabled}/${children.length} sites`;
+});
+const videoSidebarChildren = VIDEO_CHILD_MODES;
+const videoSitesOpen = ref(readSidebarSectionOpen("video-sites", true));
+const toggleVideoSitesOpen = () => {
+  videoSitesOpen.value = !videoSitesOpen.value;
+  writeSidebarSectionOpen("video-sites", videoSitesOpen.value);
+};
+const videoSitesSummary = computed(() => {
+  const enabled = videoSidebarChildren.filter((child) => siteMode.videoSites[child]).length;
+  return `${enabled}/${videoSidebarChildren.length} sites`;
 });
 const onUnifiedFeedSource = (value: unknown) => {
   if (value === "search" || value === "following") {
@@ -480,8 +533,7 @@ const {
       !siteMode.isWeasyl &&
       !siteMode.isItaku &&
       !siteMode.isSofurry &&
-      !siteMode.isMurrtube &&
-      !siteMode.isBadpups &&
+      !siteMode.isVideo &&
       !siteMode.isTailspace &&
       !siteMode.isNews &&
       !siteMode.isUnified
@@ -515,6 +567,9 @@ const {
       sfwOnly: toRaw(postsStore.sfwOnly),
       unified: siteMode.isUnified
         ? buildUnifiedFetchArgs(main.$state)
+        : undefined,
+      video: siteMode.isVideo
+        ? buildVideoFetchArgs(main.$state)
         : undefined,
     }));
     for (const warning of result.warnings || []) {
@@ -723,6 +778,9 @@ const toggleSaveSearch = async () => {
             sfwOnly: toRaw(postsStore.sfwOnly),
             unified: siteMode.isUnified
               ? buildUnifiedFetchArgs(main.$state)
+              : undefined,
+            video: siteMode.isVideo
+              ? buildVideoFetchArgs(main.$state)
               : undefined,
           }),
         );
@@ -947,8 +1005,7 @@ const sfwTagMode = (): SfwTagMode => {
     siteMode.isWeasyl ||
     siteMode.isItaku ||
     siteMode.isSofurry ||
-    siteMode.isMurrtube ||
-    siteMode.isBadpups ||
+    siteMode.isVideo ||
     siteMode.isLocal ||
     siteMode.isTailspace ||
     siteMode.isNews

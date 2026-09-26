@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from "pinia";
 vi.mock("@/worker/services", () => ({
   getApiService: vi.fn(async () => ({
     resetUnifiedMerge: vi.fn(),
+    resetVideoMerge: vi.fn(),
   })),
 }));
 

@@ -6,11 +6,11 @@ Onboarding for other AI agents. Prefer this file plus `README.md` / `README-CONT
 
 **PawDeck** (`package.json` name `pawdeck`, GitHub `lovelyspacedog/m-e621`) is a personal, AI-assisted fork of [Material e621](https://github.com/avoonix/material-e621). It is a Vue 3 SPA that browses multiple furry imageboards and a local media folder from one UI. User-facing branding lives in `src/misc/util/brand.ts` (`APP_NAME`). Host paths, env vars (`M_E621_*`), and Local sidecars stay `m-e621`. Intended public instance: **https://pawdeck.tonypup.box.ca** (until Expedition cutover, Live may still resolve at `https://pawfeed.tonypup.box.ca`).
 
-Supported **site modes** (`SiteMode` in `src/services/types.ts`): `e621`, `e6ai`, `furbooru`, `inkbunny`, `furaffinity`, `weasyl`, `itaku`, `sofurry`, `murrtube`, `badpups`, `news`, `tailspace`, `local`, `unified`.
+Supported **site modes** (`SiteMode` in `src/services/types.ts`): `e621`, `e6ai`, `furbooru`, `inkbunny`, `furaffinity`, `weasyl`, `itaku`, `sofurry`, `video`, `murrtube`, `badpups`, `news`, `tailspace`, `local`, `unified`. (`murrtube` / `badpups` remain for origin stamps and child profiles; the picker uses `video`.)
 
 - **Federated** is the UI label for SiteMode `"unified"` (code, profiles, URLs, and merge helpers still use `unified`). Date-merges remote gallery children into a Search or Following feed.
-- **Tailspace, News, Local, and XTRA (`murrtube` / `badpups`) are not Federated Posts children.** Greyed on landing chips (`isFederatedIncompatible`).
-- **XTRA mode** (`misc.xtraModeEnabled`, default false): Post settings toggle; when on and `posts.sfwOnly` is off, Murrtube and Badpups appear in the site picker. Proxies: `/api/murrtube/*`, `/api/badpups/*`.
+- **Tailspace, News, Local, and Video (`video` hub; children `murrtube` / `badpups`) are not Federated Posts children.** Greyed on landing chips (`isFederatedIncompatible`).
+- **Video mode** (`misc.videoModeEnabled`, default false): Post settings toggle; when on and `posts.sfwOnly` is off, a Video hub appears in the site picker and merges enabled children via `profiles.video.videoSites`. Proxies: `/api/murrtube/*`, `/api/badpups/*`.
 - Tailspace comics can join **Federated Pools** name browse when `unifiedIncludeTailspaceComics` is on (Pools sidebar **Sites in Pools**; default true; independent of Defaults / Auth-only).
 - **News** (SiteMode `"news"`, UI label News) uses dedicated routes (`/#/news`, legacy `/#/flayrah` redirects) backed by merged public RSS — never `getPosts` / e621 fall-through (same dedicated-chrome pattern as Tailspace).
 - News proxies: Flayrah `GET /api/flayrah/rss?feed=` / `GET /api/flayrah/article/:id`, plus WordPress RSS allowlists for Dogpatch / InFurNation / Furry Writers’ Guild (`/api/news/*`). Custom user feeds: `GET /api/news/custom/rss|article|media?url=` (public https only; SSRF checks + size/rate limits). Offline last-good RSS is cached in IndexedDB; News stays selectable when offline.

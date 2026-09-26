@@ -56,7 +56,7 @@
   </div>
   <div v-else-if="variant === 'chips'" class="site-mode-chips">
     <v-btn
-      v-for="mode in siteMode.siteModes"
+      v-for="mode in chipModes"
       :key="mode"
       size="small"
       class="text-none"
@@ -118,7 +118,8 @@ import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { usePostsStore } from "@/services";
 import { useSiteModeStore } from "@/services/SiteModeStore";
-import type { SiteMode, UnifiedChildMode } from "@/services/types";
+import type { SiteMode, UnifiedChildMode, VideoChildMode } from "@/services/types";
+import { VIDEO_CHILD_MODES } from "@/misc/util/videoMode";
 
 const props = withDefaults(
   defineProps<{
@@ -147,6 +148,13 @@ const selectItems = computed(() =>
   })),
 );
 
+/** Landing chips: while Video is active, append Murrtube/Badpups toggles. */
+const chipModes = computed((): SiteMode[] => {
+  if (!siteMode.isVideo) return siteMode.siteModes;
+  const rest = siteMode.siteModes.filter((m) => m !== "video");
+  return ["video", ...VIDEO_CHILD_MODES, ...rest];
+});
+
 const modeIcon = (mode: SiteMode) => {
   switch (mode) {
     case "e6ai": return "$tanukiAi";
@@ -159,6 +167,7 @@ const modeIcon = (mode: SiteMode) => {
     case "weasyl": return "$weasyl";
     case "itaku": return "$itaku";
     case "sofurry": return "$sofurry";
+    case "video": return "mdi-play-box-multiple";
     case "murrtube": return "mdi-video";
     case "badpups": return "mdi-dog-side";
     case "unified": return "mdi-earth";
@@ -177,6 +186,7 @@ const modeLabel = (mode: SiteMode) => {
     case "weasyl": return "Weasyl";
     case "itaku": return "Itaku";
     case "sofurry": return "SoFurry";
+    case "video": return "Video";
     case "murrtube": return "Murrtube";
     case "badpups": return "Badpups";
     case "unified": return "Federated";
@@ -184,10 +194,23 @@ const modeLabel = (mode: SiteMode) => {
   }
 };
 
-const chipIncluded = (mode: SiteMode) =>
-  siteMode.isUnified &&
-  siteMode.isUnifiedChildMode(mode) &&
-  !!siteMode.unifiedSites[mode as UnifiedChildMode];
+const chipIncluded = (mode: SiteMode) => {
+  if (
+    siteMode.isUnified &&
+    siteMode.isUnifiedChildMode(mode) &&
+    !!siteMode.unifiedSites[mode as UnifiedChildMode]
+  ) {
+    return true;
+  }
+  if (
+    siteMode.isVideo &&
+    siteMode.isVideoChildMode(mode) &&
+    !!siteMode.videoSites[mode as VideoChildMode]
+  ) {
+    return true;
+  }
+  return false;
+};
 
 const chipActive = (mode: SiteMode) =>
   siteMode.activeMode === mode || chipIncluded(mode);
@@ -199,6 +222,9 @@ const chipColor = (mode: SiteMode) =>
   chipActive(mode) ? "secondary" : "white";
 
 const chipDisabled = (mode: SiteMode) => {
+  if (siteMode.isVideoChildMode(mode)) {
+    return !siteMode.isModeOnlineCapable("video");
+  }
   if (!siteMode.isModeOnlineCapable(mode)) return true;
   if (siteMode.isUnified && siteMode.isFederatedIncompatible(mode)) return true;
   return false;
@@ -206,6 +232,9 @@ const chipDisabled = (mode: SiteMode) => {
 
 const chipAriaPressed = (mode: SiteMode) => {
   if (siteMode.isUnified && siteMode.isUnifiedChildMode(mode)) {
+    return chipIncluded(mode);
+  }
+  if (siteMode.isVideo && siteMode.isVideoChildMode(mode)) {
     return chipIncluded(mode);
   }
   return siteMode.activeMode === mode;
@@ -236,6 +265,13 @@ const onChipClick = async (mode: SiteMode) => {
       );
       return;
     }
+    return;
+  }
+  if (siteMode.isVideo && siteMode.isVideoChildMode(mode)) {
+    siteMode.setVideoChild(
+      mode as VideoChildMode,
+      !siteMode.videoSites[mode as VideoChildMode],
+    );
     return;
   }
   await onSelect(mode);

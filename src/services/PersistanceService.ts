@@ -946,6 +946,48 @@ class PersistanceService {
       }
       newState.configVersion = 53;
     }
+    if (newState.configVersion < 54) {
+      if (!newState.misc) {
+        newState.misc = {
+          urls: { e621: "https://e621.net/", proxy: "/api/" },
+          debugLogging: true,
+          videoModeEnabled: false,
+        };
+      } else {
+        const misc = newState.misc as {
+          videoModeEnabled?: boolean;
+          xtraModeEnabled?: boolean;
+        };
+        if (misc.videoModeEnabled === undefined) {
+          misc.videoModeEnabled = !!misc.xtraModeEnabled;
+        }
+        delete misc.xtraModeEnabled;
+      }
+      if (!newState.profiles) {
+        newState.profiles = {} as ISettingsServiceState["profiles"];
+      }
+      if (!newState.profiles.video) {
+        newState.profiles.video = createEmptySiteProfile("video");
+      }
+      const sites = {
+        murrtube: true,
+        badpups: true,
+        ...(newState.profiles.video.videoSites || {}),
+      };
+      if (newState.activeMode === "murrtube" || newState.activeMode === "badpups") {
+        const child = newState.activeMode;
+        sites.murrtube = child === "murrtube" ? true : sites.murrtube !== false;
+        sites.badpups = child === "badpups" ? true : sites.badpups !== false;
+        sites[child] = true;
+        syncMirrorsToActiveProfile(newState);
+        newState.activeMode = "video";
+      }
+      newState.profiles.video.videoSites = {
+        murrtube: sites.murrtube !== false,
+        badpups: sites.badpups !== false,
+      };
+      newState.configVersion = 54;
+    }
     if (
       newState.previousModeBeforeUnified !== null &&
       newState.previousModeBeforeUnified !== undefined &&
@@ -1053,6 +1095,7 @@ class PersistanceService {
         sofurry: createEmptySiteProfile("sofurry"),
         murrtube: createEmptySiteProfile("murrtube"),
         badpups: createEmptySiteProfile("badpups"),
+        video: createEmptySiteProfile("video"),
         unified: createEmptySiteProfile("unified"),
       };
     }
@@ -1069,7 +1112,16 @@ class PersistanceService {
     newState.profiles.sofurry = newState.profiles.sofurry || createEmptySiteProfile("sofurry");
     newState.profiles.murrtube = newState.profiles.murrtube || createEmptySiteProfile("murrtube");
     newState.profiles.badpups = newState.profiles.badpups || createEmptySiteProfile("badpups");
+    newState.profiles.video = newState.profiles.video || createEmptySiteProfile("video");
     newState.profiles.unified = newState.profiles.unified || createEmptySiteProfile("unified");
+    if (!newState.profiles.video.videoSites) {
+      newState.profiles.video.videoSites = { murrtube: true, badpups: true };
+    } else {
+      newState.profiles.video.videoSites = {
+        murrtube: newState.profiles.video.videoSites.murrtube !== false,
+        badpups: newState.profiles.video.videoSites.badpups !== false,
+      };
+    }
     if (!newState.profiles.unified.unifiedSites) {
       newState.profiles.unified.unifiedSites = {
         e621: true,
@@ -1130,15 +1182,30 @@ class PersistanceService {
       newState.activeMode !== "sofurry" &&
       newState.activeMode !== "murrtube" &&
       newState.activeMode !== "badpups" &&
+      newState.activeMode !== "video" &&
       newState.activeMode !== "news" &&
       newState.activeMode !== "unified"
     ) {
       newState.activeMode = "e621";
     }
-    // XTRA modes require the setting and are blocked while SFW only is on.
+    // Legacy top-level XTRA modes → Video hub.
+    if (newState.activeMode === "murrtube" || newState.activeMode === "badpups") {
+      const child = newState.activeMode;
+      if (!newState.profiles.video) {
+        newState.profiles.video = createEmptySiteProfile("video");
+      }
+      newState.profiles.video.videoSites = {
+        murrtube: child === "murrtube" || newState.profiles.video.videoSites?.murrtube !== false,
+        badpups: child === "badpups" || newState.profiles.video.videoSites?.badpups !== false,
+      };
+      newState.profiles.video.videoSites[child] = true;
+      syncMirrorsToActiveProfile(newState);
+      newState.activeMode = "video";
+    }
+    // Video mode requires the setting and is blocked while SFW only is on.
     if (
-      (newState.activeMode === "murrtube" || newState.activeMode === "badpups") &&
-      (!newState.misc?.xtraModeEnabled || newState.posts?.sfwOnly)
+      newState.activeMode === "video" &&
+      (!newState.misc?.videoModeEnabled || newState.posts?.sfwOnly)
     ) {
       syncMirrorsToActiveProfile(newState);
       newState.activeMode = "e621";
@@ -1169,6 +1236,13 @@ class PersistanceService {
       newState.profiles.badpups = createEmptySiteProfile("badpups");
     }
     newState.profiles.badpups.baseUrl = newState.profiles.badpups.baseUrl || SITE_MODE_URLS.badpups;
+    if (!newState.profiles.video) {
+      newState.profiles.video = createEmptySiteProfile("video");
+    }
+    newState.profiles.video.baseUrl = newState.profiles.video.baseUrl || SITE_MODE_URLS.video;
+    if (!newState.profiles.video.videoSites) {
+      newState.profiles.video.videoSites = { murrtube: true, badpups: true };
+    }
     if (!newState.profiles.tailspace) {
       newState.profiles.tailspace = createEmptySiteProfile("tailspace");
     }
@@ -1247,9 +1321,10 @@ class PersistanceService {
     if (newState.misc.debugLogging === undefined) {
       newState.misc.debugLogging = true;
     }
-    if (newState.misc.xtraModeEnabled === undefined) {
-      newState.misc.xtraModeEnabled = false;
+    if (newState.misc.videoModeEnabled === undefined) {
+      newState.misc.videoModeEnabled = !!(newState.misc as { xtraModeEnabled?: boolean }).xtraModeEnabled;
     }
+    delete (newState.misc as { xtraModeEnabled?: boolean }).xtraModeEnabled;
     if (assignLive) {
       setDebugLoggingEnabled(!!newState.misc.debugLogging);
       this.main.$state = newState;

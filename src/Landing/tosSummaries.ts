@@ -465,7 +465,7 @@ export const tosSummaries: TosSummary[] = [
       {
         heading: "PawDeck use",
         bullets: [
-          "Browse and play for personal use through the XTRA-mode adapter",
+          "Browse and play for personal use through the Video-mode adapter",
           "Do not treat this client as an official Murrtube app or API",
         ],
       },
@@ -476,7 +476,7 @@ export const tosSummaries: TosSummary[] = [
     name: "Badpups",
     sourceUrl: "https://badpups.com/",
     sourceLabel: "Site / staff pages",
-    note: "Badpups is a WordPress video site. Prefer any posted rules, upload guidelines, or staff notices on the live site. PawDeck browses public HTML/RSS and Bunny CDN media for personal use when XTRA mode is on.",
+    note: "Badpups is a WordPress video site. Prefer any posted rules, upload guidelines, or staff notices on the live site. PawDeck browses public HTML/RSS and Bunny CDN media for personal use when Video mode is on.",
     sections: [
       {
         heading: "Who it binds",
@@ -488,7 +488,7 @@ export const tosSummaries: TosSummary[] = [
       {
         heading: "PawDeck use",
         bullets: [
-          "Read-only browse and playback when XTRA mode is enabled",
+          "Read-only browse and playback when Video mode is enabled",
           "Not affiliated with Badpups; respect takedowns and site rules",
         ],
       },

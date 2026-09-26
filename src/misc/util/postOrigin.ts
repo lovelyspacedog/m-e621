@@ -1,4 +1,4 @@
-import type { ISettingsServiceState, SiteMode, UnifiedChildMode, UnifiedFeedSource } from "@/services/types";
+import type { ISettingsServiceState, SiteMode, UnifiedChildMode, UnifiedFeedSource, VideoChildMode } from "@/services/types";
 import {
   SITE_MODE_URLS,
   UNIFIED_CHILD_MODES,
@@ -6,6 +6,7 @@ import {
 } from "@/services/types";
 import { createEmptySiteProfile } from "@/services/siteProfiles";
 import { modeSupportsFollowing } from "@/misc/util/siteCapabilities";
+import { defaultVideoSites, VIDEO_CHILD_MODES } from "@/misc/util/videoMode";
 import { toRaw } from "vue";
 
 export type UnifiedChildFetchArgs = {
@@ -20,6 +21,34 @@ export type UnifiedFetchArgs = {
   children: UnifiedChildFetchArgs[];
   sharedBlacklist: string[][];
   feedSource: UnifiedFeedSource;
+};
+
+export type VideoChildFetchArgs = {
+  mode: VideoChildMode;
+  baseUrl: string;
+};
+
+export type VideoFetchArgs = {
+  children: VideoChildFetchArgs[];
+};
+
+export const buildVideoFetchArgs = (
+  state: ISettingsServiceState,
+): VideoFetchArgs => {
+  const sites = {
+    ...defaultVideoSites(),
+    ...toRaw(state.profiles.video?.videoSites),
+  };
+  const children: VideoChildFetchArgs[] = [];
+  for (const mode of VIDEO_CHILD_MODES) {
+    if (!sites[mode]) continue;
+    const profile = toRaw(state.profiles[mode]) || createEmptySiteProfile(mode);
+    children.push({
+      mode,
+      baseUrl: profile.baseUrl || SITE_MODE_URLS[mode],
+    });
+  }
+  return { children };
 };
 
 /** Unified itself or any federated child backend (not Local / Tailspace). */
@@ -44,6 +73,8 @@ export const unifiedChildLabel = (mode: SiteMode | UnifiedChildMode): string => 
       return "Murrtube";
     case "badpups":
       return "Badpups";
+    case "video":
+      return "Video";
     case "unified":
       return "Federated";
     case "local":
@@ -77,6 +108,8 @@ export const unifiedChildIcon = (mode: SiteMode | UnifiedChildMode): string => {
       return "mdi-video";
     case "badpups":
       return "mdi-dog-side";
+    case "video":
+      return "mdi-play-box-multiple";
     case "unified":
       return "mdi-earth";
     case "local":

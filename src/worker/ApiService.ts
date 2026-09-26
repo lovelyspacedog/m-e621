@@ -26,7 +26,7 @@ import * as murrtube from "./murrtube/api";
 import * as badpups from "./badpups/api";
 import * as tailspace from "./tailspace/api";
 import { isPostBlacklisted } from "./blacklist";
-import { BlacklistMode, type SiteMode, type SavedPostEntry } from "@/services/types";
+import { BlacklistMode, type SiteMode, type SavedPostEntry, type VideoChildMode } from "@/services/types";
 import type { UnifiedChildMode } from "@/services/types";
 import { createTagQuery } from "@/misc/util/createTagQuery";
 import {
@@ -37,9 +37,11 @@ import {
 import { debug } from "@/misc/util/debug";
 import { shuffled } from "@/misc/util/shuffle";
 import {
-  unifiedChildLabel,
   type UnifiedChildFetchArgs,
   type UnifiedFetchArgs,
+  type VideoChildFetchArgs,
+  type VideoFetchArgs,
+  unifiedChildLabel,
 } from "@/misc/util/postOrigin";
 import {
   bufferedCount,
@@ -254,11 +256,20 @@ export class ApiService {
   /** Match keys already collapsed in this Federated scroll session. */
   private unifiedDupKeys = new Set<string>();
 
+  /** Sticky merge for Video mode (Murrtube + Badpups). */
+  private videoMerge: UnifiedMergeState<EnhancedPost> | null = null;
+  private videoMergeEpoch = 0;
+
   /** Drop sticky Unified leftovers (tags / children / feed-source / mode change). */
   async resetUnifiedMerge(): Promise<void> {
     this.unifiedMergeEpoch += 1;
     this.unifiedMerge = resetUnifiedMergeState();
     this.unifiedDupKeys.clear();
+  }
+
+  async resetVideoMerge(): Promise<void> {
+    this.videoMergeEpoch += 1;
+    this.videoMerge = resetUnifiedMergeState();
   }
 
   private applyFederatedDuplicateCollapse(
@@ -283,6 +294,7 @@ export class ApiService {
     mode?: SiteMode;
     userId?: number | null;
     unified?: UnifiedFetchArgs;
+    video?: VideoFetchArgs;
     /** Global SFW-only: inject safe constraints at adapters (skip for id:-only). */
     sfwOnly?: boolean;
   }): Promise<GetPostsResult> {
@@ -295,10 +307,14 @@ export class ApiService {
       baseUrl: args.baseUrl,
       hasAuth: Boolean(args.auth?.api_key),
       unifiedChildren: args.unified?.children?.map((c) => c.mode),
+      videoChildren: args.video?.children?.map((c) => c.mode),
       sfwOnly: args.sfwOnly,
     });
     if (args.mode === "unified") {
       return this.getUnifiedPosts(args);
+    }
+    if (args.mode === "video") {
+      return this.getVideoPosts(args);
     }
     const posts = await this.getPostsFromBackend(args);
     return { posts };
@@ -324,6 +340,144 @@ export class ApiService {
         pageNumber,
       },
     }));
+  }
+
+  private async getVideoPosts(args: {
+    page: number;
+    limit: number;
+    tags: string[];
+    blacklist?: string[][];
+    blacklistMode: BlacklistMode;
+    video?: VideoFetchArgs;
+  }): Promise<GetPostsResult> {
+    const children = args.video?.children || [];
+    if (!children.length) {
+      throw new Error("No Video sites enabled (turn on Murrtube and/or Badpups)");
+    }
+
+    const stamp = (
+      posts: EnhancedPost[],
+      child: VideoChildFetchArgs,
+      pageNumber: number,
+    ): EnhancedPost[] =>
+      posts.map((post) => ({
+        ...post,
+        __meta: {
+          ...post.__meta,
+          originMode: child.mode,
+          originBaseUrl: child.baseUrl,
+          pageNumber,
+        },
+      }));
+
+    if (children.length === 1) {
+      const child = children[0];
+      const posts = await this.getPostsFromBackend({
+        page: args.page,
+        limit: args.limit,
+        tags: args.tags,
+        blacklist: args.blacklist,
+        blacklistMode: args.blacklistMode,
+        baseUrl: child.baseUrl,
+        mode: child.mode,
+      });
+      return { posts: stamp(posts, child, args.page) };
+    }
+
+    const key = JSON.stringify({
+      tags: args.tags,
+      limit: args.limit,
+      children: children.map((c) => c.mode),
+    });
+    const sequential =
+      this.videoMerge?.key === key &&
+      args.page === this.videoMerge.lastEmittedPage + 1;
+
+    if (args.page <= 1) {
+      this.videoMergeEpoch += 1;
+      this.videoMerge = initUnifiedMergeState(
+        key,
+        children.map((c) => c.mode),
+      );
+    } else if (!sequential) {
+      const epoch = this.videoMergeEpoch;
+      const groups = await Promise.all(
+        children.map(async (child) => {
+          try {
+            const posts = await this.getPostsFromBackend({
+              page: args.page,
+              limit: args.limit,
+              tags: args.tags,
+              blacklist: args.blacklist,
+              blacklistMode: args.blacklistMode,
+              baseUrl: child.baseUrl,
+              mode: child.mode,
+            });
+            return stamp(posts, child, args.page);
+          } catch {
+            return [] as EnhancedPost[];
+          }
+        }),
+      );
+      const { taken } = takeMergedFromBuffers(groups, args.limit);
+      if (epoch === this.videoMergeEpoch) {
+        this.videoMerge = seedUnifiedMergeAfterLegacy(
+          key,
+          children.map((c) => c.mode),
+          args.page,
+        );
+      }
+      return { posts: taken };
+    }
+
+    const state = this.videoMerge!;
+    const childByMode = new Map(children.map((c) => [c.mode, c]));
+    let guard = 0;
+    while (bufferedCount(state) < args.limit && guard < 20) {
+      guard += 1;
+      const active = state.children.filter((c) => !c.exhausted);
+      if (!active.length) break;
+      const empty = active.filter((c) => c.buffer.length === 0);
+      const toFill = empty.length ? empty : active.slice(0, 1);
+      await Promise.all(
+        toFill.map(async (slot) => {
+          const child = childByMode.get(slot.mode as VideoChildMode);
+          if (!child) {
+            slot.exhausted = true;
+            return;
+          }
+          try {
+            const posts = await this.getPostsFromBackend({
+              page: slot.nextPage,
+              limit: args.limit,
+              tags: args.tags,
+              blacklist: args.blacklist,
+              blacklistMode: args.blacklistMode,
+              baseUrl: child.baseUrl,
+              mode: child.mode,
+            });
+            slot.nextPage += 1;
+            if (!posts.length) {
+              slot.exhausted = true;
+              return;
+            }
+            slot.buffer.push(...stamp(posts, child, args.page));
+          } catch {
+            slot.buffer = [];
+          }
+        }),
+      );
+    }
+
+    const { taken, remaining } = takeMergedFromBuffers(
+      state.children.map((c) => c.buffer),
+      args.limit,
+    );
+    state.children.forEach((c, i) => {
+      c.buffer = remaining[i] || [];
+    });
+    state.lastEmittedPage = args.page;
+    return { posts: taken };
   }
 
   private prepareUnifiedTagsByChild(
@@ -1151,6 +1305,7 @@ export class ApiService {
           ...(post as EnhancedPost).__meta,
           isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
           pageNumber: args.page,
+          originMode: "murrtube",
           murrtube: (post as EnhancedPost).__meta?.murrtube,
         },
       }));
@@ -1175,6 +1330,7 @@ export class ApiService {
           ...(post as EnhancedPost).__meta,
           isBlacklisted: isPostBlacklisted(post, args.blacklist || []),
           pageNumber: args.page,
+          originMode: "badpups",
           badpups: (post as EnhancedPost).__meta?.badpups,
         },
       }));

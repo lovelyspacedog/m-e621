@@ -68,7 +68,12 @@ export interface SavedSearchEntry {
 export const UNGROUPED_FAVORITE_GROUP_ID = "ungrouped";
 export const UNGROUPED_SAVED_SEARCH_GROUP_ID = "ungrouped";
 
-export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "news" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "murrtube" | "badpups" | "unified";
+export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "news" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "murrtube" | "badpups" | "video" | "unified";
+
+/** Child backends under Video mode (origin stamps / site filters). Not Federated children. */
+export type VideoChildMode = "murrtube" | "badpups";
+
+export type VideoSites = Record<VideoChildMode, boolean>;
 
 export type UnifiedChildMode = "e621" | "e6ai" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry";
 
@@ -208,6 +213,7 @@ export const SITE_MODE_URLS: Record<SiteMode, string> = {
   sofurry: "https://www.sofurry.com/",
   murrtube: "https://murrtube.net/",
   badpups: "https://badpups.com/",
+  video: "https://murrtube.net/",
   news: "",
   unified: "",
 };
@@ -263,6 +269,8 @@ export interface SiteProfile {
    * Independent of Defaults / Auth-only presets. Default true.
    */
   unifiedIncludeTailspaceComics?: boolean;
+  /** Which Video-mode children to merge. Only used on the video profile. */
+  videoSites?: VideoSites;
 }
 
 // export interface FavoritedSearch {
@@ -339,7 +347,8 @@ export interface ISettingsServiceState {
     | 50
     | 51
     | 52
-    | 53;
+    | 53
+    | 54;
   activeMode: SiteMode;
   /** Mode before entering Federated; restored when leaving or demoting on landing. */
   previousModeBeforeUnified: SiteMode | null;
@@ -502,9 +511,11 @@ export interface ISettingsServiceState {
      */
     debugLogging: boolean;
     /**
-     * When true, Murrtube and Badpups appear in the site picker (blocked while SFW only is on).
-     * Optional for older snapshots; treat missing as false.
+     * When true, Video mode appears in the site picker (Murrtube + Badpups hub;
+     * blocked while SFW only is on). Optional for older snapshots; treat missing as false.
      */
+    videoModeEnabled?: boolean;
+    /** @deprecated Migrated to videoModeEnabled (configVersion 54). */
     xtraModeEnabled?: boolean;
   };
 }

@@ -2,6 +2,7 @@ import clone from "clone";
 import { toRaw } from "vue";
 import type { ISettingsServiceState, SiteMode, SiteProfile } from "./types";
 import { BlacklistMode, SITE_MODE_URLS, UNGROUPED_FAVORITE_GROUP_ID, defaultUnifiedSites } from "./types";
+import { defaultVideoSites } from "@/misc/util/videoMode";
 import { emptySavedSearchGroups, normalizeSavedSearches } from "./savedSearchNormalize";
 
 const cloneRaw = <T>(value: T, fallback: T): T => {
@@ -53,6 +54,7 @@ export const createEmptySiteProfile = (mode: SiteMode): SiteProfile => ({
         unifiedIncludeTailspaceComics: true,
       }
     : {}),
+  ...(mode === "video" ? { videoSites: defaultVideoSites() } : {}),
 });
 
 export const profileFromMirrors = (state: ISettingsServiceState): SiteProfile => {
@@ -77,6 +79,9 @@ export const profileFromMirrors = (state: ISettingsServiceState): SiteProfile =>
     unifiedIncludeTailspaceComics:
       existing?.unifiedIncludeTailspaceComics ??
       (state.activeMode === "unified" ? true : undefined),
+    videoSites:
+      existing?.videoSites ||
+      (state.activeMode === "video" ? defaultVideoSites() : undefined),
   };
 };
 

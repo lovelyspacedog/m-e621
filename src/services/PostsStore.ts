@@ -212,30 +212,31 @@ export const usePostsStore = defineStore("posts", () => {
     set(value: boolean) {
       main.posts.sfwOnly = value;
       if (value) {
-        // Lazy import avoids circular SiteModeStore ↔ PostsStore init.
         void import("./SiteModeStore").then(({ useSiteModeStore }) => {
-          useSiteModeStore().demoteFromXtra({
-            reason: "XTRA sites are blocked while SFW only is on; switched to e621",
+          useSiteModeStore().demoteFromVideo({
+            reason: "Video mode is blocked while SFW only is on; switched to e621",
           });
         });
       }
     },
   });
-  const xtraModeEnabled = computed({
+  const videoModeEnabled = computed({
     get() {
-      return !!main.misc.xtraModeEnabled;
+      return !!main.misc.videoModeEnabled;
     },
     set(value: boolean) {
-      main.misc.xtraModeEnabled = value;
+      main.misc.videoModeEnabled = value;
       if (!value) {
         void import("./SiteModeStore").then(({ useSiteModeStore }) => {
-          useSiteModeStore().demoteFromXtra({
-            reason: "XTRA mode turned off; switched to e621",
+          useSiteModeStore().demoteFromVideo({
+            reason: "Video mode turned off; switched to e621",
           });
         });
       }
     },
   });
+  /** @deprecated Use videoModeEnabled */
+  const xtraModeEnabled = videoModeEnabled;
   const saveLocalPathTemplate = computed({
     get() {
       return main.posts.saveLocal.pathTemplate;
@@ -315,6 +316,7 @@ export const usePostsStore = defineStore("posts", () => {
     autoplayFeedVideoSilent,
     sfwOnly,
     xtraModeEnabled,
+    videoModeEnabled,
     saveLocalPathTemplate,
     saveLocalDirectoryName,
     openInLocalAfterSave,

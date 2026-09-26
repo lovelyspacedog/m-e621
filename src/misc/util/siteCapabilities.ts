@@ -91,7 +91,10 @@ export const postSupportsInkbunnyGallery = (post: {
 };
 
 export const modeSupportsFluffle = (mode: SiteMode): boolean =>
-  !isDedicatedChromeMode(mode) && mode !== "murrtube" && mode !== "badpups";
+  !isDedicatedChromeMode(mode) &&
+  mode !== "murrtube" &&
+  mode !== "badpups" &&
+  mode !== "video";
 
 /**
  * Sites whose adapters already expose a following/watch feed via

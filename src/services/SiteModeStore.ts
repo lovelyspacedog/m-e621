@@ -8,10 +8,10 @@ import {
 import { supportsLocalBrowse } from "@/misc/util/tauriLocalFs";
 import { hiddenButtonsForMode, modeSupportsFollowing } from "@/misc/util/siteCapabilities";
 import { postSupportsFluffle } from "@/misc/util/fluffleSearch";
-import { isXtraMode, xtraModesSelectable } from "@/misc/util/xtraMode";
+import { isVideoChildMode, isVideoMode, videoModeSelectable, defaultVideoSites, VIDEO_CHILD_MODES } from "@/misc/util/videoMode";
 import { useMainStore } from "./state";
 import { useSnackbarStore } from "./SnackbarStore";
-import type { ButtonType, SiteMode, UnifiedChildMode, UnifiedFeedSource } from "./types";
+import type { ButtonType, SiteMode, UnifiedChildMode, UnifiedFeedSource, VideoChildMode } from "./types";
 import { SITE_MODE_URLS, UNIFIED_CHILD_MODES, defaultUnifiedSites } from "./types";
 import {
   applyActiveProfileToMirrors,
@@ -32,8 +32,7 @@ const ALL_SITE_MODES: SiteMode[] = [
   "weasyl",
   "itaku",
   "sofurry",
-  "murrtube",
-  "badpups",
+  "video",
   "news",
   "local",
   "tailspace",
@@ -58,16 +57,16 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   /** Remote modes need network; Local and News (last-good RSS cache) still work offline. */
   const isModeOnlineCapable = (mode: SiteMode) =>
     mode === "local" || mode === "news" || isOnline.value;
-  const xtraAvailable = computed(() =>
-    xtraModesSelectable({
-      xtraModeEnabled: !!main.misc.xtraModeEnabled,
+  const videoAvailable = computed(() =>
+    videoModeSelectable({
+      videoModeEnabled: !!main.misc.videoModeEnabled,
       sfwOnly: !!main.posts.sfwOnly,
     }),
   );
   const siteModes = computed(() =>
     ALL_SITE_MODES.filter((mode) => {
       if (!isModeSupported(mode)) return false;
-      if (isXtraMode(mode) && !xtraAvailable.value) return false;
+      if (isVideoMode(mode) && !videoAvailable.value) return false;
       return true;
     }),
   );
@@ -83,8 +82,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const isWeasyl = computed(() => main.activeMode === "weasyl");
   const isItaku = computed(() => main.activeMode === "itaku");
   const isSofurry = computed(() => main.activeMode === "sofurry");
-  const isMurrtube = computed(() => main.activeMode === "murrtube");
-  const isBadpups = computed(() => main.activeMode === "badpups");
+  const isVideo = computed(() => main.activeMode === "video");
   const isUnified = computed(() => main.activeMode === "unified");
   const activeLabel = computed(() => {
     switch (main.activeMode) {
@@ -98,12 +96,18 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       case "weasyl": return "Weasyl";
       case "itaku": return "Itaku";
       case "sofurry": return "SoFurry";
+      case "video": return "Video";
       case "murrtube": return "Murrtube";
       case "badpups": return "Badpups";
       case "unified": return "Federated";
       default: return "e621";
     }
   });
+  const videoSites = computed(() => ({
+    ...defaultVideoSites(),
+    ...main.profiles.video?.videoSites,
+  }));
+
   const unifiedSites = computed(() => ({
     ...defaultUnifiedSites(),
     ...main.profiles.unified?.unifiedSites,
@@ -249,8 +253,29 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     }
   };
 
-  const demoteFromXtra = (opts?: { silent?: boolean; reason?: string }) => {
-    if (!isXtraMode(main.activeMode)) return;
+  const setVideoChild = (child: VideoChildMode, enabled: boolean) => {
+    if (!main.profiles.video) {
+      main.profiles.video = createEmptySiteProfile("video");
+    }
+    const next = {
+      ...defaultVideoSites(),
+      ...main.profiles.video.videoSites,
+      [child]: enabled,
+    };
+    // Keep at least one child enabled.
+    if (!next.murrtube && !next.badpups) {
+      snackbar.addMessage("Keep at least one Video site enabled");
+      return;
+    }
+    main.profiles.video.videoSites = next;
+    if (main.activeMode === "video") {
+      void getApiService().then((api) => api.resetVideoMerge());
+      modeChangeCount.value++;
+    }
+  };
+
+  const demoteFromVideo = (opts?: { silent?: boolean; reason?: string }) => {
+    if (!isVideoMode(main.activeMode) && !isVideoChildMode(main.activeMode)) return;
     const fallback: SiteMode = "e621";
     syncMirrorsToActiveProfile(main.$state);
     if (!main.profiles[fallback]) {
@@ -264,6 +289,8 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     }
   };
 
+  const demoteFromXtra = demoteFromVideo;
+
   const setMode = (mode: SiteMode, opts?: { silent?: boolean }) => {
     if (mode === main.activeMode) return;
     if (!isModeSupported(mode)) {
@@ -272,11 +299,28 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       );
       return;
     }
-    if (isXtraMode(mode) && !xtraAvailable.value) {
+    // Legacy deep-links: map old top-level XTRA modes into the Video hub.
+    if (isVideoChildMode(mode)) {
+      if (!main.profiles.video) {
+        main.profiles.video = createEmptySiteProfile("video");
+      }
+      main.profiles.video.videoSites = {
+        ...defaultVideoSites(),
+        ...main.profiles.video.videoSites,
+        [mode]: true,
+      };
+      mode = "video";
+      if (mode === main.activeMode) {
+        void getApiService().then((api) => api.resetVideoMerge());
+        modeChangeCount.value++;
+        return;
+      }
+    }
+    if (isVideoMode(mode) && !videoAvailable.value) {
       snackbar.addMessage(
         main.posts.sfwOnly
-          ? "XTRA sites are blocked while SFW only is on"
-          : "Enable XTRA mode in Post settings to use Murrtube and Badpups",
+          ? "Video mode is blocked while SFW only is on"
+          : "Enable Video mode in Post settings to use Murrtube and Badpups",
       );
       return;
     }
@@ -286,10 +330,9 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     }
     const previous = main.activeMode;
     const previousWasUnified = previous === "unified";
+    const previousWasVideo = previous === "video";
     if (mode === "unified" && !previousWasUnified) {
       main.previousModeBeforeUnified = previous;
-      // Preserve persisted unifiedSites (Defaults / Auth-only / chip picks).
-      // Only create an empty profile when missing — defaults are already all-on.
       if (!main.profiles.unified) {
         main.profiles.unified = createEmptySiteProfile("unified");
       }
@@ -309,6 +352,9 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     modeChangeCount.value++;
     if (mode === "unified" || previousWasUnified) {
       void getApiService().then((api) => api.resetUnifiedMerge());
+    }
+    if (mode === "video" || previousWasVideo) {
+      void getApiService().then((api) => api.resetVideoMerge());
     }
   };
 
@@ -360,16 +406,20 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     mode === "local" ||
     mode === "tailspace" ||
     mode === "news" ||
-    isXtraMode(mode);
+    isVideoMode(mode) ||
+    isVideoChildMode(mode);
 
   /** If restored settings point at an unsupported mode, fall back quietly. */
   const ensureCompatibleActiveMode = () => {
-    if (isXtraMode(main.activeMode) && !xtraAvailable.value) {
-      demoteFromXtra({
+    if (isVideoChildMode(main.activeMode)) {
+      setMode("video", { silent: true });
+    }
+    if (isVideoMode(main.activeMode) && !videoAvailable.value) {
+      demoteFromVideo({
         silent: false,
         reason: main.posts.sfwOnly
-          ? "XTRA sites are blocked while SFW only is on; switched to e621"
-          : "XTRA mode is off; switched to e621",
+          ? "Video mode is blocked while SFW only is on; switched to e621"
+          : "Video mode is off; switched to e621",
       });
       return;
     }
@@ -440,10 +490,14 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     isWeasyl,
     isItaku,
     isSofurry,
-    isMurrtube,
-    isBadpups,
+    isVideo,
     isUnified,
+    demoteFromVideo,
     demoteFromXtra,
+    videoSites,
+    setVideoChild,
+    isVideoChildMode,
+    VIDEO_CHILD_MODES,
     unifiedSites,
     unifiedFeedSource,
     unifiedIncludeTailspaceComics,

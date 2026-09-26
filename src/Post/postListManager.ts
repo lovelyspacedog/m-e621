@@ -138,8 +138,10 @@ export const usePostListManager = ({
       post.__meta.originMode === "furaffinity" || siteMode.isFurAffinity;
     const originSofurry =
       post.__meta.originMode === "sofurry" || siteMode.isSofurry;
-    const originMurrtube = siteMode.isMurrtube;
-    const originBadpups = siteMode.isBadpups;
+    const originMurrtube =
+      post.__meta.originMode === "murrtube" || siteMode.activeMode === "murrtube";
+    const originBadpups =
+      post.__meta.originMode === "badpups" || siteMode.activeMode === "badpups";
     const originWeasyl =
       post.__meta.originMode === "weasyl" || siteMode.isWeasyl;
     const originItaku =
@@ -589,7 +591,10 @@ export const usePostListManager = ({
     detailsPost.value = null;
     useUiStore().fullscreenOpen = false;
     if (siteMode.isUnified) {
-      void getApiService().then((api) => api.resetUnifiedMerge());
+      void getApiService().then((api) => {
+        void api.resetUnifiedMerge();
+        void api.resetVideoMerge();
+      });
     }
   };
 

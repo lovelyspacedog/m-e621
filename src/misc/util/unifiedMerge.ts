@@ -12,7 +12,7 @@ export type MergeablePost = {
 };
 
 export type UnifiedChildBuffer<T extends MergeablePost = MergeablePost> = {
-  mode: UnifiedChildMode;
+  mode: string;
   nextPage: number;
   buffer: T[];
   exhausted: boolean;
@@ -59,7 +59,7 @@ export const bufferedCount = <T extends MergeablePost>(
 
 export const initUnifiedMergeState = <T extends MergeablePost>(
   key: string,
-  modes: UnifiedChildMode[],
+  modes: string[],
 ): UnifiedMergeState<T> => ({
   key,
   lastEmittedPage: 0,
@@ -74,7 +74,7 @@ export const initUnifiedMergeState = <T extends MergeablePost>(
 /** Seed cursors after a non-sequential (legacy) page so forward scroll can resume. */
 export const seedUnifiedMergeAfterLegacy = <T extends MergeablePost>(
   key: string,
-  modes: UnifiedChildMode[],
+  modes: string[],
   emittedPage: number,
 ): UnifiedMergeState<T> => ({
   key,
@@ -93,3 +93,7 @@ export const seedUnifiedMergeAfterLegacy = <T extends MergeablePost>(
  */
 export const resetUnifiedMergeState = <T extends MergeablePost>(): UnifiedMergeState<T> | null =>
   null;
+
+// re-export for callers that typed UnifiedChildMode
+export type { UnifiedChildMode };
+

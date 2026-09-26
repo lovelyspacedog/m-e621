@@ -16,6 +16,14 @@ export interface ChangelogSection {
 export const changelogSections: ChangelogSection[] = [
   {
     date: "2026-09-25",
+    title: "Video mode hub",
+    items: [
+      "Post settings renames XTRA to Video mode: one Video site merges Murrtube and Badpups with per-site toggles (sidebar and landing chips)",
+      "Legacy Murrtube/Badpups site picks migrate into Video; SFW only or turning Video off still demotes to e621",
+    ],
+  },
+  {
+    date: "2026-09-25",
     title: "XTRA video sites",
     items: [
       "Post settings gains XTRA mode: when enabled (and SFW only is off), Murrtube and Badpups join the site list for browse and HLS/MP4 playback",
