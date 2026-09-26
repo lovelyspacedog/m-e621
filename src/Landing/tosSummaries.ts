@@ -545,4 +545,27 @@ export const tosSummaries: TosSummary[] = [
       },
     ],
   },
+  {
+    id: "u18chan",
+    name: "u18chan",
+    sourceUrl: "https://u18chan.com/",
+    sourceLabel: "FAQ / Rules (site home)",
+    note: "Unofficial summary of guest imageboard norms stated on u18chan. Cub Index is not exposed in PawDeck.",
+    sections: [
+      {
+        heading: "Guest posting",
+        paragraphs: [
+          "u18chan is an anonymous imageboard: there is no ordinary signup. Posts use a chosen name (optional tripcode) and a deletion password, not a registered account.",
+        ],
+      },
+      {
+        heading: "Rules to respect",
+        bullets: [
+          "Follow board rules and staff direction; proxies/VPNs may be restricted by the site.",
+          "Do not use PawDeck to browse or post Cub / underage sexual content — that Index is not wired.",
+          "Uploads, bans, and moderation stay on u18chan.com; PawDeck only mirrors catalogs and threads you open.",
+        ],
+      },
+    ],
+  },
 ];

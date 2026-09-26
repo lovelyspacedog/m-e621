@@ -16,6 +16,15 @@ export interface ChangelogSection {
 export const changelogSections: ChangelogSection[] = [
   {
     date: "2026-09-25",
+    title: "u18chan Indices mode",
+    items: [
+      "New dedicated-chrome u18chan site mode: sidebar Indices catalogs (Cub omitted), thread reader with native reply/new-thread compose",
+      "Settings stores optional guest posting name / deletion password; Include u18chan Gore Index is off by default",
+      "Vite and serve.py scrape proxies for catalogs, threads, media, and multipart posts — never fall through to e621 getPosts",
+    ],
+  },
+  {
+    date: "2026-09-25",
     title: "Video cards and Overview",
     items: [
       "Video cards show uploader/artist (Murrtube) and category/general tags; Murrtube tags load as detail pages enrich in the background",

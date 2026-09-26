@@ -41,6 +41,7 @@ export const defaultSettings: ISettingsServiceState = {
     e6ai: createEmptySiteProfile("e6ai"),
     local: createEmptySiteProfile("local"),
     tailspace: createEmptySiteProfile("tailspace"),
+    u18chan: createEmptySiteProfile("u18chan"),
     news: createEmptySiteProfile("news"),
     furbooru: createEmptySiteProfile("furbooru"),
     inkbunny: createEmptySiteProfile("inkbunny"),
@@ -229,6 +230,7 @@ defaultSettings.profiles.e621 = profileFromMirrors(defaultSettings);
 defaultSettings.profiles.e6ai = createEmptySiteProfile("e6ai");
 defaultSettings.profiles.local = createEmptySiteProfile("local");
 defaultSettings.profiles.tailspace = createEmptySiteProfile("tailspace");
+defaultSettings.profiles.u18chan = createEmptySiteProfile("u18chan");
 defaultSettings.profiles.furbooru = createEmptySiteProfile("furbooru");
 defaultSettings.profiles.inkbunny = createEmptySiteProfile("inkbunny");
 defaultSettings.profiles.furaffinity = createEmptySiteProfile("furaffinity");

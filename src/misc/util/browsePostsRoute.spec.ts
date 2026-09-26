@@ -4,6 +4,7 @@ import { browsePostsRoute } from "./browsePostsRoute";
 describe("browsePostsRoute", () => {
   it("maps dedicated chrome to their feed routes", () => {
     expect(browsePostsRoute("tailspace")).toEqual({ name: "TailspacePosts" });
+    expect(browsePostsRoute("u18chan")).toEqual({ name: "U18chanCatalog" });
     expect(browsePostsRoute("news")).toEqual({ name: "NewsFeed" });
   });
 

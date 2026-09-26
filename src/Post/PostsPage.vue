@@ -1008,6 +1008,7 @@ const sfwTagMode = (): SfwTagMode => {
     siteMode.isVideo ||
     siteMode.isLocal ||
     siteMode.isTailspace ||
+    siteMode.isU18chan ||
     siteMode.isNews
   ) {
     return "none";
@@ -1085,7 +1086,7 @@ watch(
 watch(
   () => siteMode.modeChangeCount,
   async (count) => {
-    if (siteMode.isTailspace || siteMode.isNews) return;
+    if (siteMode.isTailspace || siteMode.isU18chan || siteMode.isNews) return;
     onSearchClick.cancel();
     if (siteMode.isLocal) {
       invalidateLocalMediaIndex();
@@ -1096,7 +1097,7 @@ watch(
     }
     clearPosts();
     await removeRouterQuery(["page"]);
-    if (siteMode.isTailspace || siteMode.isNews) return;
+    if (siteMode.isTailspace || siteMode.isU18chan || siteMode.isNews) return;
     if (count !== siteMode.modeChangeCount) return;
     if (siteMode.isLocal) {
       await loadLocalWithResume();

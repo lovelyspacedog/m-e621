@@ -12,6 +12,7 @@ import path from 'path';
 import dns from 'node:dns';
 import { furaffinityProxy } from './vite-furaffinity-proxy'
 import { tailspaceProxy } from './vite-tailspace-proxy'
+import { u18chanProxy } from './vite-u18chan-proxy'
 import { weasylProxy } from './vite-weasyl-proxy'
 import { itakuProxy } from './vite-itaku-proxy'
 import { sofurryProxy } from './vite-sofurry-proxy'
@@ -1078,6 +1079,7 @@ export default defineConfig(({ mode }) => {
       e621CommentsProxy(),
       e621FavoritesProxy(),
       tailspaceProxy(),
+      u18chanProxy(),
       furbooruProxy(),
       inkbunnyProxy(),
       furaffinityProxy(),

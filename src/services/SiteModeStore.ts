@@ -36,6 +36,7 @@ const ALL_SITE_MODES: SiteMode[] = [
   "news",
   "local",
   "tailspace",
+  "u18chan",
 ];
 
 /** Local needs Chromium FSA or the Tauri desktop shell. */
@@ -75,6 +76,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   );
   const isLocal = computed(() => main.activeMode === "local");
   const isTailspace = computed(() => main.activeMode === "tailspace");
+  const isU18chan = computed(() => main.activeMode === "u18chan");
   const isNews = computed(() => main.activeMode === "news");
   const isFurbooru = computed(() => main.activeMode === "furbooru");
   const isInkbunny = computed(() => main.activeMode === "inkbunny");
@@ -89,6 +91,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
       case "e6ai": return "e6ai";
       case "local": return "local";
       case "tailspace": return "tailspace";
+      case "u18chan": return "u18chan";
       case "news": return "News";
       case "furbooru": return "Furbooru";
       case "inkbunny": return "Inkbunny";
@@ -120,6 +123,21 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const unifiedIncludeTailspaceComics = computed(
     () => main.profiles.unified?.unifiedIncludeTailspaceComics !== false,
   );
+
+  const u18chanIncludeGore = computed(
+    () => main.profiles.u18chan?.u18chanIncludeGore === true,
+  );
+
+  const setU18chanIncludeGore = (enabled: boolean) => {
+    if (!main.profiles.u18chan) {
+      main.profiles.u18chan = createEmptySiteProfile("u18chan");
+    }
+    if (main.profiles.u18chan.u18chanIncludeGore === enabled) return;
+    main.profiles.u18chan.u18chanIncludeGore = enabled;
+    if (main.activeMode === "u18chan") {
+      modeChangeCount.value++;
+    }
+  };
 
   const setUnifiedIncludeTailspaceComics = (enabled: boolean) => {
     if (!main.profiles.unified) {
@@ -405,6 +423,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
   const isFederatedIncompatible = (mode: SiteMode) =>
     mode === "local" ||
     mode === "tailspace" ||
+    mode === "u18chan" ||
     mode === "news" ||
     isVideoMode(mode) ||
     isVideoChildMode(mode);
@@ -483,6 +502,7 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     supportsSavedPosts,
     isLocal,
     isTailspace,
+    isU18chan,
     isNews,
     isFurbooru,
     isInkbunny,
@@ -502,6 +522,8 @@ export const useSiteModeStore = defineStore("site-mode", () => {
     unifiedFeedSource,
     unifiedIncludeTailspaceComics,
     setUnifiedIncludeTailspaceComics,
+    u18chanIncludeGore,
+    setU18chanIncludeGore,
     setUnifiedChild,
     setUnifiedFeedSource,
     applyUnifiedSitesPreset,

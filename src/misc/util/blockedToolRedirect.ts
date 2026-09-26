@@ -7,5 +7,6 @@ import type { SiteMode } from "@/services/types";
 export const blockedToolRedirectName = (mode: SiteMode): string => {
   if (mode === "news") return "NewsFeed";
   if (mode === "tailspace") return "TailspacePosts";
+  if (mode === "u18chan") return "U18chanCatalog";
   return "Posts";
 };

@@ -68,7 +68,7 @@ export interface SavedSearchEntry {
 export const UNGROUPED_FAVORITE_GROUP_ID = "ungrouped";
 export const UNGROUPED_SAVED_SEARCH_GROUP_ID = "ungrouped";
 
-export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "news" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "murrtube" | "badpups" | "video" | "unified";
+export type SiteMode = "e621" | "e6ai" | "local" | "tailspace" | "u18chan" | "news" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry" | "murrtube" | "badpups" | "video" | "unified";
 
 /** Child backends under Video mode (origin stamps / site filters). Not Federated children. */
 export type VideoChildMode = "murrtube" | "badpups";
@@ -205,6 +205,7 @@ export const SITE_MODE_URLS: Record<SiteMode, string> = {
   e6ai: "https://e6ai.net/",
   local: "",
   tailspace: "https://tailspace.com/",
+  u18chan: "https://u18chan.com/",
   furbooru: "https://furbooru.org/",
   inkbunny: "https://inkbunny.net/",
   furaffinity: "https://www.furaffinity.net/",
@@ -269,6 +270,11 @@ export interface SiteProfile {
    * Independent of Defaults / Auth-only presets. Default true.
    */
   unifiedIncludeTailspaceComics?: boolean;
+  /**
+   * u18chan: show Gore Index in the sidebar. Default false.
+   * Cub Index is never available.
+   */
+  u18chanIncludeGore?: boolean;
   /** Which Video-mode children to merge. Only used on the video profile. */
   videoSites?: VideoSites;
 }

@@ -9,6 +9,7 @@ import {
 } from "@/misc/util/siteCapabilities";
 import { peekNewsCachedArticles } from "@/worker/news/api";
 import { browsePostsRoute } from "@/misc/util/browsePostsRoute";
+import { visibleU18chanIndices } from "@/misc/util/u18chanBoards";
 import { computed } from "vue";
 import { useRouter, type RouteLocationRaw } from "vue-router";
 
@@ -28,7 +29,11 @@ export type NavLinkItem = {
   icon: string;
   name: string;
   exact: boolean;
-  to: { name: string; query?: Record<string, string> };
+  to: {
+    name: string;
+    query?: Record<string, string>;
+    params?: Record<string, string>;
+  };
   badge?: number;
   resolved: string;
 };
@@ -39,7 +44,11 @@ const resolveItem = (
     icon: string;
     name: string;
     exact: boolean;
-    to: { name: string; query?: Record<string, string> };
+    to: {
+      name: string;
+      query?: Record<string, string>;
+      params?: Record<string, string>;
+    };
     badge?: number;
   },
 ): NavLinkItem => ({
@@ -208,6 +217,22 @@ export const useTrailingNavigationItems = () => {
         },
         settings,
       ].map((item) => resolveItem(router, item));
+    }
+
+    // u18chan: Indices catalogs (+ optional Gore) + Settings
+    if (siteMode.isU18chan) {
+      const indices = visibleU18chanIndices(siteMode.u18chanIncludeGore).map(
+        (board) => ({
+          icon: board.icon,
+          name: board.label.replace(/ Index$/, ""),
+          exact: false,
+          to: {
+            name: "U18chanCatalog",
+            params: { board: board.index },
+          },
+        }),
+      );
+      return [...indices, settings].map((item) => resolveItem(router, item));
     }
 
     const poolItems = modeSupportsPools(siteMode.activeMode)

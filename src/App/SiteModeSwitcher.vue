@@ -160,6 +160,7 @@ const modeIcon = (mode: SiteMode) => {
     case "e6ai": return "$tanukiAi";
     case "local": return "mdi-harddisk";
     case "tailspace": return "mdi-rocket-launch";
+    case "u18chan": return "mdi-view-grid-plus";
     case "news": return "mdi-newspaper";
     case "furbooru": return "mdi-dog";
     case "inkbunny": return "mdi-rabbit";
@@ -179,6 +180,7 @@ const modeLabel = (mode: SiteMode) => {
   switch (mode) {
     case "local": return "Local";
     case "tailspace": return "Tailspace";
+    case "u18chan": return "u18chan";
     case "news": return "News";
     case "furbooru": return "Furbooru";
     case "inkbunny": return "Inkbunny";
@@ -242,6 +244,7 @@ const chipAriaPressed = (mode: SiteMode) => {
 
 const postsRouteFor = (mode: SiteMode) => {
   if (mode === "tailspace") return { name: "TailspacePosts" as const };
+  if (mode === "u18chan") return { name: "U18chanCatalog" as const };
   if (mode === "news") return { name: "NewsFeed" as const };
   return { name: "Posts" as const, query: {} };
 };

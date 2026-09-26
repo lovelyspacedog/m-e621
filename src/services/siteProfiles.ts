@@ -54,6 +54,7 @@ export const createEmptySiteProfile = (mode: SiteMode): SiteProfile => ({
         unifiedIncludeTailspaceComics: true,
       }
     : {}),
+  ...(mode === "u18chan" ? { u18chanIncludeGore: false } : {}),
   ...(mode === "video" ? { videoSites: defaultVideoSites() } : {}),
 });
 
@@ -79,6 +80,9 @@ export const profileFromMirrors = (state: ISettingsServiceState): SiteProfile =>
     unifiedIncludeTailspaceComics:
       existing?.unifiedIncludeTailspaceComics ??
       (state.activeMode === "unified" ? true : undefined),
+    u18chanIncludeGore:
+      existing?.u18chanIncludeGore ??
+      (state.activeMode === "u18chan" ? false : undefined),
     videoSites:
       existing?.videoSites ||
       (state.activeMode === "video" ? defaultVideoSites() : undefined),
@@ -126,6 +130,9 @@ export const profileHasAuthMaterial = (
       return !!key; // session cookies
     case "tailspace":
       return !!key; // session cookie
+    case "u18chan":
+      // Guest posting; optional name / delete password counted as identity.
+      return !!user || !!key;
     default:
       return false;
   }

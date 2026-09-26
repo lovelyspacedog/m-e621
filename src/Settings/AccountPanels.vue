@@ -115,6 +115,7 @@
     <account-itaku-panel />
     <account-sofurry-panel />
     <account-tailspace-panel />
+    <account-u18chan-panel />
   </v-expansion-panels>
 </template>
 
@@ -128,6 +129,7 @@ import AccountWeasylPanel from "./account/AccountWeasylPanel.vue";
 import AccountItakuPanel from "./account/AccountItakuPanel.vue";
 import AccountSofurryPanel from "./account/AccountSofurryPanel.vue";
 import AccountTailspacePanel from "./account/AccountTailspacePanel.vue";
+import AccountU18chanPanel from "./account/AccountU18chanPanel.vue";
 import {
   clearAuthProbe,
   emptyAuth,
@@ -149,7 +151,8 @@ type AccountMode =
   | "weasyl"
   | "itaku"
   | "sofurry"
-  | "tailspace";
+  | "tailspace"
+  | "u18chan";
 
 type KeySite = {
   mode: KeySiteMode;
@@ -203,6 +206,7 @@ const signedInModes = (): AccountMode[] => {
     "itaku",
     "sofurry",
     "tailspace",
+    "u18chan",
   ];
   return modes.filter((mode) => {
     const account = liveAccount(main.$state, mode);

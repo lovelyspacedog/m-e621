@@ -480,6 +480,7 @@ class PersistanceService {
         e6ai: createEmptySiteProfile("e6ai"),
         local: createEmptySiteProfile("local"),
         tailspace: createEmptySiteProfile("tailspace"),
+        u18chan: createEmptySiteProfile("u18chan"),
         news: createEmptySiteProfile("news"),
         furbooru: createEmptySiteProfile("furbooru"),
         inkbunny: createEmptySiteProfile("inkbunny"),
@@ -489,6 +490,7 @@ class PersistanceService {
         sofurry: createEmptySiteProfile("sofurry"),
         murrtube: createEmptySiteProfile("murrtube"),
         badpups: createEmptySiteProfile("badpups"),
+        video: createEmptySiteProfile("video"),
         unified: createEmptySiteProfile("unified"),
       };
       // Current flat fields become the active mode's profile (usually e621).
@@ -513,6 +515,7 @@ class PersistanceService {
           e6ai: createEmptySiteProfile("e6ai"),
           local: createEmptySiteProfile("local"),
           tailspace: createEmptySiteProfile("tailspace"),
+          u18chan: createEmptySiteProfile("u18chan"),
           news: createEmptySiteProfile("news"),
           furbooru: createEmptySiteProfile("furbooru"),
           inkbunny: createEmptySiteProfile("inkbunny"),
@@ -522,6 +525,7 @@ class PersistanceService {
           sofurry: createEmptySiteProfile("sofurry"),
           murrtube: createEmptySiteProfile("murrtube"),
           badpups: createEmptySiteProfile("badpups"),
+          video: createEmptySiteProfile("video"),
           unified: createEmptySiteProfile("unified"),
         };
       } else {
@@ -719,6 +723,7 @@ class PersistanceService {
           e6ai: createEmptySiteProfile("e6ai"),
           local: createEmptySiteProfile("local"),
           tailspace: createEmptySiteProfile("tailspace"),
+          u18chan: createEmptySiteProfile("u18chan"),
           news: createEmptySiteProfile("news"),
           furbooru: createEmptySiteProfile("furbooru"),
           inkbunny: createEmptySiteProfile("inkbunny"),
@@ -728,6 +733,7 @@ class PersistanceService {
           sofurry: createEmptySiteProfile("sofurry"),
           murrtube: createEmptySiteProfile("murrtube"),
           badpups: createEmptySiteProfile("badpups"),
+          video: createEmptySiteProfile("video"),
           unified: createEmptySiteProfile("unified"),
         };
       } else if (!newState.profiles.news) {
@@ -1093,6 +1099,7 @@ class PersistanceService {
         e6ai: createEmptySiteProfile("e6ai"),
         local: createEmptySiteProfile("local"),
         tailspace: createEmptySiteProfile("tailspace"),
+        u18chan: createEmptySiteProfile("u18chan"),
         news: createEmptySiteProfile("news"),
         furbooru: createEmptySiteProfile("furbooru"),
         inkbunny: createEmptySiteProfile("inkbunny"),
@@ -1110,6 +1117,7 @@ class PersistanceService {
     newState.profiles.e6ai = newState.profiles.e6ai || createEmptySiteProfile("e6ai");
     newState.profiles.local = newState.profiles.local || createEmptySiteProfile("local");
     newState.profiles.tailspace = newState.profiles.tailspace || createEmptySiteProfile("tailspace");
+    newState.profiles.u18chan = newState.profiles.u18chan || createEmptySiteProfile("u18chan");
     newState.profiles.news = newState.profiles.news || createEmptySiteProfile("news");
     newState.profiles.furbooru = newState.profiles.furbooru || createEmptySiteProfile("furbooru");
     newState.profiles.inkbunny = newState.profiles.inkbunny || createEmptySiteProfile("inkbunny");
@@ -1254,6 +1262,14 @@ class PersistanceService {
       newState.profiles.tailspace = createEmptySiteProfile("tailspace");
     }
     newState.profiles.tailspace.baseUrl = newState.profiles.tailspace.baseUrl || SITE_MODE_URLS.tailspace;
+    if (!newState.profiles.u18chan) {
+      newState.profiles.u18chan = createEmptySiteProfile("u18chan");
+    }
+    newState.profiles.u18chan.baseUrl =
+      newState.profiles.u18chan.baseUrl || SITE_MODE_URLS.u18chan;
+    if (newState.profiles.u18chan.u18chanIncludeGore === undefined) {
+      newState.profiles.u18chan.u18chanIncludeGore = false;
+    }
     if (!newState.profiles.news) {
       newState.profiles.news = createEmptySiteProfile("news");
     }

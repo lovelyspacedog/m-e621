@@ -23,7 +23,9 @@
           {{
             siteMode.isNews
               ? "News uses its own feed — pick a site above or browse headlines."
-              : "Tailspace uses its own browse feed — pick a site above or open posts."
+              : siteMode.isU18chan
+                ? "u18chan uses Indices catalogs — pick a site above or open an Index."
+                : "Tailspace uses its own browse feed — pick a site above or open posts."
           }}
         </p>
         <div class="d-flex flex-wrap justify-center align-center ga-3">
@@ -218,7 +220,7 @@ const capabilities = computed(() => [
 ]);
 
 const showTagSearch = computed(
-  () => !siteMode.isTailspace && !siteMode.isNews,
+  () => !siteMode.isTailspace && !siteMode.isU18chan && !siteMode.isNews,
 );
 const searchLabel = computed(() => (siteMode.isLocal ? "Fuzzy search …" : "Search tags …"));
 
@@ -226,12 +228,14 @@ const tags = ref<string[]>([]);
 const query = computed<RouteLocationRaw>(() =>
   siteMode.isTailspace
     ? { name: "TailspacePosts" }
-    : siteMode.isNews
-      ? { name: "NewsFeed" }
-      : {
-          name: "Posts",
-          query: tags.value.length ? { tags: tags.value.join(" ") } : {},
-        },
+    : siteMode.isU18chan
+      ? { name: "U18chanCatalog" }
+      : siteMode.isNews
+        ? { name: "NewsFeed" }
+        : {
+            name: "Posts",
+            query: tags.value.length ? { tags: tags.value.join(" ") } : {},
+          },
 );
 const addTag = (tag: string) => tags.value.push(tag);
 const removeTag = (tag: string) => {

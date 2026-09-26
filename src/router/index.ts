@@ -371,6 +371,18 @@ const router = createRouter({
         import(/* webpackChunkName: "tailspace" */ "@/Tailspace/TailspaceComicReader.vue"),
     },
     {
+      path: "/u18chan/:board/thread/:id",
+      name: "U18chanThread",
+      component: () =>
+        import(/* webpackChunkName: "u18chan" */ "@/U18chan/U18chanThreadPage.vue"),
+    },
+    {
+      path: "/u18chan/:board?",
+      name: "U18chanCatalog",
+      component: () =>
+        import(/* webpackChunkName: "u18chan" */ "@/U18chan/U18chanCatalogPage.vue"),
+    },
+    {
       path: "/news",
       name: "NewsFeed",
       component: () =>
@@ -448,6 +460,7 @@ router.beforeEach((to, from) => {
       "TailspaceComic",
       "TailspaceFollowing",
     ]);
+    const u18chanRoutes = new Set(["U18chanCatalog", "U18chanThread"]);
     const newsRoutes = new Set([
       "NewsFeed",
       "NewsArticle",
@@ -487,6 +500,9 @@ router.beforeEach((to, from) => {
     if (mode === "tailspace" && e621ShapedRoutes.has(String(to.name))) {
       return { name: "TailspacePosts", query: to.query };
     }
+    if (mode === "u18chan" && e621ShapedRoutes.has(String(to.name))) {
+      return { name: "U18chanCatalog", query: to.query };
+    }
     if (mode === "news" && e621ShapedRoutes.has(String(to.name))) {
       return { name: "NewsFeed", query: to.query };
     }
@@ -495,6 +511,9 @@ router.beforeEach((to, from) => {
       if (!(mode === "unified" && to.name === "TailspaceComic")) {
         return { name: "Posts", query: to.query };
       }
+    }
+    if (mode !== "u18chan" && u18chanRoutes.has(String(to.name))) {
+      return { name: "Posts", query: to.query };
     }
     if (mode !== "news" && newsRoutes.has(String(to.name))) {
       return { name: "Posts", query: to.query };

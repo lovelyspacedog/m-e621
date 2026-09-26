@@ -29,6 +29,8 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlencode, urljoin, urlparse
 
+import u18chan_proxy as u18chan_px
+
 
 class _NoHTTPRedirect(urllib.request.HTTPRedirectHandler):
     """Do not auto-follow redirects — callers re-validate each hop (M27)."""
@@ -366,6 +368,11 @@ TAILSPACE_AUTH_POSTS = {
     "/api/tailspace/follow",
 }
 TAILSPACE_SESSION_HEADER = "X-Tailspace-Session"
+
+U18CHAN_CATALOG_PATH = re.compile(r"^/api/u18chan/catalog$")
+U18CHAN_THREAD_PATH = re.compile(r"^/api/u18chan/thread$")
+U18CHAN_MEDIA_PATH = re.compile(r"^/api/u18chan/media$")
+U18CHAN_POST_PATH = "/api/u18chan/post"
 
 FURBOORU_BASE = "https://furbooru.org"
 FURBOORU_IMAGES_PATH = re.compile(r"^/api/furbooru/images$")
@@ -2699,6 +2706,70 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self._json(404, {"ok": False, "message": "not found"})
 
     # ------------------------------------------------------------------
+    # u18chan proxy helpers
+    # ------------------------------------------------------------------
+
+    def _proxy_u18chan_catalog(self, parsed) -> None:  # noqa: ANN001
+        qs = parse_qs(parsed.query)
+        board = (qs.get("board") or [""])[0].lower()
+        try:
+            u18chan_px.assert_board_allowed(board)
+            if board not in u18chan_px.ALLOWED_INDEX:
+                raise ValueError("not an index board")
+            html = u18chan_px.fetch_html(f"{u18chan_px.U18CHAN_BASE}/{board}/")
+            self._json(200, {"threads": u18chan_px.parse_catalog(html)})
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"error": str(exc)})
+
+    def _proxy_u18chan_thread(self, parsed) -> None:  # noqa: ANN001
+        qs = parse_qs(parsed.query)
+        board = (qs.get("board") or [""])[0].lower()
+        index = (qs.get("index") or [board])[0].lower()
+        try:
+            topic_id = int((qs.get("id") or ["0"])[0])
+        except ValueError:
+            self._json(400, {"error": "bad thread id"})
+            return
+        try:
+            u18chan_px.assert_board_allowed(board)
+            if not topic_id:
+                raise ValueError("bad thread request")
+            html = u18chan_px.fetch_html(
+                f"{u18chan_px.U18CHAN_BASE}/{board}/topic/{topic_id}"
+            )
+            self._json(
+                200, u18chan_px.parse_thread(html, board, topic_id, index)
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"error": str(exc)})
+
+    def _proxy_u18chan_media(self, parsed) -> None:  # noqa: ANN001
+        qs = parse_qs(parsed.query)
+        url = (qs.get("url") or [""])[0]
+        try:
+            body, ctype = u18chan_px.fetch_media(url)
+        except Exception as exc:  # noqa: BLE001
+            self._json(400, {"error": str(exc)})
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "private, max-age=3600")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _proxy_u18chan_post(self, body: bytes) -> None:
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}")
+            if not isinstance(payload, dict):
+                raise ValueError("object required")
+            result = u18chan_px.post_multipart(payload)
+            self._json(200, result)
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "error": str(exc)})
+
+    # ------------------------------------------------------------------
     # Weasyl proxy helpers
     # ------------------------------------------------------------------
 
@@ -4238,6 +4309,15 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if TAILSPACE_FEED_PATH.match(path):
             self._proxy_tailspace_feed(parsed)
             return
+        if U18CHAN_CATALOG_PATH.match(path):
+            self._proxy_u18chan_catalog(parsed)
+            return
+        if U18CHAN_THREAD_PATH.match(path):
+            self._proxy_u18chan_thread(parsed)
+            return
+        if U18CHAN_MEDIA_PATH.match(path):
+            self._proxy_u18chan_media(parsed)
+            return
         if FURBOORU_IMAGES_PATH.match(path):
             self._proxy_furbooru_images(parsed)
             return
@@ -4460,6 +4540,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
 
         if path in TAILSPACE_AUTH_POSTS:
             self._proxy_tailspace_auth_post(path, body)
+            return
+
+        if path == U18CHAN_POST_PATH:
+            self._proxy_u18chan_post(body)
             return
 
         if path != "/api/git/pull":

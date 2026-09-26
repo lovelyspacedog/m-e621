@@ -76,6 +76,8 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { label: "Go fullscreen", keywords: ["fullscreen"], section: "posts", hash: "buttons" },
   { label: "SFW only", keywords: ["sfw", "safe", "nsfw", "rating", "work safe"], section: "posts", hash: "layout" },
   { label: "Video mode", keywords: ["video", "xtra", "murrtube", "badpups", "extra sites"], section: "posts", hash: "layout" },
+  { label: "u18chan Gore Index", keywords: ["u18chan", "gore", "indices", "index"], section: "account", hash: "accounts" },
+  { label: "u18chan posting identity", keywords: ["u18chan", "tripcode", "guest", "chan"], section: "account", hash: "accounts" },
   { label: "Grid layout", keywords: ["grid", "layout", "feed", "compact"], section: "posts", hash: "layout" },
   { label: "Full-width feed", keywords: ["full-width", "full width", "layout"], section: "posts", hash: "layout" },
   { label: "Compact cards", keywords: ["compact", "hover", "tags"], section: "posts", hash: "layout" },

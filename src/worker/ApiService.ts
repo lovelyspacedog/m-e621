@@ -67,6 +67,9 @@ const isFurAffinityUrl = (baseUrl: string) =>
   /(?:^|\.)furaffinity\.net(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
 const isTailspaceUrl = (baseUrl: string) =>
   /(?:^|\.)tailspace\.com(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
+
+const isU18chanUrl = (baseUrl: string) =>
+  /(?:^|\.)u18chan\.com(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
 const isWeasylUrl = (baseUrl: string) =>
   /(?:^|\.)weasyl\.com(?:\/|$)/i.test(baseUrl.replace(/^https?:\/\//i, ""));
 const isItakuUrl = (baseUrl: string) =>
@@ -88,6 +91,7 @@ type ApiBackend =
   | "furbooru"
   | "inkbunny"
   | "tailspace"
+  | "u18chan"
   | "furaffinity"
   | "weasyl"
   | "itaku"
@@ -101,7 +105,7 @@ type ApiBackend =
  * types + SITE_MODE_URLS + empty profile + SiteModeStore + nav/router guards +
  * worker adapter + Vite/serve.py proxy + siteCapabilities flags.
  * Never fall through to the e621 client (comments/notes/pools/analyzer/…).
- * Post Suggester is multi-mode via AnalyzeService; Tailspace/News still blocked here.
+ * Post Suggester is multi-mode via AnalyzeService; Tailspace/News/u18chan still blocked here.
  * UA / `_client`: `PawDeck/<git>`. See Markdowns/AI_CONTEXT.md.
  */
 const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
@@ -109,6 +113,7 @@ const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
   if (mode === "inkbunny") return "inkbunny";
   if (mode === "furaffinity") return "furaffinity";
   if (mode === "tailspace") return "tailspace";
+  if (mode === "u18chan") return "u18chan";
   if (mode === "news") return "news";
   if (mode === "weasyl") return "weasyl";
   if (mode === "itaku") return "itaku";
@@ -120,6 +125,7 @@ const resolveApiBackend = (baseUrl: string, mode?: SiteMode): ApiBackend => {
   if (isInkbunnyUrl(baseUrl)) return "inkbunny";
   if (isFurAffinityUrl(baseUrl)) return "furaffinity";
   if (isTailspaceUrl(baseUrl)) return "tailspace";
+  if (isU18chanUrl(baseUrl)) return "u18chan";
   if (isNewsUrl(baseUrl)) return "news";
   if (isWeasylUrl(baseUrl)) return "weasyl";
   if (isItakuUrl(baseUrl)) return "itaku";
@@ -137,6 +143,18 @@ const assertNotTailspace = (
   if (resolveApiBackend(baseUrl, mode) === "tailspace") {
     throw new Error(
       `${method} is not available for Tailspace; use the Tailspace pages instead`,
+    );
+  }
+};
+
+const assertNotU18chan = (
+  baseUrl: string,
+  method: string,
+  mode?: SiteMode,
+) => {
+  if (resolveApiBackend(baseUrl, mode) === "u18chan") {
+    throw new Error(
+      `${method} is not available for u18chan; use the u18chan pages instead`,
     );
   }
 };
@@ -159,6 +177,7 @@ const assertNotDedicatedChrome = (
   mode?: SiteMode,
 ) => {
   assertNotTailspace(baseUrl, method, mode);
+  assertNotU18chan(baseUrl, method, mode);
   assertNotNews(baseUrl, method, mode);
 };
 
