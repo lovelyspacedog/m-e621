@@ -20,6 +20,8 @@ export const changelogSections: ChangelogSection[] = [
     items: [
       "Post settings renames XTRA to Video mode: one Video site merges Murrtube and Badpups with per-site toggles (sidebar and landing chips)",
       "Legacy Murrtube/Badpups site picks migrate into Video; SFW only or turning Video off still demotes to e621",
+      "Video Layout gains its own Autoplay video switch (independent of Media → Autoplay video in feed)",
+      "Video cards show the clip title on the site chip after the icon (truncated when long)",
     ],
   },
   {

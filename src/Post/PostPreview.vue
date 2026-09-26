@@ -181,7 +181,7 @@ import {
   type PlaybackMediaKind,
 } from "@/misc/util/playbackPrefs";
 import { attachHls, urlLooksLikeHls, type HlsHandle } from "@/misc/util/hlsPlayback";
-import { useMainStore, usePostsStore, useSnackbarStore } from "@/services";
+import { useMainStore, usePostsStore, useSnackbarStore, useSiteModeStore } from "@/services";
 import { type SiteMode } from "@/services/types";
 import type { File, Preview, Sample } from "@/worker/api";
 import type { PropType } from "vue";
@@ -248,6 +248,7 @@ export default defineComponent({
   emits: ["open-post", "expand-chrome", "remuxed"],
   setup(props, context) {
     const posts = usePostsStore();
+    const siteMode = useSiteModeStore();
     const main = useMainStore();
     const snackbar = useSnackbarStore();
     const tryRemuxTip = inject<() => void>("tryRemuxTip", () => undefined);
@@ -256,6 +257,12 @@ export default defineComponent({
     const naturalRatio = ref<number | null>(null);
     const mediaFailed = ref(false);
     const videoLoadFailed = ref(false);
+    /** Video hub uses its own Layout toggle; other modes use global Media autoplay. */
+    const feedAutoplayVideo = computed(() =>
+      siteMode.isVideo
+        ? posts.videoModeAutoplayFeedVideo
+        : posts.autoplayFeedVideo,
+    );
     const isSwf = computed(() => props.file.ext === "swf");
     const isVideo = computed(() => VIDEO_EXTS.has(props.file.ext));
     const isAudio = computed(() => isAudioExt(props.file.ext));
@@ -400,7 +407,7 @@ export default defineComponent({
     let videoIsIntersecting = false;
     let hlsHandle: HlsHandle | null = null;
     // With feed autoplay, only keep src while on-screen so off-screen cards free buffers.
-    const videoSrcLive = ref(!posts.autoplayFeedVideo);
+    const videoSrcLive = ref(!feedAutoplayVideo.value);
 
     const applyPlaybackPrefs = (el: HTMLVideoElement, forAutoplay = false) => {
       const prefs = resolvedPlayback();
@@ -419,7 +426,7 @@ export default defineComponent({
 
     const releaseVideoBuffer = (el: HTMLVideoElement) => {
       el.pause();
-      if (!posts.autoplayFeedVideo) return;
+      if (!feedAutoplayVideo.value) return;
       videoSrcLive.value = false;
       destroyHls();
       // Drop decoder/network buffers immediately; poster still shows.
@@ -428,8 +435,8 @@ export default defineComponent({
     };
 
     const playWhenVisible = (el: HTMLVideoElement, force = false) => {
-      if (!force && !posts.autoplayFeedVideo) return;
-      applyPlaybackPrefs(el, !force && posts.autoplayFeedVideo);
+      if (!force && !feedAutoplayVideo.value) return;
+      applyPlaybackPrefs(el, !force && feedAutoplayVideo.value);
       const playResult = el.play();
       if (playResult && typeof playResult.then === "function") {
         playResult.catch(() => {
@@ -499,7 +506,7 @@ export default defineComponent({
       videoIsIntersecting = false;
       boundVideo = el;
       // Fresh mount: if autoplay is on, wait for intersection before loading src.
-      if (posts.autoplayFeedVideo) {
+      if (feedAutoplayVideo.value) {
         videoSrcLive.value = false;
         el.removeAttribute("src");
         el.load();
@@ -536,12 +543,12 @@ export default defineComponent({
           posts.videoVolume,
           posts.videoPlaybackRate,
           posts.playbackPrefs,
-          posts.autoplayFeedVideo,
+          feedAutoplayVideo.value,
           posts.autoplayFeedVideoSilent,
         ] as const,
       () => {
         if (!boundVideo) return;
-        if (!posts.autoplayFeedVideo) {
+        if (!feedAutoplayVideo.value) {
           // Manual mode: keep src loaded, stop autoplay eviction.
           void (async () => {
             if (!boundVideo) return;

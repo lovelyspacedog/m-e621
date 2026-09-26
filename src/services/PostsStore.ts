@@ -205,6 +205,15 @@ export const usePostsStore = defineStore("posts", () => {
       main.posts.autoplayFeedVideoSilent = value;
     },
   });
+  /** Video hub only — independent of global autoplayFeedVideo. */
+  const videoModeAutoplayFeedVideo = computed({
+    get() {
+      return main.posts.videoModeAutoplayFeedVideo !== false;
+    },
+    set(value: boolean) {
+      main.posts.videoModeAutoplayFeedVideo = value;
+    },
+  });
   const sfwOnly = computed({
     get() {
       return !!main.posts.sfwOnly;
@@ -314,6 +323,7 @@ export const usePostsStore = defineStore("posts", () => {
     animateFeedGifs,
     autoplayFeedVideo,
     autoplayFeedVideoSilent,
+    videoModeAutoplayFeedVideo,
     sfwOnly,
     xtraModeEnabled,
     videoModeEnabled,

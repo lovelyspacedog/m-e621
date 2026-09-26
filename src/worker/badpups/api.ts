@@ -12,6 +12,7 @@ export type BadpupsMeta = {
   slug: string;
   guid?: string | null;
   pageUrl: string;
+  title?: string;
 };
 
 const slugByNumeric = new Map<number, string>();
@@ -290,6 +291,7 @@ function cardToPost(card: BadpupsListCard): Post {
       slug: card.slug,
       guid,
       pageUrl: `${ORIGIN}/${card.slug}/`,
+      title: card.title,
     },
   };
   return post;
@@ -353,6 +355,7 @@ function detailToPost(detail: BadpupsDetail): Post {
       slug: detail.slug,
       guid: detail.guid,
       pageUrl: detail.pageUrl,
+      title: detail.title,
     },
   };
   return post;

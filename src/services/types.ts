@@ -348,7 +348,8 @@ export interface ISettingsServiceState {
     | 51
     | 52
     | 53
-    | 54;
+    | 54
+    | 55;
   activeMode: SiteMode;
   /** Mode before entering Federated; restored when leaving or demoting on landing. */
   previousModeBeforeUnified: SiteMode | null;
@@ -433,6 +434,11 @@ export interface ISettingsServiceState {
     autoplayFeedVideo: boolean;
     /** Force mute during feed autoplay (helps browser autoplay policies). */
     autoplayFeedVideoSilent: boolean;
+    /**
+     * Video-mode-only: autoplay / buffer videos while scrolling the Video hub.
+     * Independent of `autoplayFeedVideo` (global Media setting).
+     */
+    videoModeAutoplayFeedVideo: boolean;
     /**
      * Global SFW-only: force safe rating on fetches where supported and hide
      * non-safe posts in list feeds. Not under site profiles.

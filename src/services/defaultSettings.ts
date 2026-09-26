@@ -33,7 +33,7 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 54,
+  configVersion: 55,
   activeMode: "e621",
   previousModeBeforeUnified: null,
   profiles: {
@@ -187,6 +187,7 @@ export const defaultSettings: ISettingsServiceState = {
     animateFeedGifs: true,
     autoplayFeedVideo: true,
     autoplayFeedVideoSilent: true,
+    videoModeAutoplayFeedVideo: true,
     sfwOnly: false,
     saveLocal: {
       pathTemplate: "%artist%/%tags 1-5%.%ext%",

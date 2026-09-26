@@ -988,6 +988,13 @@ class PersistanceService {
       };
       newState.configVersion = 54;
     }
+    if (newState.configVersion < 55) {
+      if (newState.posts.videoModeAutoplayFeedVideo === undefined) {
+        // Default on (same as global autoplay); independent thereafter.
+        newState.posts.videoModeAutoplayFeedVideo = true;
+      }
+      newState.configVersion = 55;
+    }
     if (
       newState.previousModeBeforeUnified !== null &&
       newState.previousModeBeforeUnified !== undefined &&
@@ -1290,6 +1297,9 @@ class PersistanceService {
     }
     if (newState.posts.autoplayFeedVideoSilent === undefined) {
       newState.posts.autoplayFeedVideoSilent = true;
+    }
+    if (newState.posts.videoModeAutoplayFeedVideo === undefined) {
+      newState.posts.videoModeAutoplayFeedVideo = true;
     }
     if (newState.posts.sfwOnly === undefined) {
       newState.posts.sfwOnly = false;

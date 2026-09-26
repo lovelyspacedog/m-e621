@@ -105,6 +105,21 @@
             />
           </template>
         </v-list-item>
+        <v-list-item v-if="siteMode.isVideo">
+          <template #prepend>
+            <v-icon>mdi-play-circle-outline</v-icon>
+          </template>
+          <v-list-item-title>Autoplay video</v-list-item-title>
+          <template #append>
+            <v-switch
+              class="ma-0"
+              color="accent"
+              density="compact"
+              hide-details
+              v-model="postsStore.videoModeAutoplayFeedVideo"
+            />
+          </template>
+        </v-list-item>
       </v-list>
     </v-menu>
 
@@ -116,6 +131,8 @@
       <p class="mb-3">
         Use Layout to switch grid, compact cards, full-width list, auto-next,
         and infinite scroll. Turn infinite scroll off to page with previous/next.
+        In Video mode, Autoplay video only controls the Video hub (Media → Autoplay
+        video in feed stays separate).
       </p>
       <p class="mb-0">
         Keyboard: j/k move between posts; Space starts a slideshow in fullscreen
@@ -130,10 +147,11 @@
 import TipDialog from "@/misc/TipDialog.vue";
 import { TIP_IDS } from "@/misc/tipIds";
 import { useTipOpen } from "@/misc/useTipOpen";
-import { usePostsStore } from "@/services";
+import { usePostsStore, useSiteModeStore } from "@/services";
 import { computed, ref, watch } from "vue";
 
 const postsStore = usePostsStore();
+const siteMode = useSiteModeStore();
 const layoutMenuOpen = ref(false);
 const { open: feedLayoutTipOpen, tryOpenOnEdge } = useTipOpen(TIP_IDS.feedLayout);
 

@@ -14,14 +14,16 @@
         size="x-small"
         color="secondary"
         variant="flat"
-        :aria-label="originLabel"
-        :title="originLabel"
+        :aria-label="originChipLabel"
+        :title="originChipLabel"
       >
         <v-icon size="16" :icon="originIcon" />
+        <span v-if="originTitle" class="origin-badge__title">{{ originTitle }}</span>
       </v-chip>
       <div
         v-if="duplicateOrigins.length"
         class="dup-origins"
+        :class="{ 'dup-origins--end': !!originTitle }"
         :title="duplicateTitle"
       >
         <v-chip
@@ -160,6 +162,29 @@ export default defineComponent({
     const originIcon = computed(() =>
       originMode.value ? unifiedChildIcon(originMode.value) : "",
     );
+    const originTitle = computed(() => {
+      const meta = props.post.__meta as {
+        murrtube?: { title?: string };
+        badpups?: { title?: string };
+      } | undefined;
+      const fromMeta =
+        meta?.murrtube?.title ||
+        meta?.badpups?.title ||
+        "";
+      if (fromMeta.trim()) return fromMeta.trim();
+      // Video children historically put the title in description.
+      if (originMode.value === "murrtube" || originMode.value === "badpups") {
+        const desc = (props.post.description || "").replace(/\s+/g, " ").trim();
+        return desc;
+      }
+      return "";
+    });
+    const originChipLabel = computed(() => {
+      if (originTitle.value && originLabel.value) {
+        return `${originLabel.value}: ${originTitle.value}`;
+      }
+      return originTitle.value || originLabel.value;
+    });
     const duplicateOrigins = computed(
       () => props.post.__meta?.duplicateOrigins || [],
     );
@@ -247,6 +272,8 @@ export default defineComponent({
       onCardActivate,
       originLabel,
       originIcon,
+      originTitle,
+      originChipLabel,
       duplicateOrigins,
       duplicateTitle,
       dupLabel,
@@ -289,8 +316,20 @@ export default defineComponent({
   top: 8px;
   left: 8px;
   z-index: 2;
-  padding: 0 4px;
+  padding: 0 6px 0 4px;
   min-width: 0;
+  max-width: calc(100% - 16px);
+  display: inline-flex;
+  align-items: center;
+}
+.origin-badge__title {
+  margin-left: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
 }
 .dup-origins {
   position: absolute;
@@ -301,6 +340,11 @@ export default defineComponent({
   flex-wrap: wrap;
   gap: 2px;
   max-width: calc(100% - 48px);
+}
+.dup-origins--end {
+  left: auto;
+  right: 8px;
+  max-width: 40%;
 }
 .dup-origin-chip {
   padding: 0 2px;

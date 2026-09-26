@@ -80,6 +80,7 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { label: "Full-width feed", keywords: ["full-width", "full width", "layout"], section: "posts", hash: "layout" },
   { label: "Compact cards", keywords: ["compact", "hover", "tags"], section: "posts", hash: "layout" },
   { label: "Infinite scroll", keywords: ["infinite", "scroll", "autoload", "auto load", "next page", "pagination"], section: "posts", hash: "layout" },
+  { label: "Video autoplay (Layout)", keywords: ["autoplay", "video mode", "layout", "murrtube", "badpups"], section: "posts", hash: "layout" },
   { label: "Autoplay video", keywords: ["autoplay", "video", "mute", "silent"], section: "posts", hash: "media" },
   { label: "Animate GIFs", keywords: ["gif", "animate"], section: "posts", hash: "media" },
   { label: "Video volume", keywords: ["volume", "playback", "speed", "muted"], section: "posts", hash: "media" },

@@ -10,6 +10,7 @@ export type MurrtubeMeta = {
   id: string;
   shortCode: string;
   hlsUrl?: string | null;
+  title?: string;
 };
 
 const softIdByNumeric = new Map<number, string>();
@@ -164,7 +165,7 @@ export function adaptMedium(raw: MurrMedium): Post {
     },
     approver_id: undefined,
     uploader_id: 0,
-    description: raw.description || raw.title || "",
+    description: raw.title || raw.description || "",
     comment_count: 0,
     is_favorited: false,
     has_notes: false,
@@ -175,6 +176,7 @@ export function adaptMedium(raw: MurrMedium): Post {
       id: softId,
       shortCode: String(raw.short_code || ""),
       hlsUrl: raw.hls_url || null,
+      title: String(raw.title || "").trim() || undefined,
     },
   };
   return post;
