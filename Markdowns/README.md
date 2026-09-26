@@ -15,27 +15,16 @@
 
 ---
 
-PawDeck expands [Material e621](https://github.com/avoonix/material-e621) with additional sites, a Federated feed, local media management, and richer browsing tools. It is built with Vue 3 and Vuetify.
-
-A public instance is operable at **[pawdeck.tonypup.box.ca](https://pawdeck.tonypup.box.ca)** (until Expedition cutover, Live may still resolve at [pawfeed.tonypup.box.ca](https://pawfeed.tonypup.box.ca)). Steps for moving that hostname are in the [complete guide](./README-CONTINUED.md#rename-the-public-hostname).
+PawDeck is an AGPL fork of [Material e621](https://github.com/avoonix/material-e621) (Vue 3 + Vuetify). It adds more sites, a Federated merge feed, a local disk library, and discovery tools — built as a personal power-user client, not an official app for any supported site.
 
 > [!NOTE]
-> This is an experimental, AI-assisted personal project. For a stable e621-only client, use upstream Material e621.
+> Experimental and AI-assisted. Features may change without notice. For a **stable e621-only** client, use [upstream Material e621](https://github.com/avoonix/material-e621).
 
-## Highlights
+**Who it’s for** — people who already bounce between several of these sites (or keep a big local folder) and want one UI for search, following, pools/comics, Saved bookmarks, and taste tools.
 
-- **Nine imageboards plus News, u18chan, and optional Video mode** — browse e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry, and Tailspace; dedicated **u18chan** Indices catalogs (Gore opt-in in Settings; Cub never wired); plus a News mode that merges Flayrah, Dogpatch Press, InFurNation, and Furry Writers’ Guild via attributed RSS, with optional browser-local custom https feeds (up to eight; server-fetched under public-HTTPS limits), source filters, section feeds, also-on clustering, watched authors, optional new-since highlight, archive deep-links, read/saved state with body snapshots, offline last-good cache, and short per-source timeouts so one dead outlet does not stall the merge. Post settings **Video mode** (off by default; blocked while SFW only is on) adds a Video hub that merges Murrtube and Badpups with site filters — not Federated children.
-- **Federated browsing** — date-merge child sites into a Search or Following feed; landing chips multi-select inclusion; Defaults / Auth-only presets, per-site filters, origin-aware actions, lightweight duplicate collapse (md5 / source / fingerprint) with alternate-origin chips, and Federated Pools browse/reader for e621/e6ai plus Furbooru galleries (Inkbunny via watch / open-by-id / chips; optional Tailspace comics via sidebar Sites in Pools).
-- **Local library** — browse one or more folders on disk as a combined library with fuzzy search, `folder:Name` filter, heart favorites for Suggester/Analyzer, remux, Fluffle tag for untagged stills, and portable sidecars (Chromium or the Tauri desktop build).
-- **Independent accounts** — configure authentication, blacklists, favorites, history, and preferences for each site.
-- **Saved posts** — bookmark posts across federated sites in one mode-independent list, with named collections and the same feed Layout controls as Posts.
-- **Community features** — view and post comments where supported (e621/e6ai, Furbooru, FurAffinity submissions and journals, Itaku, SoFurry artwork, Weasyl with session cookies to post), vote, favorite, follow creators, and open posts at their source. Anonymous **Scent Marks** guestbook on the landing page for short public notes (host can pin), plus a random [e621 tag wiki](https://e621.net/wiki_pages/204) first-paragraph snippet each landing visit (artist tags skipped; click the tag to search e621 in-app; Another page refreshes in place).
-- **Flexible feeds** — switch between full-width lists, thumbnail grids, and compact cards; toggle infinite scroll or page with buttons; rich filtering and media controls. A floating **Go to top** (bottom-right, clear of the sidebar) appears after you scroll the Posts search feed. Global **SFW only** (toolbar / Site block in the sidebar / Post settings) forces safe rating across sites and hides non-safe posts in list feeds; typing `rating:safe` (or `rating:s`) on e621-family / Furbooru / FurAffinity / Federated turns it on (excludes like `-rating:safe` do not). SFW only also hides Video mode. Music-capable modes include a **Queue** action that plays audio hits in fullscreen and skips non-audio until closed.
-- **Powerful browsing tools** — sidebar **Home** (`/home`) gathers wake hits, watches, Saved, and browse shortcuts for the current profile; browse and watch pools (e621-family, Furbooru galleries, Inkbunny, and Federated merge, with new-page badges); organize starred tags and saved searches (sidebar +N when Wake-up finds newer posts); and open a sidebar **Tools** group for Post Suggester, Favorite Analyzer, discovery tools (Radar, Taste Diff, History Insights, Blacklist Coach, Wake-up, Cross-post Finder, Similar Artists, Pool Suggester, Taste Pack, Activity heatmap), and (e621-family) artist dashboards.
-- **Comics and stories** — dedicated pool and Tailspace comic readers (pool fullscreen stays open across next/prev and chunks; Federated uses `?origin=` plus `?post=` resume; Save chunk/all; Tailspace Watched Comics with +N badges); u18chan threads add Gallery / Scroll over the leading OP-name image dump plus local Watched threads with +N; plus fullscreen story, PDF, RTF, and DOCX previews.
-- **Immersive media** — fullscreen comments rail, notes, slideshows, auto-next, Fluffle reverse-image search, and remembered audio/video playback settings (including optional per-site overrides).
-- **Safer settings** — searchable hub (with synonyms), desktop overlay (mobile stays full-page), confirm/preview restore, sanitized backups, host push/pull of a sanitized snapshot via serve.py, partial section reset, System/Dark/Light color scheme, auth probe chips, and clear which site profile blacklist/history edits. Blacklist can **push to signed-in Federated children** with the same metatag remap as Federated search. One-time tip toasts (Appearance → Reset tooltips) cover Federated, Local, Layout, pools, fullscreen, and related surfaces. Mobile sidebar is narrower with a close button, closes after navigation, and matches the mobile breakpoint; fullscreen uses safe-area padding with full-bleed comments on phones.
-- **Landing Info** — Info dialog (About / Changelog / TOS) plus a gear control for Settings on the hero and footer.
+**Who should skip it** — anyone who only needs e621, wants a finished product with a support desk, or cannot self-host the Python proxy for non-e621 sites.
+
+Try the public instance: **[pawdeck.tonypup.box.ca](https://pawdeck.tonypup.box.ca)**. Hostname moves are documented in the [complete guide](./README-CONTINUED.md#rename-the-public-hostname).
 
 ## Preview
 
@@ -64,6 +53,39 @@ A public instance is operable at **[pawdeck.tonypup.box.ca](https://pawdeck.tony
 
 </details>
 
+## Highlights
+
+- **Many sites, one UI** — e621, e6ai, Furbooru, Inkbunny, FurAffinity, Weasyl, Itaku, SoFurry, Tailspace, plus News, optional Video (Murrtube / Badpups), and u18chan Indices. → [Site modes](./README-CONTINUED.md#site-modes)
+- **Federated feed** — date-merge enabled children; duplicate collapse with alternate-origin chips; Federated pools / comics where supported. → [Site modes](./README-CONTINUED.md#site-modes)
+- **Local library** — browse folders on disk (Chromium File System Access or Tauri), fuzzy search, favorites, remux, Fluffle tagging for untagged stills. → [Local library](./README-CONTINUED.md#local-library)
+- **Per-site accounts** — auth, blacklist, favorites, history, and prefs stay independent per mode.
+- **Saved + Home** — mode-independent bookmarks with named collections; sidebar Home for wake hits, watches, and shortcuts.
+- **Tools** — Post Suggester, Favorite Analyzer, and discovery utilities (Radar, Taste Diff, Wake-up, Cross-post Finder, and more). → [Discovery tools](./README-CONTINUED.md#discovery-tools)
+- **Readers** — pools / Tailspace comics, u18chan Gallery & Scroll, fullscreen stories / PDF / RTF / DOCX, comments rail, slideshows.
+- **Settings that scale** — searchable hub, sanitized backups, host push/pull snapshot, SFW-only, blacklist push into Federated children.
+
+## Site capabilities
+
+Federated Posts children are the eight gallery sites below. Local, News, Video, Tailspace posts, and u18chan are separate modes (Tailspace comics can still join Federated **Pools** when enabled). Details and caveats: [Site modes](./README-CONTINUED.md#site-modes).
+
+| Site | Search | Following | Fav toggle | Comments | Pools | Federated |
+| --- | :---: | :---: | :---: | :---: | :---: | :---: |
+| e621 / e6ai | ✓ | | ✓ | ✓ | ✓ | ✓ |
+| Furbooru | ✓ | | ✓ | ✓ | ✓ | ✓ |
+| Inkbunny | ✓ | ✓ | | | ✓¹ | ✓ |
+| FurAffinity | ✓ | ✓ | ✓ | ✓ | | ✓ |
+| Weasyl | ✓ | | | ✓² | | ✓ |
+| Itaku | ✓ | ✓ | ✓ | ✓ | | ✓ |
+| SoFurry | ✓ | ✓ | ✓ | ✓³ | | ✓ |
+| Tailspace | ✓ | ✓ | | | comics | pools only⁴ |
+| Local | ✓ | | ✓ | | | |
+| News / Video / u18chan | ✓ | | | | | |
+
+¹ Inkbunny pools: open-by-id / watch / chips — no free-text list API.  
+² Weasyl: view via scrape; posting needs session cookies with the API key.  
+³ SoFurry: artwork comments (stories/music excluded).  
+⁴ Tailspace posts are not Federated Posts children; comics can appear under Federated Pools → Sites in Pools.
+
 ## Get started
 
 Requires **Node.js 20+** and **npm**.
@@ -75,24 +97,22 @@ npm run dev
 
 ### Self-host
 
-Build and run the included Python proxy:
-
 ```bash
 npm run build
 M_E621_ROOT="$PWD/dist" M_E621_DIR="$PWD" python3 serve.py
 ```
 
-Or use Docker:
+Or:
 
 ```bash
 docker compose up --build
 ```
 
-For authentication, site support, Local mode, remuxing, Docker, Tauri, deployment, and limitations, read the **[complete guide](./README-CONTINUED.md)**.
+Auth, proxies, Local / remux, Docker, Tauri, and deployment: **[complete guide](./README-CONTINUED.md)**.
 
 ## Project status
 
-Active personal fork. Features may be incomplete or change without notice. This project is not affiliated with its supported sites or upstream maintainers. Follow each site's rules, age requirements, and API terms.
+Active personal fork. Not affiliated with supported sites or upstream maintainers. Follow each site’s rules, age requirements, and API terms.
 
 ## License
 

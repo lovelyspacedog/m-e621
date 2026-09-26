@@ -1,6 +1,6 @@
 # PawDeck — detailed guide
 
-This document expands on the quick overview in the [main README](./README.md).
+This document expands on the quick overview in the [main README](./README.md) (pitch, short highlights, capability table). Use that page to decide whether PawDeck fits; use this page for how each mode and host path works.
 
 ## Site modes
 
