@@ -292,20 +292,6 @@ watch(useBlacklist, (on) => {
   router.replace({ query: next });
 });
 
-watch(
-  () =>
-    [
-      route.query.name,
-      limitChoice.value,
-      useBlacklist.value,
-      siteMode.activeMode,
-    ] as const,
-  () => {
-    analyze();
-  },
-  { immediate: true },
-);
-
 const heading = computed(() => {
   if (siteMode.activeMode === "local") return "Library favorites";
   if (siteMode.activeMode === "unified") return "Federated favorites";
@@ -563,6 +549,21 @@ const analyze = async () => {
 const refresh = () => {
   analyze();
 };
+
+// Must stay below `analyze` / `generation`: immediate runs during setup (TDZ).
+watch(
+  () =>
+    [
+      route.query.name,
+      limitChoice.value,
+      useBlacklist.value,
+      siteMode.activeMode,
+    ] as const,
+  () => {
+    analyze();
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>

@@ -22,6 +22,7 @@ export const changelogSections: ChangelogSection[] = [
       "When toolbar actions are expanded on wide screens, they are icon-only with labels on hover",
       "Turning SFW only off removes the injected safe rating tags from the search (e.g. rating:safe)",
       "Landing shows the short commit hash as small uppercase monospace text to the right of the PawDeck title instead of in the top bar",
+      "Favorite Analyzer results load again instead of spinning forever on a blank page",
     ],
   },
   {
