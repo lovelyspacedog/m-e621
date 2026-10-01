@@ -21,7 +21,7 @@ jobs:
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps chromium
     - name: Run Playwright tests
-      run: npm run test:e2e
+      run: npm run test:e2e -- --project=chromium --project="Mobile Chrome"
       env:
         CI: true
     - uses: actions/upload-artifact@v4

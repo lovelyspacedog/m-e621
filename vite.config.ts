@@ -1059,9 +1059,18 @@ function buildGitCommitInfo(): string {
 
 const VITE_GIT_COMMIT_INFO = buildGitCommitInfo();
 
-const VITE_GIT_BRANCH = execSync("git branch --show-current")
-  .toString()
-  .trim();
+function gitBranch(): string {
+  try {
+    return execSync("git branch --show-current", {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+const VITE_GIT_BRANCH = gitBranch();
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
