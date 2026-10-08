@@ -18,6 +18,9 @@ import {
 } from "./src/worker/furaffinity/htmlParse";
 
 const UA = "faapi/3.12.7 m-e621-furaffinity-proxy";
+/** Keep in sync with FA_CLOUDFLARE_MESSAGE in src/worker/furaffinity/api.ts. */
+const FA_CLOUDFLARE_MESSAGE =
+  "FurAffinity is checking browsers for a DDoS attack, so posts cannot load right now. Try again later.";
 const DELAY_MS = 1100;
 
 let lastGet = 0;
@@ -106,6 +109,27 @@ const faRequestUrl = (pathOrUrl: string): string => {
   return `${FA_ROOT}/${raw.replace(/^\//, "")}`;
 };
 
+class FaProxyError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+const cloudflareMessage = (status: number, body: string, mitigated: string | null): string | null => {
+  if (status !== 403 && status !== 503) return null;
+  const sample = body.slice(0, 8000);
+  if (
+    mitigated?.toLowerCase() === "challenge" ||
+    /just a moment|cf-browser-verification|challenge-platform/i.test(sample)
+  ) {
+    return FA_CLOUDFLARE_MESSAGE;
+  }
+  return null;
+};
+
 const faFetch = async (
   path: string,
   cookies: Cookie[],
@@ -115,7 +139,16 @@ const faFetch = async (
   const headers = new Headers(init.headers);
   headers.set("User-Agent", UA);
   if (cookies.length) headers.set("Cookie", cookieHeader(cookies));
-  return fetch(url, { ...init, headers });
+  const remote = await fetch(url, { ...init, headers });
+  if (remote.status === 403 || remote.status === 503) {
+    const blocked = cloudflareMessage(
+      remote.status,
+      await remote.clone().text(),
+      remote.headers.get("cf-mitigated"),
+    );
+    if (blocked) throw new FaProxyError(503, blocked);
+  }
+  return remote;
 };
 
 const guestSession = async (): Promise<Cookie[]> => {
@@ -233,7 +266,7 @@ async function handleAction(action: string, payload: Record<string, unknown>) {
     const path = page <= 1 ? "msg/submissions/" : `msg/submissions/${page}/`;
     const html = await (await faFetch(path, cookies)).text();
     if (/just a moment/i.test(html) || /cf-browser-verification/i.test(html)) {
-      return { status: 503, body: { ok: false, message: "FurAffinity Cloudflare challenge" } };
+      return { status: 503, body: { ok: false, message: FA_CLOUDFLARE_MESSAGE } };
     }
     if (/log\s*in/i.test(html) && !parseLoggedIn(html)) {
       return { status: 401, body: { ok: false, message: "Log in to FurAffinity to view your following feed" } };
@@ -434,7 +467,9 @@ export function furaffinityProxy(): Plugin {
           const result = await runSerialized(() => handleAction(action, payload));
           json(res, result.status, result.body);
         } catch (err) {
-          json(res, 502, { ok: false, message: String(err) });
+          const status = err instanceof FaProxyError ? err.status : 502;
+          const message = err instanceof Error ? err.message : String(err);
+          json(res, status, { ok: false, message });
         }
       });
     },

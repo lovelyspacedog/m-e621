@@ -19,6 +19,7 @@ export const changelogSections: ChangelogSection[] = [
     title: "Desktop sign-in",
     items: [
       "On Linux, local dev and the desktop app can sign in to FurAffinity, SoFurry, Tailspace, Weasyl (comment cookies), and Itaku from a site window instead of pasting cookies or tokens. The public website still uses paste and password fields.",
+      "When FurAffinity's Cloudflare browser check blocks posts, the error says to try again later instead of showing a raw HTTP 403",
     ],
   },
   {

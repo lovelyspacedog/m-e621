@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   adaptPartial,
+  FA_CLOUDFLARE_MESSAGE,
   faThumbAtSize,
   faUnavailableMeta,
+  faUserFacingError,
   isFaNotFoundError,
   isOwnFavoritesListing,
   mapSearchTags,
@@ -18,6 +20,20 @@ const listingHit = (overrides: Partial<FaPartial> = {}): FaPartial => ({
   type: "image",
   thumbnail_url: "https://t.furaffinity.net/123@200-1.jpg",
   ...overrides,
+});
+
+describe("faUserFacingError", () => {
+  it("replaces the raw Cloudflare 403 from the proxy", () => {
+    expect(
+      faUserFacingError(
+        "HTTPError: 403 Client Error: Forbidden for url: https://www.furaffinity.net/",
+      ),
+    ).toBe(FA_CLOUDFLARE_MESSAGE);
+  });
+
+  it("leaves other FurAffinity errors alone", () => {
+    expect(faUserFacingError("Not logged in to FurAffinity")).toBe("Not logged in to FurAffinity");
+  });
 });
 
 describe("isFaNotFoundError", () => {

@@ -52,6 +52,22 @@ export interface FaMeta {
   unavailable?: boolean;
 }
 
+/** Keep in sync with CLOUDFLARE_MESSAGE in fa_proxy.py. */
+export const FA_CLOUDFLARE_MESSAGE =
+  "FurAffinity is checking browsers for a DDoS attack, so posts cannot load right now. Try again later.";
+
+/** Snackbar copy for a Cloudflare browser check, including the raw HTTPError string. */
+export function faUserFacingError(message: string): string {
+  if (message.includes(FA_CLOUDFLARE_MESSAGE)) return FA_CLOUDFLARE_MESSAGE;
+  if (/just a moment|cf-browser-verification|cf-mitigated|cloudflare challenge/i.test(message)) {
+    return FA_CLOUDFLARE_MESSAGE;
+  }
+  if (/HTTPError:\s*403\b/i.test(message) && /furaffinity\.net/i.test(message)) {
+    return FA_CLOUDFLARE_MESSAGE;
+  }
+  return message;
+}
+
 /** Proxy/faapi NotFound or FA "not in our database" HTML. */
 export function isFaNotFoundError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error ?? "");
@@ -222,7 +238,9 @@ export async function faRequest<T>(action: string, body: Record<string, unknown>
   });
   const data = (await response.json().catch(() => ({}))) as T & { ok?: boolean; message?: string };
   if (!response.ok || (data && data.ok === false)) {
-    throw new Error(data?.message || `FurAffinity ${action} failed (${response.status})`);
+    throw new Error(
+      faUserFacingError(data?.message || `FurAffinity ${action} failed (${response.status})`),
+    );
   }
   return data;
 }

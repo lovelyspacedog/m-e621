@@ -53,6 +53,41 @@ class FaProxyError(Exception):
         self.status = status
 
 
+# Keep in sync with FA_CLOUDFLARE_MESSAGE in src/worker/furaffinity/api.ts.
+CLOUDFLARE_MESSAGE = (
+    "FurAffinity is checking browsers for a DDoS attack, so posts cannot load right now. Try again later."
+)
+
+
+def cloudflare_message(status: int, body: str = "", headers: Any = None) -> str | None:
+    """User-facing copy when Cloudflare's browser check replaces the FA page."""
+    if int(status or 0) not in (403, 503):
+        return None
+    mitigated = ""
+    getter = getattr(headers, "get", None)
+    if getter:
+        mitigated = str(getter("cf-mitigated") or "")
+    sample = (body or "")[:8000].lower()
+    if (
+        mitigated.lower() == "challenge"
+        or "just a moment" in sample
+        or "cf-browser-verification" in sample
+        or "challenge-platform" in sample
+    ):
+        return CLOUDFLARE_MESSAGE
+    return None
+
+
+def _raise_if_cloudflare(resp: Any) -> None:
+    message = cloudflare_message(
+        getattr(resp, "status_code", 0),
+        getattr(resp, "text", "") or "",
+        getattr(resp, "headers", None),
+    )
+    if message:
+        raise FaProxyError(message, 503)
+
+
 def _env_cookies() -> list[dict[str, str]]:
     cookies: list[dict[str, str]] = []
     a = os.environ.get("FA_COOKIE_A", "").strip()
@@ -94,7 +129,10 @@ def _guest_cookies() -> list[dict[str, str]]:
     session.headers["User-Agent"] = (
         f"faapi/{getattr(faapi, '__version__', '3.12.7')} m-e621-furaffinity-proxy"
     )
-    session.get(FA_ROOT + "/", timeout=30)
+    resp = session.get(FA_ROOT + "/", timeout=30)
+    blocked = cloudflare_message(resp.status_code, resp.text or "", resp.headers)
+    if blocked:
+        raise FaProxyError(blocked, 503)
     cookies = [
         {"name": c.name, "value": c.value or ""}
         for c in session.cookies
@@ -486,13 +524,17 @@ def _fa_request_url(path_or_url: str) -> str:
 def _session_get(api: faapi.FAAPI, path: str, **params: Any):
     api.handle_delay()
     url = _fa_request_url(path)
-    return api.session.get(url, params=params or None, timeout=api.timeout)
+    resp = api.session.get(url, params=params or None, timeout=api.timeout)
+    _raise_if_cloudflare(resp)
+    return resp
 
 
 def _session_post(api: faapi.FAAPI, path: str, data: dict[str, Any]):
     api.handle_delay()
     url = _fa_request_url(path)
-    return api.session.post(url, data=data, timeout=api.timeout)
+    resp = api.session.post(url, data=data, timeout=api.timeout)
+    _raise_if_cloudflare(resp)
+    return resp
 
 
 def _login(username: str, password: str) -> dict[str, Any]:
@@ -746,6 +788,21 @@ def handle(action: str, payload: dict[str, Any] | None = None) -> tuple[int, dic
     except FaProxyError as exc:
         return exc.status, {"ok": False, "message": str(exc)}
     except Exception as exc:  # noqa: BLE001
+        response = getattr(exc, "response", None)
+        if response is not None:
+            try:
+                blocked = cloudflare_message(
+                    getattr(response, "status_code", 0),
+                    getattr(response, "text", "") or "",
+                    getattr(response, "headers", None),
+                )
+            except Exception:  # noqa: BLE001
+                blocked = None
+            if blocked:
+                return 503, {"ok": False, "message": blocked}
+        text = str(exc)
+        if type(exc).__name__ == "HTTPError" and "403" in text and "furaffinity.net" in text:
+            return 503, {"ok": False, "message": CLOUDFLARE_MESSAGE}
         name = type(exc).__name__
         return 502, {"ok": False, "message": f"{name}: {exc}"}
 
