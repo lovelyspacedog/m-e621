@@ -21,6 +21,7 @@ import { badpupsProxy } from './vite-badpups-proxy'
 import { newsProxy } from './vite-news-proxy'
 import { scentMarksProxy } from './vite-scent-marks-proxy'
 import { settingsSyncProxy } from './vite-settings-sync-proxy'
+import { desktopLoginDevPlugin } from './vite-desktop-login'
 
 // Furbooru's Cloudflare IPv6 path 520s from some hosts; prefer IPv4.
 dns.setDefaultResultOrder('ipv4first');
@@ -1100,6 +1101,7 @@ export default defineConfig(({ mode }) => {
       newsProxy(),
       scentMarksProxy(),
       settingsSyncProxy(),
+      desktopLoginDevPlugin(ROOT_DIR),
       fluffleProxy(),
       rufflePlugin(),
       generateSitemap(env),

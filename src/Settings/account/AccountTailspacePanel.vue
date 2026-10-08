@@ -57,6 +57,12 @@
       </p>
     </details>
     <div>
+      <desktop-site-login
+        v-if="!tsLoggedIn"
+        site="tailspace"
+        :loading="tsAuth.loading"
+        @session="onTailspaceDesktopSession"
+      />
       <v-btn
         v-if="!tsLoggedIn"
         :disabled="!canTsPasswordLogin && !canTsCookieLogin"
@@ -86,6 +92,8 @@
 import { computed, reactive, ref } from "vue";
 import ExternalLink from "@/App/ExternalLink.vue";
 import AccountPanelTitle from "../AccountPanelTitle.vue";
+import DesktopSiteLogin from "./DesktopSiteLogin.vue";
+import { cookieByName, type DesktopSiteSession } from "@/misc/util/desktopLogin";
 import {
   clearAuthProbe,
   emptyAuth,
@@ -151,6 +159,11 @@ const loginTailspace = async () => {
   } finally {
     tsAuth.value.loading = false;
   }
+};
+
+const onTailspaceDesktopSession = async (session: DesktopSiteSession) => {
+  tsCookie.value = cookieByName(session.cookies, "tailspace_session");
+  await loginTailspaceCookies();
 };
 
 const loginTailspaceCookies = async () => {

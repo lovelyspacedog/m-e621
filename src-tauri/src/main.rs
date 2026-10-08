@@ -271,6 +271,8 @@ fn read_local_text(root: String, relative_path: String) -> Result<String, String
   fs::read_to_string(path).map_err(|e| e.to_string())
 }
 
+mod desktop_login;
+
 fn main() {
   tauri::Builder::default()
     .invoke_handler(tauri::generate_handler![
@@ -279,7 +281,8 @@ fn main() {
       read_local_file,
       write_local_file,
       remove_local_file,
-      read_local_text
+      read_local_text,
+      desktop_login::sign_in_site
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

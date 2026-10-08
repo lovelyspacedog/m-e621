@@ -47,7 +47,7 @@
         "providerShortName": null,
         "signingIdentity": null
       },
-      "resources": [],
+      "resources": ["site_login.py"],
       "shortDescription": "",
       "targets": "all",
       "windows": {

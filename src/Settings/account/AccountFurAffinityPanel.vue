@@ -78,6 +78,12 @@
       </p>
     </details>
     <div>
+      <desktop-site-login
+        v-if="!faLoggedIn"
+        site="furaffinity"
+        :loading="faAuth.loading"
+        @session="onFaDesktopSession"
+      />
       <v-btn
         v-if="!faLoggedIn"
         :disabled="!canFaPasswordLogin && !canFaCookieLogin"
@@ -143,6 +149,8 @@
 import { computed, reactive, ref, watch } from "vue";
 import ExternalLink from "@/App/ExternalLink.vue";
 import AccountPanelTitle from "../AccountPanelTitle.vue";
+import DesktopSiteLogin from "./DesktopSiteLogin.vue";
+import { cookieByName, type DesktopSiteSession } from "@/misc/util/desktopLogin";
 import {
   clearAuthProbe,
   emptyAuth,
@@ -243,6 +251,12 @@ const loginFurAffinity = async () => {
   } finally {
     faAuth.value.loading = false;
   }
+};
+
+const onFaDesktopSession = async (session: DesktopSiteSession) => {
+  faCookieA.value = cookieByName(session.cookies, "a");
+  faCookieB.value = cookieByName(session.cookies, "b");
+  await loginFurAffinityCookies();
 };
 
 const loginFurAffinityCookies = async () => {

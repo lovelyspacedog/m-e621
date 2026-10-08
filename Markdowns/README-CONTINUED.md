@@ -220,6 +220,8 @@ cargo tauri dev
 
 The bundle identifier is `com.lovelyspacedog.me621`.
 
+On Linux, Account settings can **Sign in** to FurAffinity, SoFurry, Tailspace, Weasyl (comment cookies), and Itaku from the local dev server (`npm run dev`) and from the desktop app. **Sign in** opens the real site in a window with **Use this session**; the same cookies or token are stored as a paste. Password and paste fields stay available. The public website does not show Sign in. The window needs WebKitGTK 4.1 (`python3` with `gi` and `WebKit2` 4.1). The Tauri shell itself still links WebKitGTK 4.0, which current Arch installs no longer ship.
+
 ### Rename the public hostname
 
 The product name is **PawDeck**. The intended Live URL is [pawdeck.tonypup.box.ca](https://pawdeck.tonypup.box.ca) (Expedition custom app `pawdeck`). Until that Expedition app exists and `M_E621_DOMAIN` is flipped, the running instance may still resolve at `pawfeed.tonypup.box.ca`. Env vars (`M_E621_*`), `~/.config/m-e621/`, the checkout path, Local sidecars (`.me621-*.json`), and the GitHub repo `lovelyspacedog/m-e621` stay unchanged so existing deploys keep working.

@@ -38,6 +38,12 @@
         login unlocks stars and following.
       </p>
     </details>
+    <desktop-site-login
+      v-if="!itakuConnected"
+      site="itaku"
+      :loading="itakuAuth.loading"
+      @session="onItakuDesktopSession"
+    />
     <div>
       <v-btn
         :disabled="!fields.itaku.apiKey"
@@ -75,6 +81,8 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import AccountPanelTitle from "../AccountPanelTitle.vue";
+import DesktopSiteLogin from "./DesktopSiteLogin.vue";
+import { normalizeDesktopToken, type DesktopSiteSession } from "@/misc/util/desktopLogin";
 import {
   clearAuthProbe,
   emptyAuth,
@@ -116,6 +124,16 @@ const toggleItakuStarsSearch = () =>
   toggleSearchTag(liveSearches(main.$state, "itaku"), ITAKU_STARS_TAG, "My Stars");
 const toggleItakuFollowingSearch = () =>
   toggleSearchTag(liveSearches(main.$state, "itaku"), ITAKU_FOLLOWING_TAG, "Following");
+
+const onItakuDesktopSession = async (session: DesktopSiteSession) => {
+  const token = normalizeDesktopToken(session.token);
+  if (!token) {
+    markAuthProbe(itakuAuth.value, false, "No Itaku token in this window");
+    return;
+  }
+  fields.itaku.apiKey = token;
+  await verifyItaku();
+};
 
 const verifyItaku = async () => {
   if (!fields.itaku.apiKey) return;

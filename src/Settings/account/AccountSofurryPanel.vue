@@ -66,6 +66,12 @@
       </p>
     </details>
     <div>
+      <desktop-site-login
+        v-if="!sofurryLoggedIn"
+        site="sofurry"
+        :loading="sofurryAuth.loading"
+        @session="onSofurryDesktopSession"
+      />
       <v-btn
         v-if="!sofurryLoggedIn"
         :disabled="!canSofurryPasswordLogin && !canSofurryCookieLogin"
@@ -113,6 +119,8 @@
 import { computed, reactive, ref } from "vue";
 import ExternalLink from "@/App/ExternalLink.vue";
 import AccountPanelTitle from "../AccountPanelTitle.vue";
+import DesktopSiteLogin from "./DesktopSiteLogin.vue";
+import { cookieHeader, type DesktopSiteSession } from "@/misc/util/desktopLogin";
 import {
   clearAuthProbe,
   emptyAuth,
@@ -206,6 +214,11 @@ const loginSofurry = async () => {
   } finally {
     sofurryAuth.value.loading = false;
   }
+};
+
+const onSofurryDesktopSession = async (session: DesktopSiteSession) => {
+  sofurryCookiePaste.value = cookieHeader(session.cookies);
+  await loginSofurryCookies();
 };
 
 const loginSofurryCookies = async () => {

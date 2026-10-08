@@ -15,6 +15,13 @@ export interface ChangelogSection {
  */
 export const changelogSections: ChangelogSection[] = [
   {
+    date: "2026-10-07",
+    title: "Desktop sign-in",
+    items: [
+      "On Linux, local dev and the desktop app can sign in to FurAffinity, SoFurry, Tailspace, Weasyl (comment cookies), and Itaku from a site window instead of pasting cookies or tokens. The public website still uses paste and password fields.",
+    ],
+  },
+  {
     date: "2026-09-26",
     title: "Roomier Posts toolbar",
     items: [

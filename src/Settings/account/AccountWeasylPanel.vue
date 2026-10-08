@@ -47,6 +47,11 @@
         (DevTools → Application → Cookies for weasyl.com).
       </p>
     </details>
+    <desktop-site-login
+      site="weasyl"
+      :loading="weasylAuth.loading"
+      @session="onWeasylDesktopSession"
+    />
     <div>
       <v-btn
         :disabled="!fields.weasyl.apiKey"
@@ -76,6 +81,8 @@
 import { computed, reactive, ref, watch } from "vue";
 import ExternalLink from "@/App/ExternalLink.vue";
 import AccountPanelTitle from "../AccountPanelTitle.vue";
+import DesktopSiteLogin from "./DesktopSiteLogin.vue";
+import { cookieHeader, type DesktopSiteSession } from "@/misc/util/desktopLogin";
 import {
   clearAuthProbe,
   emptyAuth,
@@ -83,7 +90,7 @@ import {
 } from "../accountAuth";
 import { useAccountFields } from "../useAccountFields";
 import { useMainStore } from "@/services";
-import { liveSearches, profileHasAuthMaterial } from "@/services/siteProfiles";
+import { liveSearches, profileHasAuthMaterial, setLiveAccount } from "@/services/siteProfiles";
 import {
   searchesHaveTag,
   toggleSearchTag,
@@ -111,6 +118,12 @@ const weasylFavsExists = computed(() =>
 );
 const toggleWeasylFavsSearch = () =>
   toggleSearchTag(liveSearches(main.$state, "weasyl"), WEASYL_FAVS_TAG, "My Favs");
+
+const onWeasylDesktopSession = (session: DesktopSiteSession) => {
+  const cookies = cookieHeader(session.cookies);
+  setLiveAccount(main.$state, "weasyl", { cookies });
+  markAuthProbe(weasylAuth.value, true, "Session cookies saved for comments");
+};
 
 const verifyWeasyl = async () => {
   if (!fields.weasyl.apiKey) return;
