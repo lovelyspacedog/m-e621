@@ -141,7 +141,7 @@ const overlayNav = useSettingsOverlayNav();
 
 const onSearchResultClick = (
   entry: Pick<SettingsIndexEntry, "section" | "hash">,
-  event: MouseEvent,
+  event: MouseEvent | KeyboardEvent,
 ) => {
   if (!overlayNav) return;
   event.preventDefault();

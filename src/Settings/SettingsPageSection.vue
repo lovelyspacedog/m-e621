@@ -33,7 +33,7 @@ const props = defineProps<{
 
 const overlayNav = useSettingsOverlayNav();
 
-const onClick = (event: MouseEvent) => {
+const onClick = (event: MouseEvent | KeyboardEvent) => {
   if (!overlayNav || !props.section) return;
   event.preventDefault();
   overlayNav.navigate(props.section);

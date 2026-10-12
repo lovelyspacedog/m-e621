@@ -620,7 +620,7 @@ class PersistanceService {
     }
     if (newState.configVersion < 28) {
       if (!newState.savedPosts) {
-        newState.savedPosts = { entries: [] };
+        newState.savedPosts = { entries: [], collections: [] };
       } else if (!Array.isArray(newState.savedPosts.entries)) {
         newState.savedPosts.entries = [];
       }

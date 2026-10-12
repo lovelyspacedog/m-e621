@@ -54,7 +54,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent } from "vue";
+import { computed, defineComponent, type ComponentPublicInstance } from "vue";
 import { useDisplay } from "vuetify";
 
 const VIDEO_ID = "83m261lAlrs";
@@ -65,8 +65,15 @@ const supportsCredentialless =
   typeof HTMLIFrameElement !== "undefined" &&
   "credentialless" in HTMLIFrameElement.prototype;
 
+declare global {
+  interface HTMLIFrameElement {
+    /** Chromium iframe flag. Not in the DOM lib this project typechecks against. */
+    credentialless?: boolean;
+  }
+}
+
 /** Must set credentialless before src under COEP, or YouTube refuses to connect. */
-const bindCredentiallessFrame = (el: Element | null) => {
+const bindCredentiallessFrame = (el: Element | ComponentPublicInstance | null) => {
   if (!(el instanceof HTMLIFrameElement)) return;
   el.credentialless = true;
   if (el.getAttribute("src") !== EMBED_URL) {
