@@ -27,6 +27,15 @@ export type FullscreenAdvanceOpts = {
 const pointerOf = (target: PostPointer): { postId: number; originMode?: string } =>
   typeof target === "number" ? { postId: target } : target;
 
+/** Hide mode: a page of only blacklisted posts should not stop the loader. */
+export const isFullyHiddenPage = (
+  mode: BlacklistMode,
+  posts: { __meta?: { isBlacklisted?: boolean } }[],
+): boolean =>
+  mode === BlacklistMode.hide &&
+  posts.length > 0 &&
+  posts.every((post) => post.__meta?.isBlacklisted);
+
 interface IUsePostListManagerArgs {
   loadPosts(page: number, direction: "next" | "previous"): Promise<EnhancedPost[]>;
 
@@ -413,7 +422,10 @@ export const usePostListManager = ({
               (existing) => postFeedKey(existing) === postFeedKey(newP),
             ),
         );
-        if (!newPostsFiltered.length) {
+        if (
+          !newPostsFiltered.length ||
+          isFullyHiddenPage(blacklistStore.mode, newPostsFiltered)
+        ) {
           skips += 1;
           page -= 1;
           continue;
@@ -462,7 +474,10 @@ export const usePostListManager = ({
               (existing) => postFeedKey(existing) === postFeedKey(newP),
             ),
         );
-        if (!newPostsFiltered.length) {
+        if (
+          !newPostsFiltered.length ||
+          isFullyHiddenPage(blacklistStore.mode, newPostsFiltered)
+        ) {
           duplicatePageFloor.value = page;
           skips += 1;
           page += 1;

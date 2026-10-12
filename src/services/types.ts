@@ -378,7 +378,8 @@ export interface ISettingsServiceState {
     | 54
     | 55
     | 56
-    | 57;
+    | 57
+    | 58;
   activeMode: SiteMode;
   /** Mode before entering Federated; restored when leaving or demoting on landing. */
   previousModeBeforeUnified: SiteMode | null;
@@ -526,6 +527,23 @@ export interface ISettingsServiceState {
           lastHitCount?: number;
           /** Last background / Wake-up check time (ms). */
           checkedAt?: number;
+        }
+      >;
+    };
+    /**
+     * Default Posts browse and Following scroll watermarks.
+     * Key is `${mode}:posts` or `${mode}:following` (Federated uses `unified`).
+     */
+    feedSeen: {
+      byKey: Record<
+        string,
+        {
+          createdMs?: number;
+          newestKey?: string;
+          lastHitCount?: number;
+          checkedAt?: number;
+          /** Newest created_at from the last page-1 check. */
+          checkedNewestMs?: number;
         }
       >;
     };

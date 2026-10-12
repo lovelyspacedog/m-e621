@@ -231,6 +231,8 @@ import { poolRouteQuery } from "@/misc/util/poolOrigin";
 import { browsePostsRoute } from "@/misc/util/browsePostsRoute";
 import type { SavedSearchEntry } from "@/services/types";
 import { useHead } from "@unhead/vue";
+import { feedSeenKeyFor } from "@/misc/util/feedSeen";
+import { refreshFeedSeenBadges } from "@/misc/util/refreshFeedSeen";
 import { computed, onMounted, ref, watch } from "vue";
 import type { RouteLocationRaw } from "vue-router";
 import { peekNewsCachedArticles } from "@/worker/news/api";
@@ -248,7 +250,22 @@ const history = useHistoryStore();
 const newsStore = useNewsStore();
 
 const { open: tipOpen, tryOpen } = useTipOpen(TIP_IDS.homeOverview);
-onMounted(() => tryOpen());
+onMounted(() => {
+  tryOpen();
+  void refreshFeedSeenBadges();
+});
+watch(() => siteMode.activeMode, () => {
+  void refreshFeedSeenBadges();
+});
+
+const postsNewCount = computed(() =>
+  discovery.feedSeenCount(
+    feedSeenKeyFor({ mode: siteMode.activeMode, tags: [] }) || "",
+  ),
+);
+const followingNewCount = computed(() =>
+  discovery.feedSeenCount(`${siteMode.activeMode}:following`),
+);
 
 const showDiscovery = computed(() =>
   modeSupportsDiscoveryTools(siteMode.activeMode),
@@ -320,6 +337,7 @@ const shortcuts = computed((): Shortcut[] => {
       key: "browse",
       label: siteMode.isNews ? "News feed" : "Browse posts",
       to: browsePostsRoute(siteMode.activeMode),
+      badge: postsNewCount.value || undefined,
     },
   ];
 
@@ -348,6 +366,7 @@ const shortcuts = computed((): Shortcut[] => {
       key: "following",
       label: "Following",
       to: { name: "Posts" },
+      badge: followingNewCount.value || undefined,
       onClick: () => siteMode.setUnifiedFeedSource("following"),
     });
   } else if (modeSupportsFollowing(siteMode.activeMode)) {
@@ -355,6 +374,7 @@ const shortcuts = computed((): Shortcut[] => {
       key: "following",
       label: "Following",
       to: { name: "Posts", query: { tags: "following:me" } },
+      badge: followingNewCount.value || undefined,
     });
   }
 

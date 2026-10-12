@@ -82,7 +82,7 @@ Sibling tools to Suggester / Analyzer (same mode surface; Tailspace and News exc
 - **Taste Pack** (`/tools/taste-pack`) — export/import JSON of counts + weights; star top tags or open Suggester
 - **Activity heatmap** (`/tools/activity`) — calendar of favorited posts by upload date (Dashboard-style grid)
 
-**Home** (`/home`) is the sidebar Home target (all modes). It shows mode shortcuts (browse posts, Following where supported, Pools, Saved, News), saved-search wake `+N` rows for the active profile, watched pools/comics as links (live +N badges stay on the Pools / Comics pages), Saved/collections counts, and teasers to History Insights and Activity heatmap. Artist Dashboard remains under Tools on e621/e6ai only. Browse posts stays a separate sidebar link.
+**Home** (`/home`) is the sidebar Home target (all modes). It shows mode shortcuts (browse posts, Following where supported, Pools, Saved, News), saved-search wake `+N` rows for the active profile, watched pools/comics as links (live +N badges stay on the Pools / Comics pages), Saved/collections counts, and teasers to History Insights and Activity heatmap. Browse posts and Following shortcuts also show +N for posts newer than the last card scrolled off the top of that feed (empty search, or `following:me` / Federated Following). The same browse count is on the Posts sidebar row. Artist Dashboard remains under Tools on e621/e6ai only. Browse posts stays a separate sidebar link.
 
 ## Saved searches, starred tags, and bookmarks
 

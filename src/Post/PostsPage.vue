@@ -90,7 +90,8 @@
       :restore-folder-key="restoreFolderKey || undefined"
       :restore-video-time="restoreVideoTime"
       @restored="onRestored"
-      @remuxed="reloadLocal" />
+      @remuxed="reloadLocal"
+      :feed-seen-key="feedSeenKey" />
     <portal to="sidebar-suggestions">
       <v-list v-if="siteMode.isUnified" class="pa-0 mt-1 mb-2 unified-sidebar" density="compact">
         <v-list-subheader class="text-overline unified-sidebar__label">
@@ -356,6 +357,7 @@ import { isAudioExt } from "@/misc/util/audioExts";
 import { UNIFIED_CHILD_MODES, type UnifiedFeedSource } from "@/services/types";
 import { VIDEO_CHILD_MODES } from "@/misc/util/videoMode";
 import { modeSupportsFollowing } from "@/misc/util/siteCapabilities";
+import { feedSeenKeyFor } from "@/misc/util/feedSeen";
 import {
   findLocalPathTarget,
   findLocalResumeTarget,
@@ -466,6 +468,14 @@ let remuxAbort: AbortController | null = null;
 let fluffleTagAbort: AbortController | null = null;
 const { tags, addTag, removeTag, updateQuery, query, setTags } =
   useRouterTagManager();
+const feedSeenKey = computed(
+  () =>
+    feedSeenKeyFor({
+      mode: siteMode.activeMode,
+      tags: tags.value,
+      unifiedFeedSource: siteMode.unifiedFeedSource,
+    }) || "",
+);
 const urlStore = useUrlStore();
 const route = useRoute();
 

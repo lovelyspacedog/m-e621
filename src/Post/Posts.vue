@@ -6,7 +6,7 @@
       </v-btn>
     </div>
     <!-- <app-logo v-if="loading" loader /> -->
-    <post-list :visible-posts="posts" :loading="loading"
+    <post-list :visible-posts="posts" :loading="loading" :feed-seen-key="feedSeenKey"
       :auto-next-paused="!!fullscreenPost || !!detailsPost"
       :resume-enabled="resumeEnabled"
       :restore-path="restorePath || undefined"
@@ -134,6 +134,7 @@ const props = defineProps({
   restoreVideoTime: { type: Number, default: undefined },
   showPagination: { type: Boolean, default: true },
   pageTitle: { type: String, default: "Posts" },
+  feedSeenKey: { type: String, default: "" },
 });
 
 useHead({ title: () => props.pageTitle });

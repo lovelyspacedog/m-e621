@@ -913,6 +913,7 @@ class PersistanceService {
       newState.discovery = {
         artistRadar: { cursors: {} },
         savedSearchWake: { byId: {} },
+        feedSeen: { byKey: {} },
       };
       newState.configVersion = 50;
     }
@@ -1018,6 +1019,18 @@ class PersistanceService {
       // Opt out in Post settings → Always collapse toolbar actions.
       newState.posts.alwaysCollapseToolbar = true;
       newState.configVersion = 57;
+    }
+    if (newState.configVersion < 58) {
+      if (!newState.discovery) {
+        newState.discovery = {
+          artistRadar: { cursors: {} },
+          savedSearchWake: { byId: {} },
+          feedSeen: { byKey: {} },
+        };
+      } else if (!newState.discovery.feedSeen) {
+        newState.discovery.feedSeen = { byKey: {} };
+      }
+      newState.configVersion = 58;
     }
     if (
       newState.previousModeBeforeUnified !== null &&
@@ -1351,9 +1364,13 @@ class PersistanceService {
       !newState.discovery.savedSearchWake
     ) {
       newState.discovery = {
-        artistRadar: { cursors: {} },
-        savedSearchWake: { byId: {} },
+        artistRadar: newState.discovery?.artistRadar || { cursors: {} },
+        savedSearchWake: newState.discovery?.savedSearchWake || { byId: {} },
+        feedSeen: newState.discovery?.feedSeen || { byKey: {} },
       };
+    }
+    if (!newState.discovery.feedSeen) {
+      newState.discovery.feedSeen = { byKey: {} };
     }
     applyActiveProfileToMirrors(newState);
     if (!newState.misc) {

@@ -1,3 +1,4 @@
+import { countNewerThanCursor, type PostCursorLike } from "@/misc/util/discoveryTools";
 import { defineStore } from "pinia";
 import { computed } from "vue";
 import { useMainStore } from "./state";
@@ -16,6 +17,14 @@ export type SavedSearchWakeCursor = {
   checkedAt?: number;
 };
 
+export type FeedSeenCursor = {
+  createdMs?: number;
+  newestKey?: string;
+  lastHitCount?: number;
+  checkedAt?: number;
+  checkedNewestMs?: number;
+};
+
 const MAX_RADAR_CURSORS = 400;
 const MAX_WAKE_CURSORS = 200;
 
@@ -27,6 +36,7 @@ export const useDiscoveryStore = defineStore("discovery", () => {
 
   const artistCursors = computed(() => main.discovery.artistRadar.cursors);
   const wakeById = computed(() => main.discovery.savedSearchWake.byId);
+  const feedSeenByKey = computed(() => main.discovery.feedSeen?.byKey || {});
 
   const getArtistCursor = (key: string): ArtistRadarCursor | undefined =>
     main.discovery.artistRadar.cursors[key];
@@ -111,6 +121,79 @@ export const useDiscoveryStore = defineStore("discovery", () => {
    * Mark a saved search as opened / seen. Clears the sidebar badge.
    * Pass newestKey/createdMs from a fresh page-1 fetch when available.
    */
+  const getFeedSeen = (key: string): FeedSeenCursor | undefined =>
+    main.discovery.feedSeen?.byKey[key];
+
+  const writeFeedSeen = (key: string, cursor: FeedSeenCursor) => {
+    if (!main.discovery.feedSeen) main.discovery.feedSeen = { byKey: {} };
+    main.discovery.feedSeen.byKey = {
+      ...main.discovery.feedSeen.byKey,
+      [key]: cursor,
+    };
+  };
+
+  /** First observation of a feed. Does not move an existing watermark. */
+  const baselineFeedSeen = (
+    key: string,
+    createdMs: number,
+    newestKey?: string,
+  ) => {
+    const prev = getFeedSeen(key);
+    if (prev?.createdMs != null) return;
+    writeFeedSeen(key, {
+      ...prev,
+      createdMs,
+      newestKey: newestKey || prev?.newestKey,
+      lastHitCount: prev?.lastHitCount ?? 0,
+    });
+  };
+
+  /** Raise the watermark. Never moves it backward. Clears +N once the check's newest post is past. */
+  const raiseFeedSeen = (key: string, createdMs: number) => {
+    const prev = getFeedSeen(key);
+    if (!prev || prev.createdMs == null) return;
+    if (createdMs <= prev.createdMs) return;
+    const caughtUp =
+      prev.checkedNewestMs != null && createdMs >= prev.checkedNewestMs;
+    writeFeedSeen(key, {
+      ...prev,
+      createdMs,
+      lastHitCount: caughtUp ? 0 : prev.lastHitCount,
+    });
+  };
+
+  /**
+   * Persist a page-1 check. First observation seeds the watermark with no badge.
+   * Later checks update lastHitCount and do not move the scroll watermark.
+   */
+  const recordFeedSeenCheck = (key: string, posts: PostCursorLike[]) => {
+    const prev = getFeedSeen(key);
+    const now = Date.now();
+    if (prev?.createdMs == null) {
+      const seeded = countNewerThanCursor(posts, undefined);
+      writeFeedSeen(key, {
+        createdMs: seeded.newestCreatedMs ?? undefined,
+        newestKey: seeded.newestKey || undefined,
+        lastHitCount: 0,
+        checkedAt: now,
+        checkedNewestMs: seeded.newestCreatedMs ?? undefined,
+      });
+      return;
+    }
+    const counted = countNewerThanCursor(posts, prev);
+    writeFeedSeen(key, {
+      ...prev,
+      lastHitCount: Math.max(0, counted.newer),
+      checkedAt: now,
+      checkedNewestMs: counted.newestCreatedMs ?? prev.checkedNewestMs,
+    });
+  };
+
+  const feedSeenCount = (key: string): number => {
+    const n = feedSeenByKey.value[key]?.lastHitCount;
+    return typeof n === "number" && n > 0 ? Math.floor(n) : 0;
+  };
+
   const markSavedSearchOpened = (
     id: string,
     extras?: Partial<
@@ -139,5 +222,11 @@ export const useDiscoveryStore = defineStore("discovery", () => {
     newCountFor,
     recordWakeCheck,
     markSavedSearchOpened,
+    feedSeenByKey,
+    getFeedSeen,
+    baselineFeedSeen,
+    raiseFeedSeen,
+    recordFeedSeenCheck,
+    feedSeenCount,
   };
 });

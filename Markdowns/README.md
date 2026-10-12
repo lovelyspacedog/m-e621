@@ -59,7 +59,7 @@ Try the public instance: **[pawdeck.tonypup.box.ca](https://pawdeck.tonypup.box.
 - **Federated feed** — date-merge enabled children; duplicate collapse with alternate-origin chips; Federated pools / comics where supported. → [Site modes](./README-CONTINUED.md#site-modes)
 - **Local library** — browse folders on disk (Chromium File System Access or Tauri), fuzzy search, favorites, remux, Fluffle tagging for untagged stills. → [Local library](./README-CONTINUED.md#local-library)
 - **Per-site accounts** — auth, blacklist, favorites, history, and prefs stay independent per mode.
-- **Saved + Home** — mode-independent bookmarks with named collections; sidebar Home for wake hits, watches, and shortcuts.
+- **Saved + Home** — mode-independent bookmarks with named collections; sidebar Home for wake hits, watches, shortcuts, and +N on the default browse and Following.
 - **Tools** — Post Suggester, Favorite Analyzer, and discovery utilities (Radar, Taste Diff, Wake-up, Cross-post Finder, and more). → [Discovery tools](./README-CONTINUED.md#discovery-tools)
 - **Readers** — pools / Tailspace comics, u18chan Gallery & Scroll, fullscreen stories / PDF / RTF / DOCX, comments rail, slideshows.
 - **Settings that scale** — searchable hub, sanitized backups, host push/pull snapshot, SFW-only, blacklist push into Federated children.

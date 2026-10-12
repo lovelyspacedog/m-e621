@@ -18,6 +18,9 @@ export const changelogSections: ChangelogSection[] = [
     date: "2026-10-11",
     title: "Safer sessions and steadier feeds",
     items: [
+      "Home and the Posts sidebar show +N when the default browse or Following has posts newer than the last ones you scrolled past",
+      "Hide-mode blacklist keeps loading when a whole page is filtered out",
+      "Inkbunny multi-file fullscreen shortcuts move through pages before the next submission",
       "Reloading while u18chan is open stays on u18chan",
       "Turning SFW only off restores Inkbunny mature ratings for the signed-in session",
       "Federated and Video scroll-up, and Save search, no longer repeat or skip a page",

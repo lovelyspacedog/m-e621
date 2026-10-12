@@ -30,7 +30,8 @@
 </template>
 
 <script lang="ts">
-import { usePostsStore } from "@/services";
+import { useDiscoveryStore, usePostsStore } from "@/services";
+import { postCreatedMs } from "@/misc/util/discoveryTools";
 import type { EnhancedPost } from "@/worker/ApiService";
 import { isDocumentPost } from "@/misc/util/documentPost";
 import { prefersReducedMotion } from "@/misc/util/reducedMotion";
@@ -97,6 +98,11 @@ export default defineComponent({
       type: Number,
       default: undefined,
     },
+    /** When set, cards that leave the top of the list raise this feed watermark. */
+    feedSeenKey: {
+      type: String,
+      default: "",
+    },
   },
   setup(props, context) {
     const size = ref<"sm" | "md" | "lg">("md");
@@ -105,6 +111,7 @@ export default defineComponent({
     const hasLeftElementThatTriggersPreviousPage = ref(false);
     const canTriggerLoad = ref({ previous: false, next: false });
     const postsStore = usePostsStore();
+    const discovery = useDiscoveryStore();
     const fullWidthFeed = computed(() => postsStore.fullWidthFeed);
     const isGrid = computed(() => postsStore.feedLayout === "grid");
 
@@ -117,10 +124,47 @@ export default defineComponent({
       () => props.visiblePosts,
       () => {
         canTriggerLoad.value = { next: true, previous: true };
+        void nextTick(() => noteFeedSeen());
+      },
+    );
+    watch(
+      () => props.feedSeenKey,
+      () => {
+        void nextTick(() => noteFeedSeen());
       },
     );
 
+    const noteFeedSeen = () => {
+      const key = props.feedSeenKey;
+      if (!key || !props.visiblePosts.length || !posts.value.length) return;
+      const viewHeight =
+        window.innerHeight || document.documentElement.clientHeight;
+      let offTopMs = -1;
+      let onScreenMs = -1;
+      let onScreenKey = "";
+      for (let i = 0; i < props.visiblePosts.length; i++) {
+        const el = posts.value[i]?.$el as Element | undefined;
+        if (!el?.getBoundingClientRect) continue;
+        const post = props.visiblePosts[i];
+        if (!post) continue;
+        const ms = postCreatedMs(post);
+        if (ms == null) continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.bottom <= 0) {
+          if (ms > offTopMs) offTopMs = ms;
+        } else if (rect.top < viewHeight && rect.bottom > 0) {
+          if (ms > onScreenMs) {
+            onScreenMs = ms;
+            onScreenKey = postFeedKey(post);
+          }
+        }
+      }
+      if (onScreenMs >= 0) discovery.baselineFeedSeen(key, onScreenMs, onScreenKey);
+      if (offTopMs >= 0) discovery.raiseFeedSeen(key, offTopMs);
+    };
+
     const handleScroll = () => {
+      noteFeedSeen();
       if (!props.visiblePosts.length || !posts.value.length) return;
       firstVisibleElement.value =
         posts.value.find((post) =>

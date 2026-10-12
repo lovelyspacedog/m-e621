@@ -97,17 +97,31 @@ import {
 import SavedSearchNav from "./SavedSearchNav.vue";
 import SiteModeSwitcher from "./SiteModeSwitcher.vue";
 import { openSettings } from "@/Settings/settingsOverlay";
-import { computed } from "vue";
+import { refreshFeedSeenBadges } from "@/misc/util/refreshFeedSeen";
+import { useSiteModeStore } from "@/services/SiteModeStore";
+import { computed, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
 
 const route = useRoute();
-
-withDefaults(
+const siteMode = useSiteModeStore();
+const props = withDefaults(
   defineProps<{
     /** primary = Home + Site (incl. SFW); secondary = saved searches + trailing; all = both */
     section?: "primary" | "secondary" | "all";
   }>(),
   { section: "all" },
+);
+
+onMounted(() => {
+  if (props.section === "primary") return;
+  void refreshFeedSeenBadges();
+});
+watch(
+  () => siteMode.activeMode,
+  () => {
+    if (props.section === "primary") return;
+    void refreshFeedSeenBadges();
+  },
 );
 
 const home = useHomeNavigationItem();

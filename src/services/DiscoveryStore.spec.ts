@@ -144,3 +144,46 @@ describe("wakeCursorIsStale", () => {
     ).toBe(true);
   });
 });
+
+describe("DiscoveryStore feed seen", () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  const post = (id: number, createdMs: number) => ({
+    id,
+    created_at: new Date(createdMs).toISOString(),
+    __meta: { originMode: "e621" },
+  });
+
+  it("recordFeedSeenCheck seeds the first observation with no badge", () => {
+    const discovery = useDiscoveryStore();
+    discovery.recordFeedSeenCheck("e621:posts", [post(9, 5000), post(8, 4000)]);
+    expect(discovery.getFeedSeen("e621:posts")).toMatchObject({
+      newestKey: "e621:9",
+      createdMs: 5000,
+      lastHitCount: 0,
+      checkedNewestMs: 5000,
+    });
+    expect(discovery.feedSeenCount("e621:posts")).toBe(0);
+  });
+
+  it("a later check counts posts newer than the watermark", () => {
+    const discovery = useDiscoveryStore();
+    discovery.baselineFeedSeen("e621:posts", 1000, "e621:1");
+    discovery.recordFeedSeenCheck("e621:posts", [post(4, 4000), post(1, 1000)]);
+    expect(discovery.feedSeenCount("e621:posts")).toBe(1);
+    expect(discovery.getFeedSeen("e621:posts")?.createdMs).toBe(1000);
+  });
+
+  it("raiseFeedSeen never moves backward and clears the badge at the checked newest", () => {
+    const discovery = useDiscoveryStore();
+    discovery.baselineFeedSeen("e621:posts", 1000, "e621:1");
+    discovery.recordFeedSeenCheck("e621:posts", [post(4, 4000), post(1, 1000)]);
+    discovery.raiseFeedSeen("e621:posts", 500);
+    expect(discovery.getFeedSeen("e621:posts")?.createdMs).toBe(1000);
+    discovery.raiseFeedSeen("e621:posts", 4000);
+    expect(discovery.getFeedSeen("e621:posts")?.createdMs).toBe(4000);
+    expect(discovery.feedSeenCount("e621:posts")).toBe(0);
+  });
+});

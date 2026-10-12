@@ -1,4 +1,4 @@
-import { useNewsStore, useSavedSearchStore } from "@/services";
+import { useDiscoveryStore, useNewsStore, useSavedSearchStore } from "@/services";
 import { useFavoritesStore } from "@/services/FavoriteStore";
 import { useSiteModeStore } from "@/services/SiteModeStore";
 import { useSiteLabels } from "@/misc/util/siteLabels";
@@ -167,6 +167,7 @@ export const useTrailingNavigationItems = () => {
   const router = useRouter();
   const siteMode = useSiteModeStore();
   const newsStore = useNewsStore();
+  const discovery = useDiscoveryStore();
   return computed(() => {
     const settings = {
       icon: "mdi-cog",
@@ -269,12 +270,14 @@ export const useTrailingNavigationItems = () => {
           },
         ]
       : [];
+    const postsNew = discovery.feedSeenCount(`${siteMode.activeMode}:posts`);
     return [
       {
         icon: "mdi-image-multiple",
         name: "Posts",
         exact: false,
         to: browsePostsRoute(siteMode.activeMode),
+        ...(postsNew > 0 ? { badge: postsNew } : {}),
       },
       ...(siteMode.supportsSavedPosts
         ? [

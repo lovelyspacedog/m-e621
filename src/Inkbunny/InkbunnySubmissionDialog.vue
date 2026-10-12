@@ -299,31 +299,18 @@ const previousFile = () => {
   else previousPost();
 };
 
-const onKeydown = (event: KeyboardEvent) => {
-  if (!props.current) return;
-  if (event.key === "ArrowRight") {
-    event.preventDefault();
-    nextFile();
-  } else if (event.key === "ArrowLeft") {
-    event.preventDefault();
-    previousFile();
-  }
-};
-
 onMounted(() => {
-  shortcutService.emitter.on("fullscreenNext", nextPost);
-  shortcutService.emitter.on("fullscreenPrevious", previousPost);
+  shortcutService.emitter.on("fullscreenNext", nextFile);
+  shortcutService.emitter.on("fullscreenPrevious", previousFile);
   shortcutService.emitter.on("fullscreenExit", exit);
   shortcutService.emitter.on("openPostSource", openCurrentOnSource);
-  window.addEventListener("keydown", onKeydown);
 });
 onBeforeUnmount(() => {
   ui.fullscreenOpen = false;
-  shortcutService.emitter.off("fullscreenNext", nextPost);
-  shortcutService.emitter.off("fullscreenPrevious", previousPost);
+  shortcutService.emitter.off("fullscreenNext", nextFile);
+  shortcutService.emitter.off("fullscreenPrevious", previousFile);
   shortcutService.emitter.off("fullscreenExit", exit);
   shortcutService.emitter.off("openPostSource", openCurrentOnSource);
-  window.removeEventListener("keydown", onKeydown);
 });
 
 const meta = computed(() => props.current?.__meta.inkbunny);
