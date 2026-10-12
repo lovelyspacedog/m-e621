@@ -104,7 +104,7 @@ import {
   isAllowedU18chanIndex,
   u18chanIndexBySlug,
 } from "@/misc/util/u18chanBoards";
-import { createPost, getCatalog } from "@/worker/u18chan/api";
+import { createPost, getCatalog, getThread } from "@/worker/u18chan/api";
 import type { U18chanCatalogThread, U18chanPostPayload } from "@/worker/u18chan/types";
 import U18chanComposeForm from "./U18chanComposeForm.vue";
 
@@ -164,18 +164,25 @@ const openThread = (thread: U18chanCatalogThread) => {
 const isWatched = (thread: U18chanCatalogThread) =>
   watchedStore.isWatched(thread.liveBoard, thread.id);
 
-const toggleWatch = (thread: U18chanCatalogThread) => {
-  watchedStore.toggle(
-    thread.liveBoard,
-    thread.id,
-    thread.subject || `Thread ${thread.id}`,
-    boardSlug.value,
-    {
-      subject: thread.subject,
-      thumbUrl: thread.thumbUrl,
-      indexBoard: boardSlug.value,
-    },
-  );
+const toggleWatch = async (thread: U18chanCatalogThread) => {
+  const subject = thread.subject || `Thread ${thread.id}`;
+  if (watchedStore.isWatched(thread.liveBoard, thread.id)) {
+    watchedStore.toggle(thread.liveBoard, thread.id, subject, boardSlug.value);
+    return;
+  }
+  let postCount = 0;
+  try {
+    const full = await getThread(thread.liveBoard, thread.id, boardSlug.value);
+    postCount = full.posts.length;
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Could not read reply count";
+  }
+  watchedStore.toggle(thread.liveBoard, thread.id, subject, boardSlug.value, {
+    subject,
+    thumbUrl: thread.thumbUrl,
+    indexBoard: boardSlug.value,
+    postCount,
+  });
 };
 
 const onNewThread = async (payload: Omit<U18chanPostPayload, "liveBoard" | "topicId">) => {

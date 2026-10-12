@@ -173,13 +173,19 @@ export const useSavedSearchStore = defineStore("saved-search", () => {
   const replaceGroupEntries = (groupId: string, next: SavedSearchEntry[]) => {
     ensureShape();
     const others = main.searches.entries.filter((e) => e.groupId !== groupId);
-    const normalized = next.map((entry, i) => ({
-      id: entry.id,
-      name: entry.name,
-      tags: [...entry.tags],
-      groupId,
-      order: i,
-    }));
+    const normalized = next.map((entry, i) => {
+      const row: SavedSearchEntry = {
+        id: entry.id,
+        name: entry.name,
+        tags: [...entry.tags],
+        groupId,
+        order: i,
+      };
+      if (entry.news && (entry.news.source || entry.news.feed || entry.news.view)) {
+        row.news = { ...entry.news };
+      }
+      return row;
+    });
     main.searches.entries.splice(
       0,
       main.searches.entries.length,

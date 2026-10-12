@@ -46,6 +46,7 @@ import {
 import {
   bufferedCount,
   initUnifiedMergeState,
+  mergePageAction,
   resetUnifiedMergeState,
   seedUnifiedMergeAfterLegacy,
   takeMergedFromBuffers,
@@ -194,38 +195,48 @@ const unifiedStateKey = (args: {
     })),
   });
 
-export class ApiService {
-  /** Sticky per-child leftovers for sequential Unified pagination. */
-  private unifiedMerge: UnifiedMergeState<EnhancedPost> | null = null;
+type MergeSession = {
+  merge: UnifiedMergeState<EnhancedPost> | null;
   /** Bumped on reset / re-init so in-flight legacy seeds cannot clobber newer state. */
-  private unifiedMergeEpoch = 0;
+  epoch: number;
   /** Match keys already collapsed in this Federated scroll session. */
-  private unifiedDupKeys = new Set<string>();
+  dupKeys: Set<string>;
+};
 
-  /** Sticky merge for Video mode (Murrtube + Badpups). */
-  private videoMerge: UnifiedMergeState<EnhancedPost> | null = null;
-  private videoMergeEpoch = 0;
+const emptyMergeSession = (): MergeSession => ({
+  merge: null,
+  epoch: 0,
+  dupKeys: new Set(),
+});
+
+export class ApiService {
+  /** Grid cursor. Save-search and other walks use `side` so they cannot reset it. */
+  private unifiedFeed: MergeSession = emptyMergeSession();
+  private unifiedSide: MergeSession = emptyMergeSession();
+  private videoFeed: MergeSession = emptyMergeSession();
+  private videoSide: MergeSession = emptyMergeSession();
 
   /** Drop sticky Unified leftovers (tags / children / feed-source / mode change). */
   async resetUnifiedMerge(): Promise<void> {
-    this.unifiedMergeEpoch += 1;
-    this.unifiedMerge = resetUnifiedMergeState();
-    this.unifiedDupKeys.clear();
+    this.unifiedFeed.epoch += 1;
+    this.unifiedFeed.merge = resetUnifiedMergeState();
+    this.unifiedFeed.dupKeys.clear();
   }
 
   async resetVideoMerge(): Promise<void> {
-    this.videoMergeEpoch += 1;
-    this.videoMerge = resetUnifiedMergeState();
+    this.videoFeed.epoch += 1;
+    this.videoFeed.merge = resetUnifiedMergeState();
   }
 
   private applyFederatedDuplicateCollapse(
     posts: EnhancedPost[],
+    dupKeys: Set<string>,
   ): EnhancedPost[] {
     const { posts: collapsed, newKeys } = collapseFederatedDuplicates(
       posts,
-      this.unifiedDupKeys,
+      dupKeys,
     );
-    for (const k of newKeys) this.unifiedDupKeys.add(k);
+    for (const k of newKeys) dupKeys.add(k);
     return collapsed;
   }
 
@@ -243,6 +254,11 @@ export class ApiService {
     video?: VideoFetchArgs;
     /** Global SFW-only: inject safe constraints at adapters (skip for id:-only). */
     sfwOnly?: boolean;
+    /**
+     * `side` walks pages without touching the grid cursor (Save search).
+     * Default is the on-screen feed.
+     */
+    mergeSlot?: "feed" | "side";
   }): Promise<GetPostsResult> {
     // Never log auth / unified child credentials (prod debug used to dump api_key).
     log({
@@ -256,11 +272,12 @@ export class ApiService {
       videoChildren: args.video?.children?.map((c) => c.mode),
       sfwOnly: args.sfwOnly,
     });
+    const mergeSlot = args.mergeSlot === "side" ? "side" : "feed";
     if (args.mode === "unified") {
-      return this.getUnifiedPosts(args);
+      return this.getUnifiedPosts(args, mergeSlot);
     }
     if (args.mode === "video") {
-      return this.getVideoPosts(args);
+      return this.getVideoPosts(args, mergeSlot);
     }
     const posts = await this.getPostsFromBackend(args);
     return { posts };
@@ -288,14 +305,25 @@ export class ApiService {
     }));
   }
 
-  private async getVideoPosts(args: {
-    page: number;
-    limit: number;
-    tags: string[];
-    blacklist?: string[][];
-    blacklistMode: BlacklistMode;
-    video?: VideoFetchArgs;
-  }): Promise<GetPostsResult> {
+  private async getVideoPosts(
+    args: {
+      page: number;
+      limit: number;
+      tags: string[];
+      blacklist?: string[][];
+      blacklistMode: BlacklistMode;
+      video?: VideoFetchArgs;
+      sfwOnly?: boolean;
+    },
+    mergeSlot: "feed" | "side" = "feed",
+  ): Promise<GetPostsResult> {
+    if (args.sfwOnly) {
+      return {
+        posts: [],
+        warnings: ["Video search is unavailable while SFW only is on"],
+      };
+    }
+    const session = mergeSlot === "side" ? this.videoSide : this.videoFeed;
     const children = args.video?.children || [];
     if (!children.length) {
       throw new Error("No Video sites enabled (turn on Murrtube and/or Badpups)");
@@ -335,18 +363,15 @@ export class ApiService {
       limit: args.limit,
       children: children.map((c) => c.mode),
     });
-    const sequential =
-      this.videoMerge?.key === key &&
-      args.page === this.videoMerge.lastEmittedPage + 1;
+    const action = mergePageAction(
+      args.page,
+      session.merge && session.merge.key === key
+        ? session.merge.lastEmittedPage
+        : null,
+      !!session.merge && session.merge.key === key,
+    );
 
-    if (args.page <= 1) {
-      this.videoMergeEpoch += 1;
-      this.videoMerge = initUnifiedMergeState(
-        key,
-        children.map((c) => c.mode),
-      );
-    } else if (!sequential) {
-      const epoch = this.videoMergeEpoch;
+    const legacyVideoPage = async () => {
       const groups = await Promise.all(
         children.map(async (child) => {
           try {
@@ -366,8 +391,17 @@ export class ApiService {
         }),
       );
       const { taken } = takeMergedFromBuffers(groups, args.limit);
-      if (epoch === this.videoMergeEpoch) {
-        this.videoMerge = seedUnifiedMergeAfterLegacy(
+      return taken;
+    };
+
+    if (action === "peek") {
+      return { posts: await legacyVideoPage() };
+    }
+    if (action === "reseed") {
+      const epoch = session.epoch;
+      const taken = await legacyVideoPage();
+      if (epoch === session.epoch) {
+        session.merge = seedUnifiedMergeAfterLegacy(
           key,
           children.map((c) => c.mode),
           args.page,
@@ -375,8 +409,15 @@ export class ApiService {
       }
       return { posts: taken };
     }
+    if (action === "reset") {
+      session.epoch += 1;
+      session.merge = initUnifiedMergeState(
+        key,
+        children.map((c) => c.mode),
+      );
+    }
 
-    const state = this.videoMerge!;
+    const state = session.merge!;
     const childByMode = new Map(children.map((c) => [c.mode, c]));
     let guard = 0;
     while (bufferedCount(state) < args.limit && guard < 20) {
@@ -457,6 +498,8 @@ export class ApiService {
     blacklistMode: BlacklistMode;
     unified?: UnifiedFetchArgs;
     sfwOnly?: boolean;
+    /** When set, collapse against this session instead of a throwaway set. */
+    dupKeys?: Set<string>;
   }): Promise<GetPostsResult> {
     const children = args.unified?.children || [];
     const shared = args.unified?.sharedBlacklist || args.blacklist || [];
@@ -493,7 +536,10 @@ export class ApiService {
       }),
     );
     const { taken } = takeMergedFromBuffers(groups, args.limit);
-    const posts = this.applyFederatedDuplicateCollapse(taken);
+    const posts = this.applyFederatedDuplicateCollapse(
+      taken,
+      args.dupKeys ?? new Set(),
+    );
     const hardFailures = warnings.filter(
       (w) =>
         !/: (dropped|remapped|ignored) /.test(w) &&
@@ -506,7 +552,7 @@ export class ApiService {
   }
 
   private async refillUnifiedChild(
-    cursor: NonNullable<typeof this.unifiedMerge>["children"][number],
+    cursor: UnifiedMergeState<EnhancedPost>["children"][number],
     child: UnifiedChildFetchArgs,
     args: {
       limit: number;
@@ -552,15 +598,19 @@ export class ApiService {
     }
   }
 
-  private async getUnifiedPosts(args: {
-    page: number;
-    limit: number;
-    tags: string[];
-    blacklist?: string[][];
-    blacklistMode: BlacklistMode;
-    unified?: UnifiedFetchArgs;
-    sfwOnly?: boolean;
-  }): Promise<GetPostsResult> {
+  private async getUnifiedPosts(
+    args: {
+      page: number;
+      limit: number;
+      tags: string[];
+      blacklist?: string[][];
+      blacklistMode: BlacklistMode;
+      unified?: UnifiedFetchArgs;
+      sfwOnly?: boolean;
+    },
+    mergeSlot: "feed" | "side" = "feed",
+  ): Promise<GetPostsResult> {
+    const session = mergeSlot === "side" ? this.unifiedSide : this.unifiedFeed;
     const children = args.unified?.children || [];
     const shared = args.unified?.sharedBlacklist || args.blacklist || [];
     const feedSource = args.unified?.feedSource || "search";
@@ -575,29 +625,33 @@ export class ApiService {
     }
 
     const key = unifiedStateKey({ ...args, tags: effectiveTags });
-    const sequential =
-      this.unifiedMerge?.key === key &&
-      args.page === this.unifiedMerge.lastEmittedPage + 1;
+    const sameQuery = !!session.merge && session.merge.key === key;
+    const action = mergePageAction(
+      args.page,
+      sameQuery ? session.merge!.lastEmittedPage : null,
+      sameQuery,
+    );
 
-    // Page 1 (or refresh): always start a fresh sequential merge.
-    // Page > 1 when cold, key-mismatched, or non-sequential: legacy fetch + reseed.
+    // reset: new query — drop leftovers and fill from child page 1.
+    // reseed: jump forward — legacy page, then cursors sit after it.
+    // peek: scroll-up — legacy page, leave the forward cursor alone.
     // Never init+sequential-fill for page > 1 — that would serve child page 1 labeled as N.
-    if (args.page <= 1) {
-      this.unifiedMergeEpoch += 1;
-      this.unifiedDupKeys.clear();
-      this.unifiedMerge = initUnifiedMergeState(
-        key,
-        children.map((c) => c.mode),
-      );
-    } else if (!sequential) {
-      const epoch = this.unifiedMergeEpoch;
+    if (action === "peek") {
+      return this.getUnifiedPostsLegacy({
+        ...args,
+        tags: effectiveTags,
+        dupKeys: session.dupKeys,
+      });
+    }
+    if (action === "reseed") {
+      const epoch = session.epoch;
       const legacy = await this.getUnifiedPostsLegacy({
         ...args,
         tags: effectiveTags,
+        dupKeys: session.dupKeys,
       });
-      // Ignore stale completion after reset / newer page-1 init.
-      if (epoch === this.unifiedMergeEpoch) {
-        this.unifiedMerge = seedUnifiedMergeAfterLegacy(
+      if (epoch === session.epoch) {
+        session.merge = seedUnifiedMergeAfterLegacy(
           key,
           children.map((c) => c.mode),
           args.page,
@@ -605,8 +659,16 @@ export class ApiService {
       }
       return legacy;
     }
+    if (action === "reset") {
+      session.epoch += 1;
+      session.dupKeys.clear();
+      session.merge = initUnifiedMergeState(
+        key,
+        children.map((c) => c.mode),
+      );
+    }
 
-    const state = this.unifiedMerge!;
+    const state = session.merge!;
     const { tagsByMode, warnings: tagWarnings } = this.prepareUnifiedTagsByChild(
       children,
       effectiveTags,
@@ -630,7 +692,7 @@ export class ApiService {
       const targets = empty.length ? empty : active;
       await Promise.all(
         targets.map((cursor) => {
-          const child = childByMode.get(cursor.mode);
+          const child = childByMode.get(cursor.mode as UnifiedChildMode);
           if (!child) {
             cursor.exhausted = true;
             return Promise.resolve();
@@ -653,14 +715,14 @@ export class ApiService {
 
     const { taken, remaining } = takeMergedFromBuffers(
       state.children.map((c) =>
-        filterPostsAgainstDupKeys(c.buffer, this.unifiedDupKeys),
+        filterPostsAgainstDupKeys(c.buffer, session.dupKeys),
       ),
       args.limit,
     );
     state.children.forEach((c, i) => {
       // Keep non-taken leftovers, still filtered against known dup keys.
       const rem = remaining[i] || [];
-      c.buffer = filterPostsAgainstDupKeys(rem, this.unifiedDupKeys);
+      c.buffer = filterPostsAgainstDupKeys(rem, session.dupKeys);
     });
     const collapsed = this.applyFederatedDuplicateCollapse(
       taken.map((post) => ({
@@ -670,10 +732,11 @@ export class ApiService {
           pageNumber: args.page,
         },
       })),
+      session.dupKeys,
     );
     // After collapse, strip newly-known dups from leftovers.
     state.children.forEach((c) => {
-      c.buffer = filterPostsAgainstDupKeys(c.buffer, this.unifiedDupKeys);
+      c.buffer = filterPostsAgainstDupKeys(c.buffer, session.dupKeys);
     });
     const posts = collapsed;
     state.lastEmittedPage = args.page;
@@ -1065,9 +1128,9 @@ export class ApiService {
         }
         return out;
       }
-      if (applySfw) {
+      {
         const sid = await inkbunny.ensureSid(args.auth?.api_key ?? null);
-        await inkbunny.setSfwOnlyRatings(sid);
+        await inkbunny.syncSessionRatings(sid, applySfw);
       }
       const hideNegations =
         args.blacklistMode === BlacklistMode.hide

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   bufferedCount,
   initUnifiedMergeState,
+  mergePageAction,
   resetUnifiedMergeState,
   seedUnifiedMergeAfterLegacy,
   takeMergedFromBuffers,
@@ -74,5 +75,16 @@ describe("seedUnifiedMergeAfterLegacy / resetUnifiedMergeState", () => {
 
   it("reset clears sticky state", () => {
     expect(resetUnifiedMergeState()).toBeNull();
+  });
+});
+
+describe("mergePageAction", () => {
+  it("resets a new query and peeks when scrolling backward", () => {
+    expect(mergePageAction(1, null, false)).toBe("reset");
+    expect(mergePageAction(4, null, false)).toBe("reseed");
+    expect(mergePageAction(6, 5, true)).toBe("continue");
+    expect(mergePageAction(9, 5, true)).toBe("reseed");
+    expect(mergePageAction(3, 5, true)).toBe("peek");
+    expect(mergePageAction(1, 5, true)).toBe("peek");
   });
 });

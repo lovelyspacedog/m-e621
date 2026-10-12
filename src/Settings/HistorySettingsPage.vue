@@ -82,7 +82,7 @@ const openSearch = async (tags: string[]) => {
 };
 const entries = history.entries;
 const savedSearches = savedSearchesStore.entries;
-const deleteSavedSearch = (idx: number) => savedSearchesStore.deleteEntry(idx);
+const deleteSavedSearch = (id: string) => savedSearchesStore.deleteEntryById(id);
 const deleteEntry = (idx: number) => history.deleteEntry(idx);
 const maxLength = computed<number>({
   get() {

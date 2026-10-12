@@ -156,13 +156,12 @@ function absFaUrl(url?: string | null): string {
   return url;
 }
 
-export function proxyMediaUrl(url?: string | null, cookies?: string | null): string | null {
+export function proxyMediaUrl(url?: string | null, _cookies?: string | null): string | null {
   const href = absFaUrl(url);
   if (!href) return null;
   if (href.startsWith("/api/download")) return href;
-  let out = `/api/download?url=${encodeURIComponent(href)}`;
-  if (cookies) out += `&fa=${encodeURIComponent(cookies)}`;
-  return out;
+  // Session cookies are the pawdeck_fa cookie (see syncFaMediaCookie), not ?fa=.
+  return `/api/download?url=${encodeURIComponent(href)}`;
 }
 
 export function submissionUrl(id: number): string {

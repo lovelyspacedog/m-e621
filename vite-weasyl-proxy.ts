@@ -29,6 +29,37 @@ function readBody(req: { on: Function }): Promise<Buffer> {
 // Proxy helpers
 // ---------------------------------------------------------------------------
 
+function weasylHostOk(url: URL): boolean {
+  return (
+    url.protocol === "https:" &&
+    (url.hostname === "weasyl.com" || url.hostname === "www.weasyl.com")
+  );
+}
+
+async function fetchWeasyl(url: string, init: RequestInit, hops = 0): Promise<Response> {
+  if (hops > 5) throw new Error("too many redirects");
+  const parsed = new URL(url);
+  if (!weasylHostOk(parsed)) throw new Error("redirect target not allowed");
+  const resp = await fetch(url, { ...init, redirect: "manual" });
+  if ([301, 302, 303, 307, 308].includes(resp.status)) {
+    const loc = resp.headers.get("location");
+    if (!loc) throw new Error("redirect without Location");
+    const next = new URL(loc, url);
+    if (!weasylHostOk(next)) throw new Error("redirect target not allowed");
+    const keepBody = resp.status === 307 || resp.status === 308;
+    return fetchWeasyl(
+      next.toString(),
+      {
+        ...init,
+        method: keepBody ? init.method : "GET",
+        body: keepBody ? init.body : undefined,
+      },
+      hops + 1,
+    );
+  }
+  return resp;
+}
+
 async function weasylApiRequest(
   url: string,
   apiKey?: string | null,
@@ -40,7 +71,7 @@ async function weasylApiRequest(
   if (apiKey) headers["X-Weasyl-API-Key"] = apiKey;
 
   try {
-    const resp = await fetch(url, { headers });
+    const resp = await fetchWeasyl(url, { headers });
     const body = Buffer.from(await resp.arrayBuffer());
     const contentType = resp.headers.get("content-type") || "application/json";
     return { body, status: resp.status, contentType };
@@ -93,7 +124,11 @@ export function weasylProxy(): Plugin {
 
         const qs = req.url?.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
         const params = new URLSearchParams(qs);
-        const apiKey = params.get("key") || undefined;
+        const apiKey =
+          (typeof req.headers["x-weasyl-api-key"] === "string" &&
+            req.headers["x-weasyl-api-key"]) ||
+          params.get("key") ||
+          undefined;
 
         try {
           // ── GET /api/weasyl/frontpage ────────────────────────────────────
@@ -244,7 +279,7 @@ export function weasylProxy(): Plugin {
                 Referer: `${WEASYL_API_BASE}${pagePath}`,
               };
               if (apiKey) pageHeaders["X-Weasyl-API-Key"] = apiKey;
-              const pageResp = await fetch(`${WEASYL_API_BASE}${pagePath}`, {
+              const pageResp = await fetchWeasyl(`${WEASYL_API_BASE}${pagePath}`, {
                 headers: pageHeaders,
               });
               const pageHtml = await pageResp.text();
@@ -260,7 +295,7 @@ export function weasylProxy(): Plugin {
               formData.set("submitid", submitid);
               formData.set("parentid", "");
               formData.set("content", content);
-              const postResp = await fetch(`${WEASYL_API_BASE}/submit/comment`, {
+              const postResp = await fetchWeasyl(`${WEASYL_API_BASE}/submit/comment`, {
                 method: "POST",
                 headers: {
                   ...pageHeaders,
@@ -313,7 +348,7 @@ export function weasylProxy(): Plugin {
             };
             if (apiKey) headers["X-Weasyl-API-Key"] = apiKey;
             if (cookies) headers.Cookie = cookies;
-            const resp = await fetch(`${WEASYL_API_BASE}${pagePath}`, { headers });
+            const resp = await fetchWeasyl(`${WEASYL_API_BASE}${pagePath}`, { headers });
             if (!resp.ok) {
               sendJson(res, resp.status, {
                 ok: false,
@@ -357,7 +392,7 @@ export function weasylProxy(): Plugin {
             };
             if (apiKey) headers["X-Weasyl-API-Key"] = apiKey;
 
-            const resp = await fetch(scrapeUrl, { headers });
+            const resp = await fetchWeasyl(scrapeUrl, { headers });
             if (!resp.ok) {
               sendJson(res, resp.status, { ok: false, message: `Weasyl search returned ${resp.status}` });
               return;

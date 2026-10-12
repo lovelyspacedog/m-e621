@@ -47,6 +47,59 @@ def _urlopen_no_redirect(req: urllib.request.Request, timeout: float | int):
     return _NO_REDIRECT_OPENER.open(req, timeout=timeout)
 
 
+_WEASYL_HOSTS = frozenset({"weasyl.com", "www.weasyl.com"})
+
+
+def _weasyl_host_ok(url: str) -> bool:
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    return parsed.scheme == "https" and host in _WEASYL_HOSTS
+
+
+def _open_weasyl(req: urllib.request.Request, timeout: float, hops: int = 5):
+    """Follow redirects only while the next URL stays on weasyl.com.
+
+    Auth headers are copied only onto those hops, never onto an off-site Location.
+    """
+    current = req
+    for _ in range(max(1, hops)):
+        if not _weasyl_host_ok(current.full_url):
+            raise ValueError("redirect target not allowed")
+        try:
+            return _urlopen_no_redirect(current, timeout)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in (301, 302, 303, 307, 308):
+                raise
+            loc = exc.headers.get("Location") if exc.headers else None
+            if not loc:
+                raise
+            nxt_url = urljoin(current.full_url, loc)
+            if not _weasyl_host_ok(nxt_url):
+                raise ValueError("redirect target not allowed") from exc
+            data = current.data if exc.code in (307, 308) else None
+            method = current.get_method() if data is not None else "GET"
+            nxt = urllib.request.Request(nxt_url, data=data, method=method)
+            for header, value in current.header_items():
+                if header.lower() == "host":
+                    continue
+                if data is None and header.lower() in ("content-length", "content-type"):
+                    continue
+                nxt.add_header(header, value)
+            current = nxt
+    raise ValueError("too many redirects")
+
+
+def _cookie_value(header: str | None, name: str) -> str:
+    """Read one cookie from a Cookie header. Values may be percent-encoded."""
+    if not header:
+        return ""
+    for part in header.split(";"):
+        key, _, value = part.strip().partition("=")
+        if key == name and value:
+            return unquote(value)
+    return ""
+
+
 def _prepend_venv() -> None:
     """Prefer a local .venv so faapi can be installed without system pip."""
     root = Path(__file__).resolve().parent
@@ -2189,7 +2242,8 @@ class SpaHandler(SimpleHTTPRequestHandler):
                 req.add_header("Referer", "https://inkbunny.net")
             if host in FURAFFINITY_MEDIA_HOSTS or host.endswith(FURAFFINITY_MEDIA_SUFFIXES):
                 req.add_header("Referer", "https://www.furaffinity.net")
-                # Prefer header / env over ?fa= (query is last-resort for <img src>).
+                # Header, host env, or the first-party pawdeck_fa cookie.
+                # Do not read ?fa= — that put session cookies in image URLs and logs.
                 fa_cookies = (self.headers.get("X-FA-Cookies") or "").strip()
                 if not fa_cookies:
                     parts = []
@@ -2201,7 +2255,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
                         parts.append(f"b={b}")
                     fa_cookies = "; ".join(parts)
                 if not fa_cookies:
-                    fa_cookies = (parse_qs(urlparse(self.path).query).get("fa") or [""])[0]
+                    fa_cookies = _cookie_value(self.headers.get("Cookie"), "pawdeck_fa")
                 if fa_cookies:
                     req.add_header("Cookie", fa_cookies.replace(";", "; "))
             if host in WEASYL_MEDIA_HOSTS:
@@ -2791,7 +2845,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if api_key:
             req.add_header("X-Weasyl-API-Key", api_key)
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with _open_weasyl(req, timeout) as resp:
                 data = resp.read()
                 status = getattr(resp, "status", 200)
                 ct = resp.headers.get("Content-Type", "application/json")
@@ -2815,7 +2869,10 @@ class SpaHandler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def _weasyl_api_key(self, parsed) -> str | None:
-        """Extract API key from the `key` query param."""
+        """API key from X-Weasyl-API-Key, then the legacy `key` query param."""
+        header = (self.headers.get("X-Weasyl-API-Key") or "").strip()
+        if header:
+            return header
         params = parse_qs(parsed.query)
         key = (params.get("key") or [""])[0].strip()
         return key or None
@@ -2905,7 +2962,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if cookies:
             req.add_header("Cookie", cookies)
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with _open_weasyl(req, 30) as resp:
                 html_text = resp.read().decode("utf-8", "replace")
                 status = getattr(resp, "status", 200)
         except urllib.error.HTTPError as exc:
@@ -2957,7 +3014,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
         if api_key:
             req.add_header("X-Weasyl-API-Key", api_key)
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with _open_weasyl(req, 30) as resp:
                 status = getattr(resp, "status", 200)
                 resp.read()
         except urllib.error.HTTPError as exc:
@@ -3067,7 +3124,7 @@ class SpaHandler(SimpleHTTPRequestHandler):
             req.add_header("X-Weasyl-API-Key", api_key)
 
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with _open_weasyl(req, 30) as resp:
                 raw_bytes = resp.read()
         except urllib.error.HTTPError as exc:
             err = json.dumps({"ok": False, "message": f"Weasyl search error: {exc.code}"}).encode()

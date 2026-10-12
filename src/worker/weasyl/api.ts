@@ -5,7 +5,7 @@
  * Tag search uses an HTML scrape of /search (no JSON search API exists); the
  * Python proxy in serve.py performs the scrape and returns JSON.
  *
- * Auth: X-Weasyl-API-Key header (sent by the proxy when `key` query param is present).
+ * Auth: X-Weasyl-API-Key header. `key` is stripped from the proxy URL before fetch.
  * Without a key, only SFW/general content is visible.
  */
 
@@ -102,7 +102,13 @@ function buildUrl(path: string, params: Record<string, string | number | undefin
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
+  const base = typeof location !== "undefined" ? location.origin : "http://localhost";
+  const parsed = new URL(url, base);
+  const apiKey = parsed.searchParams.get("key");
+  if (apiKey) parsed.searchParams.delete("key");
+  const headers: Record<string, string> = {};
+  if (apiKey) headers["X-Weasyl-API-Key"] = apiKey;
+  const response = await fetch(parsed.toString(), { headers });
   if (!response.ok) {
     let msg = `Weasyl proxy error: ${response.status} ${response.statusText}`;
     try {
@@ -515,9 +521,9 @@ export async function getComments(args: {
   ownerLogin?: string | null;
 }): Promise<Comment[]> {
   const q = new URLSearchParams();
-  if (args.apiKey) q.set("key", args.apiKey);
   if (args.ownerLogin) q.set("owner", args.ownerLogin);
   const headers: Record<string, string> = { Accept: "application/json" };
+  if (args.apiKey) headers["X-Weasyl-API-Key"] = args.apiKey;
   if (args.cookies) headers["X-Weasyl-Cookies"] = args.cookies;
   const url = `${proxyCommentsBase()}/submission/${args.id}/comments?${q}`;
   const response = await fetch(url, { headers });
@@ -568,13 +574,13 @@ export async function createComment(args: {
     "Content-Type": "application/json",
     "X-Weasyl-Cookies": args.cookies,
   };
+  if (args.apiKey) headers["X-Weasyl-API-Key"] = args.apiKey;
   const response = await fetch(`${proxyCommentsBase()}/submission/${args.id}/comments`, {
     method: "POST",
     headers,
     body: JSON.stringify({
       content: text,
       owner: args.ownerLogin || undefined,
-      key: args.apiKey || undefined,
     }),
   });
   if (!response.ok) {

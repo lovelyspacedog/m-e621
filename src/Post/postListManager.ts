@@ -44,6 +44,11 @@ export const usePostListManager = ({
 }: IUsePostListManagerArgs) => {
   const snackbar = useSnackbarStore();
   const posts = ref<EnhancedPost[]>([]);
+  /**
+   * Highest page already requested when that page was entirely duplicates.
+   * Keeps the next scroll from asking for the same page again.
+   */
+  const duplicatePageFloor = ref(0);
   const fullscreenPost = ref<EnhancedPost | null>(null);
   const detailsPost = ref<EnhancedPost | null>(null);
   const loading = ref(false);
@@ -380,11 +385,12 @@ export const usePostListManager = ({
     posts.value.length ? posts.value[0].__meta.pageNumber : getSavedPageNumber(),
   );
 
-  const lastPageNumber = computed(() =>
-    posts.value.length
+  const lastPageNumber = computed(() => {
+    const fromPosts = posts.value.length
       ? posts.value[posts.value.length - 1].__meta.pageNumber
-      : getSavedPageNumber(),
-  );
+      : getSavedPageNumber();
+    return Math.max(fromPosts, duplicatePageFloor.value);
+  });
 
   const loadPreviousPage = async () => {
     if (loading.value) {
@@ -396,24 +402,32 @@ export const usePostListManager = ({
     const thisGen = generation.value;
     try {
       loading.value = true;
-      const newPosts = await loadPosts(firstPageNumber.value - 1, "previous");
-      if (thisGen !== generation.value) return;
-      // newly uploaded posts cause old posts to shift pages, and duplicates are bad
-      const newPostsFiltered = newPosts.filter(
-        (newP) =>
-          !posts.value.find(
-            (existing) => postFeedKey(existing) === postFeedKey(newP),
-          ),
-      );
-      if (!newPostsFiltered.length) return;
-      const postCountToRemove = getPostCountToRemove();
-      posts.value.unshift(...newPostsFiltered);
-      posts.value.splice(
-        posts.value.length - postCountToRemove,
-        postCountToRemove,
-      );
-      scheduleFaFeedEnrich(newPostsFiltered);
-      scheduleVideoFeedEnrich(newPostsFiltered);
+      let page = firstPageNumber.value - 1;
+      let skips = 0;
+      while (page >= 1 && skips < 5) {
+        const newPosts = await loadPosts(page, "previous");
+        if (thisGen !== generation.value) return;
+        const newPostsFiltered = newPosts.filter(
+          (newP) =>
+            !posts.value.find(
+              (existing) => postFeedKey(existing) === postFeedKey(newP),
+            ),
+        );
+        if (!newPostsFiltered.length) {
+          skips += 1;
+          page -= 1;
+          continue;
+        }
+        const postCountToRemove = getPostCountToRemove();
+        posts.value.unshift(...newPostsFiltered);
+        posts.value.splice(
+          posts.value.length - postCountToRemove,
+          postCountToRemove,
+        );
+        scheduleFaFeedEnrich(newPostsFiltered);
+        scheduleVideoFeedEnrich(newPostsFiltered);
+        return;
+      }
     } catch (error) {
       if (thisGen === generation.value) handleError(error);
     } finally {
@@ -430,28 +444,37 @@ export const usePostListManager = ({
       loading.value = true;
       // When the list is empty, load the saved page directly (not saved+1).
       // e.g. refresh on ?page=2 should reload page 2, not page 3.
-      const page = posts.value.length
+      let page = posts.value.length
         ? lastPageNumber.value + 1
         : Math.max(1, getSavedPageNumber());
-      const newPosts = await loadPosts(page, "next");
-      if (thisGen !== generation.value) return;
-      if (!newPosts.length) {
-        reachedEnd.value = true;
-      } else {
+      let skips = 0;
+      while (skips < 5) {
+        const newPosts = await loadPosts(page, "next");
+        if (thisGen !== generation.value) return;
+        if (!newPosts.length) {
+          reachedEnd.value = true;
+          return;
+        }
         reachedEnd.value = false;
-        // newly uploaded / overlapping pages can repeat; duplicates are bad
         const newPostsFiltered = newPosts.filter(
           (newP) =>
             !posts.value.find(
               (existing) => postFeedKey(existing) === postFeedKey(newP),
             ),
         );
-        if (!newPostsFiltered.length) return;
+        if (!newPostsFiltered.length) {
+          duplicatePageFloor.value = page;
+          skips += 1;
+          page += 1;
+          continue;
+        }
+        duplicatePageFloor.value = 0;
         const postCountToRemove = getPostCountToRemove();
         posts.value.push(...newPostsFiltered);
         posts.value.splice(0, postCountToRemove);
         scheduleFaFeedEnrich(newPostsFiltered);
         scheduleVideoFeedEnrich(newPostsFiltered);
+        return;
       }
     } catch (error) {
       if (thisGen === generation.value) handleError(error);
@@ -619,6 +642,7 @@ export const usePostListManager = ({
     faEnrichPending.clear();
     videoEnrichPending.clear();
     posts.value = [];
+    duplicatePageFloor.value = 0;
     reachedEnd.value = false;
     loading.value = false;
     pendingFullscreenAdvance = null;

@@ -787,6 +787,7 @@ const toggleSaveSearch = async () => {
             video: siteMode.isVideo
               ? buildVideoFetchArgs(main.$state)
               : undefined,
+            mergeSlot: "side",
           }),
         );
         return posts;

@@ -107,6 +107,7 @@ import TipDialog from "./misc/TipDialog.vue";
 import { TIP_IDS } from "./misc/tipIds";
 import { useTipOpen } from "./misc/useTipOpen";
 import { APP_NAME } from "./misc/util/brand";
+import { syncFaMediaCookie } from "./misc/util/faMediaCookie";
 import { getAppName } from "./misc/util/utilities";
 import { useAppearanceStore, useMainStore, usePersistanceService, usePostsStore, useShortcutService, useSiteModeStore } from "./services";
 import { useHead } from '@unhead/vue';
@@ -165,6 +166,12 @@ watch(() => siteMode.isUnified, tryFederatedTip);
 const logoStyle = computed(() => appearance.logoStyle);
 
 const main = useMainStore();
+
+watch(
+  () => main.profiles.furaffinity?.account?.apiKey,
+  (cookies) => syncFaMediaCookie(cookies),
+  { immediate: true },
+);
 
 main.$subscribe(() => {
   shortcutService.setUpShortcuts();

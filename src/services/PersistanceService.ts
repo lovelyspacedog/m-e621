@@ -1220,6 +1220,7 @@ class PersistanceService {
       newState.activeMode !== "badpups" &&
       newState.activeMode !== "video" &&
       newState.activeMode !== "news" &&
+      newState.activeMode !== "u18chan" &&
       newState.activeMode !== "unified"
     ) {
       newState.activeMode = "e621";

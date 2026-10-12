@@ -71,6 +71,28 @@ export const initUnifiedMergeState = <T extends MergeablePost>(
   })),
 });
 
+/**
+ * How a requested page should use the sticky merge cursor.
+ * - reset: new query (or cold page 1) — drop leftovers and start at child page 1
+ * - continue: exact next page — emit from buffers
+ * - reseed: jump forward — one legacy page, then cursors sit after it
+ * - peek: scroll-up or a repeat — return that page and leave the forward cursor alone
+ */
+export type MergePageAction = "reset" | "continue" | "reseed" | "peek";
+
+export const mergePageAction = (
+  page: number,
+  lastEmittedPage: number | null,
+  sameQuery: boolean,
+): MergePageAction => {
+  if (!sameQuery || lastEmittedPage == null) {
+    return page <= 1 ? "reset" : "reseed";
+  }
+  if (page === lastEmittedPage + 1) return "continue";
+  if (page > lastEmittedPage + 1) return "reseed";
+  return "peek";
+};
+
 /** Seed cursors after a non-sequential (legacy) page so forward scroll can resume. */
 export const seedUnifiedMergeAfterLegacy = <T extends MergeablePost>(
   key: string,

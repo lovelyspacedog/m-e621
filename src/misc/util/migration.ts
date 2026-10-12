@@ -19,19 +19,20 @@ export const useMigrator = () => {
 
         const openMigrationWindow = () => {
             let success = false;
-            window.addEventListener("message", (event: MessageEvent<MigrationMessage>) => {
+            const onMessage = (event: MessageEvent<MigrationMessage>) => {
                 if (event.origin !== expectedOrigin) return;
                 if (event.data?.type !== "migrationDataResponse") return;
-                window.removeEventListener("message", openMigrationWindow);
+                window.removeEventListener("message", onMessage);
                 persistanceService.setState(event.data.migrationData);
                 success = true;
                 onSuccess();
                 w?.close();
-            });
+            };
+            window.addEventListener("message", onMessage);
             const w = window.open(oldDomainUrl, "_blank");
             setTimeout(() => {
                 if (!success) {
-                    window.removeEventListener("message", openMigrationWindow);
+                    window.removeEventListener("message", onMessage);
                     fallbackToIframe();
                     w?.close();
                 }
@@ -88,7 +89,11 @@ export const useMigrator = () => {
     }
 
     function setupMigrationDataListener(allowedOrigin: string): void {
-        setInterval(() => {
+        const timer = window.setInterval(() => {
+            if (!window.opener || window.opener.closed) {
+                window.clearInterval(timer);
+                return;
+            }
             const state = persistanceService.getState();
             if (hasMigratableState(state)) {
                 const response: MigrationMessage = {
@@ -96,7 +101,7 @@ export const useMigrator = () => {
                     migrationData: state
                 };
 
-                window.opener?.postMessage(response, {
+                window.opener.postMessage(response, {
                     targetOrigin: allowedOrigin
                 });
             }
@@ -126,14 +131,22 @@ export const useMigrator = () => {
     };
 }
 
-/** True if there is anything worth migrating (not history-only). */
-function hasMigratableState(state: ISettingsServiceState): boolean {
+const hasFavoriteTags = (
+    favorites: { tags?: unknown[] } | null | undefined,
+): boolean => (favorites?.tags?.length ?? 0) > 0;
+
+/** True if there is anything worth migrating (not an empty library). */
+export function hasMigratableState(state: ISettingsServiceState): boolean {
     if (state.history?.entries?.length > 0) return true;
     if (state.account?.apiKey || state.account?.username) return true;
     if (state.blacklist?.tags?.length > 0) return true;
     if (state.searches?.entries?.length > 0) return true;
-    if ((state as { favorites?: { posts?: unknown[] } }).favorites?.posts?.length) return true;
+    if (hasFavoriteTags(state.favorites)) return true;
     if (state.savedPosts?.entries?.length > 0) return true;
+    if (state.watchedPools?.entries?.length > 0) return true;
+    if (state.watchedComics?.entries?.length > 0) return true;
+    if (state.watchedU18chan?.entries?.length > 0) return true;
+    if (state.news?.saved?.length > 0) return true;
     const profiles = state.profiles;
     if (profiles) {
         for (const profile of Object.values(profiles)) {
@@ -142,7 +155,7 @@ function hasMigratableState(state: ISettingsServiceState): boolean {
             if (profile.blacklist?.tags?.length > 0) return true;
             if (profile.searches?.entries?.length > 0) return true;
             if (profile.history?.entries?.length > 0) return true;
-            if ((profile as { favorites?: { posts?: unknown[] } }).favorites?.posts?.length) return true;
+            if (hasFavoriteTags(profile.favorites)) return true;
         }
     }
     return false;

@@ -16,8 +16,11 @@ import {
   u18chanIndexBySlug,
 } from "./src/misc/util/u18chanBoards";
 import {
+  isAllowedU18chanMediaUrl,
   parseCatalog,
   parseThread,
+  stripTags,
+  u18chanPathBlocked,
 } from "./src/worker/u18chan/htmlParse";
 
 const UA = "me621-u18chan-proxy/1.0";
@@ -81,6 +84,28 @@ function corsOptions(res: ServerResponse): void {
   res.end();
 }
 
+async function fetchU18chanMedia(start: URL): Promise<Response> {
+  let current = start;
+  for (let hop = 0; hop < 5; hop++) {
+    if (!isAllowedU18chanMediaUrl(current.href)) {
+      throw new Error(
+        current.pathname.toLowerCase().includes("cub")
+          ? "board not allowed"
+          : "host not allowed",
+      );
+    }
+    const remote = await fetchUpstream(current.href, { redirect: "manual" });
+    if ([301, 302, 303, 307, 308].includes(remote.status)) {
+      const loc = remote.headers.get("location");
+      if (!loc) throw new Error("redirect without Location");
+      current = new URL(loc, current);
+      continue;
+    }
+    return remote;
+  }
+  throw new Error("too many redirects");
+}
+
 async function handleMedia(
   urlParam: string,
   res: ServerResponse,
@@ -92,15 +117,21 @@ async function handleMedia(
     json(res, 400, { error: "bad media url" });
     return;
   }
-  if (!parsed.hostname.endsWith("u18chan.com")) {
-    json(res, 400, { error: "host not allowed" });
+  if (!isAllowedU18chanMediaUrl(parsed.href)) {
+    const blocked = u18chanPathBlocked(parsed.pathname);
+    json(res, blocked ? 403 : 400, {
+      error: blocked ? "board not allowed" : "host not allowed",
+    });
     return;
   }
-  if (parsed.pathname.includes("/cub/") || parsed.pathname.includes("/icub/")) {
-    json(res, 403, { error: "board not allowed" });
+  let remote: Response;
+  try {
+    remote = await fetchU18chanMedia(parsed);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "media fetch failed";
+    json(res, message === "board not allowed" ? 403 : 400, { error: message });
     return;
   }
-  const remote = await fetchUpstream(parsed.href);
   if (!remote.ok) {
     json(res, remote.status, { error: `upstream ${remote.status}` });
     return;

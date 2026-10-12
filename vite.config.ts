@@ -158,9 +158,8 @@ function e621MediaProxy(): Plugin {
           return;
         }
         const rangeHeader = typeof req.headers.range === 'string' ? req.headers.range : undefined;
-        // Prefer header / env over ?fa= so query strings cannot override host cookies
-        // and media <img> URLs can still fall back to ?fa= when needed.
-        const reqUrl = new URL(req.url, 'http://127.0.0.1');
+        // Header, host env, or the first-party pawdeck_fa cookie.
+        // Do not read ?fa= — that put session cookies in image URLs and logs.
         const headerFa =
           (typeof req.headers['x-fa-cookies'] === 'string' && req.headers['x-fa-cookies']) ||
           '';
@@ -170,8 +169,14 @@ function e621MediaProxy(): Plugin {
         ]
           .filter(Boolean)
           .join('; ');
-        const queryFa = reqUrl.searchParams.get('fa') || '';
-        const faCookies = headerFa || envFa || queryFa;
+        const cookieHeader = typeof req.headers.cookie === 'string' ? req.headers.cookie : '';
+        const cookieFa = cookieHeader
+          .split(';')
+          .map((part) => part.trim())
+          .filter((part) => part.startsWith('pawdeck_fa='))
+          .map((part) => decodeURIComponent(part.slice('pawdeck_fa='.length)))
+          .find(Boolean) || '';
+        const faCookies = headerFa || envFa || cookieFa;
         // Follow redirects manually; re-validate host each hop (M27).
         const fetchAllowed = async (url: URL, hops = 0): Promise<Response> => {
           if (hops > 5) throw new Error('too many redirects');

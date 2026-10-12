@@ -202,6 +202,64 @@ export const buildSaveRelativePath = async (
   return parts.join("/");
 };
 
+const claimedDownloads = new Set<string>();
+
+const claimDownloadName = (name: string): string => {
+  if (!claimedDownloads.has(name)) {
+    claimedDownloads.add(name);
+    return name;
+  }
+  const dot = name.lastIndexOf(".");
+  const base = dot > 0 ? name.slice(0, dot) : name;
+  const ext = dot > 0 ? name.slice(dot) : "";
+  for (let i = 1; i < 1000; i++) {
+    const candidate = `${base} (${i})${ext}`;
+    if (!claimedDownloads.has(candidate)) {
+      claimedDownloads.add(candidate);
+      return candidate;
+    }
+  }
+  const fallback = `${base} (${Date.now()})${ext}`;
+  claimedDownloads.add(fallback);
+  return fallback;
+};
+
+const writeChains = new Map<string, Promise<void>>();
+const handleKeys = new WeakMap<object, string>();
+let handleSeq = 0;
+
+/** Serialize name allocation + write so two posts cannot claim the same path. */
+const withWriteLock = async <T>(key: string, fn: () => Promise<T>): Promise<T> => {
+  const prev = writeChains.get(key) ?? Promise.resolve();
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  writeChains.set(
+    key,
+    prev.then(() => gate).then(
+      () => {},
+      () => {},
+    ),
+  );
+  await prev.catch(() => {});
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+};
+
+const directoryLockKey = (dir: FileSystemDirectoryHandle): string => {
+  let key = handleKeys.get(dir);
+  if (!key) {
+    handleSeq += 1;
+    key = `fsa:${handleSeq}`;
+    handleKeys.set(dir, key);
+  }
+  return key;
+};
+
 /** Pick unused filename: `foo.ext`, then `foo (1).ext`, … Never overwrite silently. */
 export const allocateUniqueFileName = async (
   exists: (name: string) => Promise<boolean>,
@@ -235,23 +293,24 @@ const writeToDirectory = async (
   relativePath: string,
   data: ArrayBuffer,
   mimeType: string,
-): Promise<string> => {
-  const parts = relativePath.split("/");
-  const fileName = parts.pop()!;
-  let dir = root;
-  for (const part of parts) {
-    dir = await dir.getDirectoryHandle(part, { create: true });
-  }
-  const uniqueName = await allocateUniqueFileName(
-    (name) => fsaFileExists(dir, name),
-    fileName,
-  );
-  const fileHandle = await dir.getFileHandle(uniqueName, { create: true });
-  const writable = await fileHandle.createWritable();
-  await writable.write(new Blob([data], { type: mimeType }));
-  await writable.close();
-  return [...parts, uniqueName].join("/");
-};
+): Promise<string> =>
+  withWriteLock(directoryLockKey(root), async () => {
+    const parts = relativePath.split("/");
+    const fileName = parts.pop()!;
+    let dir = root;
+    for (const part of parts) {
+      dir = await dir.getDirectoryHandle(part, { create: true });
+    }
+    const uniqueName = await allocateUniqueFileName(
+      (name) => fsaFileExists(dir, name),
+      fileName,
+    );
+    const fileHandle = await dir.getFileHandle(uniqueName, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(new Blob([data], { type: mimeType }));
+    await writable.close();
+    return [...parts, uniqueName].join("/");
+  });
 
 const tauriRelativePathExists = async (
   root: string,
@@ -521,11 +580,14 @@ export const savePostLocally = async (
       ? await getTauriLocalRoot()
       : null;
   if (tauriRoot) {
-    const savedPath = await allocateUniqueRelativePath(
-      (path) => tauriRelativePathExists(tauriRoot, path),
-      relativePath,
-    );
-    await tauriWriteLocalFile(tauriRoot, savedPath, new Uint8Array(data));
+    const savedPath = await withWriteLock(`tauri:${tauriRoot}`, async () => {
+      const unique = await allocateUniqueRelativePath(
+        (path) => tauriRelativePathExists(tauriRoot, path),
+        relativePath,
+      );
+      await tauriWriteLocalFile(tauriRoot, unique, new Uint8Array(data));
+      return unique;
+    });
     try {
       await mergeSidecarTagsForTauriRoot(
         tauriRoot,
@@ -546,7 +608,9 @@ export const savePostLocally = async (
   }
 
   // Firefox/Zen (or no folder chosen): flatten path for Downloads.
-  const flatName = relativePath.replace(/\//g, " - ");
+  const flatName = await withWriteLock("downloads", async () =>
+    claimDownloadName(relativePath.replace(/\//g, " - ")),
+  );
   downloadjs(data, flatName, mimeType);
   if (!opts?.quiet) {
     snackbar.addMessage(
@@ -660,6 +724,7 @@ export const savePostsLocally = async (
   const concurrency = Math.max(1, opts?.concurrency ?? 2);
   let done = 0;
   let failed = 0;
+  let queued = 0;
   let index = 0;
   const lastSavedBox: Array<{
     relativePath: string;
@@ -673,6 +738,7 @@ export const savePostsLocally = async (
       const current = eligible[index++];
       try {
         const result = await savePostLocally(current, { quiet: true });
+        if (result.queued) queued += 1;
         if (result.relativePath && result.dirHandle) {
           lastSavedBox[0] = {
             relativePath: result.relativePath,
@@ -709,9 +775,12 @@ export const savePostsLocally = async (
 
   if (!opts?.quietFinal) {
     const postsStore = usePostsStore();
+    const savedCount = eligible.length - failed - queued;
     const summary = failed
-      ? `Saved ${eligible.length - failed}/${eligible.length} locally (${failed} failed)`
-      : `Saved ${eligible.length} posts locally`;
+      ? `Saved ${savedCount}/${eligible.length} locally (${failed} failed${queued ? `, ${queued} queued` : ""})`
+      : queued
+        ? `Saved ${savedCount} locally (${queued} queued offline)`
+        : `Saved ${eligible.length} posts locally`;
     const saved = lastSavedBox[0];
     if (saved?.dirHandle) {
       if (postsStore.openInLocalAfterSave) {
@@ -741,7 +810,7 @@ export const savePostsLocally = async (
   }
 
   return {
-    saved: eligible.length - failed,
+    saved: eligible.length - failed - queued,
     failed,
     skipped: posts.length - eligible.length,
   };

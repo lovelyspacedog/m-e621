@@ -32,6 +32,36 @@ export function mediaProxyUrl(upstream: string): string {
   return `/api/u18chan/media?url=${encodeURIComponent(upstream)}`;
 }
 
+/** Decode a few times so `%2fcub%2f` cannot skip the board block. */
+export function u18chanPathBlocked(pathname: string): boolean {
+  let path = pathname;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const next = decodeURIComponent(path);
+      if (next === path) break;
+      path = next;
+    } catch {
+      break;
+    }
+  }
+  const parts = path.toLowerCase().split("/").filter(Boolean);
+  return parts.some((part) => part === "cub" || part === "icub");
+}
+
+/** HTTPS only, and only u18chan.com or a real subdomain (not evilu18chan.com). */
+export function isAllowedU18chanMediaUrl(raw: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "https:") return false;
+  const host = parsed.hostname.toLowerCase().replace(/\.$/, "");
+  if (host !== "u18chan.com" && !host.endsWith(".u18chan.com")) return false;
+  return !u18chanPathBlocked(parsed.pathname);
+}
+
 export function rewriteMedia(url: string | null | undefined): string | null {
   if (!url) return null;
   let u = url.trim();
@@ -39,7 +69,7 @@ export function rewriteMedia(url: string | null | undefined): string | null {
   if (!u.startsWith("http")) return null;
   try {
     const parsed = new URL(u);
-    if (!parsed.hostname.endsWith("u18chan.com")) return null;
+    if (!isAllowedU18chanMediaUrl(parsed.href)) return null;
     return mediaProxyUrl(parsed.href);
   } catch {
     return null;

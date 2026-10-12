@@ -60,6 +60,38 @@ def media_proxy_url(upstream: str) -> str:
     return "/api/u18chan/media?url=" + urllib.parse.quote(upstream, safe="")
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
+        return None
+
+
+_NO_REDIRECT = urllib.request.build_opener(_NoRedirect)
+
+
+def _host_ok(host: str) -> bool:
+    h = host.lower().rstrip(".")
+    return h == "u18chan.com" or h.endswith(".u18chan.com")
+
+
+def _path_blocked(path: str) -> bool:
+    decoded = path or ""
+    for _ in range(3):
+        nxt = urllib.parse.unquote(decoded)
+        if nxt == decoded:
+            break
+        decoded = nxt
+    parts = [p for p in decoded.lower().split("/") if p]
+    return "cub" in parts or "icub" in parts
+
+
+def assert_media_url(url: str) -> None:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "https" or not _host_ok(parsed.hostname or ""):
+        raise ValueError("host not allowed")
+    if _path_blocked(parsed.path):
+        raise ValueError("board not allowed")
+
+
 def rewrite_media(url: str | None) -> str | None:
     if not url:
         return None
@@ -69,13 +101,10 @@ def rewrite_media(url: str | None) -> str | None:
     if not u.startswith("http"):
         return None
     try:
-        parsed = urllib.parse.urlparse(u)
-    except Exception:
+        assert_media_url(u)
+    except ValueError:
         return None
-    host = (parsed.hostname or "").lower()
-    if not host.endswith("u18chan.com"):
-        return None
-    return media_proxy_url(urllib.parse.urlunparse(parsed))
+    return media_proxy_url(u)
 
 
 def fetch_html(url: str, timeout: float = 45.0) -> str:
@@ -256,17 +285,23 @@ def post_multipart(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def fetch_media(url: str) -> tuple[bytes, str]:
-    parsed = urllib.parse.urlparse(url)
-    host = (parsed.hostname or "").lower()
-    if not host.endswith("u18chan.com"):
-        raise ValueError("host not allowed")
-    path = parsed.path.lower()
-    if "/cub/" in path or "/icub/" in path:
-        raise ValueError("board not allowed")
-    req = urllib.request.Request(
-        url,
-        headers={"User-Agent": UA, "Referer": U18CHAN_BASE + "/"},
-    )
-    with urllib.request.urlopen(req, timeout=45) as resp:
-        ctype = resp.headers.get("Content-Type") or "application/octet-stream"
-        return resp.read(), ctype
+    current = url
+    for _ in range(5):
+        assert_media_url(current)
+        req = urllib.request.Request(
+            current,
+            headers={"User-Agent": UA, "Referer": U18CHAN_BASE + "/"},
+        )
+        try:
+            with _NO_REDIRECT.open(req, timeout=45) as resp:
+                ctype = resp.headers.get("Content-Type") or "application/octet-stream"
+                return resp.read(), ctype
+        except urllib.error.HTTPError as exc:
+            if exc.code not in (301, 302, 303, 307, 308):
+                raise
+            loc = exc.headers.get("Location") if exc.headers else None
+            if not loc:
+                raise ValueError("redirect without Location") from exc
+            current = urllib.parse.urljoin(current, loc)
+            continue
+    raise ValueError("too many redirects")

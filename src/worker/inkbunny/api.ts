@@ -562,6 +562,8 @@ export function mapSearchTags(tags: string[]): MappedInkbunnySearch {
 // ---------------------------------------------------------------------------
 
 let guestSid: string | null = null;
+/** Last SFW restriction applied to a SID. Worker restart re-syncs on the next search. */
+const ratingsRestrictedBySid = new Map<string, boolean>();
 // RID cache keyed by search fingerprint + session so concurrent Comlink
 // searches cannot overwrite each other's pagination state (H12).
 const ridCache = new Map<string, string>();
@@ -590,10 +592,11 @@ export async function logout(sid: string): Promise<void> {
     // SID may already be dead
   }
   if (guestSid === sid) guestSid = null;
+  ratingsRestrictedBySid.delete(sid);
   ridCache.clear();
 }
 
-async function enableAllGuestRatings(sid: string): Promise<void> {
+async function enableAllRatings(sid: string): Promise<void> {
   try {
     await postForm("ratings", {
       sid,
@@ -603,8 +606,24 @@ async function enableAllGuestRatings(sid: string): Promise<void> {
       "tag[5]": "yes",
     });
   } catch {
-    // Guest browse still works with default ratings if this fails.
+    // Browse still works with the session's current ratings if this fails.
   }
+}
+
+async function enableAllGuestRatings(sid: string): Promise<void> {
+  await enableAllRatings(sid);
+  ratingsRestrictedBySid.set(sid, false);
+}
+
+/**
+ * PawDeck SFW only restricts the Inkbunny SID. Turning it off must post `yes`
+ * again — otherwise a logged-in account stays General after the toggle.
+ */
+export async function syncSessionRatings(sid: string, sfwOnly: boolean): Promise<void> {
+  if (ratingsRestrictedBySid.get(sid) === sfwOnly) return;
+  if (sfwOnly) await setSfwOnlyRatings(sid);
+  else await enableAllRatings(sid);
+  ratingsRestrictedBySid.set(sid, sfwOnly);
 }
 
 /** Restrict session to General (SFW) only — inverse of enableAllGuestRatings. */

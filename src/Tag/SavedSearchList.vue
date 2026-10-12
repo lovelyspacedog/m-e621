@@ -10,7 +10,7 @@
           <v-btn icon @click.stop="$emit('click-entry', item.tags)">
             <v-icon>mdi-magnify</v-icon>
           </v-btn>
-          <v-btn icon @click.stop="$emit('delete-entry', i)">
+          <v-btn icon @click.stop="$emit('delete-entry', item.id)">
             <v-icon>mdi-close</v-icon>
           </v-btn>
         </template>
@@ -28,7 +28,7 @@ import TagLabel from "./TagLabel.vue";
 export default defineComponent({
   props: {
     entries: {
-      type: Array as PropType<{ name: string; tags: string[] }[]>,
+      type: Array as PropType<{ id: string; name: string; tags: string[] }[]>,
       required: true,
     },
   },

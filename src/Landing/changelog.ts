@@ -15,6 +15,22 @@ export interface ChangelogSection {
  */
 export const changelogSections: ChangelogSection[] = [
   {
+    date: "2026-10-11",
+    title: "Safer sessions and steadier feeds",
+    items: [
+      "Reloading while u18chan is open stays on u18chan",
+      "Turning SFW only off restores Inkbunny mature ratings for the signed-in session",
+      "Federated and Video scroll-up, and Save search, no longer repeat or skip a page",
+      "A page of posts you already have keeps scrolling instead of sticking",
+      "Saved-search delete removes the row you clicked after a reorder, and dragging a search keeps its News source",
+      "Saving several posts locally no longer overwrites one file with another, and offline-queued saves are not counted as saved",
+      "Watching a thread from the u18chan catalog records the current reply count so +N badges can show new replies",
+      "FurAffinity login cookies are no longer placed in image addresses",
+      "Weasyl API keys are sent as a header, and comment fetches do not follow a redirect off Weasyl",
+      "Moving from an older PawDeck address imports favorite tags, watched threads, and saved news, and does not apply that library twice",
+    ],
+  },
+  {
     date: "2026-10-07",
     title: "Desktop sign-in",
     items: [
