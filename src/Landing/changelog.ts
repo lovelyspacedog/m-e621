@@ -15,6 +15,13 @@ export interface ChangelogSection {
  */
 export const changelogSections: ChangelogSection[] = [
   {
+    date: "2026-10-19",
+    title: "Catalog grid sizing",
+    items: [
+      "Post settings and dedicated-mode headers add a slider for catalog and magazine thumbnail grid size (u18chan, Tailspace, News magazine, pools, comic pickers)",
+    ],
+  },
+  {
     date: "2026-10-11",
     title: "Safer sessions and steadier feeds",
     items: [

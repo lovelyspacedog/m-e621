@@ -107,6 +107,11 @@
           </v-btn>
         </v-btn-toggle>
 
+        <dedicated-grid-size-control
+          v-if="browseLayout === 'grid'"
+          variant="menu"
+        />
+
         <v-btn v-if="!isInkbunnyPools" icon :loading="loading" @click="runSearch">
           <v-icon>mdi-magnify</v-icon>
         </v-btn>
@@ -340,6 +345,7 @@ import { debounce } from "lodash";
 import type { Pool } from "@/worker/api";
 import TagSearch from "@/Tag/TagSearch.vue";
 import PoolCollection, { type PoolListItem } from "@/Pool/PoolCollection.vue";
+import DedicatedGridSizeControl from "@/misc/components/DedicatedGridSizeControl.vue";
 import TipDialog from "@/misc/TipDialog.vue";
 import { TIP_IDS } from "@/misc/tipIds";
 import { useTipOpen } from "@/misc/useTipOpen";

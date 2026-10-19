@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { computed } from "vue";
+import { clampDedicatedGridMinPx } from "@/misc/util/dedicatedGridMin";
 import { useMainStore } from "./state";
 import type { ButtonType } from "./types";
 
@@ -147,6 +148,16 @@ export const usePostsStore = defineStore("posts", () => {
     },
     set(value: "list" | "grid") {
       main.posts.feedLayout = value;
+    },
+  });
+  const dedicatedGridMinPx = computed({
+    get() {
+      return clampDedicatedGridMinPx(
+        main.posts.dedicatedGridMinPx ?? 140,
+      );
+    },
+    set(value: number) {
+      main.posts.dedicatedGridMinPx = clampDedicatedGridMinPx(value);
     },
   });
   const videoVolume = computed({
@@ -316,6 +327,7 @@ export const usePostsStore = defineStore("posts", () => {
     compactCards,
     alwaysCollapseToolbar,
     feedLayout,
+    dedicatedGridMinPx,
     videoVolume,
     videoMuted,
     videoPlaybackRate,

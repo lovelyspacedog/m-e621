@@ -11,6 +11,7 @@ import { debug, setDebugLoggingEnabled } from "@/misc/util/debug";
 import { applyActiveProfileToMirrors, createEmptySiteProfile, profileFromMirrors, syncMirrorsToActiveProfile } from "./siteProfiles";
 import { normalizeSavedSearches } from "./savedSearchNormalize";
 import { supportsLocalBrowse } from "@/misc/util/tauriLocalFs";
+import { clampDedicatedGridMinPx } from "@/misc/util/dedicatedGridMin";
 
 localforage.config({
   description: "",
@@ -1032,6 +1033,12 @@ class PersistanceService {
       }
       newState.configVersion = 58;
     }
+    if (newState.configVersion < 59) {
+      if (newState.posts.dedicatedGridMinPx === undefined) {
+        newState.posts.dedicatedGridMinPx = 140;
+      }
+      newState.configVersion = 59;
+    }
     if (
       newState.previousModeBeforeUnified !== null &&
       newState.previousModeBeforeUnified !== undefined &&
@@ -1327,6 +1334,13 @@ class PersistanceService {
     }
     if (newState.posts.feedLayout !== "list" && newState.posts.feedLayout !== "grid") {
       newState.posts.feedLayout = "list";
+    }
+    if (newState.posts.dedicatedGridMinPx === undefined) {
+      newState.posts.dedicatedGridMinPx = 140;
+    } else {
+      newState.posts.dedicatedGridMinPx = clampDedicatedGridMinPx(
+        newState.posts.dedicatedGridMinPx,
+      );
     }
     if (newState.posts.videoVolume === undefined) {
       newState.posts.videoVolume = 1;

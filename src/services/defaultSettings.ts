@@ -33,7 +33,7 @@ export const historyNavigationShortcuts: Shortcut[] = [
 ];
 
 export const defaultSettings: ISettingsServiceState = {
-  configVersion: 58,
+  configVersion: 59,
   activeMode: "e621",
   previousModeBeforeUnified: null,
   profiles: {
@@ -179,6 +179,7 @@ export const defaultSettings: ISettingsServiceState = {
     autoLoadNext: true,
     fullWidthFeed: false,
     feedLayout: "list",
+    dedicatedGridMinPx: 140,
     slideshowIntervalMs: 15000,
     cardAutoNext: false,
     cardAutoNextIntervalMs: 15000,

@@ -79,6 +79,12 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { label: "u18chan Gore Index", keywords: ["u18chan", "gore", "indices", "index"], section: "account", hash: "accounts" },
   { label: "u18chan posting identity", keywords: ["u18chan", "tripcode", "guest", "chan"], section: "account", hash: "accounts" },
   { label: "Grid layout", keywords: ["grid", "layout", "feed", "compact"], section: "posts", hash: "layout" },
+  {
+    label: "Catalog & magazine grid size",
+    keywords: ["grid", "thumbnail", "u18chan", "tailspace", "news", "pools", "magazine", "catalog"],
+    section: "posts",
+    hash: "layout",
+  },
   { label: "Full-width feed", keywords: ["full-width", "full width", "layout"], section: "posts", hash: "layout" },
   { label: "Compact cards", keywords: ["compact", "hover", "tags"], section: "posts", hash: "layout" },
   { label: "Infinite scroll", keywords: ["infinite", "scroll", "autoload", "auto load", "next page", "pagination"], section: "posts", hash: "layout" },

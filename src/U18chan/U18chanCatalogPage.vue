@@ -20,6 +20,7 @@
           >
             Open on u18chan
           </v-btn>
+          <dedicated-grid-size-control variant="menu" />
           <v-btn
             icon
             variant="text"
@@ -37,11 +38,15 @@
       {{ error }}
     </v-alert>
 
-    <div v-if="loading && threads.length === 0" class="u18-grid">
+    <div
+      v-if="loading && threads.length === 0"
+      class="u18-grid"
+      :style="gridStyle"
+    >
       <v-skeleton-loader v-for="n in 24" :key="n" type="image" class="u18-skel" />
     </div>
 
-    <div v-else-if="threads.length" class="u18-grid">
+    <div v-else-if="threads.length" class="u18-grid" :style="gridStyle">
       <div v-for="thread in threads" :key="thread.id" class="u18-card-wrap">
         <button
           type="button"
@@ -107,6 +112,10 @@ import {
 import { createPost, getCatalog, getThread } from "@/worker/u18chan/api";
 import type { U18chanCatalogThread, U18chanPostPayload } from "@/worker/u18chan/types";
 import U18chanComposeForm from "./U18chanComposeForm.vue";
+import DedicatedGridSizeControl from "@/misc/components/DedicatedGridSizeControl.vue";
+import { useDedicatedGridStyle } from "@/misc/util/dedicatedGridMin";
+
+const gridStyle = useDedicatedGridStyle(140);
 
 const route = useRoute();
 const router = useRouter();
@@ -234,7 +243,7 @@ watch(
 }
 .u18-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min, 140px), 1fr));
   gap: 12px;
   padding: 16px;
 }

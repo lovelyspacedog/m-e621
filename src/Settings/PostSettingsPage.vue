@@ -74,6 +74,13 @@
             />
           </settings-row>
           <settings-row
+            title="Catalog & magazine grid size"
+            description="Thumbnail column width for u18chan, Tailspace, News magazine, and pool/comic pickers. Does not change the main Posts feed grid."
+            stack
+          >
+            <dedicated-grid-size-control variant="inline" />
+          </settings-row>
+          <settings-row
             title="Compact cards"
             description="Hide tags and buttons until you hover the card (tap to expand on touch). When off, chrome stays visible in list and grid."
             switch
@@ -382,6 +389,7 @@ import PostButtonEditor from "./PostButtonEditor.vue";
 import SettingsGroup from "./SettingsGroup.vue";
 import SettingsPageTitle, { type SettingsNavChip } from "./SettingsPageTitle.vue";
 import SettingsRow from "./SettingsRow.vue";
+import DedicatedGridSizeControl from "@/misc/components/DedicatedGridSizeControl.vue";
 import { useHead } from "@unhead/vue";
 
 useHead({

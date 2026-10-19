@@ -20,6 +20,7 @@
             @keydown.enter="applySearch"
             @click:clear="clearSearch"
           />
+          <dedicated-grid-size-control variant="menu" />
           <v-btn
             :href="`https://tailspace.com/browse-posts`"
             target="_blank"
@@ -44,7 +45,7 @@
     </v-alert>
 
     <!-- Loading skeleton -->
-    <div v-if="loading && posts.length === 0" class="ts-grid">
+    <div v-if="loading && posts.length === 0" class="ts-grid" :style="gridStyle">
       <v-skeleton-loader
         v-for="n in 24"
         :key="n"
@@ -54,7 +55,7 @@
     </div>
 
     <!-- Post grid -->
-    <div v-else-if="posts.length > 0" class="ts-grid">
+    <div v-else-if="posts.length > 0" class="ts-grid" :style="gridStyle">
       <div
         v-for="post in posts"
         :key="post.id"
@@ -189,6 +190,10 @@ import {
   parseTailspaceQueryTerms,
   tailspacePostMatchesQuery,
 } from "@/misc/util/tailspaceSearch";
+import DedicatedGridSizeControl from "@/misc/components/DedicatedGridSizeControl.vue";
+import { useDedicatedGridStyle } from "@/misc/util/dedicatedGridMin";
+
+const gridStyle = useDedicatedGridStyle([140, 160, 180]);
 
 useTailspaceSession();
 
@@ -387,7 +392,7 @@ watch(
 /* ── Grid ── */
 .ts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min, 140px), 1fr));
   gap: 10px;
   padding: 0 0.75rem;
   max-width: 1800px;
@@ -396,12 +401,12 @@ watch(
 
 @media (min-width: 600px) {
   .ts-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min-sm, 160px), 1fr));
   }
 }
 @media (min-width: 960px) {
   .ts-grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min-lg, 180px), 1fr));
     gap: 12px;
     padding: 0 1.25rem;
   }

@@ -1,5 +1,5 @@
 <template>
-  <div v-if="layout === 'grid'" class="pools-grid">
+  <div v-if="layout === 'grid'" class="pools-grid" :style="gridStyle">
     <div v-for="pool in pools" :key="poolRowKey(pool)" class="pools-card">
       <router-link class="pools-card-link" :to="poolLink(pool)" :title="displayName(pool.name)">
         <div
@@ -153,6 +153,9 @@ import { poolKey, poolRouteQuery } from "@/misc/util/poolOrigin";
 import { unifiedChildIcon, unifiedChildLabel } from "@/misc/util/postOrigin";
 import { isTailspacePoolItem } from "@/misc/util/tailspacePoolBrowse";
 import { proxyDownloadUrl } from "@/misc/util/mediaProxy";
+import { useDedicatedGridStyle } from "@/misc/util/dedicatedGridMin";
+
+const gridStyle = useDedicatedGridStyle([140, 160, 180]);
 
 export type PoolListItem = Pool & {
   originMode?: PoolBrowseOrigin;
@@ -481,19 +484,19 @@ const pageCountLabel = (pool: PoolListItem) => {
 }
 .pools-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min, 140px), 1fr));
   gap: 10px;
   max-width: 1800px;
   margin: 0 auto;
 }
 @media (min-width: 600px) {
   .pools-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min-sm, 160px), 1fr));
   }
 }
 @media (min-width: 960px) {
   .pools-grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min-lg, 180px), 1fr));
     gap: 12px;
   }
 }

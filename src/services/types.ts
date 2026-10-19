@@ -379,7 +379,8 @@ export interface ISettingsServiceState {
     | 55
     | 56
     | 57
-    | 58;
+    | 58
+    | 59;
   activeMode: SiteMode;
   /** Mode before entering Federated; restored when leaving or demoting on landing. */
   previousModeBeforeUnified: SiteMode | null;
@@ -443,6 +444,11 @@ export interface ISettingsServiceState {
     autoLoadNext: boolean;
     fullWidthFeed: boolean;
     feedLayout: "list" | "grid";
+    /**
+     * Reference min column width (px) for dedicated catalog/magazine grids
+     * (u18chan, Tailspace, News magazine, pool/comic pickers). Default 140.
+     */
+    dedicatedGridMinPx?: number;
     slideshowIntervalMs: number;
     cardAutoNext: boolean;
     cardAutoNextIntervalMs: number;

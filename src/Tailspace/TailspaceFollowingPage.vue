@@ -7,6 +7,7 @@
           <h1 class="text-h6 font-weight-bold">Following</h1>
         </div>
         <div class="ts-header-right">
+          <dedicated-grid-size-control variant="menu" />
           <v-btn
             href="https://tailspace.com/browse-feed"
             target="_blank"
@@ -29,7 +30,11 @@
       Log in under Account settings to see posts from artists you follow.
     </v-alert>
 
-    <div v-if="loading && posts.length === 0 && loggedIn" class="ts-grid">
+    <div
+      v-if="loading && posts.length === 0 && loggedIn"
+      class="ts-grid"
+      :style="gridStyle"
+    >
       <v-skeleton-loader
         v-for="n in 24"
         :key="n"
@@ -38,7 +43,7 @@
       />
     </div>
 
-    <div v-else-if="posts.length > 0" class="ts-grid">
+    <div v-else-if="posts.length > 0" class="ts-grid" :style="gridStyle">
       <div
         v-for="post in posts"
         :key="post.id"
@@ -153,6 +158,10 @@ import {
 } from "@/worker/tailspace/api";
 import TailspacePostDialog from "./TailspacePostDialog.vue";
 import { useTailspaceSession } from "./useTailspaceSession";
+import DedicatedGridSizeControl from "@/misc/components/DedicatedGridSizeControl.vue";
+import { useDedicatedGridStyle } from "@/misc/util/dedicatedGridMin";
+
+const gridStyle = useDedicatedGridStyle(160);
 
 const session = useTailspaceSession();
 const loggedIn = computed(() => session.isLoggedIn());
@@ -234,7 +243,7 @@ watch(
 }
 .ts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min, 160px), 1fr));
   gap: 8px;
   padding: 0 1rem;
   max-width: 1800px;

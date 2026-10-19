@@ -25,6 +25,10 @@
             @keydown.enter="applySearch"
             @click:clear="clearSearch"
           />
+          <dedicated-grid-size-control
+            v-if="layout === 'magazine'"
+            variant="menu"
+          />
           <v-btn
             icon
             variant="text"
@@ -255,7 +259,11 @@
       {{ emptyMessage }}
     </div>
 
-    <div v-else-if="layout === 'magazine'" class="news-magazine pa-3">
+    <div
+      v-else-if="layout === 'magazine'"
+      class="news-magazine pa-3"
+      :style="magazineGridStyle"
+    >
       <template v-for="group in dayGroups" :key="group.key">
         <h2 class="news-day-heading news-day-heading--magazine">
           {{ group.label }}
@@ -578,6 +586,10 @@ import {
 import { prefersReducedMotion } from "@/misc/util/reducedMotion";
 import { useGoToTop } from "@/misc/useGoToTop";
 import { useNewsStore, useShortcutService } from "@/services";
+import DedicatedGridSizeControl from "@/misc/components/DedicatedGridSizeControl.vue";
+import { useDedicatedGridStyle } from "@/misc/util/dedicatedGridMin";
+
+const magazineGridStyle = useDedicatedGridStyle(260);
 
 type ViewFilter = "all" | "unread" | "saved" | "watched";
 
@@ -1313,7 +1325,7 @@ onUnmounted(() => {
 }
 .news-magazine {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min, 260px), 1fr));
   gap: 12px;
 }
 .news-card {

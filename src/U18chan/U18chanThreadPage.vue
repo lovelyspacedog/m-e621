@@ -72,6 +72,10 @@
         >
           <span class="u18-view-label">{{ threadWatched ? "Unwatch" : "Watch" }}</span>
         </v-btn>
+        <dedicated-grid-size-control
+          v-if="viewMode === 'gallery'"
+          variant="menu"
+        />
         <v-btn
           icon
           variant="text"
@@ -94,7 +98,7 @@
 
     <template v-else-if="thread">
       <!-- Gallery: leading dump thumbs -->
-      <div v-if="viewMode === 'gallery'" class="u18-reader-grid">
+      <div v-if="viewMode === 'gallery'" class="u18-reader-grid" :style="gridStyle">
         <button
           v-for="page in visiblePages"
           :key="page.key"
@@ -312,6 +316,10 @@ import {
 } from "@/misc/util/u18chanImageDump";
 import { useWatchedU18chanStore } from "@/services";
 import U18chanComposeForm from "./U18chanComposeForm.vue";
+import DedicatedGridSizeControl from "@/misc/components/DedicatedGridSizeControl.vue";
+import { useDedicatedGridStyle } from "@/misc/util/dedicatedGridMin";
+
+const gridStyle = useDedicatedGridStyle(140);
 
 const VIEW_MODE_KEY = "u18chan-thread-view-mode";
 const FULL_WIDTH_KEY = "u18chan-scroll-full-width";
@@ -638,7 +646,7 @@ watch(
 }
 .u18-reader-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min, 140px), 1fr));
   gap: 10px;
   padding: 0 16px;
 }

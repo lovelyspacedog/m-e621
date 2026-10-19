@@ -7,16 +7,19 @@
           <span class="text-overline text-medium-emphasis">Tailspace</span>
           <h1 class="text-h6 font-weight-bold">Comics</h1>
         </div>
-        <v-btn
-          :href="`https://tailspace.com/browse`"
-          target="_blank"
-          rel="noopener"
-          variant="text"
-          size="small"
-          append-icon="mdi-open-in-new"
-        >
-          Open on Tailspace
-        </v-btn>
+        <div class="d-flex align-center ga-1">
+          <dedicated-grid-size-control variant="menu" />
+          <v-btn
+            :href="`https://tailspace.com/browse`"
+            target="_blank"
+            rel="noopener"
+            variant="text"
+            size="small"
+            append-icon="mdi-open-in-new"
+          >
+            Open on Tailspace
+          </v-btn>
+        </div>
       </div>
 
       <!-- Filter row -->
@@ -92,7 +95,11 @@
       >
         No watched comics yet. Use the eye button on a comic to watch it.
       </div>
-      <div v-else-if="watchedResults.length" class="ts-grid ts-watched-grid">
+      <div
+        v-else-if="watchedResults.length"
+        class="ts-grid ts-watched-grid"
+        :style="gridStyle"
+      >
         <div v-for="comic in watchedResults" :key="`watched-${comic.id}`" class="ts-comic-wrap">
           <router-link
             class="ts-comic-card"
@@ -169,7 +176,7 @@
     </v-alert>
 
     <!-- Loading skeleton -->
-    <div v-if="loading && comics.length === 0" class="ts-grid">
+    <div v-if="loading && comics.length === 0" class="ts-grid" :style="gridStyle">
       <div v-for="n in 30" :key="n" class="ts-comic-skeleton">
         <v-skeleton-loader type="image" class="ts-skeleton-img" />
         <v-skeleton-loader type="text" class="mt-1 mx-1" />
@@ -177,7 +184,7 @@
     </div>
 
     <!-- Comics grid -->
-    <div v-else-if="comics.length > 0" class="ts-grid">
+    <div v-else-if="comics.length > 0" class="ts-grid" :style="gridStyle">
       <div v-for="comic in comics" :key="comic.id" class="ts-comic-wrap">
         <router-link
           class="ts-comic-card"
@@ -309,6 +316,10 @@ import { TIP_IDS } from "@/misc/tipIds";
 import { useTipOpen } from "@/misc/useTipOpen";
 import TipDialog from "@/misc/TipDialog.vue";
 import { useTailspaceSession } from "./useTailspaceSession";
+import DedicatedGridSizeControl from "@/misc/components/DedicatedGridSizeControl.vue";
+import { useDedicatedGridStyle } from "@/misc/util/dedicatedGridMin";
+
+const gridStyle = useDedicatedGridStyle([140, 160, 180]);
 
 useTailspaceSession();
 
@@ -698,7 +709,7 @@ watch(
 /* ── Grid ── */
 .ts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min, 140px), 1fr));
   gap: 10px;
   padding: 0 0.75rem;
   max-width: 1800px;
@@ -706,12 +717,12 @@ watch(
 }
 @media (min-width: 600px) {
   .ts-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min-sm, 160px), 1fr));
   }
 }
 @media (min-width: 960px) {
   .ts-grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min-lg, 180px), 1fr));
     gap: 12px;
     padding: 0 1.25rem;
   }

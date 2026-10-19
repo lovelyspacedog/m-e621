@@ -11,6 +11,7 @@
           Local watches with +N when a thread gains replies since you last opened it.
         </p>
       </div>
+      <dedicated-grid-size-control variant="menu" />
       <v-btn
         icon
         variant="text"
@@ -36,11 +37,15 @@
       </p>
     </div>
 
-    <div v-else-if="loading && !rows.length" class="u18-grid">
+    <div
+      v-else-if="loading && !rows.length"
+      class="u18-grid"
+      :style="gridStyle"
+    >
       <v-skeleton-loader v-for="n in 12" :key="n" type="image" class="u18-skel" />
     </div>
 
-    <div v-else-if="rows.length" class="u18-grid">
+    <div v-else-if="rows.length" class="u18-grid" :style="gridStyle">
       <div v-for="row in rows" :key="row.key" class="u18-card-wrap">
         <button type="button" class="u18-card" @click="openRow(row)">
           <div class="u18-thumb">
@@ -126,8 +131,12 @@ import {
 import type { WatchedU18chanEntry } from "@/services/types";
 import { getThread, u18chanMediaUrl } from "@/worker/u18chan/api";
 import { useHead } from "@unhead/vue";
+import DedicatedGridSizeControl from "@/misc/components/DedicatedGridSizeControl.vue";
+import { useDedicatedGridStyle } from "@/misc/util/dedicatedGridMin";
 
 useHead({ title: "u18chan Watched" });
+
+const gridStyle = useDedicatedGridStyle(140);
 
 interface WatchedRow {
   key: string;
@@ -264,7 +273,7 @@ watch(
 }
 .u18-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min, 140px), 1fr));
   gap: 12px;
   padding: 16px;
 }

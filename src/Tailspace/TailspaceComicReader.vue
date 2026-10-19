@@ -99,6 +99,10 @@
             <v-icon size="18">mdi-arrow-expand-horizontal</v-icon>
             <span class="ts-view-label">{{ fullWidthScroll ? "Fit" : "Full width" }}</span>
           </v-btn>
+          <dedicated-grid-size-control
+            v-if="comic && viewMode === 'gallery'"
+            variant="menu"
+          />
           <v-btn
             v-if="comic"
             :href="comicUrl(comic.name)"
@@ -142,12 +146,16 @@
     </v-alert>
 
     <!-- Loading -->
-    <div v-if="loading && !comic" class="ts-reader-grid">
+    <div v-if="loading && !comic" class="ts-reader-grid" :style="gridStyle">
       <v-skeleton-loader v-for="n in 12" :key="n" type="image" class="ts-page-skeleton" />
     </div>
 
     <!-- Gallery grid (pool-like) -->
-    <div v-else-if="comic && viewMode === 'gallery'" class="ts-reader-grid">
+    <div
+      v-else-if="comic && viewMode === 'gallery'"
+      class="ts-reader-grid"
+      :style="gridStyle"
+    >
       <button
         v-for="page in visiblePages"
         :key="page.token"
@@ -438,7 +446,11 @@ import {
   type TailspaceComicDetail,
 } from "@/worker/tailspace/api";
 import { useTailspaceSession } from "./useTailspaceSession";
+import DedicatedGridSizeControl from "@/misc/components/DedicatedGridSizeControl.vue";
+import { useDedicatedGridStyle } from "@/misc/util/dedicatedGridMin";
 import { useSiteModeStore, useWatchedComicsStore } from "@/services";
+
+const gridStyle = useDedicatedGridStyle([110, 130, 140]);
 import {
   buildChunkButtons,
   GALLERY_CHUNK_SIZE,
@@ -932,7 +944,7 @@ watch(chunkCount, (n) => {
 
 .ts-reader-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min, 110px), 1fr));
   gap: 8px;
   padding: 0 0.75rem;
   max-width: 1400px;
@@ -940,14 +952,14 @@ watch(chunkCount, (n) => {
 }
 @media (min-width: 600px) {
   .ts-reader-grid {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min-sm, 130px), 1fr));
     gap: 10px;
     padding: 0 1.25rem;
   }
 }
 @media (min-width: 960px) {
   .ts-reader-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min-lg, 140px), 1fr));
   }
 }
 
