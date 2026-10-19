@@ -1,6 +1,11 @@
 import { defineStore } from "pinia";
 import { computed } from "vue";
 import { originModeOf, postFeedKey } from "@/misc/util/postOrigin";
+import {
+  parseU18chanSavedKey,
+  savedEntryFeedKey,
+  type U18chanSavedMeta,
+} from "@/misc/util/u18chanSavedPosts";
 import { useMainStore } from "./state";
 import type {
   SavedPostCollection,
@@ -27,11 +32,33 @@ const ensureSavedPosts = (main: ReturnType<typeof useMainStore>) => {
   }
 };
 
+const ensureBookmarkFromFeedKey = (
+  main: ReturnType<typeof useMainStore>,
+  feedKey: string,
+  addUnified: (originMode: UnifiedChildMode, id: number) => void,
+  addU18: (liveBoard: string, topicId: number) => void,
+) => {
+  const u18 = parseU18chanSavedKey(feedKey);
+  if (u18) {
+    addU18(u18.liveBoard, u18.topicId);
+    return;
+  }
+  const [originMode, idRaw] = feedKey.split(":");
+  const id = Number(idRaw);
+  if (isUnifiedChild(originMode) && Number.isFinite(id)) {
+    addUnified(originMode, id);
+  }
+};
+
 export const useSavedPostsStore = defineStore("saved-posts", () => {
   const main = useMainStore();
 
   const entries = computed(() =>
     [...(main.savedPosts?.entries || [])].sort((a, b) => b.savedAt - a.savedAt),
+  );
+
+  const u18chanEntries = computed(() =>
+    entries.value.filter((e) => e.originMode === "u18chan"),
   );
 
   const collections = computed(() =>
@@ -59,9 +86,19 @@ export const useSavedPostsStore = defineStore("saved-posts", () => {
     if (!mode) return false;
     const key = keyOf(mode, post.id);
     return (main.savedPosts?.entries || []).some(
-      (e) => keyOf(e.originMode, e.id) === key,
+      (e) =>
+        e.originMode !== "u18chan" &&
+        keyOf(e.originMode as UnifiedChildMode, e.id) === key,
     );
   };
+
+  const isU18chanThreadSaved = (liveBoard: string, topicId: number) =>
+    (main.savedPosts?.entries || []).some(
+      (e) =>
+        e.originMode === "u18chan" &&
+        e.u18chanLiveBoard === liveBoard &&
+        e.id === topicId,
+    );
 
   const stripKeyFromCollections = (feedKey: string) => {
     ensureSavedPosts(main);
@@ -75,7 +112,13 @@ export const useSavedPostsStore = defineStore("saved-posts", () => {
   const add = (originMode: UnifiedChildMode, id: number) => {
     ensureSavedPosts(main);
     const key = keyOf(originMode, id);
-    if (main.savedPosts.entries.some((e) => keyOf(e.originMode, e.id) === key)) {
+    if (
+      main.savedPosts.entries.some(
+        (e) =>
+          e.originMode !== "u18chan" &&
+          keyOf(e.originMode as UnifiedChildMode, e.id) === key,
+      )
+    ) {
       return;
     }
     const entry: SavedPostEntry = {
@@ -86,11 +129,46 @@ export const useSavedPostsStore = defineStore("saved-posts", () => {
     main.savedPosts.entries.push(entry);
   };
 
+  const addU18chan = (
+    liveBoard: string,
+    topicId: number,
+    meta?: U18chanSavedMeta,
+  ) => {
+    ensureSavedPosts(main);
+    if (isU18chanThreadSaved(liveBoard, topicId)) return;
+    const entry: SavedPostEntry = {
+      originMode: "u18chan",
+      id: topicId,
+      savedAt: Date.now(),
+      u18chanLiveBoard: liveBoard,
+      u18chanIndexBoard: meta?.indexBoard,
+      u18chanSubject: meta?.subject,
+      u18chanThumbUrl: meta?.thumbUrl ?? null,
+    };
+    main.savedPosts.entries.push(entry);
+  };
+
   const remove = (originMode: UnifiedChildMode, id: number) => {
     if (!main.savedPosts?.entries) return;
     const key = keyOf(originMode, id);
     main.savedPosts.entries = main.savedPosts.entries.filter(
-      (e) => keyOf(e.originMode, e.id) !== key,
+      (e) =>
+        e.originMode === "u18chan" ||
+        keyOf(e.originMode as UnifiedChildMode, e.id) !== key,
+    );
+    stripKeyFromCollections(key);
+  };
+
+  const removeU18chan = (liveBoard: string, topicId: number) => {
+    if (!main.savedPosts?.entries) return;
+    const key = savedEntryFeedKey({
+      originMode: "u18chan",
+      id: topicId,
+      savedAt: 0,
+      u18chanLiveBoard: liveBoard,
+    });
+    main.savedPosts.entries = main.savedPosts.entries.filter(
+      (e) => savedEntryFeedKey(e) !== key,
     );
     stripKeyFromCollections(key);
   };
@@ -101,7 +179,6 @@ export const useSavedPostsStore = defineStore("saved-posts", () => {
   }) => {
     const mode = resolveOrigin(post);
     if (!mode) return false;
-    // Stamp origin so postFeedKey stays unambiguous after save from single-site feed.
     if (post.__meta && !post.__meta.originMode) {
       post.__meta.originMode = mode;
     }
@@ -113,11 +190,22 @@ export const useSavedPostsStore = defineStore("saved-posts", () => {
     return true;
   };
 
+  const toggleU18chan = (
+    liveBoard: string,
+    topicId: number,
+    meta?: U18chanSavedMeta,
+  ) => {
+    if (isU18chanThreadSaved(liveBoard, topicId)) {
+      removeU18chan(liveBoard, topicId);
+      return false;
+    }
+    addU18chan(liveBoard, topicId, meta);
+    return true;
+  };
+
   const isSavedByKey = (feedKey: string) =>
     (main.savedPosts?.entries || []).some(
-      (e) =>
-        postFeedKey({ id: e.id, __meta: { originMode: e.originMode } }) ===
-        feedKey,
+      (e) => savedEntryFeedKey(e) === feedKey,
     );
 
   const clearAll = () => {
@@ -175,12 +263,9 @@ export const useSavedPostsStore = defineStore("saved-posts", () => {
     if (!col) return;
     const has = col.postKeys.includes(feedKey);
     if (present && !has) {
-      // Ensure the post is bookmarked when added to a collection.
-      const [originMode, idRaw] = feedKey.split(":");
-      const id = Number(idRaw);
-      if (isUnifiedChild(originMode) && Number.isFinite(id)) {
-        add(originMode, id);
-      }
+      ensureBookmarkFromFeedKey(main, feedKey, add, (lb, id) =>
+        addU18chan(lb, id),
+      );
       col.postKeys = [...col.postKeys, feedKey];
     } else if (!present && has) {
       col.postKeys = col.postKeys.filter((k) => k !== feedKey);
@@ -193,11 +278,7 @@ export const useSavedPostsStore = defineStore("saved-posts", () => {
     if (!col) return;
     const unique = [...new Set(keys.filter(Boolean))];
     for (const key of unique) {
-      const [originMode, idRaw] = key.split(":");
-      const id = Number(idRaw);
-      if (isUnifiedChild(originMode) && Number.isFinite(id)) {
-        add(originMode, id);
-      }
+      ensureBookmarkFromFeedKey(main, key, add, (lb, id) => addU18chan(lb, id));
     }
     col.postKeys = unique;
   };
@@ -207,18 +288,30 @@ export const useSavedPostsStore = defineStore("saved-posts", () => {
     const col = main.savedPosts?.collections?.find((c) => c.id === collectionId);
     if (!col) return [];
     const set = new Set(col.postKeys);
-    return entries.value.filter((e) => set.has(keyOf(e.originMode, e.id)));
+    return entries.value.filter((e) => set.has(savedEntryFeedKey(e)));
+  };
+
+  const u18chanEntriesForCollection = (collectionId: string | null) => {
+    const list = entriesForCollection(collectionId).filter(
+      (e) => e.originMode === "u18chan",
+    );
+    return list;
   };
 
   return {
     entries,
+    u18chanEntries,
     collections,
     count,
     isSaved,
+    isU18chanThreadSaved,
     isSavedByKey,
     add,
+    addU18chan,
     remove,
+    removeU18chan,
     toggle,
+    toggleU18chan,
     clearAll,
     createCollection,
     renameCollection,
@@ -227,6 +320,8 @@ export const useSavedPostsStore = defineStore("saved-posts", () => {
     setInCollection,
     replaceCollectionKeys,
     entriesForCollection,
+    u18chanEntriesForCollection,
     keyOf,
+    savedEntryFeedKey,
   };
 });

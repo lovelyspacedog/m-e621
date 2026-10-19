@@ -19,6 +19,7 @@ export const changelogSections: ChangelogSection[] = [
     title: "Catalog grid sizing",
     items: [
       "Post settings and dedicated-mode headers add a slider for catalog and magazine thumbnail grid size (u18chan, Tailspace, News magazine, pools, comic pickers)",
+      "u18chan: bookmark threads to Saved, download images or the full dump from the thread reader",
     ],
   },
   {

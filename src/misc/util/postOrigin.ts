@@ -53,7 +53,9 @@ export const buildVideoFetchArgs = (
 
 /** Unified itself or any federated child backend (not Local / Tailspace). */
 export const modeSupportsSavedPosts = (mode: SiteMode): boolean =>
-  mode === "unified" || (UNIFIED_CHILD_MODES as readonly string[]).includes(mode);
+  mode === "u18chan" ||
+  mode === "unified" ||
+  (UNIFIED_CHILD_MODES as readonly string[]).includes(mode);
 
 export const unifiedChildLabel = (mode: SiteMode | UnifiedChildMode): string => {
   switch (mode) {

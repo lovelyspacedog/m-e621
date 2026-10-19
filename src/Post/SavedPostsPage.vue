@@ -87,7 +87,68 @@
       </v-list>
     </portal>
 
-    <v-container v-if="!loading && !posts.length" class="text-center py-12">
+    <div
+      v-if="siteMode.isU18chan && !loading && u18chanSaved.length"
+      class="u18-saved-grid pa-4"
+    >
+      <div v-for="entry in u18chanSaved" :key="savedPosts.savedEntryFeedKey(entry)" class="u18-saved-card-wrap">
+        <router-link
+          class="u18-saved-card"
+          :to="{
+            name: 'U18chanThread',
+            params: {
+              board: entry.u18chanIndexBoard || 'ifur',
+              id: String(entry.id),
+            },
+            query: { live: entry.u18chanLiveBoard || 'fur' },
+          }"
+        >
+          <div class="u18-saved-thumb">
+            <img
+              v-if="entry.u18chanThumbUrl"
+              :src="u18Media(entry.u18chanThumbUrl)"
+              :alt="entry.u18chanSubject || 'Thread'"
+              loading="lazy"
+            />
+            <v-icon v-else size="40" color="medium-emphasis">mdi-image-off</v-icon>
+          </div>
+          <div class="u18-saved-title">
+            {{ entry.u18chanSubject || `Thread ${entry.id}` }}
+          </div>
+          <div class="text-caption text-medium-emphasis">
+            /{{ entry.u18chanLiveBoard || "?" }}/
+          </div>
+        </router-link>
+        <v-btn
+          class="u18-saved-remove"
+          icon
+          size="x-small"
+          variant="tonal"
+          title="Remove bookmark"
+          aria-label="Remove bookmark"
+          @click.prevent="removeU18(entry)"
+        >
+          <v-icon size="18">mdi-bookmark-off</v-icon>
+        </v-btn>
+      </div>
+    </div>
+
+    <v-container
+      v-else-if="siteMode.isU18chan && !loading && !u18chanSaved.length"
+      class="text-center py-12"
+    >
+      <v-icon size="64" class="mb-4" color="medium-emphasis">mdi-bookmark-outline</v-icon>
+      <div class="text-h6 mb-2">No saved threads</div>
+      <div class="text-body-2 text-medium-emphasis mb-4">
+        Bookmark threads from an index catalog or thread header. Saved threads stay
+        in this browser across sessions.
+      </div>
+      <v-btn color="accent" variant="tonal" :to="{ name: 'U18chanCatalog' }">
+        Browse indices
+      </v-btn>
+    </v-container>
+
+    <v-container v-else-if="!siteMode.isU18chan && !loading && !posts.length" class="text-center py-12">
       <v-icon size="64" class="mb-4" color="medium-emphasis">mdi-bookmark-outline</v-icon>
       <div class="text-h6 mb-2">
         {{ activeCollectionId ? "Collection is empty" : "No saved posts" }}
@@ -121,7 +182,7 @@
     </v-container>
 
     <posts
-      v-else
+      v-else-if="!siteMode.isU18chan"
       :posts="posts"
       :loading="loading"
       :fullscreen-post="fullscreenPost || undefined"
@@ -170,7 +231,10 @@
                 />
               </template>
               <v-list-item-title>
-                {{ entry.originMode }} #{{ entry.id }}
+                <template v-if="entry.originMode === 'u18chan'">
+                  u18chan /{{ entry.u18chanLiveBoard }}/ {{ entry.u18chanSubject || entry.id }}
+                </template>
+                <template v-else>{{ entry.originMode }} #{{ entry.id }}</template>
               </v-list-item-title>
             </v-list-item>
           </v-list>
@@ -224,8 +288,11 @@ import { getApiService } from "@/worker/services";
 import { onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useHead } from "@unhead/vue";
+import { u18chanMediaUrl } from "@/worker/u18chan/api";
 
 useHead({ title: "Saved posts" });
+
+const u18Media = (url: string) => u18chanMediaUrl(url);
 
 const router = useRouter();
 const siteMode = useSiteModeStore();
@@ -246,8 +313,15 @@ const noop = () => {
   /* Saved list is not paginated */
 };
 
-const entryKey = (entry: SavedPostEntry) =>
-  savedPosts.keyOf(entry.originMode, entry.id);
+const u18chanSaved = ref<SavedPostEntry[]>([]);
+
+const entryKey = (entry: SavedPostEntry) => savedPosts.savedEntryFeedKey(entry);
+
+const removeU18 = (entry: SavedPostEntry) => {
+  if (entry.originMode !== "u18chan" || !entry.u18chanLiveBoard) return;
+  savedPosts.removeU18chan(entry.u18chanLiveBoard, entry.id);
+  void reload();
+};
 
 const {
   visiblePosts: posts,
@@ -342,9 +416,18 @@ const saveEdit = () => {
 const reload = async () => {
   if (!siteMode.supportsSavedPosts) return;
   clearPosts();
+  u18chanSaved.value = [];
   loading.value = true;
   try {
-    const source = savedPosts.entriesForCollection(activeCollectionId.value);
+    if (siteMode.isU18chan) {
+      u18chanSaved.value = savedPosts.u18chanEntriesForCollection(
+        activeCollectionId.value,
+      );
+      return;
+    }
+    const source = savedPosts.entriesForCollection(activeCollectionId.value).filter(
+      (e) => e.originMode !== "u18chan",
+    );
     // Plain clones only — Pinia Proxies in entries break Comlink postMessage.
     const entries = source.map((e) => ({
       originMode: e.originMode,
@@ -410,5 +493,50 @@ watch(
   gap: 8px;
   width: 100%;
   min-width: 0;
+}
+.u18-saved-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--dgrid-min, 140px), 1fr));
+  gap: 12px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.u18-saved-card-wrap {
+  position: relative;
+}
+.u18-saved-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+.u18-saved-thumb {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(128, 128, 128, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.u18-saved-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.u18-saved-title {
+  font-size: 0.8rem;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.u18-saved-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
 }
 </style>

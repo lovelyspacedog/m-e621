@@ -78,6 +78,20 @@
             {{ isWatched(thread) ? "mdi-eye" : "mdi-eye-outline" }}
           </v-icon>
         </v-btn>
+        <v-btn
+          class="u18-save-btn"
+          icon
+          size="x-small"
+          variant="tonal"
+          :color="isSaved(thread) ? 'amber' : undefined"
+          :title="isSaved(thread) ? 'Remove bookmark' : 'Save thread'"
+          :aria-label="isSaved(thread) ? 'Remove bookmark' : 'Save thread'"
+          @click.stop="toggleSave(thread)"
+        >
+          <v-icon size="18">
+            {{ isSaved(thread) ? "mdi-bookmark" : "mdi-bookmark-outline" }}
+          </v-icon>
+        </v-btn>
       </div>
     </div>
 
@@ -102,7 +116,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { useSiteModeStore, useWatchedU18chanStore } from "@/services";
+import {
+  useSavedPostsStore,
+  useSiteModeStore,
+  useWatchedU18chanStore,
+} from "@/services";
 import {
   DEFAULT_U18CHAN_INDEX,
   U18CHAN_BASE,
@@ -121,6 +139,7 @@ const route = useRoute();
 const router = useRouter();
 const siteMode = useSiteModeStore();
 const watchedStore = useWatchedU18chanStore();
+const savedPosts = useSavedPostsStore();
 
 const loading = ref(false);
 const posting = ref(false);
@@ -172,6 +191,17 @@ const openThread = (thread: U18chanCatalogThread) => {
 
 const isWatched = (thread: U18chanCatalogThread) =>
   watchedStore.isWatched(thread.liveBoard, thread.id);
+
+const isSaved = (thread: U18chanCatalogThread) =>
+  savedPosts.isU18chanThreadSaved(thread.liveBoard, thread.id);
+
+const toggleSave = (thread: U18chanCatalogThread) => {
+  savedPosts.toggleU18chan(thread.liveBoard, thread.id, {
+    indexBoard: boardSlug.value,
+    subject: thread.subject || `Thread ${thread.id}`,
+    thumbUrl: thread.thumbUrl,
+  });
+};
 
 const toggleWatch = async (thread: U18chanCatalogThread) => {
   const subject = thread.subject || `Thread ${thread.id}`;
@@ -283,6 +313,12 @@ watch(
   position: absolute;
   top: 6px;
   left: 6px;
+  z-index: 1;
+}
+.u18-save-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
   z-index: 1;
 }
 .u18-card-title {

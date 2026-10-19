@@ -240,6 +240,12 @@ export const useTrailingNavigationItems = () => {
           exact: false,
           to: { name: "U18chanWatched" },
         },
+        {
+          icon: "mdi-bookmark",
+          name: "Saved",
+          exact: true,
+          to: { name: "SavedPosts" },
+        },
         ...indices,
         settings,
       ].map((item) => resolveItem(router, item));

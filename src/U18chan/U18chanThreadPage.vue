@@ -72,6 +72,28 @@
         >
           <span class="u18-view-label">{{ threadWatched ? "Unwatch" : "Watch" }}</span>
         </v-btn>
+        <v-btn
+          v-if="thread"
+          size="small"
+          variant="tonal"
+          :color="threadSaved ? 'amber' : undefined"
+          :prepend-icon="threadSaved ? 'mdi-bookmark' : 'mdi-bookmark-outline'"
+          :title="threadSaved ? 'Remove bookmark' : 'Save thread'"
+          @click="onToggleSave"
+        >
+          <span class="u18-view-label">{{ threadSaved ? "Saved" : "Save" }}</span>
+        </v-btn>
+        <v-btn
+          v-if="thread && dumpPages.length"
+          size="small"
+          variant="outlined"
+          :loading="downloading"
+          prepend-icon="mdi-download"
+          title="Download all dump images"
+          @click="downloadDump"
+        >
+          <span class="u18-view-label">Download dump</span>
+        </v-btn>
         <dedicated-grid-size-control
           v-if="viewMode === 'gallery'"
           variant="menu"
@@ -178,19 +200,34 @@
             <span class="text-medium-emphasis">No.{{ post.id }}</span>
           </header>
           <div v-if="post.images.length" class="u18-post-images">
-            <a
+            <div
               v-for="(img, i) in post.images"
               :key="i"
-              :href="media(img.fullUrl)"
-              target="_blank"
-              rel="noopener"
+              class="u18-post-image-wrap"
             >
-              <img
-                :src="media(img.thumbUrl || img.fullUrl)"
-                :alt="`Post ${post.id}`"
-                loading="lazy"
-              />
-            </a>
+              <a
+                :href="media(img.fullUrl)"
+                target="_blank"
+                rel="noopener"
+              >
+                <img
+                  :src="media(img.thumbUrl || img.fullUrl)"
+                  :alt="`Post ${post.id}`"
+                  loading="lazy"
+                />
+              </a>
+              <v-btn
+                icon
+                size="x-small"
+                variant="tonal"
+                class="u18-post-dl"
+                title="Download image"
+                aria-label="Download image"
+                @click.prevent="downloadOne(img.fullUrl, post.id)"
+              >
+                <v-icon size="16">mdi-download</v-icon>
+              </v-btn>
+            </div>
           </div>
           <div class="u18-post-body" v-text="post.comment" />
         </article>
@@ -271,6 +308,15 @@
           >
             <v-icon>mdi-chevron-right</v-icon>
           </v-btn>
+          <v-btn
+            icon
+            variant="text"
+            aria-label="Download this page"
+            :loading="downloading"
+            @click="downloadFullscreenPage"
+          >
+            <v-icon>mdi-download</v-icon>
+          </v-btn>
           <v-btn icon variant="text" aria-label="Close" @click="fullscreenOpen = false">
             <v-icon>mdi-close</v-icon>
           </v-btn>
@@ -314,7 +360,8 @@ import {
   type U18chanDumpPage,
   type U18chanThreadViewMode,
 } from "@/misc/util/u18chanImageDump";
-import { useWatchedU18chanStore } from "@/services";
+import { useSavedPostsStore, useSnackbarStore, useWatchedU18chanStore } from "@/services";
+import { downloadU18chanImage, downloadU18chanImages } from "@/misc/util/u18chanDownload";
 import U18chanComposeForm from "./U18chanComposeForm.vue";
 import DedicatedGridSizeControl from "@/misc/components/DedicatedGridSizeControl.vue";
 import { useDedicatedGridStyle } from "@/misc/util/dedicatedGridMin";
@@ -327,8 +374,11 @@ const FULL_WIDTH_KEY = "u18chan-scroll-full-width";
 const route = useRoute();
 const router = useRouter();
 const watchedStore = useWatchedU18chanStore();
+const savedPosts = useSavedPostsStore();
+const snackbar = useSnackbarStore();
 
 const loading = ref(false);
+const downloading = ref(false);
 const posting = ref(false);
 const error = ref<string | null>(null);
 const thread = ref<U18chanThread | null>(null);
@@ -378,6 +428,58 @@ const onToggleWatch = () => {
     thread.value.subject || `Thread ${topicId.value}`,
     indexBoard.value,
     threadWatchSnapshot(),
+  );
+};
+
+const threadSaved = computed(() =>
+  topicId.value
+    ? savedPosts.isU18chanThreadSaved(liveBoard.value, topicId.value)
+    : false,
+);
+
+const onToggleSave = () => {
+  if (!thread.value || !topicId.value) return;
+  const snap = threadWatchSnapshot();
+  savedPosts.toggleU18chan(liveBoard.value, topicId.value, {
+    indexBoard: indexBoard.value,
+    subject: thread.value.subject || `Thread ${topicId.value}`,
+    thumbUrl: snap.thumbUrl,
+  });
+};
+
+const downloadOne = async (fullUrl: string, postId: number) => {
+  downloading.value = true;
+  try {
+    await downloadU18chanImage(fullUrl, `u18chan-${postId}`);
+    snackbar.addMessage("Download started");
+  } catch (e) {
+    snackbar.addMessage(e instanceof Error ? e.message : "Download failed");
+  } finally {
+    downloading.value = false;
+  }
+};
+
+const downloadDump = async () => {
+  const urls = dumpPages.value.map((p) => p.image.fullUrl).filter(Boolean);
+  if (!urls.length) return;
+  downloading.value = true;
+  try {
+    const result = await downloadU18chanImages(urls);
+    const tail =
+      result.failed > 0 ? ` (${result.failed} failed)` : "";
+    snackbar.addMessage(`Downloaded ${result.ok} file(s)${tail}`);
+  } catch (e) {
+    snackbar.addMessage(e instanceof Error ? e.message : "Download failed");
+  } finally {
+    downloading.value = false;
+  }
+};
+
+const downloadFullscreenPage = async () => {
+  if (!fullscreenPage.value) return;
+  await downloadOne(
+    fullscreenPage.value.image.fullUrl,
+    fullscreenPage.value.pageNumber,
   );
 };
 
@@ -631,6 +733,14 @@ watch(
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 8px;
+}
+.u18-post-image-wrap {
+  position: relative;
+}
+.u18-post-dl {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
 }
 .u18-post-images img {
   max-width: 240px;

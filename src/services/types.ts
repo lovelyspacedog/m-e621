@@ -77,10 +77,17 @@ export type VideoSites = Record<VideoChildMode, boolean>;
 
 export type UnifiedChildMode = "e621" | "e6ai" | "furbooru" | "inkbunny" | "furaffinity" | "weasyl" | "itaku" | "sofurry";
 
+export type SavedPostOrigin = UnifiedChildMode | "u18chan";
+
 export interface SavedPostEntry {
-  originMode: UnifiedChildMode;
+  originMode: SavedPostOrigin;
   id: number;
   savedAt: number;
+  /** u18chan thread bookmark: live board (e.g. fur). */
+  u18chanLiveBoard?: string;
+  u18chanIndexBoard?: string;
+  u18chanSubject?: string;
+  u18chanThumbUrl?: string | null;
 }
 
 /** Named folder of Saved posts; a post key may appear in more than one. */
