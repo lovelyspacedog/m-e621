@@ -771,9 +771,11 @@ export class ApiService {
 
     const groups = new Map<UnifiedChildMode, number[]>();
     for (const entry of args.entries) {
-      const list = groups.get(entry.originMode) || [];
+      if (entry.originMode === "u18chan") continue;
+      const mode = entry.originMode;
+      const list = groups.get(mode) || [];
       list.push(entry.id);
-      groups.set(entry.originMode, list);
+      groups.set(mode, list);
     }
 
     await Promise.all(

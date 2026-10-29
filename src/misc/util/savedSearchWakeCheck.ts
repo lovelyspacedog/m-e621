@@ -39,8 +39,14 @@ export const WAKE_CHECK_STALE_MS = 15 * 60 * 1000;
 /** Cap background sidebar sweeps so we do not hammer adapters. */
 export const WAKE_SIDEBAR_CHECK_LIMIT = 12;
 
+/** Shared stale check for saved-search wake and feed-seen cursors. */
+export type WakeStaleCursor = {
+  checkedAt?: number;
+  lastOpenedAt?: number;
+};
+
 export const wakeCursorIsStale = (
-  cursor: SavedSearchWakeCursor | undefined,
+  cursor: WakeStaleCursor | undefined,
   now = Date.now(),
 ): boolean => {
   if (!cursor?.checkedAt) return true;

@@ -15,6 +15,14 @@ export interface ChangelogSection {
  */
 export const changelogSections: ChangelogSection[] = [
   {
+    date: "2026-10-29",
+    title: "Canonical host and build hygiene",
+    items: [
+      "Live canonical URL and build-time metadata use pawdeck.tonypup.box.ca (VPS M_E621_DOMAIN)",
+      "Type-check passes again for feed-seen cursors and unified Saved posts fetch",
+    ],
+  },
+  {
     date: "2026-10-19",
     title: "Catalog grid sizing",
     items: [

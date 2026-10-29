@@ -224,7 +224,7 @@ On Linux, Account settings can **Sign in** to FurAffinity, SoFurry, Tailspace, W
 
 ### Rename the public hostname
 
-The product name is **PawDeck**. The intended Live URL is [pawdeck.tonypup.box.ca](https://pawdeck.tonypup.box.ca) (Expedition custom app `pawdeck`). Until that Expedition app exists and `M_E621_DOMAIN` is flipped, the running instance may still resolve at `pawfeed.tonypup.box.ca`. Env vars (`M_E621_*`), `~/.config/m-e621/`, the checkout path, Local sidecars (`.me621-*.json`), and the GitHub repo `lovelyspacedog/m-e621` stay unchanged so existing deploys keep working.
+The product name is **PawDeck**. The Live URL is [pawdeck.tonypup.box.ca](https://pawdeck.tonypup.box.ca) (Expedition custom app `pawdeck`; set `M_E621_DOMAIN=pawdeck.tonypup.box.ca` so builds emit the matching canonical link). Env vars (`M_E621_*`), `~/.config/m-e621/`, the checkout path, Local sidecars (`.me621-*.json`), and the GitHub repo `lovelyspacedog/m-e621` stay unchanged so existing deploys keep working.
 
 To serve the same app under a different subdomain:
 
