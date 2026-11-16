@@ -1326,17 +1326,86 @@ def _extract_tailspace_user(decoded: object | None) -> dict | None:
     return {"username": username, "userId": user_id}
 
 
-def _normalize_tailspace_posts(payload: object) -> dict:
-    """Unwrap {success,data:{posts,hasNextPage}} into a flat posts response."""
-    if not isinstance(payload, dict):
-        raise ValueError("posts payload is not an object")
-    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
-    if not isinstance(data, dict) or "posts" not in data:
-        raise ValueError("posts payload missing posts array")
-    return {
-        "posts": data.get("posts") or [],
-        "hasNextPage": bool(data.get("hasNextPage")),
-    }
+def _find_posts_payload(obj: object) -> dict | None:
+    """Recursively find BrowsePostsPage data (posts + numPages) in a turbo-stream tree."""
+    if isinstance(obj, dict):
+        posts = obj.get("posts")
+        if (
+            isinstance(posts, list)
+            and posts
+            and isinstance(posts[0], dict)
+            and isinstance(posts[0].get("id"), int)
+            and "title" in posts[0]
+        ):
+            return obj
+        for value in obj.values():
+            found = _find_posts_payload(value)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = _find_posts_payload(item)
+            if found is not None:
+                return found
+    return None
+
+
+def _parse_tailspace_browse_posts_response(raw: bytes) -> dict:
+    """Parse Tailspace /browse-posts.data into {posts, hasNextPage}."""
+    text = raw.decode("utf-8", errors="replace").strip()
+
+    if text.startswith("{") or text.startswith("["):
+        try:
+            data = json.loads(text)
+            if isinstance(data, dict) and isinstance(data.get("posts"), list):
+                page = int(data.get("page") or 1)
+                num_pages = int(data.get("numPages") or page)
+                posts = [
+                    p for p in data.get("posts") or []
+                    if isinstance(p, dict) and isinstance(p.get("id"), int)
+                ]
+                return {"posts": posts, "hasNextPage": page < num_pages}
+            if isinstance(data, list):
+                decoded = _ts_decode_pool(data)
+                found = _find_posts_payload(decoded)
+                if found is not None:
+                    page = int(found.get("page") or 1)
+                    num_pages = int(found.get("numPages") or page)
+                    posts = [
+                        p for p in found.get("posts") or []
+                        if isinstance(p, dict) and isinstance(p.get("id"), int)
+                    ]
+                    return {"posts": posts, "hasNextPage": page < num_pages}
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+
+    for line in [ln.strip() for ln in text.splitlines() if ln.strip()]:
+        try:
+            chunk = json.loads(line)
+            found = _find_posts_payload(chunk)
+            if found is not None:
+                page = int(found.get("page") or 1)
+                num_pages = int(found.get("numPages") or page)
+                posts = [
+                    p for p in found.get("posts") or []
+                    if isinstance(p, dict) and isinstance(p.get("id"), int)
+                ]
+                return {"posts": posts, "hasNextPage": page < num_pages}
+            if isinstance(chunk, list):
+                decoded = _ts_decode_pool(chunk)
+                found = _find_posts_payload(decoded)
+                if found is not None:
+                    page = int(found.get("page") or 1)
+                    num_pages = int(found.get("numPages") or page)
+                    posts = [
+                        p for p in found.get("posts") or []
+                        if isinstance(p, dict) and isinstance(p.get("id"), int)
+                    ]
+                    return {"posts": posts, "hasNextPage": page < num_pages}
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+
+    raise ValueError(f"Cannot parse tailspace browse-posts response (first 200 chars): {text[:200]!r}")
 
 
 def _parse_weasyl_search_html(html_text: str) -> tuple[list[dict], int | None]:
@@ -2419,19 +2488,20 @@ class SpaHandler(SimpleHTTPRequestHandler):
             page_n = max(1, int(page))
         except ValueError:
             page_n = 1
-        url = f"{TAILSPACE_BASE}/api/get-browse-posts-paginated?page={page_n}"
+        url = f"{TAILSPACE_BASE}/browse-posts.data?page={page_n}"
         body, status, _ct, rejected = self._tailspace_get(
-            url, cookie=self._tailspace_session() or None
+            url,
+            accept="text/x-turbo-stream, application/json, */*",
+            cookie=self._tailspace_session() or None,
         )
-        if status == 200:
-            try:
-                data = _normalize_tailspace_posts(json.loads(body))
-                self._json(200, data, self._session_rejected_headers(rejected))
-                return
-            except (json.JSONDecodeError, ValueError) as exc:
-                self._json(502, {"ok": False, "message": f"upstream JSON parse error: {exc}"})
-                return
-        self._json(status, {"ok": False, "message": f"upstream returned {status}"})
+        if status != 200:
+            self._json(status, {"ok": False, "message": f"upstream returned {status}"})
+            return
+        try:
+            data = _parse_tailspace_browse_posts_response(body)
+            self._json(200, data, self._session_rejected_headers(rejected))
+        except Exception as exc:  # noqa: BLE001
+            self._json(502, {"ok": False, "message": f"parse error: {exc}"})
 
     def _proxy_tailspace_comics(self, parsed) -> None:
         params = parse_qs(parsed.query)

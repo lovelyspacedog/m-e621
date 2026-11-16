@@ -15,6 +15,13 @@ export interface ChangelogSection {
  */
 export const changelogSections: ChangelogSection[] = [
   {
+    date: "2026-11-16",
+    title: "Tailspace posts",
+    items: [
+      "Tailspace Posts loads again after Tailspace moved browse posts to the Remix browse-posts.data feed (replacing the retired JSON paginated API)",
+    ],
+  },
+  {
     date: "2026-10-29",
     title: "Canonical host and build hygiene",
     items: [

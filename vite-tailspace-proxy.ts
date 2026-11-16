@@ -485,28 +485,22 @@ export function tailspaceProxy(): Plugin {
         const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
         const params = new URLSearchParams(qs);
         const page = Math.max(1, parseInt(params.get('page') || '1', 10) || 1);
-        const url = `${TAILSPACE_BASE}/api/get-browse-posts-paginated?page=${page}`;
+        const url = `${TAILSPACE_BASE}/browse-posts.data?page=${page}`;
         try {
           const { remote, sessionRejected } = await fetchUpstreamWithSessionFallback(
             url,
             cookie,
-            'application/json',
+            'text/x-turbo-stream, application/json, */*',
+            `${TAILSPACE_BASE}/browse-posts`,
           );
           if (!remote.ok) {
             json(res, remote.status, { ok: false, message: `upstream ${remote.status}` });
             return;
           }
-          const payload = await remote.json() as Record<string, unknown>;
-          const data = (payload?.data && typeof payload.data === 'object'
-            ? payload.data
-            : payload) as Record<string, unknown>;
           json(
             res,
             200,
-            {
-              posts: Array.isArray(data?.posts) ? data.posts : [],
-              hasNextPage: Boolean(data?.hasNextPage),
-            },
+            parseTailspacePosts(await remote.text()),
             sessionRejected ? { 'X-Tailspace-Session-Rejected': '1' } : undefined,
           );
         } catch (err) {
@@ -678,6 +672,77 @@ function tsDecodePool(pool: unknown[]): unknown {
   }
 
   return decode(0);
+}
+
+function findPostsPayload(obj: unknown): Record<string, unknown> | null {
+  if (obj && typeof obj === 'object') {
+    if (!Array.isArray(obj)) {
+      const posts = (obj as Record<string, unknown>).posts;
+      if (
+        Array.isArray(posts) &&
+        posts.length > 0 &&
+        typeof posts[0] === 'object' &&
+        posts[0] !== null &&
+        typeof (posts[0] as Record<string, unknown>).id === 'number' &&
+        'title' in (posts[0] as object)
+      ) {
+        return obj as Record<string, unknown>;
+      }
+    }
+    for (const value of Object.values(obj as Record<string, unknown>)) {
+      const found = findPostsPayload(value);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function parseTailspacePosts(text: string): { posts: unknown[]; hasNextPage: boolean } {
+  const trimmed = text.trim();
+
+  if (trimmed.startsWith('{')) {
+    try {
+      const data = JSON.parse(trimmed) as Record<string, unknown>;
+      if (Array.isArray(data.posts)) return extractPostsPayload(data);
+    } catch { /* fall through */ }
+  }
+
+  if (trimmed.startsWith('[')) {
+    try {
+      const pool = JSON.parse(trimmed) as unknown[];
+      const decoded = tsDecodePool(pool);
+      const found = findPostsPayload(decoded);
+      if (found) return extractPostsPayload(found);
+    } catch { /* fall through */ }
+  }
+
+  for (const line of trimmed.split('\n')) {
+    const l = line.trim();
+    if (!l.startsWith('{') && !l.startsWith('[')) continue;
+    try {
+      const chunk = JSON.parse(l) as unknown;
+      const found = findPostsPayload(chunk);
+      if (found) return extractPostsPayload(found);
+      if (Array.isArray(chunk)) {
+        const decoded = tsDecodePool(chunk);
+        const nested = findPostsPayload(decoded);
+        if (nested) return extractPostsPayload(nested);
+      }
+    } catch { /* ignore */ }
+  }
+
+  throw new Error(`Cannot parse tailspace browse-posts response: ${trimmed.slice(0, 200)}`);
+}
+
+function extractPostsPayload(data: Record<string, unknown>) {
+  const raw = (data.posts as unknown[] | undefined) ?? [];
+  const posts = raw.filter((item): item is Record<string, unknown> => {
+    if (typeof item !== 'object' || item === null) return false;
+    return typeof (item as Record<string, unknown>).id === 'number';
+  });
+  const page = Number(data.page ?? 1);
+  const numPages = Number(data.numPages ?? page);
+  return { posts, hasNextPage: page < numPages };
 }
 
 function findComicsPayload(obj: unknown): Record<string, unknown> | null {

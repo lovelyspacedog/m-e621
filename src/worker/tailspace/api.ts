@@ -10,6 +10,7 @@
  * - Logout: POST /logout.data
  * - Me / verify: GET /browse-feed.data with Cookie (root.user / isLoggedIn+username)
  * - Feed: GET /api/get-feed-paginated?page=N (auth required)
+ * - Browse posts: GET /browse-posts.data?page=N (via proxy; replaced retired /api/get-browse-posts-paginated)
  * - Like: POST /api/post-toggle-like.data  fields: postId
  * - Stars: POST /api/update-your-stars.data  fields: comicId, stars
  * - Comment (post): POST /api/post-add-comment.data  fields: postId, comment
