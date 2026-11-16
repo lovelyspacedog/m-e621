@@ -119,6 +119,16 @@
               {{ files.length > 1 ? "Save all" : "Save" }}
             </v-btn>
             <v-btn
+              v-if="files.length > 1"
+              variant="tonal"
+              size="x-small"
+              :loading="cbzDownloading"
+              prepend-icon="mdi-book-arrow-down"
+              @click.stop="downloadGalleryCbz"
+            >
+              Download CBZ
+            </v-btn>
+            <v-btn
               v-if="canSaveLocal && files.length > 1"
               variant="text"
               size="x-small"
@@ -244,6 +254,11 @@ import {
   savePostLocally,
 } from "@/misc/util/saveLocal";
 import { toRaw } from "vue";
+import {
+  buildComicCbzFilename,
+  comicCbzArchiveName,
+  downloadComicCbz,
+} from "@/misc/util/comicCbzDownload";
 
 const KEYWORD_LIMIT = 6;
 
@@ -259,6 +274,7 @@ const emit = defineEmits(["close", "next-post", "previous-post"]);
 const fileIndex = ref(0);
 const keywordsExpanded = ref(false);
 const savingLocal = ref(false);
+const cbzDownloading = ref(false);
 const shortcutService = useShortcutService();
 const ui = useUiStore();
 const snackbar = useSnackbarStore();
@@ -433,6 +449,40 @@ const saveCurrentOrAll = async () => {
     snackbar.addMessage(e instanceof Error ? e.message : String(e));
   } finally {
     savingLocal.value = false;
+  }
+};
+
+const downloadGalleryCbz = async () => {
+  if (!props.current || cbzDownloading.value) return;
+  const gallery = files.value.filter(
+    (f) => inkbunnyFileIsDisplayableMedia(f) && inkbunnyFileUrl(f),
+  );
+  if (gallery.length < 2) return;
+  cbzDownloading.value = true;
+  try {
+    const entries = gallery.map((file, i) => ({
+      url: inkbunnyFileUrl(file),
+      archiveName: comicCbzArchiveName(
+        i + 1,
+        inkbunnyFileUrl(file),
+        inkbunnyFileExt(file),
+      ),
+    }));
+    const { ok, failed } = await downloadComicCbz(entries, {
+      filename: buildComicCbzFilename(artist.value, title.value),
+      onProgress: ({ done, total }) => {
+        if (done % 3 === 0 || done === total) {
+          snackbar.addMessage(`CBZ: ${done}/${total}…`);
+        }
+      },
+    });
+    snackbar.addMessage(
+      `Downloaded CBZ (${ok} pages${failed ? `, ${failed} failed` : ""})`,
+    );
+  } catch (e: unknown) {
+    snackbar.addMessage(e instanceof Error ? e.message : String(e));
+  } finally {
+    cbzDownloading.value = false;
   }
 };
 

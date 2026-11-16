@@ -67,6 +67,28 @@
         <v-icon size="18" start>mdi-download-multiple</v-icon>
         <span class="pool-reader-label">Save all</span>
       </v-btn>
+      <v-btn
+        size="small"
+        variant="outlined"
+        :loading="downloadingChunkCbz"
+        :disabled="loading || downloadingAllCbz || !savableInChunk"
+        title="Download this chunk as CBZ"
+        @click="emit('download-cbz-chunk')"
+      >
+        <v-icon size="18" start>mdi-book-arrow-down</v-icon>
+        <span class="pool-reader-label">CBZ chunk</span>
+      </v-btn>
+      <v-btn
+        size="small"
+        variant="outlined"
+        :loading="downloadingAllCbz"
+        :disabled="loading || downloadingChunkCbz || !totalCount"
+        title="Download entire pool as CBZ"
+        @click="emit('download-cbz-all')"
+      >
+        <v-icon size="18" start>mdi-book-arrow-down-outline</v-icon>
+        <span class="pool-reader-label">CBZ all</span>
+      </v-btn>
     </div>
 
     <div v-if="loading && !posts.length" class="pool-reader-grid" :style="gridStyle">
@@ -221,7 +243,8 @@
       </p>
       <p class="mb-0">
         Save chunk downloads this page range locally; Save all walks the whole
-        pool. Fullscreen continues across chunks when you page next/prev.
+        pool. **CBZ chunk** / **CBZ all** build one ZIP comic archive instead.
+        Fullscreen continues across chunks when you page next/prev.
       </p>
     </TipDialog>
   </div>
@@ -280,6 +303,8 @@ const props = defineProps<{
   focusPostId?: number;
   savingChunk?: boolean;
   savingAll?: boolean;
+  downloadingChunkCbz?: boolean;
+  downloadingAllCbz?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -289,6 +314,8 @@ const emit = defineEmits<{
   (e: "focus-applied"): void;
   (e: "save-chunk"): void;
   (e: "save-all"): void;
+  (e: "download-cbz-chunk"): void;
+  (e: "download-cbz-all"): void;
 }>();
 
 const viewMode = ref<PoolViewMode>(loadComicViewMode(VIEW_MODE_KEY));

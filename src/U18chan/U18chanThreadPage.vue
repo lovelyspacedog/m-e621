@@ -94,6 +94,17 @@
         >
           <span class="u18-view-label">Download dump</span>
         </v-btn>
+        <v-btn
+          v-if="thread && dumpPages.length > 1"
+          size="small"
+          variant="outlined"
+          :loading="cbzDownloading"
+          prepend-icon="mdi-book-arrow-down"
+          title="Download dump as one CBZ (ZIP) file"
+          @click="downloadDumpCbz"
+        >
+          <span class="u18-view-label">Download CBZ</span>
+        </v-btn>
         <dedicated-grid-size-control
           v-if="viewMode === 'gallery'"
           variant="menu"
@@ -362,6 +373,11 @@ import {
 } from "@/misc/util/u18chanImageDump";
 import { useSavedPostsStore, useSnackbarStore, useWatchedU18chanStore } from "@/services";
 import { downloadU18chanImage, downloadU18chanImages } from "@/misc/util/u18chanDownload";
+import {
+  buildComicCbzFilename,
+  downloadComicCbz,
+  entriesFromUrls,
+} from "@/misc/util/comicCbzDownload";
 import U18chanComposeForm from "./U18chanComposeForm.vue";
 import DedicatedGridSizeControl from "@/misc/components/DedicatedGridSizeControl.vue";
 import { useDedicatedGridStyle } from "@/misc/util/dedicatedGridMin";
@@ -379,6 +395,7 @@ const snackbar = useSnackbarStore();
 
 const loading = ref(false);
 const downloading = ref(false);
+const cbzDownloading = ref(false);
 const posting = ref(false);
 const error = ref<string | null>(null);
 const thread = ref<U18chanThread | null>(null);
@@ -472,6 +489,33 @@ const downloadDump = async () => {
     snackbar.addMessage(e instanceof Error ? e.message : "Download failed");
   } finally {
     downloading.value = false;
+  }
+};
+
+const downloadDumpCbz = async () => {
+  const urls = dumpPages.value
+    .map((p) => p.image.fullUrl)
+    .filter(Boolean)
+    .map((u) => u18chanMediaUrl(u));
+  if (urls.length < 2 || cbzDownloading.value) return;
+  cbzDownloading.value = true;
+  try {
+    const subject = thread.value?.subject || `thread-${topicId.value}`;
+    const { ok, failed } = await downloadComicCbz(entriesFromUrls(urls), {
+      filename: buildComicCbzFilename(indexBoard.value, subject),
+      onProgress: ({ done, total }) => {
+        if (done % 10 === 0 || done === total) {
+          snackbar.addMessage(`CBZ: ${done}/${total}…`);
+        }
+      },
+    });
+    snackbar.addMessage(
+      `Downloaded CBZ (${ok} pages${failed ? `, ${failed} failed` : ""})`,
+    );
+  } catch (e) {
+    snackbar.addMessage(e instanceof Error ? e.message : "CBZ download failed");
+  } finally {
+    cbzDownloading.value = false;
   }
 };
 

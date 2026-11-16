@@ -16,10 +16,11 @@ export interface ChangelogSection {
 export const changelogSections: ChangelogSection[] = [
   {
     date: "2026-11-16",
-    title: "Tailspace posts",
+    title: "Tailspace, CBZ downloads, and proxy fixes",
     items: [
       "Tailspace Posts loads again after Tailspace moved browse posts to the Remix browse-posts.data feed (replacing the retired JSON paginated API)",
       "Tailspace comic readers decode multi-line turbo-stream `.data` responses (deferred P-lines) instead of failing JSON parse",
+      "Download CBZ (ZIP comic archive) on Tailspace comics, u18chan thread dumps, pool readers (chunk or all), and Inkbunny multi-file galleries",
     ],
   },
   {

@@ -104,6 +104,17 @@
             variant="menu"
           />
           <v-btn
+            v-if="comic && comic.pages.length"
+            size="small"
+            variant="outlined"
+            :loading="cbzDownloading"
+            prepend-icon="mdi-book-arrow-down"
+            title="Download all pages as a CBZ (ZIP) archive"
+            @click="downloadComicCbz"
+          >
+            Download CBZ
+          </v-btn>
+          <v-btn
             v-if="comic"
             :href="comicUrl(comic.name)"
             target="_blank"
@@ -448,7 +459,12 @@ import {
 import { useTailspaceSession } from "./useTailspaceSession";
 import DedicatedGridSizeControl from "@/misc/components/DedicatedGridSizeControl.vue";
 import { useDedicatedGridStyle } from "@/misc/util/dedicatedGridMin";
-import { useSiteModeStore, useWatchedComicsStore } from "@/services";
+import { useSiteModeStore, useSnackbarStore, useWatchedComicsStore } from "@/services";
+import {
+  buildComicCbzFilename,
+  comicCbzArchiveName,
+  downloadComicCbz as downloadComicCbzArchive,
+} from "@/misc/util/comicCbzDownload";
 
 const gridStyle = useDedicatedGridStyle([110, 130, 140]);
 import {
@@ -497,6 +513,8 @@ const followLoading = ref(false);
 const commentDraft = ref("");
 const commentSending = ref(false);
 const actionError = ref<string | null>(null);
+const cbzDownloading = ref(false);
+const snackbar = useSnackbarStore();
 
 const comicWatched = computed(() =>
   comic.value ? watchedComics.isWatched(comic.value.id) : false,
@@ -509,6 +527,33 @@ const comicWatchSnapshot = (c: TailspaceComicDetail) => ({
 const onToggleWatch = () => {
   if (!comic.value) return;
   watchedComics.toggle(comic.value.id, comic.value.name, comicWatchSnapshot(comic.value));
+};
+
+const downloadComicCbz = async () => {
+  const c = comic.value;
+  if (!c?.pages?.length || cbzDownloading.value) return;
+  cbzDownloading.value = true;
+  try {
+    const sorted = [...c.pages].sort((a, b) => a.pageNumber - b.pageNumber);
+    const entries = sorted.map((page, i) => ({
+      url: comicPageFull(c.id, page.token, page.fileType),
+      archiveName: comicCbzArchiveName(i + 1, page.token, page.fileType),
+    }));
+    const { ok, failed } = await downloadComicCbzArchive(entries, {
+      filename: buildComicCbzFilename(c.artistDisplayName, c.name),
+      onProgress: ({ done, total }) => {
+        if (done % 5 === 0 || done === total) {
+          snackbar.addMessage(`CBZ: ${done}/${total} pages…`);
+        }
+      },
+    });
+    const extras = failed ? ` (${failed} failed)` : "";
+    snackbar.addMessage(`Downloaded CBZ (${ok} pages${extras})`);
+  } catch (err: unknown) {
+    snackbar.addMessage(err instanceof Error ? err.message : String(err));
+  } finally {
+    cbzDownloading.value = false;
+  }
 };
 
 watch(viewMode, (mode) => {

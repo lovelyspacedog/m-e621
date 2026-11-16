@@ -30,12 +30,16 @@
         :focus-post-id="pendingScrollPostId"
         :saving-chunk="savingChunk"
         :saving-all="savingAll"
+        :downloading-chunk-cbz="downloadingChunkCbz"
+        :downloading-all-cbz="downloadingAllCbz"
         @open-post="onOpenPostFromReader"
         @change-chunk="setChunk"
         @view-mode-change="onViewModeChange"
         @focus-applied="onFocusApplied"
         @save-chunk="saveChunkLocally"
         @save-all="saveAllLocally"
+        @download-cbz-chunk="downloadChunkCbz"
+        @download-cbz-all="downloadAllCbz"
       />
       <fullscreen-dialog
         :has-previous-fullscreen-post="hasPreviousFullscreenPost"
@@ -105,6 +109,11 @@ import {
 } from "@/misc/util/poolOrigin";
 import type { PoolOriginMode } from "@/services/types";
 import { savePostsLocally } from "@/misc/util/saveLocal";
+import {
+  buildComicCbzFilename,
+  comicCbzArchiveName,
+  downloadComicCbz,
+} from "@/misc/util/comicCbzDownload";
 
 const route = useRoute();
 const main = useMainStore();
@@ -127,6 +136,8 @@ const chunkLoading = ref(false);
 const flufflePost = ref<EnhancedPost | null>(null);
 const savingChunk = ref(false);
 const savingAll = ref(false);
+const downloadingChunkCbz = ref(false);
+const downloadingAllCbz = ref(false);
 /** When true, chunk URL changed because the post list advanced — skip replace fetch. */
 const syncingChunkFromList = ref(false);
 /** When true, ?post= changed from fullscreen nav — skip applyFocus echo. */
@@ -352,6 +363,97 @@ const saveChunkLocally = async () => {
     await savePostsLocally(eligible, { concurrency: 2 });
   } finally {
     savingChunk.value = false;
+  }
+};
+
+const poolCbzFilename = () =>
+  buildComicCbzFilename(poolOrigin.value || "pool", poolMeta.value?.name || String(poolId.value));
+
+const postsToCbzEntries = (eligible: EnhancedPost[], sequenceOffset = 0) =>
+  eligible
+    .filter((post) => post.file?.url && !post.__meta?.isBlacklisted)
+    .map((post, i) => ({
+      url: post.file!.url!,
+      archiveName: comicCbzArchiveName(sequenceOffset + i + 1, post.file!.url!),
+    }));
+
+const downloadChunkCbz = async () => {
+  if (downloadingChunkCbz.value || downloadingAllCbz.value) return;
+  const eligible = posts.value.filter(
+    (post) =>
+      chunkIds.value.includes(post.id) &&
+      !!post.file?.url &&
+      !post.__meta?.isBlacklisted,
+  );
+  const entries = postsToCbzEntries(eligible);
+  if (!entries.length) {
+    snackbar.addMessage("Nothing to download in this chunk");
+    return;
+  }
+  downloadingChunkCbz.value = true;
+  try {
+    const { ok, failed } = await downloadComicCbz(entries, {
+      filename: poolCbzFilename(),
+      onProgress: ({ done, total }) => {
+        if (done % 5 === 0 || done === total) {
+          snackbar.addMessage(`CBZ: ${done}/${total}…`);
+        }
+      },
+    });
+    snackbar.addMessage(
+      `Downloaded CBZ (${ok} pages${failed ? `, ${failed} failed` : ""})`,
+    );
+  } catch (err: unknown) {
+    snackbar.addMessage(err instanceof Error ? err.message : String(err));
+  } finally {
+    downloadingChunkCbz.value = false;
+  }
+};
+
+const downloadAllCbz = async () => {
+  if (downloadingChunkCbz.value || downloadingAllCbz.value) return;
+  const ids = poolMeta.value?.post_ids || [];
+  if (!ids.length) {
+    snackbar.addMessage("Nothing to download");
+    return;
+  }
+  const totalChunks = Math.max(1, Math.ceil(ids.length / chunkSize.value));
+  if (
+    ids.length > 50 &&
+    !window.confirm(
+      `Download all ${ids.length} pool pages as one CBZ? This may take a while.`,
+    )
+  ) {
+    return;
+  }
+  downloadingAllCbz.value = true;
+  try {
+    const entries: { url: string; archiveName: string }[] = [];
+    for (let pageNumber = 1; pageNumber <= totalChunks; pageNumber++) {
+      const batch = await fetchChunkPosts(pageNumber);
+      const eligible = batch.filter(
+        (post) => !!post.file?.url && !post.__meta?.isBlacklisted,
+      );
+      entries.push(...postsToCbzEntries(eligible, entries.length));
+      snackbar.addMessage(`CBZ gather ${pageNumber}/${totalChunks}…`);
+    }
+    if (!entries.length) throw new Error("No downloadable pages in this pool");
+    const { ok, failed } = await downloadComicCbz(entries, {
+      filename: poolCbzFilename(),
+      confirmOver: 99999,
+      onProgress: ({ done, total }) => {
+        if (done % 10 === 0 || done === total) {
+          snackbar.addMessage(`CBZ zip: ${done}/${total}…`);
+        }
+      },
+    });
+    snackbar.addMessage(
+      `Downloaded CBZ (${ok} pages${failed ? `, ${failed} failed` : ""})`,
+    );
+  } catch (err: unknown) {
+    snackbar.addMessage(err instanceof Error ? err.message : String(err));
+  } finally {
+    downloadingAllCbz.value = false;
   }
 };
 
