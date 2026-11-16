@@ -632,7 +632,11 @@ export function tailspaceProxy(): Plugin {
 
 const TS_SENTINELS: Record<number, unknown> = { [-5]: null, [-6]: true, [-7]: false };
 
-function tsDecodePool(pool: unknown[]): unknown {
+function tsDecodePool(
+  pool: unknown[],
+  root = 0,
+  deferredResolved: Map<number, unknown> = new Map(),
+): unknown {
   const cache = new Map<number, unknown>();
 
   function decode(ref: unknown): unknown {
@@ -648,9 +652,16 @@ function tsDecodePool(pool: unknown[]): unknown {
 
   function decodeVal(val: unknown): unknown {
     if (Array.isArray(val)) {
-      // Typed values: ["D", ms] is a Date literal — do NOT treat ms as a pool ref.
-      if (val.length >= 2 && val[0] === 'D') {
-        return typeof val[1] === 'number' ? val[1] : null;
+      if (val.length >= 2) {
+        if (val[0] === 'D') {
+          return typeof val[1] === 'number' ? val[1] : null;
+        }
+        if (val[0] === 'P' && typeof val[1] === 'number') {
+          return deferredResolved.get(val[1]);
+        }
+        if (val[0] === 'Z' && typeof val[1] === 'number') {
+          return decode(val[1]);
+        }
       }
       return val.map((item) => (typeof item === 'number' ? decode(item) : decodeVal(item)));
     }
@@ -671,7 +682,32 @@ function tsDecodePool(pool: unknown[]): unknown {
     return val;
   }
 
-  return decode(0);
+  return decode(root);
+}
+
+function decodeTailspaceDataText(text: string): unknown {
+  const trimmed = text.trim();
+  if (!trimmed) throw new Error('empty Tailspace data response');
+  const newline = trimmed.indexOf('\n');
+  const firstLine = newline === -1 ? trimmed : trimmed.slice(0, newline);
+  const rest = newline === -1 ? '' : trimmed.slice(newline + 1);
+  const pool = JSON.parse(firstLine) as unknown;
+  if (!Array.isArray(pool)) return pool;
+
+  const deferredResolved = new Map<number, unknown>();
+  for (const line of rest.split('\n')) {
+    const l = line.trim();
+    if (!l.startsWith('P') || !l.includes(':')) continue;
+    const colon = l.indexOf(':');
+    const deferredId = Number(l.slice(1, colon));
+    if (!Number.isInteger(deferredId)) continue;
+    const patch = JSON.parse(l.slice(colon + 1)) as unknown;
+    if (!Array.isArray(patch)) continue;
+    const start = pool.length;
+    pool.push(...patch);
+    deferredResolved.set(deferredId, tsDecodePool(pool, start, deferredResolved));
+  }
+  return tsDecodePool(pool, 0, deferredResolved);
 }
 
 function findPostsPayload(obj: unknown): Record<string, unknown> | null {
@@ -848,13 +884,8 @@ function findComicDetail(obj: unknown): Record<string, unknown> | null {
 }
 
 function parseTailspaceComicDetail(text: string) {
-  const data = JSON.parse(text.trim()) as unknown;
-  let comic: Record<string, unknown> | null = null;
-  if (data && typeof data === 'object' && !Array.isArray(data)) {
-    comic = findComicDetail(data);
-  } else if (Array.isArray(data)) {
-    comic = findComicDetail(tsDecodePool(data));
-  }
+  const decoded = decodeTailspaceDataText(text);
+  const comic = findComicDetail(decoded);
   if (!comic) throw new Error('comic pages not found in response');
   const pages = ((comic.pages as unknown[]) || [])
     .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null && !!(p as Record<string, unknown>).token)
@@ -885,7 +916,6 @@ function parseTailspaceComicDetail(text: string) {
   const comments = Array.isArray(comic.comments)
     ? normalizeComments(comic.comments)
     : [];
-  const decoded = Array.isArray(data) ? tsDecodePool(data) : data;
   const routeYourStars = findKey(decoded, 'yourStars');
   const routeBookmarked = findKey(decoded, 'isBookmarked') ?? findKey(decoded, 'bookmarked');
   const yourStars =
@@ -954,16 +984,14 @@ function normalizeComments(comments: unknown[]): Record<string, unknown>[] {
 }
 
 function parseTailspaceComments(text: string): Record<string, unknown>[] {
-  const trimmed = text.trim();
-  const data = JSON.parse(trimmed) as unknown;
-  if (data && typeof data === 'object' && !Array.isArray(data)) {
-    const direct = (data as Record<string, unknown>).comments;
-    if (Array.isArray(direct)) return normalizeComments(direct);
-  }
-  if (Array.isArray(data)) {
-    const decoded = tsDecodePool(data);
+  try {
+    const decoded = decodeTailspaceDataText(text);
+    if (decoded && typeof decoded === 'object' && !Array.isArray(decoded)) {
+      const direct = (decoded as Record<string, unknown>).comments;
+      if (Array.isArray(direct)) return normalizeComments(direct);
+    }
     const found = findKey(decoded, 'comments');
     if (Array.isArray(found)) return normalizeComments(found);
-  }
+  } catch { /* ignore */ }
   return [];
 }

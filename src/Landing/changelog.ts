@@ -19,6 +19,7 @@ export const changelogSections: ChangelogSection[] = [
     title: "Tailspace posts",
     items: [
       "Tailspace Posts loads again after Tailspace moved browse posts to the Remix browse-posts.data feed (replacing the retired JSON paginated API)",
+      "Tailspace comic readers decode multi-line turbo-stream `.data` responses (deferred P-lines) instead of failing JSON parse",
     ],
   },
   {

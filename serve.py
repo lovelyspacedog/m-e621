@@ -961,9 +961,15 @@ def _start_pull() -> bool:
 _TS_SENTINELS: dict[int, object] = {-5: None, -6: True, -7: False}
 
 
-def _ts_decode_pool(pool: list) -> object:
+def _ts_decode_pool(
+    pool: list,
+    *,
+    root: int = 0,
+    deferred_resolved: dict[int, object] | None = None,
+) -> object:
     """Walk a turbo-stream flat pool and return the decoded root value."""
     cache: dict[int, object] = {}
+    resolved = deferred_resolved or {}
 
     def decode(ref: object) -> object:
         if not isinstance(ref, int):
@@ -995,14 +1001,56 @@ def _ts_decode_pool(pool: list) -> object:
                     result[k] = decode(v) if isinstance(v, int) else decode_val(v)
             return result
         if isinstance(val, list):
-            # Typed values: ["D", ms] is a Date literal — do NOT treat ms as a pool ref.
-            if len(val) >= 2 and val[0] == "D":
-                ms = val[1]
-                return ms if isinstance(ms, (int, float)) else None
+            if len(val) >= 2:
+                head = val[0]
+                # Typed values: ["D", ms] is a Date literal — do NOT treat ms as a pool ref.
+                if head == "D":
+                    ms = val[1]
+                    return ms if isinstance(ms, (int, float)) else None
+                # Turbo-stream v2 deferred / back-reference (comic `.data` may stream these).
+                if head == "P" and isinstance(val[1], int):
+                    return resolved.get(val[1])
+                if head == "Z" and isinstance(val[1], int):
+                    return decode(val[1])
             return [decode(item) if isinstance(item, int) else decode_val(item) for item in val]
         return val
 
-    return decode(0)
+    return decode(root)
+
+
+def _decode_tailspace_data_text(text: str) -> object:
+    """Decode a Tailspace `.data` body (single-line pool or multi-line turbo-stream v2)."""
+    trimmed = (text or "").strip()
+    if not trimmed:
+        raise ValueError("empty Tailspace data response")
+    first_line, _, rest = trimmed.partition("\n")
+    pool = json.loads(first_line)
+    if not isinstance(pool, list):
+        return pool
+
+    deferred_resolved: dict[int, object] = {}
+    for line in (rest or "").splitlines():
+        line = line.strip()
+        if not line or line[0] != "P" or ":" not in line:
+            continue
+        colon = line.index(":")
+        try:
+            deferred_id = int(line[1:colon])
+        except ValueError:
+            continue
+        try:
+            patch = json.loads(line[colon + 1 :])
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(patch, list):
+            continue
+        start = len(pool)
+        pool.extend(patch)
+        deferred_resolved[deferred_id] = _ts_decode_pool(
+            pool, root=start, deferred_resolved=deferred_resolved
+        )
+
+    return _ts_decode_pool(pool, deferred_resolved=deferred_resolved)
 
 
 def _find_key(obj: object, key: str) -> object | None:
@@ -1094,19 +1142,17 @@ def _extract_comics_payload(data: dict) -> dict:
 def _parse_tailspace_post_comments(raw: bytes) -> list:
     """Extract the comments array from a post .data turbo-stream response."""
     text = raw.decode("utf-8", errors="replace").strip()
-    data = json.loads(text)
-    if isinstance(data, dict):
-        comments = data.get("comments")
+    try:
+        decoded = _decode_tailspace_data_text(text)
+    except (json.JSONDecodeError, ValueError):
+        return []
+    if isinstance(decoded, dict):
+        comments = decoded.get("comments")
         if isinstance(comments, list):
             return _normalize_comments(comments)
-        found = _find_key(data, "comments")
-        if isinstance(found, list):
-            return _normalize_comments(found)
-    if isinstance(data, list):
-        decoded = _ts_decode_pool(data)
-        found = _find_key(decoded, "comments")
-        if isinstance(found, list):
-            return _normalize_comments(found)
+    found = _find_key(decoded, "comments")
+    if isinstance(found, list):
+        return _normalize_comments(found)
     return []
 
 
@@ -1188,12 +1234,8 @@ def _normalize_comic_page(page: dict) -> dict:
 def _parse_tailspace_comic_detail(raw: bytes) -> dict:
     """Parse /c/{name}.data into { comic meta + pages }."""
     text = raw.decode("utf-8", errors="replace").strip()
-    data = json.loads(text)
-    comic = None
-    if isinstance(data, dict):
-        comic = _find_comic_detail(data)
-    elif isinstance(data, list):
-        comic = _find_comic_detail(_ts_decode_pool(data))
+    decoded = _decode_tailspace_data_text(text)
+    comic = _find_comic_detail(decoded)
     if comic is None:
         raise ValueError("comic pages not found in response")
     pages = [
@@ -1205,9 +1247,6 @@ def _parse_tailspace_comic_detail(raw: bytes) -> dict:
     artist = comic.get("artist") if isinstance(comic.get("artist"), dict) else {}
     raw_comments = comic.get("comments") if isinstance(comic.get("comments"), list) else []
     comments = _normalize_comments(raw_comments)
-    decoded = data
-    if isinstance(data, list):
-        decoded = _ts_decode_pool(data)
     route_stars = _find_key(decoded, "yourStars")
     route_bookmarked = _find_key(decoded, "isBookmarked")
     if route_bookmarked is None:
