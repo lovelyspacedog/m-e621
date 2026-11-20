@@ -15,6 +15,13 @@ export interface ChangelogSection {
  */
 export const changelogSections: ChangelogSection[] = [
   {
+    date: "2026-11-20",
+    title: "e621 feed fix",
+    items: [
+      "e621 and e6ai post feeds load again after upstream posts.json started returning a bare post array instead of { posts }",
+    ],
+  },
+  {
     date: "2026-11-16",
     title: "Tailspace, CBZ downloads, and proxy fixes",
     items: [

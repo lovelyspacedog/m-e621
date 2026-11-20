@@ -1,4 +1,4 @@
-import type { Posts, Tag, TagAlias, Pool, Comment, Note } from "./returnTypes";
+import type { Post, Posts, Tag, TagAlias, Pool, Comment, Note } from "./returnTypes";
 import type {
   IPostsListArgs,
   ITagsListArgs,
@@ -16,6 +16,24 @@ export * from "./requestTypes";
 
 const version = getGitInfo()[0]?.hash?.substring(0, 7) ?? "0.0.0";
 const clientHeader = `PawDeck/${version} (fork of Material e621)`;
+const e621UserAgent = `${clientHeader} (+https://github.com/lovelyspacedog/m-e621)`;
+
+/** e621 now returns a bare post array from posts.json; older clients expected `{ posts }`. */
+export const normalizeE621PostsPayload = (
+  data: Posts | Post[] | null | undefined,
+): Posts => {
+  if (Array.isArray(data)) return { posts: data };
+  if (data && Array.isArray(data.posts)) return data;
+  return { posts: [] };
+};
+
+const e621FetchHeaders = (
+  auth?: { login: string; api_key: string },
+): Record<string, string> => ({
+  Accept: "application/json",
+  "User-Agent": e621UserAgent,
+  ...getAuthHeader(auth),
+});
 
 const buildUrl = (baseUrl: string, path: string, params: Record<string, unknown> = {}) => {
   const url = new URL(`${baseUrl}${path}`);
@@ -103,7 +121,9 @@ export const e621 = {
       });
       // Use Authorization header instead of query params so credentials
       // don't appear in browser history, proxies, or Referer headers.
-      return fetchJson<Posts>(url, { headers: getAuthHeader(args?.auth) })
+      return fetchJson<Posts | Post[]>(url, {
+        headers: e621FetchHeaders(args?.auth),
+      }).then(normalizeE621PostsPayload);
     },
   },
   tags: {
@@ -114,7 +134,9 @@ export const e621 = {
         "search[name_matches]": args.query,
         "search[name]": args.name,
       });
-      return fetchJson<Tag[] | { tags: [] }>(url);
+      return fetchJson<Tag[] | { tags: [] }>(url, {
+        headers: e621FetchHeaders(args.auth),
+      });
     },
   },
   tagAliases: {
@@ -124,7 +146,7 @@ export const e621 = {
         "search[order]": args.order,
         "search[name_matches]": args.query,
       });
-      return fetchJson<TagAlias[]>(url);
+      return fetchJson<TagAlias[]>(url, { headers: e621FetchHeaders() });
     },
   },
   pools: {
@@ -149,11 +171,11 @@ export const e621 = {
         "search[creator_name]": args.creatorName,
         "search[category]": args.category,
       });
-      return fetchJson<Pool[]>(url, { headers: getAuthHeader(args.auth) });
+      return fetchJson<Pool[]>(url, { headers: e621FetchHeaders(args.auth) });
     },
     get(args: IGetPoolArgs) {
       const url = buildUrl(args.baseUrl, `pools/${+args.id}.json`);
-      return fetchJson<Pool>(url, { headers: getAuthHeader(args.auth) });
+      return fetchJson<Pool>(url, { headers: e621FetchHeaders(args.auth) });
     },
   },
   comments: {
@@ -164,7 +186,7 @@ export const e621 = {
         "group_by": "comment",
         limit: args.limit ?? 100,
       });
-      return fetchJson<Comment[]>(url, { headers: getAuthHeader(args.auth) });
+      return fetchJson<Comment[]>(url, { headers: e621FetchHeaders(args.auth) });
     },
   },
   notes: {
@@ -173,14 +195,14 @@ export const e621 = {
         "search[post_id]": args.postId,
         limit: args.limit ?? 100,
       });
-      return fetchJson<Note[]>(url, { headers: getAuthHeader(args.auth) });
+      return fetchJson<Note[]>(url, { headers: e621FetchHeaders(args.auth) });
     },
   },
   users: {
     get(args: { baseUrl: string; name: string; auth?: { login: string; api_key: string } }) {
       const url = buildUrl(args.baseUrl, `users/${encodeURIComponent(args.name)}.json`);
       return fetchJson<{ name: string; id: number }>(url, {
-        headers: getAuthHeader(args.auth),
+        headers: e621FetchHeaders(args.auth),
       });
     },
   },
@@ -189,7 +211,7 @@ export const e621 = {
       const url = buildUrl(args.baseUrl, "favorites.json", {
         limit: args.limit ?? 1,
       });
-      return fetchJson<unknown>(url, { headers: getAuthHeader(args.auth) });
+      return fetchJson<unknown>(url, { headers: e621FetchHeaders(args.auth) });
     },
   },
 };

@@ -33,9 +33,12 @@ suite("live smoke (LIVE=1)", () => {
         },
       });
       expect(res.ok, `e621 HTTP ${res.status}`).toBe(true);
-      const data = (await res.json()) as { posts?: Array<{ id?: number }> };
-      expect(data.posts?.length).toBeGreaterThanOrEqual(1);
-      expect(Number(data.posts![0].id)).toBeGreaterThan(0);
+      const data = (await res.json()) as
+        | Array<{ id?: number }>
+        | { posts?: Array<{ id?: number }> };
+      const posts = Array.isArray(data) ? data : data.posts ?? [];
+      expect(posts.length).toBeGreaterThanOrEqual(1);
+      expect(Number(posts[0].id)).toBeGreaterThan(0);
     },
     20_000,
   );
