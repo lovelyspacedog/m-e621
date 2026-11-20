@@ -12,6 +12,7 @@ import { applyActiveProfileToMirrors, createEmptySiteProfile, profileFromMirrors
 import { normalizeSavedSearches } from "./savedSearchNormalize";
 import { supportsLocalBrowse } from "@/misc/util/tauriLocalFs";
 import { clampDedicatedGridMinPx } from "@/misc/util/dedicatedGridMin";
+import { normalizeE6aiApiBaseUrl } from "@/misc/util/e6aiBaseUrl";
 
 localforage.config({
   description: "",
@@ -1039,6 +1040,14 @@ class PersistanceService {
       }
       newState.configVersion = 59;
     }
+    if (newState.configVersion < 60) {
+      if (newState.profiles?.e6ai?.baseUrl) {
+        newState.profiles.e6ai.baseUrl = normalizeE6aiApiBaseUrl(
+          newState.profiles.e6ai.baseUrl,
+        );
+      }
+      newState.configVersion = 60;
+    }
     if (
       newState.previousModeBeforeUnified !== null &&
       newState.previousModeBeforeUnified !== undefined &&
@@ -1269,7 +1278,9 @@ class PersistanceService {
     }
     // Normalize base URLs
     newState.profiles.e621.baseUrl = newState.profiles.e621.baseUrl || SITE_MODE_URLS.e621;
-    newState.profiles.e6ai.baseUrl = newState.profiles.e6ai.baseUrl || SITE_MODE_URLS.e6ai;
+    newState.profiles.e6ai.baseUrl = normalizeE6aiApiBaseUrl(
+      newState.profiles.e6ai.baseUrl || SITE_MODE_URLS.e6ai,
+    );
     newState.profiles.furbooru.baseUrl = newState.profiles.furbooru.baseUrl || SITE_MODE_URLS.furbooru;
     newState.profiles.inkbunny.baseUrl = newState.profiles.inkbunny.baseUrl || SITE_MODE_URLS.inkbunny;
     newState.profiles.furaffinity.baseUrl = newState.profiles.furaffinity.baseUrl || SITE_MODE_URLS.furaffinity;

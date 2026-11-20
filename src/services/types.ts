@@ -225,7 +225,7 @@ export const defaultUnifiedSites = (): UnifiedSites => ({
 
 export const SITE_MODE_URLS: Record<SiteMode, string> = {
   e621: "https://e621.net/",
-  e6ai: "https://e6ai.net/",
+  e6ai: "https://e926.net/",
   local: "",
   tailspace: "https://tailspace.com/",
   u18chan: "https://u18chan.com/",

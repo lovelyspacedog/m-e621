@@ -33,6 +33,8 @@ const HOST_TO_MODE: Record<string, UnifiedChildMode> = {
   "www.e621.net": "e621",
   "e6ai.net": "e6ai",
   "www.e6ai.net": "e6ai",
+  "e926.net": "e6ai",
+  "www.e926.net": "e6ai",
   "furbooru.org": "furbooru",
   "www.furbooru.org": "furbooru",
   "inkbunny.net": "inkbunny",

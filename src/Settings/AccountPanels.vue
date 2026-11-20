@@ -176,7 +176,7 @@ const keySites: KeySite[] = [
     mode: "e6ai",
     label: "e6ai",
     showUsername: true,
-    apiItems: ["https://e6ai.net/"],
+    apiItems: ["https://e926.net/", "https://e6ai.net/"],
     favsName: "Favorites",
     favsTag: (username) => `fav:${username}`,
   },
