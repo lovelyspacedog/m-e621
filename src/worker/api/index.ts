@@ -11,6 +11,7 @@ import type {
 import { getGitInfo } from "@/misc/util/git";
 import type { SiteMode } from "@/services/types";
 import { adaptE621ApiPost } from "./e621AdaptPost";
+import { e621PostsRequestNeedsAuth } from "./e621PostsRequestNeedsAuth";
 
 export * from "./returnTypes";
 export * from "./requestTypes";
@@ -35,10 +36,11 @@ export const normalizeE621PostsPayload = (
 
 const e621FetchHeaders = (
   auth?: { login: string; api_key: string },
+  sendAuth = false,
 ): Record<string, string> => ({
   Accept: "application/json",
   "User-Agent": e621UserAgent,
-  ...getAuthHeader(auth),
+  ...(sendAuth ? getAuthHeader(auth) : {}),
 });
 
 const buildUrl = (baseUrl: string, path: string, params: Record<string, unknown> = {}) => {
@@ -80,7 +82,20 @@ const fetchJson = async <T>(url: string, options: RequestInit = {}, retries = 2)
   for (let attempt = 0; attempt <= retries; attempt++) {
     const response = await fetch(url, options);
     if (response.ok) {
-      return response.json();
+      const data = await response.json();
+      if (
+        data &&
+        typeof data === "object" &&
+        !Array.isArray(data) &&
+        (data as { success?: boolean }).success === false
+      ) {
+        const err = data as { message?: string; reason?: string };
+        const msg = err.message || err.reason;
+        throw new Error(
+          typeof msg === "string" && msg ? msg : "Fetch error",
+        );
+      }
+      return data as T;
     }
     // Rate limit / Philomena anti-bot (M12).
     if ((response.status === 429 || response.status === 501) && attempt < retries) {
@@ -127,8 +142,9 @@ export const e621 = {
       });
       // Use Authorization header instead of query params so credentials
       // don't appear in browser history, proxies, or Referer headers.
+      const sendAuth = e621PostsRequestNeedsAuth(args.tags);
       return fetchJson<Posts | Post[]>(url, {
-        headers: e621FetchHeaders(args?.auth),
+        headers: e621FetchHeaders(args?.auth, sendAuth),
       }).then(normalizeE621PostsPayload);
     },
   },
@@ -141,7 +157,7 @@ export const e621 = {
         "search[name]": args.name,
       });
       return fetchJson<Tag[] | { tags: [] }>(url, {
-        headers: e621FetchHeaders(args.auth),
+        headers: e621FetchHeaders(args.auth, false),
       });
     },
   },
@@ -152,7 +168,7 @@ export const e621 = {
         "search[order]": args.order,
         "search[name_matches]": args.query,
       });
-      return fetchJson<TagAlias[]>(url, { headers: e621FetchHeaders() });
+      return fetchJson<TagAlias[]>(url, { headers: e621FetchHeaders(undefined, false) });
     },
   },
   pools: {
@@ -177,11 +193,11 @@ export const e621 = {
         "search[creator_name]": args.creatorName,
         "search[category]": args.category,
       });
-      return fetchJson<Pool[]>(url, { headers: e621FetchHeaders(args.auth) });
+      return fetchJson<Pool[]>(url, { headers: e621FetchHeaders(args.auth, false) });
     },
     get(args: IGetPoolArgs) {
       const url = buildUrl(args.baseUrl, `pools/${+args.id}.json`);
-      return fetchJson<Pool>(url, { headers: e621FetchHeaders(args.auth) });
+      return fetchJson<Pool>(url, { headers: e621FetchHeaders(args.auth, false) });
     },
   },
   comments: {
@@ -192,7 +208,7 @@ export const e621 = {
         "group_by": "comment",
         limit: args.limit ?? 100,
       });
-      return fetchJson<Comment[]>(url, { headers: e621FetchHeaders(args.auth) });
+      return fetchJson<Comment[]>(url, { headers: e621FetchHeaders(args.auth, false) });
     },
   },
   notes: {
@@ -201,14 +217,14 @@ export const e621 = {
         "search[post_id]": args.postId,
         limit: args.limit ?? 100,
       });
-      return fetchJson<Note[]>(url, { headers: e621FetchHeaders(args.auth) });
+      return fetchJson<Note[]>(url, { headers: e621FetchHeaders(args.auth, false) });
     },
   },
   users: {
     get(args: { baseUrl: string; name: string; auth?: { login: string; api_key: string } }) {
       const url = buildUrl(args.baseUrl, `users/${encodeURIComponent(args.name)}.json`);
       return fetchJson<{ name: string; id: number }>(url, {
-        headers: e621FetchHeaders(args.auth),
+        headers: e621FetchHeaders(args.auth, Boolean(args.auth)),
       });
     },
   },
@@ -217,7 +233,7 @@ export const e621 = {
       const url = buildUrl(args.baseUrl, "favorites.json", {
         limit: args.limit ?? 1,
       });
-      return fetchJson<unknown>(url, { headers: e621FetchHeaders(args.auth) });
+      return fetchJson<unknown>(url, { headers: e621FetchHeaders(args.auth, true) });
     },
   },
 };

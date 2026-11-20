@@ -4,6 +4,7 @@ import type { ISettingsServiceState, SiteMode, SiteProfile } from "./types";
 import { BlacklistMode, SITE_MODE_URLS, UNGROUPED_FAVORITE_GROUP_ID, defaultUnifiedSites } from "./types";
 import { defaultVideoSites } from "@/misc/util/videoMode";
 import { emptySavedSearchGroups, normalizeSavedSearches } from "./savedSearchNormalize";
+import { normalizeE6aiApiBaseUrl } from "@/misc/util/e6aiBaseUrl";
 
 const cloneRaw = <T>(value: T, fallback: T): T => {
   if (value == null) return clone(fallback);
@@ -183,7 +184,8 @@ export const setLiveBaseUrl = (
   value: string,
 ) => {
   const profile = ensureSiteProfile(state, mode);
-  profile.baseUrl = value;
+  profile.baseUrl =
+    mode === "e6ai" ? normalizeE6aiApiBaseUrl(value) : value;
   if (
     state.activeMode === mode ||
     (state.activeMode === "unified" && mode === "e621")
@@ -191,7 +193,7 @@ export const setLiveBaseUrl = (
     if (!state.misc) state.misc = { urls: { e621: "", proxy: "" }, debugLogging: true };
     if (!state.misc.urls) state.misc.urls = { e621: "", proxy: "" };
     if (state.misc.debugLogging === undefined) state.misc.debugLogging = true;
-    state.misc.urls.e621 = value;
+    state.misc.urls.e621 = profile.baseUrl;
   }
 };
 

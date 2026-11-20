@@ -26,6 +26,19 @@ export const markAuthProbe = (
   probe.checkedAt = Date.now();
 };
 
+/** Map e621-family API auth errors to clearer copy for Account verify. */
+export const formatE621FamilyAuthError = (error: unknown): string => {
+  const raw = error instanceof Error ? error.message : String(error);
+  if (raw.includes("SessionLoader::AuthenticationFailure")) {
+    return [
+      "Credentials are invalid: SessionLoader::AuthenticationFailure.",
+      "Create the API key on the same host as your e6ai API URL (https://e926.net/).",
+      "e621 keys do not work on e6ai/e926.",
+    ].join(" ");
+  }
+  return `Credentials are invalid: ${raw}`;
+};
+
 export const clearAuthProbe = (probe: AuthProbe) => {
   probe.success = false;
   probe.message = "";

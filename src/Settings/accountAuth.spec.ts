@@ -4,6 +4,7 @@ import {
   clearAuthProbe,
   emptyAuth,
   formatAuthProbeHint,
+  formatE621FamilyAuthError,
   markAuthProbe,
 } from "@/Settings/accountAuth";
 
@@ -20,5 +21,13 @@ describe("accountAuth", () => {
     clearAuthProbe(probe);
     expect(probe.checkedAt).toBeNull();
     expect(authChipState(true, probe).label).toBe("Auth saved");
+  });
+
+  it("expands SessionLoader failures", () => {
+    const msg = formatE621FamilyAuthError(
+      new Error("SessionLoader::AuthenticationFailure"),
+    );
+    expect(msg).toContain("SessionLoader::AuthenticationFailure");
+    expect(msg).toContain("e926.net");
   });
 });

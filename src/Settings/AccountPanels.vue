@@ -133,6 +133,7 @@ import AccountU18chanPanel from "./account/AccountU18chanPanel.vue";
 import {
   clearAuthProbe,
   emptyAuth,
+  formatE621FamilyAuthError,
   markAuthProbe,
 } from "./accountAuth";
 import { useAccountFields } from "./useAccountFields";
@@ -176,7 +177,7 @@ const keySites: KeySite[] = [
     mode: "e6ai",
     label: "e6ai",
     showUsername: true,
-    apiItems: ["https://e926.net/", "https://e6ai.net/"],
+    apiItems: ["https://e926.net/"],
     favsName: "Favorites",
     favsTag: (username) => `fav:${username}`,
   },
@@ -268,7 +269,9 @@ const verifyKeySite = async (mode: KeySiteMode) => {
     markAuthProbe(
       verification[mode],
       false,
-      `Credentials are invalid: ${e instanceof Error ? e.message : String(e)}`,
+      mode === "furbooru"
+        ? `Credentials are invalid: ${e instanceof Error ? e.message : String(e)}`
+        : formatE621FamilyAuthError(e),
     );
   } finally {
     verification[mode].loading = false;

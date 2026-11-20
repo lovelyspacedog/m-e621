@@ -21,6 +21,7 @@ export const changelogSections: ChangelogSection[] = [
       "e621 and e6ai post feeds load again after upstream posts.json started returning a bare post array instead of { posts }",
       "e621 posts.json rows are adapted into PawDeck’s post model again (score under stats, media under files, flat tag lists)",
       "e6ai defaults to https://e926.net/ for API calls; saved profiles still on e6ai.net migrate on load so fetches do not fail when that host is unreachable",
+      "e6ai/e621 posts only send API credentials when the search needs login (invalid saved keys no longer break public browse); verify surfaces SessionLoader::AuthenticationFailure with e926 key guidance",
     ],
   },
   {
