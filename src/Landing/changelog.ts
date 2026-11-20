@@ -19,6 +19,7 @@ export const changelogSections: ChangelogSection[] = [
     title: "e621 feed fix",
     items: [
       "e621 and e6ai post feeds load again after upstream posts.json started returning a bare post array instead of { posts }",
+      "e621 posts.json rows are adapted into PawDeck’s post model again (score under stats, media under files, flat tag lists)",
     ],
   },
   {

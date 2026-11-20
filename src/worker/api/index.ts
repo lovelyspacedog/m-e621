@@ -10,6 +10,7 @@ import type {
 } from "./requestTypes";
 import { getGitInfo } from "@/misc/util/git";
 import type { SiteMode } from "@/services/types";
+import { adaptE621ApiPost } from "./e621AdaptPost";
 
 export * from "./returnTypes";
 export * from "./requestTypes";
@@ -18,12 +19,17 @@ const version = getGitInfo()[0]?.hash?.substring(0, 7) ?? "0.0.0";
 const clientHeader = `PawDeck/${version} (fork of Material e621)`;
 const e621UserAgent = `${clientHeader} (+https://github.com/lovelyspacedog/m-e621)`;
 
-/** e621 now returns a bare post array from posts.json; older clients expected `{ posts }`. */
+const adaptPostsList = (rows: unknown[]): Post[] =>
+  rows.map((row) => adaptE621ApiPost(row));
+
+/** e621 may return a bare post array and/or newer row shapes — normalize both. */
 export const normalizeE621PostsPayload = (
-  data: Posts | Post[] | null | undefined,
+  data: Posts | Post[] | unknown[] | null | undefined,
 ): Posts => {
-  if (Array.isArray(data)) return { posts: data };
-  if (data && Array.isArray(data.posts)) return data;
+  if (Array.isArray(data)) return { posts: adaptPostsList(data) };
+  if (data && Array.isArray((data as Posts).posts)) {
+    return { posts: adaptPostsList((data as Posts).posts) };
+  }
   return { posts: [] };
 };
 
